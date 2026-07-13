@@ -15,25 +15,22 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext dev",
-    "build": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext build",
-    "build:static": "vite build --config vite.static.config.ts --outDir dist-static",
-    "build:pages": "vite build --config vite.static.config.ts --outDir dist-static --base=/splitbill/",
+    "dev": "vite",
+    "build": "vite build",
+    "build:pages": "vite build --base=/splitbill/",
     "lint": "eslint . --max-warnings=0",
+    "preview": "vite preview",
     "test": "vitest run",
     "test:behavior": "vitest run src/behavior.test.tsx",
     "test:coverage": "vitest run --coverage",
-    "typecheck": "tsc --noEmit",
-    "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "lucide-react": "0.468.0",
-    "next": "16.2.6",
     "react": "19.2.6",
     "react-dom": "19.2.6"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "1.37.1",
     "@eslint/js": "^10.0.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
@@ -42,19 +39,15 @@
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.2",
-    "@vitejs/plugin-rsc": "0.5.26",
     "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^10.7.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.7.0",
     "jsdom": "^29.1.1",
-    "react-server-dom-webpack": "19.2.6",
     "typescript": "5.9.3",
     "typescript-eslint": "^8.63.0",
-    "vinext": "0.0.50",
-    "vite": "8.0.13",
-    "vitest": "^4.1.10",
-    "wrangler": "4.92.0"
+    "vite": "8.1.4",
+    "vitest": "^4.1.10"
   },
   "overrides": {
     "nanoid": "3.3.15"

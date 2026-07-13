@@ -8,9 +8,10 @@
 
 ## Validation
 
+- [ ] `npm run typecheck`
+- [ ] `npm run lint`
 - [ ] `npm run test:coverage`
-- [ ] `npx tsc -p tsconfig.app.json --noEmit`
-- [ ] `npm run build:static`
+- [ ] `npm run build:pages`
 - [ ] Browser QA completed for visible UI changes
 
 ## Screenshots

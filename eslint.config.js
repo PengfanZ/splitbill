@@ -7,11 +7,8 @@ import tseslint from 'typescript-eslint'
 export default defineConfig(
   {
     ignores: [
-      '.next/**',
-      '.wrangler/**',
       'coverage/**',
       'dist/**',
-      'dist-static/**',
       'node_modules/**',
     ],
   },

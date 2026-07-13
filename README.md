@@ -28,7 +28,7 @@ Tally is currently a frontend-only prototype. Activities, friends, and expenses 
 ## Tech stack
 
 - React 19 and TypeScript
-- Vinext / Vite
+- Vite
 - Lucide icons
 - Vitest and Testing Library
 - GitHub Actions for CI and deployment
@@ -60,9 +60,9 @@ Open [http://localhost:3000](http://localhost:3000).
 | `npm run test:behavior` | Run focused happy-path and edge-case scenarios |
 | `npm run test:coverage` | Run all tests and enforce 100% coverage |
 | `npm run typecheck` | Type-check every TypeScript and TSX file without emitting output |
-| `npm run build:static` | Build a root-hosted static artifact |
 | `npm run build:pages` | Build the static artifact with the GitHub Pages base path |
-| `npm run build` | Build through Vinext |
+| `npm run build` | Build a root-hosted production artifact |
+| `npm run preview` | Preview the production build locally |
 
 ## Project structure
 
@@ -97,7 +97,7 @@ The complete contract is documented in [TESTING.md](TESTING.md).
 
 ## Deployment
 
-Every pull request is tested and built by GitHub Actions. A successful `main` build is published from `dist-static` to GitHub Pages. The dormant [netlify.toml](netlify.toml) configuration prevents repository pushes from creating paid Netlify production deploys while preserving the previous host configuration for rollback.
+Every pull request is type-checked, linted, tested, and built by GitHub Actions. A successful `main` build is published from `dist` to GitHub Pages.
 
 ## Contributing
 

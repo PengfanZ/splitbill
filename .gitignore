@@ -1,11 +1,6 @@
 /node_modules
-/.next
-/.vinext
 /dist
-/dist-static
 /coverage
-/tally-static.zip
-/.wrangler
 /.env*
 *.tsbuildinfo
 npm-debug.log*
