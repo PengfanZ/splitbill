@@ -20,10 +20,10 @@ import {
   X,
 } from 'lucide-react'
 
-type Member = { id: string; name: string; initials: string; color: string }
-type ActivityGroup = { id: string; name: string; emoji: string; memberIds: string[] }
-type SplitMethod = 'equal' | 'exact'
-type Expense = {
+export type Member = { id: string; name: string; initials: string; color: string }
+export type ActivityGroup = { id: string; name: string; emoji: string; memberIds: string[] }
+export type SplitMethod = 'equal' | 'exact'
+export type Expense = {
   id: string
   groupId: string
   title: string
@@ -33,23 +33,23 @@ type Expense = {
   shares: Record<string, number>
   createdAt: string
 }
-type PersistedState = {
+export type PersistedState = {
   groups: ActivityGroup[]
   friends: Member[]
   expenses: Expense[]
   selectedGroupId: string | null
 }
 
-const STORAGE_KEY = 'tally:frontend:v2'
-const CURRENT_USER: Member = { id: 'me', name: 'You', initials: 'ME', color: '#ead1b9' }
+export const STORAGE_KEY = 'tally:frontend:v2'
+export const CURRENT_USER: Member = { id: 'me', name: 'You', initials: 'ME', color: '#ead1b9' }
 const FRIEND_COLORS = ['#d6e8dc', '#f6d5bd', '#d8dde8', '#f3d9da', '#d7e6ee', '#f1dda9']
-const EMPTY_STATE: PersistedState = { groups: [], friends: [], expenses: [], selectedGroupId: null }
+export const EMPTY_STATE: PersistedState = { groups: [], friends: [], expenses: [], selectedGroupId: null }
 
-const makeId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-const money = (value: number) => `$${Math.abs(value).toFixed(2)}`
-const initialsFor = (name: string) => name.trim().split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase()).join('') || '?'
+export const makeId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+export const money = (value: number) => `$${Math.abs(value).toFixed(2)}`
+export const initialsFor = (name: string) => name.trim().split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase()).join('') || '?'
 
-function parseState(stored: string | null): PersistedState {
+export function parseState(stored: string | null): PersistedState {
   try {
     if (!stored) return EMPTY_STATE
     const parsed = JSON.parse(stored) as Partial<PersistedState>
@@ -65,7 +65,7 @@ function parseState(stored: string | null): PersistedState {
   }
 }
 
-function loadState(): PersistedState {
+export function loadState(): PersistedState {
   try {
     return parseState(localStorage.getItem(STORAGE_KEY))
   } catch {
@@ -73,7 +73,7 @@ function loadState(): PersistedState {
   }
 }
 
-function saveState(state: PersistedState) {
+export function saveState(state: PersistedState) {
   try {
     const serialized = JSON.stringify(state)
     if (localStorage.getItem(STORAGE_KEY) !== serialized) localStorage.setItem(STORAGE_KEY, serialized)
@@ -82,11 +82,11 @@ function saveState(state: PersistedState) {
   }
 }
 
-function Avatar({ member, size = 'md' }: { member: Member; size?: 'sm' | 'md' | 'lg' }) {
+export function Avatar({ member, size = 'md' }: { member: Member; size?: 'sm' | 'md' | 'lg' }) {
   return <span className={`avatar avatar--${size}`} style={{ background: member.color }}>{member.initials}</span>
 }
 
-function Sidebar({ groups, selectedId, onSelect, onCreate, onReset }: {
+export function Sidebar({ groups, selectedId, onSelect, onCreate, onReset }: {
   groups: ActivityGroup[]
   selectedId: string | null
   onSelect: (id: string) => void
@@ -129,7 +129,7 @@ function Sidebar({ groups, selectedId, onSelect, onCreate, onReset }: {
   )
 }
 
-function Topbar({ query, setQuery }: { query: string; setQuery: (value: string) => void }) {
+export function Topbar({ query, setQuery }: { query: string; setQuery: (value: string) => void }) {
   return (
     <header className="topbar">
       <div className="search-box"><Search size={18} /><input aria-label="Search expenses" placeholder="Search this activity…" value={query} onChange={event => setQuery(event.target.value)} />{query ? <button onClick={() => setQuery('')} aria-label="Clear search"><X size={16} /></button> : null}</div>
@@ -139,7 +139,7 @@ function Topbar({ query, setQuery }: { query: string; setQuery: (value: string) 
   )
 }
 
-function FreshStart({ onCreate }: { onCreate: () => void }) {
+export function FreshStart({ onCreate }: { onCreate: () => void }) {
   return (
     <main className="fresh-start">
       <div className="fresh-illustration"><span><Users size={32} /></span><i /><i /><i /></div>
@@ -152,7 +152,7 @@ function FreshStart({ onCreate }: { onCreate: () => void }) {
   )
 }
 
-function ActivitySummary({ expenses }: { expenses: Expense[] }) {
+export function ActivitySummary({ expenses }: { expenses: Expense[] }) {
   const total = expenses.reduce((sum, expense) => sum + expense.amount, 0)
   const paid = expenses.reduce((sum, expense) => sum + (expense.payerId === 'me' ? expense.amount : 0), 0)
   const share = expenses.reduce((sum, expense) => sum + (expense.shares.me ?? 0), 0)
@@ -166,7 +166,7 @@ function ActivitySummary({ expenses }: { expenses: Expense[] }) {
   )
 }
 
-function SettlementDirections({ members, expenses }: { members: Member[]; expenses: Expense[] }) {
+export function SettlementDirections({ members, expenses }: { members: Member[]; expenses: Expense[] }) {
   const balances = members.map(member => {
     const paid = expenses.reduce((sum, expense) => sum + (expense.payerId === member.id ? expense.amount : 0), 0)
     const share = expenses.reduce((sum, expense) => sum + (expense.shares[member.id] ?? 0), 0)
@@ -205,7 +205,7 @@ function SettlementDirections({ members, expenses }: { members: Member[]; expens
   )
 }
 
-function ExpenseList({ expenses, members, query, onDeleteExpense }: { expenses: Expense[]; members: Member[]; query: string; onDeleteExpense: (expense: Expense) => void }) {
+export function ExpenseList({ expenses, members, query, onDeleteExpense }: { expenses: Expense[]; members: Member[]; query: string; onDeleteExpense: (expense: Expense) => void }) {
   const memberMap = useMemo(() => new Map(members.map(member => [member.id, member])), [members])
   const visible = expenses.filter(expense => expense.title.toLowerCase().includes(query.toLowerCase()))
   return (
@@ -228,7 +228,7 @@ function ExpenseList({ expenses, members, query, onDeleteExpense }: { expenses: 
   )
 }
 
-function MembersRail({ members, expenses, onAddFriend }: { members: Member[]; expenses: Expense[]; onAddFriend: () => void }) {
+export function MembersRail({ members, expenses, onAddFriend }: { members: Member[]; expenses: Expense[]; onAddFriend: () => void }) {
   const total = expenses.reduce((sum, expense) => sum + expense.amount, 0)
   return (
     <aside className="right-rail activity-rail">
@@ -247,7 +247,7 @@ function MembersRail({ members, expenses, onAddFriend }: { members: Member[]; ex
   )
 }
 
-function GroupDashboard({ group, members, expenses, query, onAddFriend, onAddExpense, onDeleteExpense }: {
+export function GroupDashboard({ group, members, expenses, query, onAddFriend, onAddExpense, onDeleteExpense }: {
   group: ActivityGroup
   members: Member[]
   expenses: Expense[]
@@ -272,7 +272,7 @@ function GroupDashboard({ group, members, expenses, query, onAddFriend, onAddExp
   )
 }
 
-function ModalShell({ eyebrow, title, onClose, children }: { eyebrow: string; title: string; onClose: () => void; children: React.ReactNode }) {
+export function ModalShell({ eyebrow, title, onClose, children }: { eyebrow: string; title: string; onClose: () => void; children: React.ReactNode }) {
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.currentTarget === event.target) onClose() }}>
       <section className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
@@ -283,7 +283,7 @@ function ModalShell({ eyebrow, title, onClose, children }: { eyebrow: string; ti
   )
 }
 
-function CreateGroupModal({ onClose, onSave }: { onClose: () => void; onSave: (name: string, friendNames: string[]) => void }) {
+export function CreateGroupModal({ onClose, onSave }: { onClose: () => void; onSave: (name: string, friendNames: string[]) => void }) {
   const [name, setName] = useState('')
   const [friends, setFriends] = useState('')
   const submit = (event: FormEvent) => {
@@ -303,7 +303,7 @@ function CreateGroupModal({ onClose, onSave }: { onClose: () => void; onSave: (n
   )
 }
 
-function AddFriendModal({ onClose, onSave }: { onClose: () => void; onSave: (names: string[]) => void }) {
+export function AddFriendModal({ onClose, onSave }: { onClose: () => void; onSave: (names: string[]) => void }) {
   const [names, setNames] = useState('')
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -321,7 +321,7 @@ function AddFriendModal({ onClose, onSave }: { onClose: () => void; onSave: (nam
   )
 }
 
-function ExpenseModal({ group, members, onClose, onSave }: { group: ActivityGroup; members: Member[]; onClose: () => void; onSave: (expense: Expense) => void }) {
+export function ExpenseModal({ group, members, onClose, onSave }: { group: ActivityGroup; members: Member[]; onClose: () => void; onSave: (expense: Expense) => void }) {
   const [title, setTitle] = useState('')
   const [amount, setAmount] = useState('')
   const [payerId, setPayerId] = useState('me')
@@ -355,7 +355,7 @@ function ExpenseModal({ group, members, onClose, onSave }: { group: ActivityGrou
     <ModalShell eyebrow={group.name} title="Add a shared expense" onClose={onClose}>
       <form onSubmit={submit}>
         <label>Description<input autoFocus value={title} onChange={event => setTitle(event.target.value)} placeholder="e.g. Groceries" required /></label>
-        <label>Amount<span className="modal-amount"><i>$</i><input value={amount} onChange={event => setAmount(event.target.value)} type="number" min="0.01" step="0.01" placeholder="0.00" required /></span></label>
+        <label>Amount<span className="modal-amount"><i>$</i><input aria-label="Amount" value={amount} onChange={event => setAmount(event.target.value)} type="number" min="0.01" step="0.01" placeholder="0.00" required /></span></label>
         <div className="form-grid">
           <label>Paid by<select value={payerId} onChange={event => setPayerId(event.target.value)}>{members.map(member => <option value={member.id} key={member.id}>{member.name}</option>)}</select></label>
           <label>Split method<select value={method} onChange={event => setMethod(event.target.value as SplitMethod)}><option value="equal">Equally</option><option value="exact">Exact amounts</option></select></label>
