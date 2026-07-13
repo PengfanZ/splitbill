@@ -1,0 +1,11 @@
+/node_modules
+/.next
+/.vinext
+/dist
+/dist-static
+/tally-static.zip
+/.wrangler
+/.env*
+*.tsbuildinfo
+npm-debug.log*
+.DS_Store
