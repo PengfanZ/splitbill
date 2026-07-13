@@ -85,6 +85,64 @@ describe('happy paths', () => {
     expect(screen.getByText('−$60.00')).toBeVisible()
     expect(screen.getByText('Cabin')).toBeVisible()
   })
+
+  it('keeps earlier splits unchanged when a friend joins and includes them in future expenses', async () => {
+    const user = userEvent.setup()
+    const originalExpense: Expense = {
+      id: 'groceries',
+      groupId: 'trip',
+      title: 'Groceries',
+      amount: 40,
+      payerId: 'me',
+      splitMethod: 'equal',
+      shares: { me: 20, maya: 20 },
+      createdAt: 'Monday',
+    }
+    const twoPersonTrip: PersistedState = {
+      groups: [{ ...trip, memberIds: ['me', 'maya'] }],
+      friends: [maya],
+      expenses: [originalExpense],
+      selectedGroupId: trip.id,
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(twoPersonTrip))
+    const { unmount } = render(<App />)
+
+    expect(screen.getByText((_, node) => node?.textContent === 'You paidSplit equally · 2 people')).toBeVisible()
+    expect(screen.getByText('+$20.00')).toBeVisible()
+    await user.click(screen.getAllByRole('button', { name: 'Add friend' })[0])
+    expect(screen.getByText('Future expenses only')).toBeVisible()
+    expect(screen.getByText('1 existing expense will stay unchanged.')).toBeVisible()
+    await user.type(screen.getByLabelText(/Friend names/), 'Jordan')
+    await user.click(screen.getByRole('button', { name: 'Add friends' }))
+
+    expect(screen.getByRole('status')).toHaveTextContent('Jordan was added for future expenses. 1 earlier expense was left unchanged.')
+    expect(screen.getByText('+$20.00')).toBeVisible()
+    expect(screen.getByText((_, node) => node?.textContent === 'You paidSplit equally · 2 people')).toBeVisible()
+    await waitFor(() => {
+      const saved = parseState(localStorage.getItem(STORAGE_KEY))
+      expect(saved.expenses[0].shares).toEqual({ me: 20, maya: 20 })
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Add expense' }))
+    expect(screen.getByRole('option', { name: 'Jordan' })).toBeVisible()
+    await user.type(screen.getByLabelText('Description'), 'Parking')
+    await user.type(screen.getByLabelText('Amount'), '30')
+    await user.click(screen.getByRole('button', { name: 'Save expense' }))
+
+    expect(screen.getByText((_, node) => node?.textContent === 'You paidSplit equally · 3 people')).toBeVisible()
+    expect(screen.getByText('Jordan owes You').closest('.balance-row')).toHaveTextContent('$10.00')
+    await waitFor(() => {
+      const saved = parseState(localStorage.getItem(STORAGE_KEY))
+      expect(saved.expenses.find(item => item.id === 'groceries')?.shares).toEqual({ me: 20, maya: 20 })
+      expect(saved.expenses.find(item => item.title === 'Parking')?.shares).toEqual({ me: 10, maya: 10, [saved.friends[1].id]: 10 })
+    })
+
+    unmount()
+    render(<App />)
+    expect(screen.getByText('3 people sharing expenses together.')).toBeVisible()
+    expect(screen.getByText((_, node) => node?.textContent === 'You paidSplit equally · 2 people')).toBeVisible()
+    expect(screen.getByText((_, node) => node?.textContent === 'You paidSplit equally · 3 people')).toBeVisible()
+  })
 })
 
 describe('edge cases', () => {

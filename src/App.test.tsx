@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App, {
   ActivitySummary,
   AddFriendModal,
+  addedFriendsMessage,
   Avatar,
   buildShareSummary,
   createSummaryCard,
@@ -348,12 +349,14 @@ describe('small UI building blocks', () => {
     const unknownPayer = expense({ id: 'e2', title: 'Taxi', payerId: 'missing', splitMethod: 'exact' })
     const { rerender } = render(<ExpenseList expenses={[expense(), unknownPayer]} members={[CURRENT_USER, maya]} query="" onDeleteExpense={onDelete} />)
     expect(screen.getByText('2 entries')).toBeVisible()
-    expect(screen.getByText((_, node) => node?.textContent === 'You paidSplit equally')).toBeVisible()
-    expect(screen.getByText((_, node) => node?.textContent === 'You paidSplit by exact amounts')).toBeVisible()
+    expect(screen.getByText((_, node) => node?.textContent === 'You paidSplit equally · 3 people')).toBeVisible()
+    expect(screen.getByText((_, node) => node?.textContent === 'You paidExact split · 3 people')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Delete Dinner' }))
     expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ title: 'Dinner' }))
     rerender(<ExpenseList expenses={[expense()]} members={[CURRENT_USER]} query="zzz" onDeleteExpense={onDelete} />)
     expect(screen.getByText('No expenses match your search.')).toBeVisible()
+    rerender(<ExpenseList expenses={[expense({ shares: { me: 30 } })]} members={[CURRENT_USER]} query="" onDeleteExpense={onDelete} />)
+    expect(screen.getByText((_, node) => node?.textContent === 'You paidSplit equally · 1 person')).toBeVisible()
     rerender(<ExpenseList expenses={[]} members={[CURRENT_USER]} query="" onDeleteExpense={onDelete} />)
     expect(screen.getByText('No expenses yet. Add the first one when you’re ready.')).toBeVisible()
   })
@@ -370,7 +373,7 @@ describe('small UI building blocks', () => {
     await user.click(screen.getByRole('button', { name: 'Add friend' }))
     expect(addFriend).toHaveBeenCalledOnce()
 
-    rerender(<GroupDashboard group={group} members={[CURRENT_USER, maya, jordan]} expenses={[expense()]} query="" shareFeedback="Summary copied." onShare={share} onAddFriend={addFriend} onAddExpense={addExpense} onDeleteExpense={deleteExpense} />)
+    rerender(<GroupDashboard group={group} members={[CURRENT_USER, maya, jordan]} expenses={[expense()]} query="" activityFeedback="Summary copied." onShare={share} onAddFriend={addFriend} onAddExpense={addExpense} onDeleteExpense={deleteExpense} />)
     expect(screen.getByRole('status')).toHaveTextContent('Summary copied.')
     await user.click(screen.getByRole('button', { name: 'Share summary' }))
     await user.click(screen.getAllByRole('button', { name: 'Add friend' })[0])
@@ -413,7 +416,8 @@ describe('modals', () => {
     const user = userEvent.setup()
     const onClose = vi.fn()
     const onSave = vi.fn()
-    const { container } = render(<AddFriendModal onClose={onClose} onSave={onSave} />)
+    const { container, rerender } = render(<AddFriendModal existingExpenseCount={0} onClose={onClose} onSave={onSave} />)
+    expect(screen.queryByText('Future expenses only')).not.toBeInTheDocument()
     fireEvent.submit(container.querySelector('form')!)
     expect(onSave).not.toHaveBeenCalled()
     await user.type(screen.getByLabelText(/Friend names/), ' Sam, , Taylor ')
@@ -421,6 +425,16 @@ describe('modals', () => {
     expect(onSave).toHaveBeenCalledWith(['Sam', 'Taylor'])
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(onClose).toHaveBeenCalledOnce()
+
+    rerender(<AddFriendModal existingExpenseCount={2} onClose={onClose} onSave={onSave} />)
+    expect(screen.getByText('Future expenses only')).toBeVisible()
+    expect(screen.getByText('2 existing expenses will stay unchanged.')).toBeVisible()
+  })
+
+  it('describes late-added friends with correct singular and plural grammar', () => {
+    expect(addedFriendsMessage(['Jordan'], 0)).toBe('Jordan was added to the activity.')
+    expect(addedFriendsMessage(['Jordan'], 1)).toBe('Jordan was added for future expenses. 1 earlier expense was left unchanged.')
+    expect(addedFriendsMessage(['Jordan', 'Sam'], 2)).toBe('Jordan and Sam were added for future expenses. 2 earlier expenses were left unchanged.')
   })
 
   it('creates equal splits down to the cent and supports any payer', async () => {
