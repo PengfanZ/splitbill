@@ -59,19 +59,32 @@ export function ExpenseModal({ group, members, expense, onClose, onSave }: {
   const [amount, setAmount] = useState(expense ? expense.amount.toString() : '')
   const [payerId, setPayerId] = useState(expense?.payerId ?? 'me')
   const [method, setMethod] = useState<SplitMethod>(expense?.splitMethod ?? 'equal')
+  const [equalParticipantIds, setEqualParticipantIds] = useState<string[]>(() => {
+    if (expense?.splitMethod !== 'equal') return members.map(member => member.id)
+    const savedParticipantIds = new Set(Object.keys(expense.shares))
+    return members.filter(member => savedParticipantIds.has(member.id)).map(member => member.id)
+  })
   const [exactShares, setExactShares] = useState<Record<string, string>>(() => expense?.splitMethod === 'exact'
     ? Object.fromEntries(members.map(member => [member.id, expense.shares[member.id]?.toString() ?? '']))
     : {})
   const numericAmount = Number(amount) || 0
+  const equalParticipants = members.filter(member => equalParticipantIds.includes(member.id))
   const exactTotal = members.reduce((sum, member) => sum + (Number(exactShares[member.id]) || 0), 0)
   const remaining = numericAmount - exactTotal
   const exactValid = Math.abs(remaining) < 0.005
+  const splitValid = method === 'equal' ? equalParticipants.length > 0 : exactValid
+
+  const toggleEqualParticipant = (memberId: string) => {
+    setEqualParticipantIds(current => current.includes(memberId)
+      ? current.filter(id => id !== memberId)
+      : [...current, memberId])
+  }
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    if (!title.trim() || numericAmount <= 0 || (method === 'exact' && !exactValid)) return
+    if (!title.trim() || numericAmount <= 0 || !splitValid) return
     const shares = method === 'equal'
-      ? createEqualShares(members, numericAmount)
+      ? createEqualShares(equalParticipants, numericAmount)
       : createExactShares(members, exactShares)
     onSave({
       id: expense?.id ?? makeId('expense'),
@@ -95,15 +108,35 @@ export function ExpenseModal({ group, members, expense, onClose, onSave }: {
           <label>Split method<select value={method} onChange={event => setMethod(event.target.value as SplitMethod)}><option value="equal">Equally</option><option value="exact">Exact amounts</option></select></label>
         </div>
         {method === 'equal' ? (
-          <div className="split-preview"><span><Users size={18} />Each person’s share</span><strong>{members.length ? money(numericAmount / members.length) : '$0.00'}</strong></div>
+          <div className="equal-splits">
+            <div className="equal-heading"><span>Split between</span><b>{equalParticipants.length} of {members.length} selected</b></div>
+            <div className="equal-member-list">
+              {members.map(member => (
+                <label className="equal-member" key={member.id}>
+                  <span><Avatar member={member} size="sm" />{member.name}</span>
+                  <input
+                    aria-label={`Include ${member.name} in equal split`}
+                    type="checkbox"
+                    checked={equalParticipantIds.includes(member.id)}
+                    onChange={() => toggleEqualParticipant(member.id)}
+                  />
+                </label>
+              ))}
+            </div>
+            <div className="split-preview">
+              <span><Users size={18} />Each selected person’s share</span>
+              <strong>{equalParticipants.length ? money(numericAmount / equalParticipants.length) : '$0.00'}</strong>
+            </div>
+            {equalParticipants.length ? null : <small className="split-error" role="alert">Select at least one person to split this expense.</small>}
+          </div>
         ) : (
           <div className="exact-splits">
             <div className="exact-heading"><span>Enter each share</span><b className={exactValid ? 'positive' : remaining < 0 ? 'negative' : ''}>{remaining >= 0 ? `${money(remaining)} left` : `${money(remaining)} over`}</b></div>
             {members.map(member => <label className="share-row" key={member.id}><span><Avatar member={member} size="sm" />{member.name}</span><span className="share-input"><i>$</i><input aria-label={`${member.name} share`} type="number" min="0" step="0.01" value={exactShares[member.id] ?? ''} onChange={event => setExactShares(current => ({ ...current, [member.id]: event.target.value }))} placeholder="0.00" /></span></label>)}
           </div>
         )}
-        {expense ? <div className="split-note edit-note"><Pencil size={17} /><span>Saving replaces this expense’s split using all {members.length} current activity members.</span></div> : null}
-        <div className="modal-actions"><button type="button" className="outline-button" onClick={onClose}>Cancel</button><button className="confirm-button" type="submit" disabled={method === 'exact' && !exactValid}>{expense ? 'Save changes' : 'Save expense'}</button></div>
+        {expense ? <div className="split-note edit-note"><Pencil size={17} /><span>{method === 'equal' ? 'Saving replaces this expense’s split using the selected people.' : `Saving replaces this expense’s split using all ${members.length} current activity members.`}</span></div> : null}
+        <div className="modal-actions"><button type="button" className="outline-button" onClick={onClose}>Cancel</button><button className="confirm-button" type="submit" disabled={!splitValid}>{expense ? 'Save changes' : 'Save expense'}</button></div>
       </form>
     </ModalShell>
   )

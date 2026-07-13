@@ -29,3 +29,5 @@ URL state is a transport rather than synchronization: every edit produces a new 
 ## Change contract
 
 Put financial calculations in pure domain helpers, browser APIs behind data or feature boundaries, and component-specific state beside the component that owns it. Every behavior change still follows the test requirements in `TESTING.md`.
+
+Equal expenses store shares only for the selected participants. This keeps partial-group splits compatible with the existing expense schema and lets expense history display the participant count without a separate membership field.

@@ -23,7 +23,7 @@ This is asynchronous snapshot sharing, not live collaboration. A newer edit prod
 ## Highlights
 
 - Create activity groups and add friends without requiring profiles or accounts.
-- Record who paid and split expenses equally or by exact amounts.
+- Record who paid and split expenses equally among everyone or only selected people, or enter exact amounts.
 - Keep historical splits stable when friends join later, then explicitly edit an expense when it should include them.
 - See clear person-to-person settlement directions instead of an ambiguous group balance.
 - Edit and delete expenses with immediate balance recalculation.

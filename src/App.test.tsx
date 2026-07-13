@@ -416,7 +416,7 @@ describe('modals', () => {
     expect(screen.getByText('2 existing expenses will stay unchanged.')).toBeVisible()
   })
 
-  it('creates equal splits down to the cent and supports any payer', async () => {
+  it('creates equal splits for selected people down to the cent and supports any payer', async () => {
     const user = userEvent.setup()
     const onSave = vi.fn()
     const onClose = vi.fn()
@@ -426,13 +426,17 @@ describe('modals', () => {
     await user.type(screen.getByLabelText('Description'), 'Lunch')
     await user.type(screen.getByLabelText('Amount'), '10')
     await user.selectOptions(screen.getByLabelText('Paid by'), 'maya')
+    expect(screen.getByText('3 of 3 selected')).toBeVisible()
     expect(screen.getByText('$3.33')).toBeVisible()
+    await user.click(screen.getByLabelText('Include Jordan in equal split'))
+    expect(screen.getByText('2 of 3 selected')).toBeVisible()
+    expect(screen.getByText('$5.00')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Save expense' }))
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
       title: 'Lunch',
       amount: 10,
       payerId: 'maya',
-      shares: { me: 3.34, maya: 3.33, jordan: 3.33 },
+      shares: { me: 5, maya: 5 },
     }))
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(onClose).toHaveBeenCalledOnce()
@@ -486,15 +490,17 @@ describe('modals', () => {
     })
   })
 
-  it('handles an empty member list in the equal preview', async () => {
+  it('requires at least one person for an equal split', async () => {
     const user = userEvent.setup()
     const onSave = vi.fn()
     render(<ExpenseModal group={group} members={[]} onClose={vi.fn()} onSave={onSave} />)
     expect(screen.getByText('$0.00')).toBeVisible()
+    expect(screen.getByRole('alert')).toHaveTextContent('Select at least one person')
+    expect(screen.getByRole('button', { name: 'Save expense' })).toBeDisabled()
     await user.type(screen.getByLabelText('Description'), 'Fee')
     await user.type(screen.getByLabelText('Amount'), '1')
-    await user.click(screen.getByRole('button', { name: 'Save expense' }))
-    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ shares: {} }))
+    fireEvent.submit(screen.getByLabelText('Description').closest('form')!)
+    expect(onSave).not.toHaveBeenCalled()
   })
 
   it('lets a shared-link recipient choose their participant identity', async () => {

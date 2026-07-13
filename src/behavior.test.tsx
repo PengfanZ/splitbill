@@ -141,6 +141,32 @@ describe('happy paths', () => {
     expect(screen.getByText((_, node) => node?.textContent === 'You paidSplit equally · 3 people')).toBeVisible()
   })
 
+  it('splits an expense equally among only the selected people', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      ...persistedTrip,
+      expenses: [],
+    } satisfies PersistedState))
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'Add expense' }))
+    await user.type(screen.getByLabelText('Description'), 'Museum tickets')
+    await user.type(screen.getByLabelText('Amount'), '60')
+    await user.click(screen.getByLabelText('Include Jordan in equal split'))
+
+    expect(screen.getByText('2 of 3 selected')).toBeVisible()
+    expect(screen.getByText('$30.00')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Save expense' }))
+
+    expect(screen.getByText((_, node) => node?.textContent === 'You paidSplit equally · 2 people')).toBeVisible()
+    expect(screen.getByText('Maya owes You').closest('.balance-row')).toHaveTextContent('$30.00')
+    expect(screen.queryByText('Jordan owes You')).not.toBeInTheDocument()
+    await waitFor(() => {
+      const savedExpense = parseState(localStorage.getItem(STORAGE_KEY)).expenses[0]
+      expect(savedExpense.shares).toEqual({ me: 30, maya: 30 })
+    })
+  })
+
   it('lets the user explicitly update an older expense to include a newly added friend', async () => {
     const user = userEvent.setup()
     const originalExpense: Expense = {
@@ -166,8 +192,13 @@ describe('happy paths', () => {
     expect(screen.getByRole('heading', { name: 'Edit expense' })).toBeVisible()
     expect(screen.getByLabelText('Description')).toHaveValue('Groceries')
     expect(screen.getByLabelText('Amount')).toHaveValue(40)
+    expect(screen.getByText('2 of 3 selected')).toBeVisible()
+    expect(screen.getByLabelText('Include Jordan in equal split')).not.toBeChecked()
+    expect(within(screen.getByRole('dialog')).getByText('$20.00')).toBeVisible()
+    await user.click(screen.getByLabelText('Include Jordan in equal split'))
+    expect(screen.getByText('3 of 3 selected')).toBeVisible()
     expect(screen.getByText('$13.33')).toBeVisible()
-    expect(screen.getByText('Saving replaces this expense’s split using all 3 current activity members.')).toBeVisible()
+    expect(screen.getByText('Saving replaces this expense’s split using the selected people.')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Save changes' }))
 
     expect(screen.getByRole('status')).toHaveTextContent('Groceries was updated. Splits and balances were recalculated.')

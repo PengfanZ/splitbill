@@ -102,7 +102,7 @@ export function MembersRail({ members, expenses, readOnly = false, currentUserRo
       <section className="rail-guide">
         <span className="guide-icon"><CircleDollarSign size={22} /></span>
         <h3>How splitting works</h3>
-        <p>Choose who paid, then split equally or enter each person’s exact share. Tally updates everyone’s balance automatically.</p>
+        <p>Choose who paid, then split equally among selected people or enter each person’s exact share. Tally updates everyone’s balance automatically.</p>
         <div><span>Activity total</span><strong>{money(total)}</strong></div>
       </section>
     </aside>
