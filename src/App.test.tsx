@@ -6,11 +6,13 @@ import App, {
   AddFriendModal,
   Avatar,
   buildShareSummary,
+  createSummaryCard,
   CreateGroupModal,
   CURRENT_USER,
   EMPTY_STATE,
   ExpenseList,
   ExpenseModal,
+  exportActivitySummary,
   FreshStart,
   GroupDashboard,
   initialsFor,
@@ -60,9 +62,24 @@ const storedState = (overrides: Partial<PersistedState> = {}): PersistedState =>
 beforeEach(() => {
   vi.restoreAllMocks()
   Object.defineProperty(navigator, 'share', { configurable: true, value: undefined })
+  Object.defineProperty(navigator, 'canShare', { configurable: true, value: undefined })
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined })
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
   vi.spyOn(window, 'confirm').mockReturnValue(true)
 })
+
+function mockCanvas(blob: Blob | null = new Blob(['png'], { type: 'image/png' })) {
+  const context = {
+    fillStyle: '',
+    font: '',
+    textAlign: 'left',
+    fillRect: vi.fn(),
+    fillText: vi.fn(),
+  }
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context as unknown as CanvasRenderingContext2D)
+  vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(callback => callback(blob))
+  return context
+}
 
 describe('state and formatting helpers', () => {
   it('formats money, initials, and generated ids', () => {
@@ -124,27 +141,55 @@ describe('state and formatting helpers', () => {
     expect(populated).toContain('Jordan pays You $10.00')
   })
 
-  it('shares natively and reports user cancellation', async () => {
+  it('renders populated and empty PNG cards', async () => {
+    const context = mockCanvas()
+    const card = await createSummaryCard(group, [CURRENT_USER], [])
+    expect(card.type).toBe('image/png')
+    let drawnText = context.fillText.mock.calls.map(call => call[0])
+    expect(drawnText).toContain('1 person sharing expenses')
+    expect(drawnText).toContain('Everyone is settled')
+    expect(drawnText).toContain('No expenses yet.')
+    await createSummaryCard(group, [CURRENT_USER, maya, jordan], [expense()])
+
+    vi.restoreAllMocks()
+    const populatedContext = mockCanvas()
+    const manyExpenses = [
+      expense(),
+      expense({ id: 'e2', title: 'Taxi', payerId: 'missing', splitMethod: 'exact', shares: {} }),
+      ...Array.from({ length: 5 }, (_, index) => expense({ id: `extra-${index}`, title: `Extra ${index}`, payerId: 'missing', shares: {} })),
+    ]
+    await createSummaryCard(group, [CURRENT_USER, maya, jordan], manyExpenses)
+    drawnText = populatedContext.fillText.mock.calls.map(call => call[0])
+    expect(drawnText).toContain('3 people sharing expenses')
+    expect(drawnText).toContain('Maya Chen pays You')
+    expect(drawnText).toContain('Unknown paid · Exact split')
+    expect(drawnText).toContain('+ 2 more expenses')
+  })
+
+  it('reports unavailable canvas and failed PNG encoding', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+    await expect(createSummaryCard(group, [CURRENT_USER], [])).rejects.toThrow('Canvas is unavailable')
+    vi.restoreAllMocks()
+    mockCanvas(null)
+    await expect(createSummaryCard(group, [CURRENT_USER], [])).rejects.toThrow('PNG generation failed')
+  })
+
+  it('shares a PNG natively and respects cancellation', async () => {
+    const image = new Blob(['png'], { type: 'image/png' })
     const nativeShare = vi.fn().mockResolvedValue(undefined)
+    const canShare = vi.fn().mockReturnValue(true)
     Object.defineProperty(navigator, 'share', { configurable: true, value: nativeShare })
-    expect(await shareActivitySummary('Trip — Tally', 'Summary')).toBe('shared')
-    expect(nativeShare).toHaveBeenCalledWith({ title: 'Trip — Tally', text: 'Summary' })
+    Object.defineProperty(navigator, 'canShare', { configurable: true, value: canShare })
+    expect(await shareActivitySummary('Trip — Tally', 'Summary', image)).toBe('shared')
+    expect(canShare).toHaveBeenCalled()
+    expect(nativeShare.mock.calls[0][0].files[0]).toMatchObject({ name: 'trip-tally.png', type: 'image/png' })
 
     nativeShare.mockRejectedValueOnce(new DOMException('cancelled', 'AbortError'))
-    expect(await shareActivitySummary('Trip — Tally', 'Summary')).toBe('cancelled')
+    expect(await shareActivitySummary('Trip — Tally', 'Summary', image)).toBe('cancelled')
   })
 
-  it('falls back from native sharing to the clipboard', async () => {
-    Object.defineProperty(navigator, 'share', { configurable: true, value: vi.fn().mockRejectedValue(new Error('unavailable')) })
-    const writeText = vi.fn().mockResolvedValue(undefined)
-    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
-    expect(await shareActivitySummary('Trip — Tally', 'Summary')).toBe('copied')
-    expect(writeText).toHaveBeenCalledWith('Summary')
-  })
-
-  it('downloads a text file when sharing and copying are unavailable', async () => {
-    const writeText = vi.fn().mockRejectedValue(new Error('blocked'))
-    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+  it('downloads PNG cards when file sharing is unsupported or fails', async () => {
+    const image = new Blob(['png'], { type: 'image/png' })
     const anchor = document.createElement('a')
     const click = vi.spyOn(anchor, 'click').mockImplementation(() => {})
     vi.spyOn(document, 'createElement').mockReturnValue(anchor)
@@ -153,19 +198,66 @@ describe('state and formatting helpers', () => {
     Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL })
     Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURL })
 
-    expect(await shareActivitySummary('Trip — Tally', 'Summary')).toBe('downloaded')
-    expect(anchor.download).toBe('trip-tally.txt')
-    expect(click).toHaveBeenCalledOnce()
-    expect(revokeObjectURL).toHaveBeenCalledWith('blob:summary')
+    expect(await shareActivitySummary('Trip — Tally', 'Summary', image)).toBe('downloaded')
+    expect(anchor.download).toBe('trip-tally.png')
+    Object.defineProperty(navigator, 'share', { configurable: true, value: vi.fn() })
+    expect(await shareActivitySummary('!!!', 'Summary', image)).toBe('downloaded')
+    expect(anchor.download).toBe('tally-summary.png')
+    Object.defineProperty(navigator, 'canShare', { configurable: true, value: vi.fn().mockReturnValue(false) })
+    expect(await shareActivitySummary('Trip', 'Summary', image)).toBe('downloaded')
 
-    expect(await shareActivitySummary('!!!', 'Summary')).toBe('downloaded')
-    expect(anchor.download).toBe('tally-summary.txt')
+    const failingShare = vi.fn().mockRejectedValue(new Error('unavailable'))
+    Object.defineProperty(navigator, 'canShare', { configurable: true, value: vi.fn().mockReturnValue(true) })
+    Object.defineProperty(navigator, 'share', { configurable: true, value: failingShare })
+    expect(await shareActivitySummary('Trip', 'Summary', image)).toBe('downloaded')
+    expect(click).toHaveBeenCalledTimes(4)
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:summary')
   })
 
-  it('reports a failed export when every browser fallback is unavailable', async () => {
+  it('uses native text and clipboard fallbacks when PNG generation is unavailable', async () => {
+    const nativeShare = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'share', { configurable: true, value: nativeShare })
+    expect(await shareActivitySummary('Trip', 'Summary', null)).toBe('shared')
+    expect(nativeShare).toHaveBeenCalledWith({ title: 'Trip', text: 'Summary' })
+    nativeShare.mockRejectedValueOnce(new DOMException('cancelled', 'AbortError'))
+    expect(await shareActivitySummary('Trip', 'Summary', null)).toBe('cancelled')
+
+    nativeShare.mockRejectedValueOnce(new Error('unavailable'))
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    expect(await shareActivitySummary('Trip', 'Summary', null)).toBe('copied')
+    expect(writeText).toHaveBeenCalledWith('Summary')
+    Object.defineProperty(navigator, 'share', { configurable: true, value: undefined })
+    writeText.mockRejectedValueOnce(new Error('blocked'))
+    expect(await shareActivitySummary('Trip', 'Summary', null)).toBe('failed')
+  })
+
+  it('falls back to text after a PNG download failure and can report total failure', async () => {
+    const image = new Blob(['png'], { type: 'image/png' })
     Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => { throw new Error('blocked') }) })
-    expect(await shareActivitySummary('Trip', 'Summary')).toBe('failed')
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    expect(await shareActivitySummary('Trip', 'Summary', image)).toBe('copied')
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined })
+    expect(await shareActivitySummary('Trip', 'Summary', image)).toBe('failed')
     expect(SHARE_MESSAGES.failed).toContain('Could not export')
+  })
+
+  it('exports a generated PNG and falls back when card rendering fails', async () => {
+    mockCanvas()
+    const anchor = document.createElement('a')
+    vi.spyOn(anchor, 'click').mockImplementation(() => {})
+    const originalCreateElement = document.createElement.bind(document)
+    vi.spyOn(document, 'createElement').mockImplementation(tag => tag === 'a' ? anchor : originalCreateElement(tag))
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn().mockReturnValue('blob:summary') })
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
+    expect(await exportActivitySummary(group, [CURRENT_USER], [])).toBe('downloaded')
+
+    vi.restoreAllMocks()
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    expect(await exportActivitySummary(group, [CURRENT_USER], [])).toBe('copied')
   })
 })
 

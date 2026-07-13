@@ -52,9 +52,9 @@ export const makeId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random
 export const money = (value: number) => `$${Math.abs(value).toFixed(2)}`
 export const initialsFor = (name: string) => name.trim().split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase()).join('') || '?'
 export const SHARE_MESSAGES: Record<ShareResult, string> = {
-  shared: 'Summary shared.',
+  shared: 'PNG summary shared.',
   copied: 'Summary copied. Paste it into any chat.',
-  downloaded: 'Summary downloaded as a text file.',
+  downloaded: 'PNG summary downloaded.',
   cancelled: 'Sharing cancelled.',
   failed: 'Could not export the summary. Please try again.',
 }
@@ -110,8 +110,128 @@ export function buildShareSummary(group: ActivityGroup, members: Member[], expen
   ].join('\n')
 }
 
-export async function shareActivitySummary(title: string, text: string): Promise<ShareResult> {
-  if (typeof navigator.share === 'function') {
+export async function createSummaryCard(group: ActivityGroup, members: Member[], expenses: Expense[]) {
+  const canvas = document.createElement('canvas')
+  canvas.width = 1080
+  canvas.height = 1350
+  const context = canvas.getContext('2d')
+  if (!context) throw new Error('Canvas is unavailable')
+
+  const total = expenses.reduce((sum, item) => sum + item.amount, 0)
+  const settlements = calculateSettlements(members, expenses)
+  const memberMap = new Map(members.map(member => [member.id, member]))
+  const visibleExpenses = expenses.slice(0, 5)
+
+  context.fillStyle = '#f7f4ee'
+  context.fillRect(0, 0, canvas.width, canvas.height)
+  context.fillStyle = '#e8584f'
+  context.font = '700 40px Arial, sans-serif'
+  context.fillText('Tally.', 72, 82)
+  context.fillStyle = '#26231f'
+  context.font = '400 70px Georgia, serif'
+  context.fillText(group.name, 72, 178, 936)
+  context.fillStyle = '#746e67'
+  context.font = '500 24px Arial, sans-serif'
+  context.fillText(`${members.length} ${members.length === 1 ? 'person' : 'people'} sharing expenses`, 74, 225)
+
+  context.fillStyle = '#ffffff'
+  context.fillRect(72, 278, 936, 190)
+  context.fillStyle = '#746e67'
+  context.font = '600 22px Arial, sans-serif'
+  context.fillText('TOTAL SPENT', 112, 330)
+  context.fillStyle = '#26231f'
+  context.font = '400 74px Georgia, serif'
+  context.fillText(money(total), 112, 420)
+
+  context.fillStyle = '#26231f'
+  context.font = '700 30px Arial, sans-serif'
+  context.fillText('Suggested payments', 72, 540)
+  context.fillStyle = '#d8d1c8'
+  context.fillRect(72, 560, 936, 2)
+  context.font = '600 27px Arial, sans-serif'
+  if (settlements.length) {
+    settlements.slice(0, 4).forEach((item, index) => {
+      const y = 620 + index * 58
+      context.fillStyle = '#26231f'
+      context.fillText(`${item.from.name} pays ${item.to.name}`, 82, y, 710)
+      context.fillStyle = '#e8584f'
+      context.textAlign = 'right'
+      context.fillText(money(item.amount), 998, y)
+      context.textAlign = 'left'
+    })
+  } else {
+    context.fillStyle = '#16724c'
+    context.fillText('Everyone is settled', 82, 620)
+  }
+
+  const expenseHeadingY = 620 + Math.max(1, Math.min(4, settlements.length)) * 58 + 72
+  context.fillStyle = '#26231f'
+  context.font = '700 30px Arial, sans-serif'
+  context.fillText('Expenses', 72, expenseHeadingY)
+  context.fillStyle = '#d8d1c8'
+  context.fillRect(72, expenseHeadingY + 20, 936, 2)
+  context.font = '500 24px Arial, sans-serif'
+  if (visibleExpenses.length) {
+    visibleExpenses.forEach((item, index) => {
+      const y = expenseHeadingY + 78 + index * 58
+      context.fillStyle = '#26231f'
+      context.fillText(item.title, 82, y, 460)
+      context.fillStyle = '#746e67'
+      const payer = memberMap.get(item.payerId)?.name ?? 'Unknown'
+      context.fillText(`${payer} paid · ${item.splitMethod === 'equal' ? 'Equal split' : 'Exact split'}`, 390, y, 410)
+      context.fillStyle = '#26231f'
+      context.textAlign = 'right'
+      context.fillText(money(item.amount), 998, y)
+      context.textAlign = 'left'
+    })
+    if (expenses.length > visibleExpenses.length) {
+      context.fillStyle = '#746e67'
+      context.fillText(`+ ${expenses.length - visibleExpenses.length} more expenses`, 82, expenseHeadingY + 78 + visibleExpenses.length * 58)
+    }
+  } else {
+    context.fillStyle = '#746e67'
+    context.fillText('No expenses yet.', 82, expenseHeadingY + 78)
+  }
+
+  context.fillStyle = '#746e67'
+  context.font = '500 21px Arial, sans-serif'
+  context.fillText('Shared from Tally · Settle up simply', 72, 1290)
+
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('PNG generation failed')), 'image/png')
+  })
+}
+
+export async function shareActivitySummary(title: string, text: string, image: Blob | null): Promise<ShareResult> {
+  const filename = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'tally-summary'}.png`
+  if (image) {
+    const file = new File([image], filename, { type: 'image/png' })
+    const shareData = { title, text, files: [file] }
+    if (typeof navigator.share === 'function' && typeof navigator.canShare === 'function' && navigator.canShare(shareData)) {
+      try {
+        await navigator.share(shareData)
+        return 'shared'
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return 'cancelled'
+      }
+    }
+
+    try {
+      const url = URL.createObjectURL(image)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      return 'downloaded'
+    } catch {
+      // Continue to the text fallback.
+    }
+  }
+
+  if (!image && typeof navigator.share === 'function') {
     try {
       await navigator.share({ title, text })
       return 'shared'
@@ -125,22 +245,21 @@ export async function shareActivitySummary(title: string, text: string): Promise
       await navigator.clipboard.writeText(text)
       return 'copied'
     } catch {
-      // Continue to the file download fallback.
+      return 'failed'
     }
   }
 
+  return 'failed'
+}
+
+export async function exportActivitySummary(group: ActivityGroup, members: Member[], expenses: Expense[]) {
+  const title = `${group.name} — Tally`
+  const text = buildShareSummary(group, members, expenses)
   try {
-    const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }))
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'tally-summary'}.txt`
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    URL.revokeObjectURL(url)
-    return 'downloaded'
+    const image = await createSummaryCard(group, members, expenses)
+    return shareActivitySummary(title, text, image)
   } catch {
-    return 'failed'
+    return shareActivitySummary(title, text, null)
   }
 }
 
@@ -496,7 +615,7 @@ export default function App() {
   }
 
   const shareGroup = async (group: ActivityGroup, members: Member[], expenses: Expense[]) => {
-    const result = await shareActivitySummary(`${group.name} — Tally`, buildShareSummary(group, members, expenses))
+    const result = await exportActivitySummary(group, members, expenses)
     setShareFeedback({ groupId: group.id, message: SHARE_MESSAGES[result] })
   }
 
