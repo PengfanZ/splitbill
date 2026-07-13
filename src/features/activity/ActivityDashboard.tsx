@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import {
   Check,
   CircleDollarSign,
+  Link2,
   Pencil,
   Plus,
   ReceiptText,
@@ -49,12 +50,13 @@ export function SettlementDirections({ members, expenses }: { members: Member[];
   )
 }
 
-export function ExpenseList({ expenses, members, query, onEditExpense, onDeleteExpense }: {
+export function ExpenseList({ expenses, members, query, readOnly = false, onEditExpense, onDeleteExpense }: {
   expenses: Expense[]
   members: Member[]
   query: string
-  onEditExpense: (expense: Expense) => void
-  onDeleteExpense: (expense: Expense) => void
+  readOnly?: boolean
+  onEditExpense?: (expense: Expense) => void
+  onDeleteExpense?: (expense: Expense) => void
 }) {
   const memberMap = useMemo(() => new Map(members.map(member => [member.id, member])), [members])
   const visible = expenses.filter(expense => expense.title.toLowerCase().includes(query.toLowerCase()))
@@ -71,10 +73,12 @@ export function ExpenseList({ expenses, members, query, onEditExpense, onDeleteE
               <span className="expense-icon"><ReceiptText size={18} /></span>
               <span className="row-copy"><b>{expense.title}</b><small>{payer.name} paid<i />{expense.splitMethod === 'equal' ? 'Split equally' : 'Exact split'} · {participantCount} {participantCount === 1 ? 'person' : 'people'}</small></span>
               <span className="expense-amount"><b>{money(expense.amount)}</b><small>{expense.createdAt}</small></span>
-              <span className="expense-actions">
-                <button className="expense-edit" type="button" aria-label={`Edit ${expense.title}`} title="Edit expense" onClick={() => onEditExpense(expense)}><Pencil size={15} /></button>
-                <button className="expense-delete" type="button" aria-label={`Delete ${expense.title}`} title="Delete expense" onClick={() => onDeleteExpense(expense)}><Trash2 size={16} /></button>
-              </span>
+              {readOnly ? null : (
+                <span className="expense-actions">
+                  <button className="expense-edit" type="button" aria-label={`Edit ${expense.title}`} title="Edit expense" onClick={() => onEditExpense?.(expense)}><Pencil size={15} /></button>
+                  <button className="expense-delete" type="button" aria-label={`Delete ${expense.title}`} title="Delete expense" onClick={() => onDeleteExpense?.(expense)}><Trash2 size={16} /></button>
+                </span>
+              )}
             </div>
           )
         }) : <div className="empty-state"><Sparkles size={22} /><p>{query ? 'No expenses match your search.' : 'No expenses yet. Add the first one when you’re ready.'}</p></div>}
@@ -83,7 +87,7 @@ export function ExpenseList({ expenses, members, query, onEditExpense, onDeleteE
   )
 }
 
-export function MembersRail({ members, expenses, onAddFriend }: { members: Member[]; expenses: Expense[]; onAddFriend: () => void }) {
+export function MembersRail({ members, expenses, readOnly = false, onAddFriend }: { members: Member[]; expenses: Expense[]; readOnly?: boolean; onAddFriend?: () => void }) {
   const total = expenses.reduce((sum, expense) => sum + expense.amount, 0)
 
   return (
@@ -91,7 +95,7 @@ export function MembersRail({ members, expenses, onAddFriend }: { members: Membe
       <section className="members-panel">
         <div className="rail-heading"><h2>People</h2><span>{members.length}</span></div>
         <div className="member-list">{members.map(member => <div className="member-row" key={member.id}><Avatar member={member} size="sm" /><span><b>{member.name}</b><small>{member.id === 'me' ? 'You' : 'Friend'}</small></span>{member.id === 'me' ? <Check size={15} /> : null}</div>)}</div>
-        <button className="outline-button add-friend-button" onClick={onAddFriend}><Plus size={16} />Add friend</button>
+        {readOnly ? null : <button className="outline-button add-friend-button" onClick={onAddFriend}><Plus size={16} />Add friend</button>}
       </section>
       <section className="rail-guide">
         <span className="guide-icon"><CircleDollarSign size={22} /></span>
@@ -103,30 +107,32 @@ export function MembersRail({ members, expenses, onAddFriend }: { members: Membe
   )
 }
 
-export function GroupDashboard({ group, members, expenses, query, activityFeedback, onShare, onAddFriend, onAddExpense, onEditExpense, onDeleteExpense }: {
+export function GroupDashboard({ group, members, expenses, query, activityFeedback, readOnly = false, onShare, onShareLink, onAddFriend, onAddExpense, onEditExpense, onDeleteExpense }: {
   group: ActivityGroup
   members: Member[]
   expenses: Expense[]
   query: string
   activityFeedback: string | null
-  onShare: () => void
-  onAddFriend: () => void
-  onAddExpense: () => void
-  onEditExpense: (expense: Expense) => void
-  onDeleteExpense: (expense: Expense) => void
+  readOnly?: boolean
+  onShare?: () => void
+  onShareLink?: () => void
+  onAddFriend?: () => void
+  onAddExpense?: () => void
+  onEditExpense?: (expense: Expense) => void
+  onDeleteExpense?: (expense: Expense) => void
 }) {
   return (
     <main className="dashboard">
       <div className="main-column">
         <header className="group-welcome">
           <div><span className="date">{group.emoji} Activity group</span><h1>{group.name}</h1><p>{members.length} people sharing expenses together.</p></div>
-          <div className="group-share"><div className="group-actions"><button className="outline-button" onClick={onShare}><Share2 size={16} />Share summary</button><button className="outline-button" onClick={onAddFriend}><Users size={16} />Add friend</button><button className="confirm-button" onClick={onAddExpense}><Plus size={17} />Add expense</button></div>{activityFeedback ? <span className="activity-feedback" role="status">{activityFeedback}</span> : null}</div>
+          <div className="group-share">{readOnly ? <span className="read-only-badge">Read-only snapshot</span> : <div className="group-actions"><button className="outline-button" onClick={onShareLink}><Link2 size={16} />Share link</button><button className="outline-button" onClick={onShare}><Share2 size={16} />Share summary</button><button className="outline-button" onClick={onAddFriend}><Users size={16} />Add friend</button><button className="confirm-button" onClick={onAddExpense}><Plus size={17} />Add expense</button></div>}{activityFeedback ? <span className="activity-feedback" role="status">{activityFeedback}</span> : null}</div>
         </header>
         <ActivitySummary expenses={expenses} />
         <SettlementDirections members={members} expenses={expenses} />
-        <ExpenseList expenses={expenses} members={members} query={query} onEditExpense={onEditExpense} onDeleteExpense={onDeleteExpense} />
+        <ExpenseList expenses={expenses} members={members} query={query} readOnly={readOnly} onEditExpense={onEditExpense} onDeleteExpense={onDeleteExpense} />
       </div>
-      <MembersRail members={members} expenses={expenses} onAddFriend={onAddFriend} />
+      <MembersRail members={members} expenses={expenses} readOnly={readOnly} onAddFriend={onAddFriend} />
     </main>
   )
 }

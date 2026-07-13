@@ -6,6 +6,7 @@ const beaconSelector =
 
 beforeEach(() => {
   document.body.innerHTML = ''
+  window.history.replaceState(null, '', '/')
 })
 
 describe('initializeAnalytics', () => {
@@ -22,6 +23,14 @@ describe('initializeAnalytics', () => {
 
   it('does not load analytics outside production', () => {
     initializeAnalytics(false)
+
+    expect(document.querySelector(beaconSelector)).toBeNull()
+  })
+
+  it('does not load analytics for activity URLs containing private state', () => {
+    window.history.replaceState(null, '', '/#share=private-state')
+
+    initializeAnalytics(true)
 
     expect(document.querySelector(beaconSelector)).toBeNull()
   })

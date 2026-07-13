@@ -8,6 +8,12 @@ A frontend-first shared-expense app for trips, dinners, homes, and other group a
 
 Production visits are measured with privacy-friendly Cloudflare Web Analytics. The beacon is deferred until after the React app mounts, is disabled during local development and tests, and uses no application data. In Cloudflare, filter page paths by `/splitbill/` to isolate this app from other pages on the same GitHub Pages domain.
 
+## Experimental URL-state sharing
+
+The `codex/url-state-sharing` branch adds frontend-only activity snapshots. **Share link** serializes the selected activity into the URL fragment, and opening that URL shows a validated, read-only preview. The recipient can explicitly save an isolated local copy; opening a link never overwrites browser data. Shared-preview URLs also skip analytics because the fragment contains names and expense details.
+
+This is asynchronous snapshot sharing, not live collaboration. A newer edit produces a new URL, links cannot be revoked, and activities above the conservative 12,000-character URL limit need a future file or backend transport.
+
 [Try the live demo](https://pengfanz.github.io/splitbill/)
 
 ![Friends sharing expenses with Tally](public/og.png)

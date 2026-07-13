@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
@@ -9,6 +9,7 @@ import type { ActivityGroup, Expense, Member, PersistedState } from './domain/mo
 import { ActivitySummary, ExpenseList, GroupDashboard, MembersRail, SettlementDirections } from './features/activity/ActivityDashboard'
 import { AddFriendModal, CreateGroupModal, ExpenseModal } from './features/activity/ActivityModals'
 import { buildShareSummary, createSummaryCard, exportActivitySummary, SHARE_MESSAGES, shareActivitySummary } from './features/sharing/shareActivity'
+import { createSharedActivity, encodeSharedActivity, SHARE_HASH_PREFIX } from './features/sharing/shareActivityUrl'
 
 const maya: Member = { id: 'maya', name: 'Maya Chen', initials: 'MC', color: '#abc' }
 const jordan: Member = { id: 'jordan', name: 'Jordan', initials: 'J', color: '#def' }
@@ -36,6 +37,7 @@ const storedState = (overrides: Partial<PersistedState> = {}): PersistedState =>
 
 beforeEach(() => {
   vi.restoreAllMocks()
+  window.history.replaceState(null, '', '/')
   Object.defineProperty(navigator, 'share', { configurable: true, value: undefined })
   Object.defineProperty(navigator, 'canShare', { configurable: true, value: undefined })
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined })
@@ -334,6 +336,7 @@ describe('small UI building blocks', () => {
     const addFriend = vi.fn()
     const addExpense = vi.fn()
     const share = vi.fn()
+    const shareLink = vi.fn()
     const editExpense = vi.fn()
     const deleteExpense = vi.fn()
     const { rerender } = render(<MembersRail members={[CURRENT_USER, maya]} expenses={[expense()]} onAddFriend={addFriend} />)
@@ -342,8 +345,9 @@ describe('small UI building blocks', () => {
     await user.click(screen.getByRole('button', { name: 'Add friend' }))
     expect(addFriend).toHaveBeenCalledOnce()
 
-    rerender(<GroupDashboard group={group} members={[CURRENT_USER, maya, jordan]} expenses={[expense()]} query="" activityFeedback="Summary copied." onShare={share} onAddFriend={addFriend} onAddExpense={addExpense} onEditExpense={editExpense} onDeleteExpense={deleteExpense} />)
+    rerender(<GroupDashboard group={group} members={[CURRENT_USER, maya, jordan]} expenses={[expense()]} query="" activityFeedback="Summary copied." onShare={share} onShareLink={shareLink} onAddFriend={addFriend} onAddExpense={addExpense} onEditExpense={editExpense} onDeleteExpense={deleteExpense} />)
     expect(screen.getByRole('status')).toHaveTextContent('Summary copied.')
+    await user.click(screen.getByRole('button', { name: 'Share link' }))
     await user.click(screen.getByRole('button', { name: 'Share summary' }))
     await user.click(screen.getAllByRole('button', { name: 'Add friend' })[0])
     await user.click(screen.getByRole('button', { name: 'Add expense' }))
@@ -351,7 +355,14 @@ describe('small UI building blocks', () => {
     expect(addFriend).toHaveBeenCalledTimes(2)
     expect(addExpense).toHaveBeenCalledOnce()
     expect(share).toHaveBeenCalledOnce()
+    expect(shareLink).toHaveBeenCalledOnce()
     expect(editExpense).toHaveBeenCalledWith(expect.objectContaining({ title: 'Dinner' }))
+
+    rerender(<GroupDashboard group={group} members={[CURRENT_USER, maya]} expenses={[expense()]} query="" activityFeedback={null} readOnly />)
+    expect(screen.getByText('Read-only snapshot')).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Share link' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add friend' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit Dinner' })).not.toBeInTheDocument()
   })
 })
 
@@ -529,6 +540,10 @@ describe('complete app workflows', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('Summary copied')
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Maya pays You $10.00'))
 
+    await user.click(screen.getByRole('button', { name: 'Share link' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('Activity link copied')
+    expect(writeText).toHaveBeenLastCalledWith(expect.stringContaining('#share='))
+
     await user.type(screen.getByRole('textbox', { name: 'Search expenses' }), 'zzz')
     expect(screen.getByText('No expenses match your search.')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Clear search' }))
@@ -581,5 +596,33 @@ describe('complete app workflows', () => {
     await user.click(screen.getByRole('button', { name: 'Add expense' }))
     fireEvent(window, new StorageEvent('storage', { key: STORAGE_KEY, newValue: JSON.stringify(EMPTY_STATE) }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('opens URL state as read-only and saves an isolated local copy explicitly', async () => {
+    const user = userEvent.setup()
+    const shared = createSharedActivity(group, [CURRENT_USER, maya, jordan], [expense()])
+    window.history.replaceState(null, '', `/${SHARE_HASH_PREFIX}${encodeSharedActivity(shared)}`)
+    const { unmount } = render(<App />)
+
+    expect(screen.getByLabelText('Shared activity preview')).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Trip' })).toBeVisible()
+    expect(screen.getByText('Read-only snapshot')).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Add expense' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit Dinner' })).not.toBeInTheDocument()
+    expect(parseState(localStorage.getItem(STORAGE_KEY)).groups).toHaveLength(0)
+
+    await user.click(screen.getByRole('button', { name: 'Save a local copy' }))
+    expect(screen.queryByLabelText('Shared activity preview')).not.toBeInTheDocument()
+    expect(window.location.hash).toBe('')
+    expect(screen.getByRole('button', { name: 'Add expense' })).toBeVisible()
+    await waitFor(() => expect(parseState(localStorage.getItem(STORAGE_KEY)).groups).toHaveLength(1))
+
+    unmount()
+    localStorage.clear()
+    window.history.replaceState(null, '', `/${SHARE_HASH_PREFIX}${encodeSharedActivity(shared)}`)
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'Back to my activities' }))
+    expect(screen.getByRole('heading', { name: 'Start your first activity' })).toBeVisible()
+    expect(window.location.hash).toBe('')
   })
 })

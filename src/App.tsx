@@ -8,6 +8,14 @@ import type { ActivityGroup, Expense, Member } from './domain/models'
 import { GroupDashboard } from './features/activity/ActivityDashboard'
 import { AddFriendModal, CreateGroupModal, ExpenseModal } from './features/activity/ActivityModals'
 import { exportActivitySummary, SHARE_MESSAGES } from './features/sharing/shareActivity'
+import {
+  clearSharedActivityHash,
+  createSharedActivity,
+  decodeSharedActivityHash,
+  saveSharedActivityCopy,
+  shareActivityUrl,
+  SHARE_URL_MESSAGES,
+} from './features/sharing/shareActivityUrl'
 import { usePersistedState } from './hooks/usePersistedState'
 
 type ModalType = 'group' | 'friend' | 'expense' | null
@@ -28,6 +36,7 @@ export default function App() {
   const [modal, setModal] = useState<ModalType>(null)
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
   const [activityFeedback, setActivityFeedback] = useState<ActivityFeedback>(null)
+  const [sharedActivity, setSharedActivity] = useState(() => decodeSharedActivityHash(window.location.hash))
 
   const selectedGroup = state.groups.find(group => group.id === state.selectedGroupId) ?? state.groups[0] ?? null
   const selectedMembers = selectedGroup
@@ -36,6 +45,17 @@ export default function App() {
   const selectedExpenses = selectedGroup
     ? state.expenses.filter(expense => expense.groupId === selectedGroup.id)
     : []
+  const sharedMembers = sharedActivity ? [CURRENT_USER, ...sharedActivity.friends] : []
+
+  const closeSharedActivity = () => {
+    clearSharedActivityHash()
+    setSharedActivity(null)
+  }
+
+  const saveSharedActivity = (activity: NonNullable<typeof sharedActivity>) => {
+    setState(current => saveSharedActivityCopy(current, activity))
+    closeSharedActivity()
+  }
 
   const createGroup = (name: string, friendNames: string[]) => {
     const groupId = makeId('group')
@@ -110,6 +130,11 @@ export default function App() {
     setActivityFeedback({ groupId: group.id, message: SHARE_MESSAGES[result] })
   }
 
+  const shareGroupLink = async (group: ActivityGroup, members: Member[], expenses: Expense[]) => {
+    const result = await shareActivityUrl(createSharedActivity(group, members, expenses))
+    setActivityFeedback({ groupId: group.id, message: SHARE_URL_MESSAGES[result] })
+  }
+
   const deleteExpense = (expense: Expense) => {
     if (!window.confirm(`Delete "${expense.title}"? This removes it from the activity and recalculates everyone’s balances.`)) return
     setState(current => ({ ...current, expenses: current.expenses.filter(item => item.id !== expense.id) }))
@@ -125,14 +150,35 @@ export default function App() {
     <div className="app-shell">
       <Sidebar
         groups={state.groups}
-        selectedId={selectedGroup?.id ?? null}
-        onSelect={id => setState(current => ({ ...current, selectedGroupId: id }))}
-        onCreate={() => setModal('group')}
+        selectedId={sharedActivity ? null : selectedGroup?.id ?? null}
+        onSelect={id => {
+          closeSharedActivity()
+          setState(current => ({ ...current, selectedGroupId: id }))
+        }}
+        onCreate={() => {
+          closeSharedActivity()
+          setModal('group')
+        }}
         onReset={resetData}
       />
       <div className="workspace">
         <Topbar query={query} setQuery={setQuery} />
-        {selectedGroup ? (
+        {sharedActivity ? (
+          <>
+            <section className="shared-preview" aria-label="Shared activity preview">
+              <div><strong>Shared activity snapshot</strong><span>This read-only link has not changed your local activities.</span></div>
+              <div><button className="outline-button" onClick={closeSharedActivity}>Back to my activities</button><button className="confirm-button" onClick={() => saveSharedActivity(sharedActivity)}>Save a local copy</button></div>
+            </section>
+            <GroupDashboard
+              group={sharedActivity.group}
+              members={sharedMembers}
+              expenses={sharedActivity.expenses}
+              query={query}
+              activityFeedback={null}
+              readOnly
+            />
+          </>
+        ) : selectedGroup ? (
           <GroupDashboard
             group={selectedGroup}
             members={selectedMembers}
@@ -140,6 +186,7 @@ export default function App() {
             query={query}
             activityFeedback={activityFeedback?.groupId === selectedGroup.id ? activityFeedback.message : null}
             onShare={() => shareGroup(selectedGroup, selectedMembers, selectedExpenses)}
+            onShareLink={() => shareGroupLink(selectedGroup, selectedMembers, selectedExpenses)}
             onAddFriend={() => setModal('friend')}
             onAddExpense={openNewExpense}
             onEditExpense={openEditExpense}

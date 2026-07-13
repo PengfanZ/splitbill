@@ -18,6 +18,12 @@ Dependencies point inward: UI features may use domain and data utilities, while 
 
 The local-storage key remains `tally:frontend:v2`. Refactors must preserve this schema unless a deliberate migration is included and tested.
 
+## URL-state sharing experiment
+
+`shareActivityUrl.ts` defines a versioned activity snapshot independent of the local-storage schema. It validates every member, expense, relationship, and split before rendering a shared URL. Shared fragments open read-only, do not write to local storage, and suppress analytics. Saving creates new group, friend, and expense IDs so imported copies cannot overwrite existing records.
+
+URL state is a transport rather than synchronization: every edit produces a new snapshot, and there is no canonical latest version or automatic conflict resolution.
+
 ## Change contract
 
 Put financial calculations in pure domain helpers, browser APIs behind data or feature boundaries, and component-specific state beside the component that owns it. Every behavior change still follows the test requirements in `TESTING.md`.

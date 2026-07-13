@@ -199,9 +199,16 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .group-welcome h1 { font-family: var(--serif); font-size: clamp(36px, 4vw, 50px); font-weight: 400; line-height: 1; letter-spacing: -1.2px; margin: 0; }
 .group-welcome p { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
 .group-share { display: flex; flex-direction: column; align-items: flex-end; gap: 7px; }
-.group-actions { display: flex; gap: 9px; }
-.group-actions button { display: flex; align-items: center; justify-content: center; gap: 7px; min-width: 116px; }
+.group-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 9px; }
+.group-actions button { display: flex; align-items: center; justify-content: center; gap: 7px; min-width: 106px; padding-inline: 13px; }
 .activity-feedback { color: var(--green); font-size: 11px; font-weight: 600; max-width: 470px; text-align: right; line-height: 1.4; }
+.read-only-badge { display: inline-flex; align-items: center; min-height: 34px; padding: 0 13px; border: 1px solid #c9ddd1; border-radius: 999px; background: #eaf4ee; color: var(--green); font-size: 11px; font-weight: 700; }
+.shared-preview { margin: 18px 36px 0; padding: 15px 17px; border: 1px solid #c9ddd1; border-radius: 14px; background: #edf6f0; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.shared-preview > div { display: flex; align-items: center; gap: 10px; }
+.shared-preview > div:first-child { display: grid; gap: 3px; }
+.shared-preview strong { color: var(--green); font-size: 13px; }
+.shared-preview span { color: var(--muted); font-size: 11px; }
+.shared-preview button { min-height: 38px; white-space: nowrap; }
 .section-meta { color: var(--muted); font-size: 10px; }
 .activity-row { cursor: default; }
 .activity-list .expense-icon { background: #e9e3da; color: #5e5750; }
@@ -302,6 +309,8 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
   .group-share { width: 100%; align-items: flex-start; }
   .group-actions { width: 100%; }
   .group-actions button { flex: 1; }
+  .shared-preview { margin: 14px 18px 0; align-items: stretch; flex-direction: column; }
+  .shared-preview > div:last-child { display: grid; grid-template-columns: 1fr 1fr; }
   .activity-rail { display: block; }
   .rail-guide { margin-top: 25px; }
 }
@@ -318,7 +327,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
   .expense-icon { width: 32px; height: 32px; }
   .form-grid { grid-template-columns: 1fr; }
   .group-actions { display: grid; grid-template-columns: 1fr 1fr; }
-  .group-actions button:first-child { grid-column: 1 / -1; }
+  .shared-preview > div:last-child { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {
