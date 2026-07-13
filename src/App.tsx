@@ -14,6 +14,7 @@ import {
   Search,
   Settings,
   Sparkles,
+  Trash2,
   Users,
   WalletCards,
   X,
@@ -204,7 +205,7 @@ function SettlementDirections({ members, expenses }: { members: Member[]; expens
   )
 }
 
-function ExpenseList({ expenses, members, query }: { expenses: Expense[]; members: Member[]; query: string }) {
+function ExpenseList({ expenses, members, query, onDeleteExpense }: { expenses: Expense[]; members: Member[]; query: string; onDeleteExpense: (expense: Expense) => void }) {
   const memberMap = useMemo(() => new Map(members.map(member => [member.id, member])), [members])
   const visible = expenses.filter(expense => expense.title.toLowerCase().includes(query.toLowerCase()))
   return (
@@ -218,7 +219,7 @@ function ExpenseList({ expenses, members, query }: { expenses: Expense[]; member
               <span className="expense-icon"><ReceiptText size={18} /></span>
               <span className="row-copy"><b>{expense.title}</b><small>{payer.name} paid<i />Split {expense.splitMethod === 'equal' ? 'equally' : 'by exact amounts'}</small></span>
               <span className="expense-amount"><b>{money(expense.amount)}</b><small>{expense.createdAt}</small></span>
-              <ChevronRight size={18} />
+              <button className="expense-delete" type="button" aria-label={`Delete ${expense.title}`} title="Delete expense" onClick={() => onDeleteExpense(expense)}><Trash2 size={16} /></button>
             </div>
           )
         }) : <div className="empty-state"><Sparkles size={22} /><p>{query ? 'No expenses match your search.' : 'No expenses yet. Add the first one when you’re ready.'}</p></div>}
@@ -246,13 +247,14 @@ function MembersRail({ members, expenses, onAddFriend }: { members: Member[]; ex
   )
 }
 
-function GroupDashboard({ group, members, expenses, query, onAddFriend, onAddExpense }: {
+function GroupDashboard({ group, members, expenses, query, onAddFriend, onAddExpense, onDeleteExpense }: {
   group: ActivityGroup
   members: Member[]
   expenses: Expense[]
   query: string
   onAddFriend: () => void
   onAddExpense: () => void
+  onDeleteExpense: (expense: Expense) => void
 }) {
   return (
     <main className="dashboard">
@@ -263,7 +265,7 @@ function GroupDashboard({ group, members, expenses, query, onAddFriend, onAddExp
         </header>
         <ActivitySummary expenses={expenses} />
         <SettlementDirections members={members} expenses={expenses} />
-        <ExpenseList expenses={expenses} members={members} query={query} />
+        <ExpenseList expenses={expenses} members={members} query={query} onDeleteExpense={onDeleteExpense} />
       </div>
       <MembersRail members={members} expenses={expenses} onAddFriend={onAddFriend} />
     </main>
@@ -415,6 +417,11 @@ export default function App() {
     setModal(null)
   }
 
+  const deleteExpense = (expense: Expense) => {
+    if (!window.confirm(`Delete "${expense.title}"? This removes it from the activity and recalculates everyone’s balances.`)) return
+    setState(current => ({ ...current, expenses: current.expenses.filter(item => item.id !== expense.id) }))
+  }
+
   const resetData = () => {
     if (!window.confirm('Reset every local activity, friend, and expense? This cannot be undone.')) return
     setState(EMPTY_STATE)
@@ -426,7 +433,7 @@ export default function App() {
       <Sidebar groups={state.groups} selectedId={selectedGroup?.id ?? null} onSelect={id => setState(current => ({ ...current, selectedGroupId: id }))} onCreate={() => setModal('group')} onReset={resetData} />
       <div className="workspace">
         <Topbar query={query} setQuery={setQuery} />
-        {selectedGroup ? <GroupDashboard group={selectedGroup} members={selectedMembers} expenses={selectedExpenses} query={query} onAddFriend={() => setModal('friend')} onAddExpense={() => setModal('expense')} /> : <FreshStart onCreate={() => setModal('group')} />}
+        {selectedGroup ? <GroupDashboard group={selectedGroup} members={selectedMembers} expenses={selectedExpenses} query={query} onAddFriend={() => setModal('friend')} onAddExpense={() => setModal('expense')} onDeleteExpense={deleteExpense} /> : <FreshStart onCreate={() => setModal('group')} />}
       </div>
       {modal === 'group' ? <CreateGroupModal onClose={() => setModal(null)} onSave={createGroup} /> : null}
       {modal === 'friend' ? <AddFriendModal onClose={() => setModal(null)} onSave={addFriends} /> : null}
