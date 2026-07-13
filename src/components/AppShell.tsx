@@ -61,12 +61,12 @@ export function Sidebar({ groups, selectedId, onSelect, onCreate, onReset }: {
   )
 }
 
-export function Topbar({ query, setQuery }: { query: string; setQuery: (value: string) => void }) {
+export function Topbar({ query, setQuery, onSettings }: { query: string; setQuery: (value: string) => void; onSettings?: () => void }) {
   return (
     <header className="topbar">
       <div className="search-box"><Search size={18} /><input aria-label="Search expenses" placeholder="Search this activity…" value={query} onChange={event => setQuery(event.target.value)} />{query ? <button onClick={() => setQuery('')} aria-label="Clear search"><X size={16} /></button> : null}</div>
       <button className="icon-button" aria-label="Notifications"><Bell size={20} /><i /></button>
-      <button className="icon-button" aria-label="Settings"><Settings size={20} /></button>
+      <button className="icon-button" aria-label="Settings" onClick={onSettings}><Settings size={20} /></button>
     </header>
   )
 }
@@ -84,11 +84,11 @@ export function FreshStart({ onCreate }: { onCreate: () => void }) {
   )
 }
 
-export function ModalShell({ eyebrow, title, onClose, children }: { eyebrow: string; title: string; onClose: () => void; children: ReactNode }) {
+export function ModalShell({ eyebrow, title, onClose, children }: { eyebrow: string; title: string; onClose?: () => void; children: ReactNode }) {
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.currentTarget === event.target) onClose() }}>
+    <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (onClose && event.currentTarget === event.target) onClose() }}>
       <section className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-        <div className="modal-header"><div><span>{eyebrow}</span><h2 id="modal-title">{title}</h2></div><button aria-label="Close" onClick={onClose}><X size={20} /></button></div>
+        <div className="modal-header"><div><span>{eyebrow}</span><h2 id="modal-title">{title}</h2></div>{onClose ? <button aria-label="Close" onClick={onClose}><X size={20} /></button> : null}</div>
         {children}
       </section>
     </div>

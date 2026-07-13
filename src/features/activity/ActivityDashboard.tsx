@@ -16,23 +16,25 @@ import { calculateSettlements, money } from '../../domain/expenses'
 import { CURRENT_USER } from '../../domain/members'
 import type { ActivityGroup, Expense, Member } from '../../domain/models'
 
-export function ActivitySummary({ expenses }: { expenses: Expense[] }) {
+export function ActivitySummary({ expenses, currentUserLabel = 'You' }: { expenses: Expense[]; currentUserLabel?: string }) {
   const total = expenses.reduce((sum, expense) => sum + expense.amount, 0)
   const paid = expenses.reduce((sum, expense) => sum + (expense.payerId === 'me' ? expense.amount : 0), 0)
   const share = expenses.reduce((sum, expense) => sum + (expense.shares.me ?? 0), 0)
   const balance = paid - share
+  const balanceLabel = currentUserLabel === 'You' ? 'Your balance' : `${currentUserLabel} balance`
 
   return (
     <div className="summary" aria-label="Activity summary">
       <div><span>Total spent</span><strong>{money(total)}</strong></div>
-      <div><span>You paid</span><strong>{money(paid)}</strong></div>
-      <div><span>Your balance</span><strong className={balance > 0 ? 'positive' : balance < 0 ? 'negative' : 'settled'}>{balance > 0 ? '+' : balance < 0 ? '−' : ''}{money(balance)}</strong></div>
+      <div><span>{currentUserLabel} paid</span><strong>{money(paid)}</strong></div>
+      <div><span>{balanceLabel}</span><strong className={balance > 0 ? 'positive' : balance < 0 ? 'negative' : 'settled'}>{balance > 0 ? '+' : balance < 0 ? '−' : ''}{money(balance)}</strong></div>
     </div>
   )
 }
 
-export function SettlementDirections({ members, expenses }: { members: Member[]; expenses: Expense[] }) {
+export function SettlementDirections({ members, expenses, currentUserLabel = 'You' }: { members: Member[]; expenses: Expense[]; currentUserLabel?: string }) {
   const settlements = calculateSettlements(members, expenses)
+  const currentUserOwes = currentUserLabel === 'You' ? 'You owe' : `${currentUserLabel} owes`
 
   return (
     <section className="content-section">
@@ -41,7 +43,7 @@ export function SettlementDirections({ members, expenses }: { members: Member[];
         {settlements.length ? settlements.map(settlement => (
           <div className="balance-row settlement-row" key={`${settlement.from.id}-${settlement.to.id}`}>
             <span className="settlement-avatars"><Avatar member={settlement.from} /><i>→</i><Avatar member={settlement.to} /></span>
-            <span className="row-copy"><b>{settlement.from.id === 'me' ? `You owe ${settlement.to.name}` : `${settlement.from.name} owes ${settlement.to.name}`}</b><small>Suggested payment</small></span>
+            <span className="row-copy"><b>{settlement.from.id === 'me' ? `${currentUserOwes} ${settlement.to.name}` : `${settlement.from.name} owes ${settlement.to.name}`}</b><small>Suggested payment</small></span>
             <strong>{money(settlement.amount)}</strong>
           </div>
         )) : <div className="all-settled"><span><Check size={18} /></span><div><b>Everyone is settled</b><p>Add an expense to calculate who should pay whom.</p></div></div>}
@@ -87,14 +89,14 @@ export function ExpenseList({ expenses, members, query, readOnly = false, onEdit
   )
 }
 
-export function MembersRail({ members, expenses, readOnly = false, onAddFriend }: { members: Member[]; expenses: Expense[]; readOnly?: boolean; onAddFriend?: () => void }) {
+export function MembersRail({ members, expenses, readOnly = false, currentUserRole = 'You', onAddFriend }: { members: Member[]; expenses: Expense[]; readOnly?: boolean; currentUserRole?: string; onAddFriend?: () => void }) {
   const total = expenses.reduce((sum, expense) => sum + expense.amount, 0)
 
   return (
     <aside className="right-rail activity-rail">
       <section className="members-panel">
         <div className="rail-heading"><h2>People</h2><span>{members.length}</span></div>
-        <div className="member-list">{members.map(member => <div className="member-row" key={member.id}><Avatar member={member} size="sm" /><span><b>{member.name}</b><small>{member.id === 'me' ? 'You' : 'Friend'}</small></span>{member.id === 'me' ? <Check size={15} /> : null}</div>)}</div>
+        <div className="member-list">{members.map(member => <div className="member-row" key={member.id}><Avatar member={member} size="sm" /><span><b>{member.name}</b><small>{member.id === 'me' ? currentUserRole : 'Friend'}</small></span>{member.id === 'me' ? <Check size={15} /> : null}</div>)}</div>
         {readOnly ? null : <button className="outline-button add-friend-button" onClick={onAddFriend}><Plus size={16} />Add friend</button>}
       </section>
       <section className="rail-guide">
@@ -107,13 +109,14 @@ export function MembersRail({ members, expenses, readOnly = false, onAddFriend }
   )
 }
 
-export function GroupDashboard({ group, members, expenses, query, activityFeedback, readOnly = false, onShare, onShareLink, onAddFriend, onAddExpense, onEditExpense, onDeleteExpense }: {
+export function GroupDashboard({ group, members, expenses, query, activityFeedback, readOnly = false, currentUserLabel = 'You', onShare, onShareLink, onAddFriend, onAddExpense, onEditExpense, onDeleteExpense }: {
   group: ActivityGroup
   members: Member[]
   expenses: Expense[]
   query: string
   activityFeedback: string | null
   readOnly?: boolean
+  currentUserLabel?: string
   onShare?: () => void
   onShareLink?: () => void
   onAddFriend?: () => void
@@ -128,11 +131,11 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
           <div><span className="date">{group.emoji} Activity group</span><h1>{group.name}</h1><p>{members.length} people sharing expenses together.</p></div>
           <div className="group-share">{readOnly ? <span className="read-only-badge">Read-only snapshot</span> : <div className="group-actions"><button className="outline-button" onClick={onShareLink}><Link2 size={16} />Share link</button><button className="outline-button" onClick={onShare}><Share2 size={16} />Share summary</button><button className="outline-button" onClick={onAddFriend}><Users size={16} />Add friend</button><button className="confirm-button" onClick={onAddExpense}><Plus size={17} />Add expense</button></div>}{activityFeedback ? <span className="activity-feedback" role="status">{activityFeedback}</span> : null}</div>
         </header>
-        <ActivitySummary expenses={expenses} />
-        <SettlementDirections members={members} expenses={expenses} />
+        <ActivitySummary expenses={expenses} currentUserLabel={currentUserLabel} />
+        <SettlementDirections members={members} expenses={expenses} currentUserLabel={currentUserLabel} />
         <ExpenseList expenses={expenses} members={members} query={query} readOnly={readOnly} onEditExpense={onEditExpense} onDeleteExpense={onDeleteExpense} />
       </div>
-      <MembersRail members={members} expenses={expenses} readOnly={readOnly} onAddFriend={onAddFriend} />
+      <MembersRail members={members} expenses={expenses} readOnly={readOnly} currentUserRole={readOnly ? 'Shared role' : 'You'} onAddFriend={onAddFriend} />
     </main>
   )
 }

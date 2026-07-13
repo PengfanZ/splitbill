@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+import { IDENTITY_KEY } from './data/identity'
 import { parseState, STORAGE_KEY } from './data/storage'
 import { calculateSettlements } from './domain/expenses'
 import { CURRENT_USER } from './domain/members'
@@ -28,6 +29,7 @@ const persistedTrip: PersistedState = {
 
 beforeEach(() => {
   vi.restoreAllMocks()
+  localStorage.setItem(IDENTITY_KEY, JSON.stringify(CURRENT_USER))
   vi.spyOn(window, 'confirm').mockReturnValue(true)
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
 })

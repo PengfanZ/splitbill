@@ -18,9 +18,11 @@ Dependencies point inward: UI features may use domain and data utilities, while 
 
 The local-storage key remains `tally:frontend:v2`. Refactors must preserve this schema unless a deliberate migration is included and tested.
 
+The current participant identity is stored separately under `tally:identity:v1`. Keeping it outside the activity schema avoids rewriting existing activity data when the user changes their display name.
+
 ## URL-state sharing experiment
 
-`shareActivityUrl.ts` defines a versioned activity snapshot independent of the local-storage schema. It validates every member, expense, relationship, and split before rendering a shared URL. Shared fragments open read-only, do not write to local storage, and suppress analytics. Saving creates new group, friend, and expense IDs so imported copies cannot overwrite existing records.
+`shareActivityUrl.ts` defines a versioned activity snapshot independent of the local-storage schema. It validates every member, expense, relationship, and split before rendering a shared URL. Shared fragments open read-only, do not write to local storage, and suppress analytics. Saving requires the recipient to choose their participant, remaps that participant to `me`, and creates new IDs for every other imported entity so copies cannot overwrite existing records.
 
 URL state is a transport rather than synchronization: every edit produces a new snapshot, and there is no canonical latest version or automatic conflict resolution.
 

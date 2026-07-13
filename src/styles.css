@@ -167,7 +167,12 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .future-note b { color: var(--ink); font-size: 13px; }
 .future-note small { color: var(--muted); line-height: 1.4; }
 .edit-note { align-items: flex-start; line-height: 1.45; }
+.identity-note { align-items: flex-start; border-color: #cddfd4; background: #eef6f1; }
+.identity-note span { display: grid; gap: 3px; }
+.identity-note b { color: var(--ink); font-size: 12px; }
+.identity-note small { color: var(--muted); line-height: 1.45; }
 .modal-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; margin-top: 4px; }
+.modal-actions--single { grid-template-columns: 1fr; }
 
 /* Activity-first workspace */
 .group-row--button { width: 100%; border: 0; background: transparent; text-align: left; border-radius: 10px; color: var(--ink); transition: background .15s ease; }

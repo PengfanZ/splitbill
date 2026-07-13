@@ -2,23 +2,28 @@
 
 import { useEffect, useState } from 'react'
 import { FreshStart, Sidebar, Topbar } from './components/AppShell'
+import { createIdentity } from './data/identity'
 import { EMPTY_STATE } from './data/storage'
 import { ACTIVITY_EMOJIS, addedFriendsMessage, CURRENT_USER, FRIEND_COLORS, initialsFor, makeId } from './domain/members'
 import type { ActivityGroup, Expense, Member } from './domain/models'
 import { GroupDashboard } from './features/activity/ActivityDashboard'
 import { AddFriendModal, CreateGroupModal, ExpenseModal } from './features/activity/ActivityModals'
+import { IdentityModal } from './features/identity/IdentityModal'
 import { exportActivitySummary, SHARE_MESSAGES } from './features/sharing/shareActivity'
+import { SharedActivityIdentityModal } from './features/sharing/SharedActivityIdentityModal'
 import {
   clearSharedActivityHash,
   createSharedActivity,
   decodeSharedActivityHash,
+  getSharedActivitySender,
   saveSharedActivityCopy,
   shareActivityUrl,
   SHARE_URL_MESSAGES,
 } from './features/sharing/shareActivityUrl'
 import { usePersistedState } from './hooks/usePersistedState'
+import { useIdentity } from './hooks/useIdentity'
 
-type ModalType = 'group' | 'friend' | 'expense' | null
+type ModalType = 'group' | 'friend' | 'expense' | 'identity' | 'shared-identity' | null
 type ActivityFeedback = { groupId: string; message: string } | null
 
 function createFriends(names: string[], colorOffset: number): Member[] {
@@ -32,6 +37,7 @@ function createFriends(names: string[], colorOffset: number): Member[] {
 
 export default function App() {
   const [state, setState] = usePersistedState()
+  const [identity, setIdentity] = useIdentity()
   const [query, setQuery] = useState('')
   const [modal, setModal] = useState<ModalType>(null)
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
@@ -45,21 +51,23 @@ export default function App() {
   }, [])
 
   const selectedGroup = state.groups.find(group => group.id === state.selectedGroupId) ?? state.groups[0] ?? null
+  const currentUser = identity ?? CURRENT_USER
   const selectedMembers = selectedGroup
-    ? [CURRENT_USER, ...state.friends.filter(friend => selectedGroup.memberIds.includes(friend.id))]
-    : [CURRENT_USER]
+    ? [currentUser, ...state.friends.filter(friend => selectedGroup.memberIds.includes(friend.id))]
+    : [currentUser]
   const selectedExpenses = selectedGroup
     ? state.expenses.filter(expense => expense.groupId === selectedGroup.id)
     : []
-  const sharedMembers = sharedActivity ? [CURRENT_USER, ...sharedActivity.friends] : []
+  const sharedMembers = sharedActivity ? [getSharedActivitySender(sharedActivity), ...sharedActivity.friends] : []
 
   const closeSharedActivity = () => {
     clearSharedActivityHash()
     setSharedActivity(null)
+    setModal(null)
   }
 
-  const saveSharedActivity = (activity: NonNullable<typeof sharedActivity>) => {
-    setState(current => saveSharedActivityCopy(current, activity))
+  const saveSharedActivity = (activity: NonNullable<typeof sharedActivity>, viewerId: string) => {
+    setState(current => saveSharedActivityCopy(current, activity, viewerId))
     closeSharedActivity()
   }
 
@@ -168,12 +176,12 @@ export default function App() {
         onReset={resetData}
       />
       <div className="workspace">
-        <Topbar query={query} setQuery={setQuery} />
+        <Topbar query={query} setQuery={setQuery} onSettings={() => setModal('identity')} />
         {sharedActivity ? (
           <>
             <section className="shared-preview" aria-label="Shared activity preview">
-              <div><strong>Shared activity snapshot</strong><span>This link has not changed your local activities. “You” refers to the link creator in this prototype.</span></div>
-              <div><button className="outline-button" onClick={closeSharedActivity}>Back to my activities</button><button className="confirm-button" onClick={() => saveSharedActivity(sharedActivity)}>Save a local copy</button></div>
+              <div><strong>Shared activity snapshot</strong><span>This read-only link has not changed your local activities. Choose who you are before saving.</span></div>
+              <div><button className="outline-button" onClick={closeSharedActivity}>Back to my activities</button><button className="confirm-button" onClick={() => setModal('shared-identity')}>Save a local copy</button></div>
             </section>
             <GroupDashboard
               group={sharedActivity.group}
@@ -182,6 +190,7 @@ export default function App() {
               query={query}
               activityFeedback={null}
               readOnly
+              currentUserLabel={getSharedActivitySender(sharedActivity).name}
             />
           </>
         ) : selectedGroup ? (
@@ -211,6 +220,8 @@ export default function App() {
           onSave={editingExpense ? updateExpense : addExpense}
         />
       ) : null}
+      {modal === 'shared-identity' && sharedActivity ? <SharedActivityIdentityModal members={sharedMembers} onClose={() => setModal(null)} onSave={viewerId => saveSharedActivity(sharedActivity, viewerId)} /> : null}
+      {!identity || modal === 'identity' ? <IdentityModal initialName={identity?.name} onClose={identity ? () => setModal(null) : undefined} onSave={name => { setIdentity(createIdentity(name)); setModal(null) }} /> : null}
     </div>
   )
 }

@@ -6,11 +6,13 @@
 
 A frontend-first shared-expense app for trips, dinners, homes, and other group activities. Tally tracks who paid, supports equal or exact splits, and calculates clear suggested payments to settle the group.
 
+On first use, Tally asks for a display name and stores that identity only in the current browser. The name replaces the ambiguous generic “You” in participant lists and is included as the sender identity when an activity link is shared.
+
 Production visits are measured with privacy-friendly Cloudflare Web Analytics. The beacon is deferred until after the React app mounts, is disabled during local development and tests, and uses no application data. In Cloudflare, filter page paths by `/splitbill/` to isolate this app from other pages on the same GitHub Pages domain.
 
 ## Experimental URL-state sharing
 
-The `codex/url-state-sharing` branch adds frontend-only activity snapshots. **Share link** serializes the selected activity into the URL fragment, and opening that URL shows a validated, read-only preview. The recipient can explicitly save an isolated local copy; opening a link never overwrites browser data. Shared-preview URLs also skip analytics because the fragment contains names and expense details. Until activity-scoped identities are added, “You” in a shared snapshot still means the link creator.
+The `codex/url-state-sharing` branch adds frontend-only activity snapshots. **Share link** serializes the selected activity into the URL fragment, and opening that URL shows a validated, read-only preview. Before saving an isolated local copy, the recipient chooses which participant they are; that participant and every payer/share reference are remapped consistently to “You.” Opening a link never overwrites browser data. Shared-preview URLs also skip analytics because the fragment contains names and expense details.
 
 This is asynchronous snapshot sharing, not live collaboration. A newer edit produces a new URL, links cannot be revoked, and activities above the conservative 12,000-character URL limit need a future file or backend transport.
 

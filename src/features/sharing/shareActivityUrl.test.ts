@@ -8,6 +8,8 @@ import {
   createSharedActivity,
   decodeSharedActivityHash,
   encodeSharedActivity,
+  getSharedActivitySender,
+  LINK_SENDER,
   MAX_SHARE_URL_LENGTH,
   saveSharedActivityCopy,
   SHARE_HASH_PREFIX,
@@ -43,7 +45,10 @@ beforeEach(() => {
 
 describe('URL activity serialization', () => {
   it('creates a portable snapshot without duplicating the current user', () => {
-    expect(shared).toEqual({ version: 1, group, friends: [maya], expenses: [expense] })
+    expect(shared).toEqual({ version: 2, sender: CURRENT_USER, group, friends: [maya], expenses: [expense] })
+    expect(createSharedActivity(group, [maya], [expense]).sender).toBe(CURRENT_USER)
+    expect(getSharedActivitySender(shared)).toBe(CURRENT_USER)
+    expect(getSharedActivitySender({ ...shared, sender: undefined } as unknown as SharedActivity)).toBe(LINK_SENDER)
   })
 
   it('round-trips Unicode activity state through a URL-safe fragment', () => {
@@ -54,6 +59,9 @@ describe('URL activity serialization', () => {
     const url = buildSharedActivityUrl(shared, 'https://example.com/splitbill/?mode=test#old')
     expect(url).toMatch(/^https:\/\/example\.com\/splitbill\/\?mode=test#share=/)
     expect(decodeSharedActivityHash(new URL(url).hash)).toEqual(shared)
+
+    const legacy = { version: 1, group: shared.group, friends: shared.friends, expenses: shared.expenses }
+    expect(decodeSharedActivityHash(encoded(legacy))).toEqual({ ...shared, sender: LINK_SENDER })
   })
 
   it('rejects missing, corrupt, unsupported, and structurally unsafe payloads', () => {
@@ -65,7 +73,9 @@ describe('URL activity serialization', () => {
     const invalid: unknown[] = [
       null,
       [],
-      { ...shared, version: 2 },
+      { ...shared, version: 3 },
+      { ...shared, sender: null },
+      { ...shared, sender: { ...CURRENT_USER, id: 'someone-else' } },
       { ...shared, group: null },
       { ...shared, group: { ...group, id: 1 } },
       { ...shared, group: { ...group, name: 1 } },
@@ -143,7 +153,7 @@ describe('URL activity sharing and saving', () => {
   })
 
   it('saves an isolated local copy with consistently remapped IDs', () => {
-    const result = saveSharedActivityCopy(EMPTY_STATE, shared)
+    const result = saveSharedActivityCopy(EMPTY_STATE, shared, 'me')
     const copiedGroup = result.groups[0]
     const copiedFriend = result.friends[0]
     const copiedExpense = result.expenses[0]
@@ -157,10 +167,23 @@ describe('URL activity sharing and saving', () => {
     expect(copiedExpense.shares).toEqual({ me: 15, [copiedFriend.id]: 15 })
     expect(result.selectedGroupId).toBe(copiedGroup.id)
 
-    const withExisting = saveSharedActivityCopy({ ...EMPTY_STATE, groups: [group], friends: [maya], expenses: [expense] }, shared)
+    const withExisting = saveSharedActivityCopy({ ...EMPTY_STATE, groups: [group], friends: [maya], expenses: [expense] }, shared, 'me')
     expect(withExisting.groups).toHaveLength(2)
     expect(withExisting.friends).toHaveLength(2)
     expect(withExisting.expenses.at(-1)).toBe(expense)
+  })
+
+  it('remaps the selected friend to the local current user', () => {
+    const namedShared = { ...shared, sender: { ...CURRENT_USER, name: 'Pengfan', initials: 'P' } }
+    const result = saveSharedActivityCopy(EMPTY_STATE, namedShared, maya.id)
+    const linkSender = result.friends.find(friend => friend.name === 'Pengfan')
+
+    expect(result.friends.some(friend => friend.name === maya.name)).toBe(false)
+    expect(linkSender).toBeDefined()
+    expect(result.groups[0].memberIds).toEqual([linkSender?.id, 'me'])
+    expect(result.expenses[0].payerId).toBe(linkSender?.id)
+    expect(result.expenses[0].shares).toEqual({ [linkSender!.id]: 15, me: 15 })
+    expect(() => saveSharedActivityCopy(EMPTY_STATE, shared, 'missing')).toThrow(RangeError)
   })
 
   it('clears only the shared fragment from the current URL', () => {

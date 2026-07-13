@@ -1,11 +1,21 @@
-import { makeId } from '../../domain/members'
+import { CURRENT_USER, makeId } from '../../domain/members'
 import type { ActivityGroup, Expense, Member, PersistedState } from '../../domain/models'
 
 export const SHARE_HASH_PREFIX = '#share='
 export const MAX_SHARE_URL_LENGTH = 12_000
+export const LINK_SENDER: Member = {
+  ...CURRENT_USER,
+  name: 'Link sender',
+  initials: 'LS',
+}
+
+export function getSharedActivitySender(activity: SharedActivity) {
+  return activity.sender ?? LINK_SENDER
+}
 
 export type SharedActivity = {
-  version: 1
+  version: 2
+  sender: Member
   group: ActivityGroup
   friends: Member[]
   expenses: Expense[]
@@ -64,8 +74,7 @@ function isExpense(value: unknown): value is Expense {
     && typeof value.createdAt === 'string'
 }
 
-function isSharedActivity(value: unknown): value is SharedActivity {
-  if (!isRecord(value) || value.version !== 1) return false
+function hasValidActivityData(value: Record<string, unknown>) {
   const group = value.group
   if (!isGroup(group)) return false
   if (!Array.isArray(value.friends) || !value.friends.every(isMember)) return false
@@ -96,7 +105,8 @@ function fromBase64Url(value: string) {
 
 export function createSharedActivity(group: ActivityGroup, members: Member[], expenses: Expense[]): SharedActivity {
   return {
-    version: 1,
+    version: 2,
+    sender: members.find(member => member.id === 'me') ?? CURRENT_USER,
     group,
     friends: members.filter(member => member.id !== 'me'),
     expenses,
@@ -111,7 +121,10 @@ export function decodeSharedActivityHash(hash: string): SharedActivity | null {
   if (!hash.startsWith(SHARE_HASH_PREFIX)) return null
   try {
     const parsed: unknown = JSON.parse(fromBase64Url(hash.slice(SHARE_HASH_PREFIX.length)))
-    return isSharedActivity(parsed) ? parsed : null
+    if (!isRecord(parsed) || !hasValidActivityData(parsed)) return null
+    if (parsed.version === 1) return { ...parsed, version: 2, sender: LINK_SENDER } as SharedActivity
+    if (parsed.version !== 2 || !isMember(parsed.sender) || parsed.sender.id !== 'me') return null
+    return parsed as SharedActivity
   } catch {
     return null
   }
@@ -153,10 +166,11 @@ export async function shareActivityUrl(activity: SharedActivity, currentUrl = wi
   return 'failed'
 }
 
-export function saveSharedActivityCopy(current: PersistedState, activity: SharedActivity): PersistedState {
+export function saveSharedActivityCopy(current: PersistedState, activity: SharedActivity, viewerId: string): PersistedState {
+  if (!activity.group.memberIds.includes(viewerId)) throw new RangeError('Selected participant is not part of this activity')
   const groupId = makeId('group')
-  const memberIdMap = new Map<string, string>([['me', 'me']])
-  const friends = activity.friends.map(friend => {
+  const memberIdMap = new Map<string, string>([[viewerId, 'me']])
+  const friends = [getSharedActivitySender(activity), ...activity.friends].filter(member => member.id !== viewerId).map(friend => {
     const id = makeId('friend')
     memberIdMap.set(friend.id, id)
     return { ...friend, id }

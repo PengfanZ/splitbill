@@ -3,13 +3,15 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { Avatar, FreshStart, ModalShell, Sidebar, Topbar } from './components/AppShell'
+import { IDENTITY_KEY } from './data/identity'
 import { EMPTY_STATE, loadState, parseState, saveState, STORAGE_KEY } from './data/storage'
 import { CURRENT_USER } from './domain/members'
 import type { ActivityGroup, Expense, Member, PersistedState } from './domain/models'
 import { ActivitySummary, ExpenseList, GroupDashboard, MembersRail, SettlementDirections } from './features/activity/ActivityDashboard'
 import { AddFriendModal, CreateGroupModal, ExpenseModal } from './features/activity/ActivityModals'
 import { buildShareSummary, createSummaryCard, exportActivitySummary, SHARE_MESSAGES, shareActivitySummary } from './features/sharing/shareActivity'
-import { createSharedActivity, encodeSharedActivity, SHARE_HASH_PREFIX } from './features/sharing/shareActivityUrl'
+import { SharedActivityIdentityModal } from './features/sharing/SharedActivityIdentityModal'
+import { createSharedActivity, encodeSharedActivity, LINK_SENDER, SHARE_HASH_PREFIX } from './features/sharing/shareActivityUrl'
 
 const maya: Member = { id: 'maya', name: 'Maya Chen', initials: 'MC', color: '#abc' }
 const jordan: Member = { id: 'jordan', name: 'Jordan', initials: 'J', color: '#def' }
@@ -38,6 +40,7 @@ const storedState = (overrides: Partial<PersistedState> = {}): PersistedState =>
 beforeEach(() => {
   vi.restoreAllMocks()
   window.history.replaceState(null, '', '/')
+  localStorage.setItem(IDENTITY_KEY, JSON.stringify(CURRENT_USER))
   Object.defineProperty(navigator, 'share', { configurable: true, value: undefined })
   Object.defineProperty(navigator, 'canShare', { configurable: true, value: undefined })
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined })
@@ -493,9 +496,55 @@ describe('modals', () => {
     await user.click(screen.getByRole('button', { name: 'Save expense' }))
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ shares: {} }))
   })
+
+  it('lets a shared-link recipient choose their participant identity', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    const onSave = vi.fn()
+    const { unmount } = render(<SharedActivityIdentityModal members={[LINK_SENDER, maya]} onClose={onClose} onSave={onSave} />)
+
+    expect(screen.getByLabelText('Your participant')).toHaveValue('me')
+    await user.selectOptions(screen.getByLabelText('Your participant'), maya.id)
+    await user.click(screen.getByRole('button', { name: 'Save my copy' }))
+    expect(onSave).toHaveBeenCalledWith(maya.id)
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(onClose).toHaveBeenCalledOnce()
+
+    unmount()
+    const { container } = render(<SharedActivityIdentityModal members={[]} onClose={onClose} onSave={onSave} />)
+    expect(screen.getByRole('button', { name: 'Save my copy' })).toBeDisabled()
+    fireEvent.submit(container.querySelector('form')!)
+    expect(onSave).toHaveBeenCalledOnce()
+  })
 })
 
 describe('complete app workflows', () => {
+  it('creates and updates a persistent local identity', async () => {
+    const user = userEvent.setup()
+    localStorage.removeItem(IDENTITY_KEY)
+    render(<App />)
+
+    const onboarding = screen.getByRole('dialog', { name: 'What should we call you?' })
+    expect(onboarding).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
+    fireEvent.submit(onboarding.querySelector('form')!)
+    expect(onboarding).toBeVisible()
+    await user.type(screen.getByLabelText('Display name'), '  Pengfan Zhang  ')
+    await user.click(screen.getByRole('button', { name: 'Continue' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await waitFor(() => expect(JSON.parse(localStorage.getItem(IDENTITY_KEY)!)).toMatchObject({ name: 'Pengfan Zhang', initials: 'PZ' }))
+
+    await user.click(screen.getByRole('button', { name: 'Settings' }))
+    expect(screen.getByLabelText('Display name')).toHaveValue('Pengfan Zhang')
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Settings' }))
+    await user.clear(screen.getByLabelText('Display name'))
+    await user.type(screen.getByLabelText('Display name'), 'Pengfan')
+    await user.click(screen.getByRole('button', { name: 'Save name' }))
+    await waitFor(() => expect(JSON.parse(localStorage.getItem(IDENTITY_KEY)!)).toMatchObject({ name: 'Pengfan', initials: 'P' }))
+  })
+
   it('opens and closes every app-level dialog', async () => {
     const user = userEvent.setup()
     localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState()))
@@ -600,21 +649,33 @@ describe('complete app workflows', () => {
 
   it('opens URL state as read-only and saves an isolated local copy explicitly', async () => {
     const user = userEvent.setup()
-    const shared = createSharedActivity(group, [CURRENT_USER, maya, jordan], [expense()])
+    const sender = { ...CURRENT_USER, name: 'Alex', initials: 'A' }
+    const shared = createSharedActivity(group, [sender, maya, jordan], [expense()])
     window.history.replaceState(null, '', `/${SHARE_HASH_PREFIX}${encodeSharedActivity(shared)}`)
     const { unmount } = render(<App />)
 
     expect(screen.getByLabelText('Shared activity preview')).toBeVisible()
     expect(screen.getByRole('heading', { name: 'Trip' })).toBeVisible()
     expect(screen.getByText('Read-only snapshot')).toBeVisible()
+    expect(screen.getByText('Alex paid')).toBeVisible()
+    expect(screen.getByText('Alex balance')).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Add expense' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Edit Dinner' })).not.toBeInTheDocument()
     expect(parseState(localStorage.getItem(STORAGE_KEY)).groups).toHaveLength(0)
 
     await user.click(screen.getByRole('button', { name: 'Save a local copy' }))
+    expect(screen.getByRole('dialog', { name: 'Who are you in this activity?' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Shared activity preview')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Save a local copy' }))
+    await user.selectOptions(screen.getByLabelText('Your participant'), maya.id)
+    await user.click(screen.getByRole('button', { name: 'Save my copy' }))
     expect(screen.queryByLabelText('Shared activity preview')).not.toBeInTheDocument()
     expect(window.location.hash).toBe('')
     expect(screen.getByRole('button', { name: 'Add expense' })).toBeVisible()
+    expect(screen.getByText((_, node) => node?.textContent === 'Alex paidSplit equally · 3 people')).toBeVisible()
+    expect(screen.getByText('You owe Alex')).toBeVisible()
     await waitFor(() => expect(parseState(localStorage.getItem(STORAGE_KEY)).groups).toHaveLength(1))
 
     unmount()
