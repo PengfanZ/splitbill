@@ -1,7 +1,9 @@
+import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string'
 import { CURRENT_USER, makeId } from '../../domain/members'
 import type { ActivityGroup, Expense, Member, PersistedState } from '../../domain/models'
 
 export const SHARE_HASH_PREFIX = '#share='
+export const COMPRESSED_SHARE_PREFIX = 'z.'
 export const MAX_SHARE_URL_LENGTH = 12_000
 export const LINK_SENDER: Member = {
   ...CURRENT_USER,
@@ -89,13 +91,6 @@ function hasValidActivityData(value: Record<string, unknown>) {
     ))
 }
 
-function toBase64Url(value: string) {
-  const bytes = new TextEncoder().encode(value)
-  let binary = ''
-  bytes.forEach(byte => { binary += String.fromCharCode(byte) })
-  return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '')
-}
-
 function fromBase64Url(value: string) {
   const normalized = value.replaceAll('-', '+').replaceAll('_', '/')
   const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')
@@ -114,13 +109,18 @@ export function createSharedActivity(group: ActivityGroup, members: Member[], ex
 }
 
 export function encodeSharedActivity(activity: SharedActivity) {
-  return toBase64Url(JSON.stringify(activity))
+  return `${COMPRESSED_SHARE_PREFIX}${compressToEncodedURIComponent(JSON.stringify(activity))}`
 }
 
 export function decodeSharedActivityHash(hash: string): SharedActivity | null {
   if (!hash.startsWith(SHARE_HASH_PREFIX)) return null
   try {
-    const parsed: unknown = JSON.parse(fromBase64Url(hash.slice(SHARE_HASH_PREFIX.length)))
+    const token = hash.slice(SHARE_HASH_PREFIX.length)
+    const serialized = token.startsWith(COMPRESSED_SHARE_PREFIX)
+      ? decompressFromEncodedURIComponent(token.slice(COMPRESSED_SHARE_PREFIX.length))
+      : fromBase64Url(token)
+    if (!serialized) return null
+    const parsed: unknown = JSON.parse(serialized)
     if (!isRecord(parsed) || !hasValidActivityData(parsed)) return null
     if (parsed.version === 1) return { ...parsed, version: 2, sender: LINK_SENDER } as SharedActivity
     if (parsed.version !== 2 || !isMember(parsed.sender) || parsed.sender.id !== 'me') return null
@@ -145,21 +145,21 @@ export async function shareActivityUrl(activity: SharedActivity, currentUrl = wi
     return error instanceof RangeError ? 'too-large' : 'failed'
   }
 
+  if (typeof navigator.clipboard?.writeText === 'function') {
+    try {
+      await navigator.clipboard.writeText(url)
+      return 'copied'
+    } catch {
+      // Fall back to the native share sheet when clipboard permission is unavailable.
+    }
+  }
+
   if (typeof navigator.share === 'function') {
     try {
       await navigator.share({ title: `${activity.group.name} — Tally`, url })
       return 'shared'
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return 'cancelled'
-    }
-  }
-
-  if (typeof navigator.clipboard?.writeText === 'function') {
-    try {
-      await navigator.clipboard.writeText(url)
-      return 'copied'
-    } catch {
-      return 'failed'
     }
   }
 

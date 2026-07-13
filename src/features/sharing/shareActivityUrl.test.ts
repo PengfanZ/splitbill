@@ -5,6 +5,7 @@ import type { ActivityGroup, Expense, Member } from '../../domain/models'
 import {
   buildSharedActivityUrl,
   clearSharedActivityHash,
+  COMPRESSED_SHARE_PREFIX,
   createSharedActivity,
   decodeSharedActivityHash,
   encodeSharedActivity,
@@ -36,6 +37,23 @@ function encoded(value: unknown) {
   return `${SHARE_HASH_PREFIX}${encodeSharedActivity(value as SharedActivity)}`
 }
 
+function legacyEncoded(value: unknown) {
+  const bytes = new TextEncoder().encode(JSON.stringify(value))
+  let binary = ''
+  bytes.forEach(byte => { binary += String.fromCharCode(byte) })
+  return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '')
+}
+
+function incompressibleText(length: number) {
+  let value = ''
+  let seed = 123_456_789
+  for (let index = 0; index < length; index += 1) {
+    seed = (Math.imul(seed, 1_664_525) + 1_013_904_223) >>> 0
+    value += String.fromCharCode(32 + (seed % 95))
+  }
+  return value
+}
+
 beforeEach(() => {
   vi.restoreAllMocks()
   window.history.replaceState(null, '', '/')
@@ -53,8 +71,10 @@ describe('URL activity serialization', () => {
 
   it('round-trips Unicode activity state through a URL-safe fragment', () => {
     const token = encodeSharedActivity(shared)
-    expect(token).not.toMatch(/[+/=]/)
+    expect(token).toMatch(new RegExp(`^${COMPRESSED_SHARE_PREFIX.replace('.', '\\.')}`))
+    expect(token.length).toBeLessThan(legacyEncoded(shared).length)
     expect(decodeSharedActivityHash(`${SHARE_HASH_PREFIX}${token}`)).toEqual(shared)
+    expect(decodeSharedActivityHash(`${SHARE_HASH_PREFIX}${legacyEncoded(shared)}`)).toEqual(shared)
 
     const url = buildSharedActivityUrl(shared, 'https://example.com/splitbill/?mode=test#old')
     expect(url).toMatch(/^https:\/\/example\.com\/splitbill\/\?mode=test#share=/)
@@ -68,6 +88,7 @@ describe('URL activity serialization', () => {
     expect(decodeSharedActivityHash('')).toBeNull()
     expect(decodeSharedActivityHash('#other=value')).toBeNull()
     expect(decodeSharedActivityHash(`${SHARE_HASH_PREFIX}%%%`)).toBeNull()
+    expect(decodeSharedActivityHash(`${SHARE_HASH_PREFIX}${COMPRESSED_SHARE_PREFIX}%%%`)).toBeNull()
     expect(decodeSharedActivityHash(`${SHARE_HASH_PREFIX}${btoa('not json')}`)).toBeNull()
 
     const invalid: unknown[] = [
@@ -113,7 +134,7 @@ describe('URL activity serialization', () => {
   })
 
   it('enforces a conservative URL size limit', () => {
-    const oversized = { ...shared, group: { ...group, name: 'x'.repeat(MAX_SHARE_URL_LENGTH) } }
+    const oversized = { ...shared, group: { ...group, name: incompressibleText(MAX_SHARE_URL_LENGTH) } }
     expect(() => buildSharedActivityUrl(oversized)).toThrow(RangeError)
   })
 })
@@ -133,21 +154,26 @@ describe('URL activity sharing and saving', () => {
     expect(await shareActivityUrl(shared)).toBe('cancelled')
   })
 
-  it('falls back to the clipboard and reports clipboard or URL failures', async () => {
+  it('prefers the clipboard and reports clipboard, share, or URL failures', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
-    Object.defineProperty(navigator, 'share', { configurable: true, value: vi.fn().mockRejectedValue(new Error('unsupported')) })
+    const nativeShare = vi.fn().mockRejectedValue(new Error('unsupported'))
+    Object.defineProperty(navigator, 'share', { configurable: true, value: nativeShare })
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
 
     expect(await shareActivityUrl(shared)).toBe('copied')
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('#share='))
+    expect(nativeShare).not.toHaveBeenCalled()
     writeText.mockRejectedValueOnce(new Error('blocked'))
     expect(await shareActivityUrl(shared)).toBe('failed')
+    expect(nativeShare).toHaveBeenCalledOnce()
 
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined })
     expect(await shareActivityUrl(shared)).toBe('failed')
+    Object.defineProperty(navigator, 'share', { configurable: true, value: undefined })
+    expect(await shareActivityUrl(shared)).toBe('failed')
     expect(await shareActivityUrl(shared, 'not a URL')).toBe('failed')
 
-    const oversized = { ...shared, group: { ...group, name: 'x'.repeat(MAX_SHARE_URL_LENGTH) } }
+    const oversized = { ...shared, group: { ...group, name: incompressibleText(MAX_SHARE_URL_LENGTH) } }
     expect(await shareActivityUrl(oversized)).toBe('too-large')
     expect(SHARE_URL_MESSAGES['too-large']).toContain('too large')
   })

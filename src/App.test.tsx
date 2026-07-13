@@ -350,7 +350,7 @@ describe('small UI building blocks', () => {
 
     rerender(<GroupDashboard group={group} members={[CURRENT_USER, maya, jordan]} expenses={[expense()]} query="" activityFeedback="Summary copied." onShare={share} onShareLink={shareLink} onAddFriend={addFriend} onAddExpense={addExpense} onEditExpense={editExpense} onDeleteExpense={deleteExpense} />)
     expect(screen.getByRole('status')).toHaveTextContent('Summary copied.')
-    await user.click(screen.getByRole('button', { name: 'Share link' }))
+    await user.click(screen.getByRole('button', { name: 'Copy link' }))
     await user.click(screen.getByRole('button', { name: 'Share summary' }))
     await user.click(screen.getAllByRole('button', { name: 'Add friend' })[0])
     await user.click(screen.getByRole('button', { name: 'Add expense' }))
@@ -363,7 +363,7 @@ describe('small UI building blocks', () => {
 
     rerender(<GroupDashboard group={group} members={[CURRENT_USER, maya]} expenses={[expense()]} query="" activityFeedback={null} readOnly />)
     expect(screen.getByText('Read-only snapshot')).toBeVisible()
-    expect(screen.queryByRole('button', { name: 'Share link' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Copy link' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Add friend' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Edit Dinner' })).not.toBeInTheDocument()
   })
@@ -589,7 +589,7 @@ describe('complete app workflows', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('Summary copied')
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Maya pays You $10.00'))
 
-    await user.click(screen.getByRole('button', { name: 'Share link' }))
+    await user.click(screen.getByRole('button', { name: 'Copy link' }))
     expect(await screen.findByRole('status')).toHaveTextContent('Activity link copied')
     expect(writeText).toHaveBeenLastCalledWith(expect.stringContaining('#share='))
 

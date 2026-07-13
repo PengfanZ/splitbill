@@ -22,7 +22,7 @@ The current participant identity is stored separately under `tally:identity:v1`.
 
 ## URL-state sharing experiment
 
-`shareActivityUrl.ts` defines a versioned activity snapshot independent of the local-storage schema. It validates every member, expense, relationship, and split before rendering a shared URL. Shared fragments open read-only, do not write to local storage, and suppress analytics. Saving requires the recipient to choose their participant, remaps that participant to `me`, and creates new IDs for every other imported entity so copies cannot overwrite existing records.
+`shareActivityUrl.ts` defines a versioned activity snapshot independent of the local-storage schema. New snapshots use an LZ-compressed `#share=z.…` payload, while the decoder retains compatibility with earlier base64url links. It validates every member, expense, relationship, and split before rendering a shared URL. Shared fragments open read-only, do not write to local storage, and suppress analytics. Saving requires the recipient to choose their participant, remaps that participant to `me`, and creates new IDs for every other imported entity so copies cannot overwrite existing records.
 
 URL state is a transport rather than synchronization: every edit produces a new snapshot, and there is no canonical latest version or automatic conflict resolution.
 
