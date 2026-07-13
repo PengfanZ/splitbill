@@ -1,7 +1,16 @@
 {
   "name": "tally-splitbill",
   "version": "1.0.0",
+  "description": "A frontend-first shared-expense app with equal and exact splits, settlement directions, and browser persistence.",
   "private": true,
+  "homepage": "https://fanciful-ganache-eb8c6a.netlify.app/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PengfanZ/splitbill.git"
+  },
+  "bugs": {
+    "url": "https://github.com/PengfanZ/splitbill/issues"
+  },
   "engines": {
     "node": ">=22.13.0"
   },
