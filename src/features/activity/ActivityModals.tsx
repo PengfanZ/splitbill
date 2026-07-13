@@ -1,0 +1,110 @@
+import { useState, type FormEvent } from 'react'
+import { Pencil, Users } from 'lucide-react'
+import { Avatar, ModalShell } from '../../components/AppShell'
+import { createEqualShares, createExactShares, money } from '../../domain/expenses'
+import { makeId } from '../../domain/members'
+import type { ActivityGroup, Expense, Member, SplitMethod } from '../../domain/models'
+
+export function CreateGroupModal({ onClose, onSave }: { onClose: () => void; onSave: (name: string, friendNames: string[]) => void }) {
+  const [name, setName] = useState('')
+  const [friends, setFriends] = useState('')
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    if (!name.trim()) return
+    onSave(name.trim(), friends.split(',').map(friend => friend.trim()).filter(Boolean))
+  }
+
+  return (
+    <ModalShell eyebrow="New activity" title="What are you sharing?" onClose={onClose}>
+      <form onSubmit={submit}>
+        <label>Activity name<input autoFocus value={name} onChange={event => setName(event.target.value)} placeholder="e.g. Beach weekend" required /></label>
+        <label>Add friends <small>Separate names with commas. You can add more later.</small><textarea value={friends} onChange={event => setFriends(event.target.value)} placeholder="Maya Chen, Jordan Lee" rows={3} /></label>
+        <div className="split-note"><Users size={18} /><span>You’ll be included in the activity automatically.</span></div>
+        <div className="modal-actions"><button type="button" className="outline-button" onClick={onClose}>Cancel</button><button className="confirm-button" type="submit">Create activity</button></div>
+      </form>
+    </ModalShell>
+  )
+}
+
+export function AddFriendModal({ existingExpenseCount, onClose, onSave }: { existingExpenseCount: number; onClose: () => void; onSave: (names: string[]) => void }) {
+  const [names, setNames] = useState('')
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    const parsed = names.split(',').map(name => name.trim()).filter(Boolean)
+    if (!parsed.length) return
+    onSave(parsed)
+  }
+
+  return (
+    <ModalShell eyebrow="Add people" title="Who’s joining?" onClose={onClose}>
+      <form onSubmit={submit}>
+        <label>Friend names <small>Separate multiple names with commas.</small><textarea autoFocus value={names} onChange={event => setNames(event.target.value)} placeholder="Sam Rivera, Taylor Kim" rows={3} required /></label>
+        {existingExpenseCount ? <div className="split-note future-note"><Users size={18} /><span><b>Future expenses only</b><small>{existingExpenseCount} existing {existingExpenseCount === 1 ? 'expense will' : 'expenses will'} stay unchanged.</small></span></div> : null}
+        <div className="modal-actions"><button type="button" className="outline-button" onClick={onClose}>Cancel</button><button className="confirm-button" type="submit">Add friends</button></div>
+      </form>
+    </ModalShell>
+  )
+}
+
+export function ExpenseModal({ group, members, expense, onClose, onSave }: {
+  group: ActivityGroup
+  members: Member[]
+  expense?: Expense
+  onClose: () => void
+  onSave: (expense: Expense) => void
+}) {
+  const [title, setTitle] = useState(expense?.title ?? '')
+  const [amount, setAmount] = useState(expense ? expense.amount.toString() : '')
+  const [payerId, setPayerId] = useState(expense?.payerId ?? 'me')
+  const [method, setMethod] = useState<SplitMethod>(expense?.splitMethod ?? 'equal')
+  const [exactShares, setExactShares] = useState<Record<string, string>>(() => expense?.splitMethod === 'exact'
+    ? Object.fromEntries(members.map(member => [member.id, expense.shares[member.id]?.toString() ?? '']))
+    : {})
+  const numericAmount = Number(amount) || 0
+  const exactTotal = members.reduce((sum, member) => sum + (Number(exactShares[member.id]) || 0), 0)
+  const remaining = numericAmount - exactTotal
+  const exactValid = Math.abs(remaining) < 0.005
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    if (!title.trim() || numericAmount <= 0 || (method === 'exact' && !exactValid)) return
+    const shares = method === 'equal'
+      ? createEqualShares(members, numericAmount)
+      : createExactShares(members, exactShares)
+    onSave({
+      id: expense?.id ?? makeId('expense'),
+      groupId: group.id,
+      title: title.trim(),
+      amount: numericAmount,
+      payerId,
+      splitMethod: method,
+      shares,
+      createdAt: expense?.createdAt ?? 'Just now',
+    })
+  }
+
+  return (
+    <ModalShell eyebrow={group.name} title={expense ? 'Edit expense' : 'Add a shared expense'} onClose={onClose}>
+      <form onSubmit={submit}>
+        <label>Description<input autoFocus value={title} onChange={event => setTitle(event.target.value)} placeholder="e.g. Groceries" required /></label>
+        <label>Amount<span className="modal-amount"><i>$</i><input aria-label="Amount" value={amount} onChange={event => setAmount(event.target.value)} type="number" min="0.01" step="0.01" placeholder="0.00" required /></span></label>
+        <div className="form-grid">
+          <label>Paid by<select value={payerId} onChange={event => setPayerId(event.target.value)}>{members.map(member => <option value={member.id} key={member.id}>{member.name}</option>)}</select></label>
+          <label>Split method<select value={method} onChange={event => setMethod(event.target.value as SplitMethod)}><option value="equal">Equally</option><option value="exact">Exact amounts</option></select></label>
+        </div>
+        {method === 'equal' ? (
+          <div className="split-preview"><span><Users size={18} />Each person’s share</span><strong>{members.length ? money(numericAmount / members.length) : '$0.00'}</strong></div>
+        ) : (
+          <div className="exact-splits">
+            <div className="exact-heading"><span>Enter each share</span><b className={exactValid ? 'positive' : remaining < 0 ? 'negative' : ''}>{remaining >= 0 ? `${money(remaining)} left` : `${money(remaining)} over`}</b></div>
+            {members.map(member => <label className="share-row" key={member.id}><span><Avatar member={member} size="sm" />{member.name}</span><span className="share-input"><i>$</i><input aria-label={`${member.name} share`} type="number" min="0" step="0.01" value={exactShares[member.id] ?? ''} onChange={event => setExactShares(current => ({ ...current, [member.id]: event.target.value }))} placeholder="0.00" /></span></label>)}
+          </div>
+        )}
+        {expense ? <div className="split-note edit-note"><Pencil size={17} /><span>Saving replaces this expense’s split using all {members.length} current activity members.</span></div> : null}
+        <div className="modal-actions"><button type="button" className="outline-button" onClick={onClose}>Cancel</button><button className="confirm-button" type="submit" disabled={method === 'exact' && !exactValid}>{expense ? 'Save changes' : 'Save expense'}</button></div>
+      </form>
+    </ModalShell>
+  )
+}

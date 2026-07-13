@@ -1,17 +1,12 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import App, {
-  calculateSettlements,
-  CURRENT_USER,
-  ExpenseModal,
-  parseState,
-  STORAGE_KEY,
-  type ActivityGroup,
-  type Expense,
-  type Member,
-  type PersistedState,
-} from './App'
+import App from './App'
+import { parseState, STORAGE_KEY } from './data/storage'
+import { calculateSettlements } from './domain/expenses'
+import { CURRENT_USER } from './domain/members'
+import type { ActivityGroup, Expense, Member, PersistedState } from './domain/models'
+import { ExpenseModal } from './features/activity/ActivityModals'
 
 const maya: Member = { id: 'maya', name: 'Maya', initials: 'M', color: '#d6e8dc' }
 const jordan: Member = { id: 'jordan', name: 'Jordan', initials: 'J', color: '#d8dde8' }

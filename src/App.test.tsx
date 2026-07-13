@@ -1,40 +1,15 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import App, {
-  ActivitySummary,
-  AddFriendModal,
-  addedFriendsMessage,
-  Avatar,
-  buildShareSummary,
-  createSummaryCard,
-  CreateGroupModal,
-  CURRENT_USER,
-  EMPTY_STATE,
-  ExpenseList,
-  ExpenseModal,
-  exportActivitySummary,
-  FreshStart,
-  GroupDashboard,
-  initialsFor,
-  loadState,
-  makeId,
-  Member,
-  MembersRail,
-  ModalShell,
-  money,
-  parseState,
-  PersistedState,
-  saveState,
-  SHARE_MESSAGES,
-  shareActivitySummary,
-  SettlementDirections,
-  Sidebar,
-  STORAGE_KEY,
-  Topbar,
-  type ActivityGroup,
-  type Expense,
-} from './App'
+import App from './App'
+import { Avatar, FreshStart, ModalShell, Sidebar, Topbar } from './components/AppShell'
+import { EMPTY_STATE, loadState, parseState, saveState, STORAGE_KEY } from './data/storage'
+import { money } from './domain/expenses'
+import { addedFriendsMessage, CURRENT_USER, initialsFor, makeId } from './domain/members'
+import type { ActivityGroup, Expense, Member, PersistedState } from './domain/models'
+import { ActivitySummary, ExpenseList, GroupDashboard, MembersRail, SettlementDirections } from './features/activity/ActivityDashboard'
+import { AddFriendModal, CreateGroupModal, ExpenseModal } from './features/activity/ActivityModals'
+import { buildShareSummary, createSummaryCard, exportActivitySummary, SHARE_MESSAGES, shareActivitySummary } from './features/sharing/shareActivity'
 
 const maya: Member = { id: 'maya', name: 'Maya Chen', initials: 'MC', color: '#abc' }
 const jordan: Member = { id: 'jordan', name: 'Jordan', initials: 'J', color: '#def' }
