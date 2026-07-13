@@ -16,9 +16,10 @@ The development app runs at [http://localhost:3000](http://localhost:3000).
 Run the same checks used by CI:
 
 ```bash
+npm run typecheck
+npm run lint
 npm run test:coverage
-npx tsc -p tsconfig.app.json --noEmit
-npm run build:static
+npm run build:pages
 ```
 
 All four coverage metrics must remain at 100%.

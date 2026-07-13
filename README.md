@@ -55,6 +55,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | Command | Purpose |
 | --- | --- |
 | `npm run dev` | Start the local development server |
+| `npm run lint` | Lint all TypeScript and React files with zero warnings allowed |
 | `npm test` | Run the complete automated test suite |
 | `npm run test:behavior` | Run focused happy-path and edge-case scenarios |
 | `npm run test:coverage` | Run all tests and enforce 100% coverage |
@@ -87,6 +88,7 @@ Every push and pull request must pass:
 - edge cases for cents, floating-point inputs, browser APIs, and persistence;
 - direct unit tests for pure domain modules;
 - compiler validation for every TypeScript and TSX file;
+- ESLint with TypeScript and React Hooks rules and zero warnings;
 - component and helper tests;
 - 100% statement, branch, function, and line coverage;
 - a production static build.

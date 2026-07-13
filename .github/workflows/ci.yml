@@ -32,6 +32,9 @@ jobs:
       - name: Type-check every TypeScript file
         run: npm run typecheck
 
+      - name: Lint TypeScript and React
+        run: npm run lint
+
       - name: Run happy-path and edge-case tests with full coverage
         run: npm run test:coverage
 

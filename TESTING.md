@@ -12,9 +12,10 @@ Coverage is necessary, but it is not the definition of correctness. Every produc
 
 ## CI gate
 
-Every push and pull request type-checks all TypeScript files and runs all domain, happy-path, edge-case, component, and helper tests. CI also requires 100% statements, branches, functions, and lines, followed by a production build.
+Every push and pull request type-checks and lints all TypeScript files, then runs all domain, happy-path, edge-case, component, and helper tests. CI also requires 100% statements, branches, functions, and lines, followed by a production build.
 
 - `npm test` runs the complete suite.
+- `npm run lint` runs ESLint with TypeScript and React Hooks rules and permits no warnings.
 - `npm run test:behavior` runs the focused happy-path and edge-case suite.
 - `npm run test:coverage` runs the complete suite and enforces coverage thresholds.
 - `npm run typecheck` validates executable modules, configuration, and type-only files such as `models.ts`.
