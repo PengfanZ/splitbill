@@ -6,6 +6,8 @@
 
 A frontend-first shared-expense app for trips, dinners, homes, and other group activities. Tally tracks who paid, supports equal or exact splits, and calculates clear suggested payments to settle the group.
 
+Production visits are measured with privacy-friendly Cloudflare Web Analytics. The beacon is deferred until after the React app mounts, is disabled during local development and tests, and uses no application data. In Cloudflare, filter page paths by `/splitbill/` to isolate this app from other pages on the same GitHub Pages domain.
+
 [Try the live demo](https://pengfanz.github.io/splitbill/)
 
 ![Friends sharing expenses with Tally](public/og.png)
