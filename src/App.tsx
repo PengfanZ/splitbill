@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { FreshStart, Sidebar, Topbar } from './components/AppShell'
 import { EMPTY_STATE } from './data/storage'
 import { ACTIVITY_EMOJIS, addedFriendsMessage, CURRENT_USER, FRIEND_COLORS, initialsFor, makeId } from './domain/members'
@@ -37,6 +37,12 @@ export default function App() {
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
   const [activityFeedback, setActivityFeedback] = useState<ActivityFeedback>(null)
   const [sharedActivity, setSharedActivity] = useState(() => decodeSharedActivityHash(window.location.hash))
+
+  useEffect(() => {
+    const syncSharedActivity = () => setSharedActivity(decodeSharedActivityHash(window.location.hash))
+    window.addEventListener('hashchange', syncSharedActivity)
+    return () => window.removeEventListener('hashchange', syncSharedActivity)
+  }, [])
 
   const selectedGroup = state.groups.find(group => group.id === state.selectedGroupId) ?? state.groups[0] ?? null
   const selectedMembers = selectedGroup

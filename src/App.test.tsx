@@ -625,4 +625,19 @@ describe('complete app workflows', () => {
     expect(screen.getByRole('heading', { name: 'Start your first activity' })).toBeVisible()
     expect(window.location.hash).toBe('')
   })
+
+  it('updates shared previews when an open tab receives a new URL fragment', () => {
+    const shared = createSharedActivity(group, [CURRENT_USER, maya, jordan], [expense()])
+    render(<App />)
+    expect(screen.getByRole('heading', { name: 'Start your first activity' })).toBeVisible()
+
+    window.history.replaceState(null, '', `/${SHARE_HASH_PREFIX}${encodeSharedActivity(shared)}`)
+    fireEvent(window, new HashChangeEvent('hashchange'))
+    expect(screen.getByLabelText('Shared activity preview')).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Trip' })).toBeVisible()
+
+    window.history.replaceState(null, '', '/')
+    fireEvent(window, new HashChangeEvent('hashchange'))
+    expect(screen.getByRole('heading', { name: 'Start your first activity' })).toBeVisible()
+  })
 })
