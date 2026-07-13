@@ -6,7 +6,7 @@ The latest version on `main` and the current public deployment receive security 
 
 ## Reporting a vulnerability
 
-Please do not publish sensitive vulnerability details in a public issue. Use GitHub's private vulnerability reporting for this repository when it is available. Otherwise, contact the maintainer through the GitHub profile before sharing technical details publicly.
+Please do not publish sensitive vulnerability details in a public issue. Use [GitHub's private vulnerability reporting](https://github.com/PengfanZ/splitbill/security/advisories/new) to send the report confidentially.
 
 Include the affected flow, reproduction steps, impact, and any suggested mitigation. The project aims to acknowledge reports within seven days.
 
