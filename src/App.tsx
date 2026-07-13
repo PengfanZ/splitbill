@@ -172,7 +172,7 @@ export default function App() {
         {sharedActivity ? (
           <>
             <section className="shared-preview" aria-label="Shared activity preview">
-              <div><strong>Shared activity snapshot</strong><span>This read-only link has not changed your local activities.</span></div>
+              <div><strong>Shared activity snapshot</strong><span>This link has not changed your local activities. “You” refers to the link creator in this prototype.</span></div>
               <div><button className="outline-button" onClick={closeSharedActivity}>Back to my activities</button><button className="confirm-button" onClick={() => saveSharedActivity(sharedActivity)}>Save a local copy</button></div>
             </section>
             <GroupDashboard

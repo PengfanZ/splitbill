@@ -10,7 +10,7 @@ Production visits are measured with privacy-friendly Cloudflare Web Analytics. T
 
 ## Experimental URL-state sharing
 
-The `codex/url-state-sharing` branch adds frontend-only activity snapshots. **Share link** serializes the selected activity into the URL fragment, and opening that URL shows a validated, read-only preview. The recipient can explicitly save an isolated local copy; opening a link never overwrites browser data. Shared-preview URLs also skip analytics because the fragment contains names and expense details.
+The `codex/url-state-sharing` branch adds frontend-only activity snapshots. **Share link** serializes the selected activity into the URL fragment, and opening that URL shows a validated, read-only preview. The recipient can explicitly save an isolated local copy; opening a link never overwrites browser data. Shared-preview URLs also skip analytics because the fragment contains names and expense details. Until activity-scoped identities are added, “You” in a shared snapshot still means the link creator.
 
 This is asynchronous snapshot sharing, not live collaboration. A newer edit produces a new URL, links cannot be revoked, and activities above the conservative 12,000-character URL limit need a future file or backend transport.
 
