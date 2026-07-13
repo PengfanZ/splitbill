@@ -21,8 +21,10 @@
     "lint": "eslint . --max-warnings=0",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:all": "npm run test:coverage && npm run test:e2e",
     "test:behavior": "vitest run src/behavior.test.tsx",
     "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -33,6 +35,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "1.61.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",

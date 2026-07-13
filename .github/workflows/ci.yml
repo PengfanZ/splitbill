@@ -38,8 +38,19 @@ jobs:
       - name: Run happy-path and edge-case tests with full coverage
         run: npm run test:coverage
 
-      - name: Build GitHub Pages site
-        run: npm run build:pages
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps --only-shell chromium
+
+      - name: Run browser integration tests against the GitHub Pages build
+        run: npm run test:e2e
+
+      - name: Upload Playwright failure report
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
 
       - name: Configure GitHub Pages
         if: github.event_name == 'push'

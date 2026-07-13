@@ -66,9 +66,11 @@ Open [http://localhost:3000](http://localhost:3000).
 | --- | --- |
 | `npm run dev` | Start the local development server |
 | `npm run lint` | Lint all TypeScript and React files with zero warnings allowed |
-| `npm test` | Run the complete automated test suite |
+| `npm test` | Run the Vitest unit, component, and behavior suite |
+| `npm run test:all` | Run coverage plus the Playwright integration suite |
 | `npm run test:behavior` | Run focused happy-path and edge-case scenarios |
 | `npm run test:coverage` | Run all tests and enforce 100% coverage |
+| `npm run test:e2e` | Build the GitHub Pages bundle and run the Chromium integration suite |
 | `npm run typecheck` | Type-check every TypeScript and TSX file without emitting output |
 | `npm run build:pages` | Build the static artifact with the GitHub Pages base path |
 | `npm run build` | Build a root-hosted production artifact |
@@ -100,6 +102,7 @@ Every push and pull request must pass:
 - compiler validation for every TypeScript and TSX file;
 - ESLint with TypeScript and React Hooks rules and zero warnings;
 - component and helper tests;
+- Playwright integration tests against the production GitHub Pages build;
 - 100% statement, branch, function, and line coverage;
 - a production static build.
 
