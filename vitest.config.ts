@@ -8,10 +8,9 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     coverage: {
       provider: 'v8',
-      all: true,
       include: ['src/**/*.{ts,tsx}'],
       exclude: ['src/**/*.test.{ts,tsx}', 'src/test/**'],
-      reporter: ['text', 'json-summary'],
+      reporter: [['text', { skipFull: false }], 'json-summary'],
       thresholds: {
         statements: 100,
         branches: 100,

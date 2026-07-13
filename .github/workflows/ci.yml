@@ -29,6 +29,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Type-check every TypeScript file
+        run: npm run typecheck
+
       - name: Run happy-path and edge-case tests with full coverage
         run: npm run test:coverage
 

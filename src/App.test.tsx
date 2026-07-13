@@ -4,8 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { Avatar, FreshStart, ModalShell, Sidebar, Topbar } from './components/AppShell'
 import { EMPTY_STATE, loadState, parseState, saveState, STORAGE_KEY } from './data/storage'
-import { money } from './domain/expenses'
-import { addedFriendsMessage, CURRENT_USER, initialsFor, makeId } from './domain/members'
+import { CURRENT_USER } from './domain/members'
 import type { ActivityGroup, Expense, Member, PersistedState } from './domain/models'
 import { ActivitySummary, ExpenseList, GroupDashboard, MembersRail, SettlementDirections } from './features/activity/ActivityDashboard'
 import { AddFriendModal, CreateGroupModal, ExpenseModal } from './features/activity/ActivityModals'
@@ -58,15 +57,6 @@ function mockCanvas(blob: Blob | null = new Blob(['png'], { type: 'image/png' })
 }
 
 describe('state and formatting helpers', () => {
-  it('formats money, initials, and generated ids', () => {
-    expect(money(-12.5)).toBe('$12.50')
-    expect(initialsFor('  maya chen parker ')).toBe('MC')
-    expect(initialsFor('')).toBe('?')
-    vi.spyOn(Date, 'now').mockReturnValue(123)
-    vi.spyOn(Math, 'random').mockReturnValue(0.5)
-    expect(makeId('friend')).toBe('friend-123-i')
-  })
-
   it('parses valid state and chooses a selected group fallback', () => {
     expect(parseState(null)).toBe(EMPTY_STATE)
     expect(parseState(JSON.stringify(storedState()))).toEqual(storedState())
@@ -410,12 +400,6 @@ describe('modals', () => {
     rerender(<AddFriendModal existingExpenseCount={2} onClose={onClose} onSave={onSave} />)
     expect(screen.getByText('Future expenses only')).toBeVisible()
     expect(screen.getByText('2 existing expenses will stay unchanged.')).toBeVisible()
-  })
-
-  it('describes late-added friends with correct singular and plural grammar', () => {
-    expect(addedFriendsMessage(['Jordan'], 0)).toBe('Jordan was added to the activity.')
-    expect(addedFriendsMessage(['Jordan'], 1)).toBe('Jordan was added for future expenses. 1 earlier expense was left unchanged.')
-    expect(addedFriendsMessage(['Jordan', 'Sam'], 2)).toBe('Jordan and Sam were added for future expenses. 2 earlier expenses were left unchanged.')
   })
 
   it('creates equal splits down to the cent and supports any payer', async () => {

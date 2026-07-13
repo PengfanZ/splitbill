@@ -22,6 +22,7 @@
     "test": "vitest run",
     "test:behavior": "vitest run src/behavior.test.tsx",
     "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start"
   },
   "dependencies": {

@@ -58,6 +58,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | `npm test` | Run the complete automated test suite |
 | `npm run test:behavior` | Run focused happy-path and edge-case scenarios |
 | `npm run test:coverage` | Run all tests and enforce 100% coverage |
+| `npm run typecheck` | Type-check every TypeScript and TSX file without emitting output |
 | `npm run build:static` | Build a root-hosted static artifact |
 | `npm run build:pages` | Build the static artifact with the GitHub Pages base path |
 | `npm run build` | Build through Vinext |
@@ -84,6 +85,8 @@ Every push and pull request must pass:
 
 - realistic happy-path tests;
 - edge cases for cents, floating-point inputs, browser APIs, and persistence;
+- direct unit tests for pure domain modules;
+- compiler validation for every TypeScript and TSX file;
 - component and helper tests;
 - 100% statement, branch, function, and line coverage;
 - a production static build.
