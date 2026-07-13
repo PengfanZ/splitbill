@@ -1,15 +1,11 @@
 import { useState, type ReactNode } from 'react'
 import {
-  Activity,
-  Bell,
   ChevronRight,
-  LayoutDashboard,
   Menu,
   Plus,
   Search,
   Settings,
   Users,
-  WalletCards,
   X,
 } from 'lucide-react'
 import type { ActivityGroup, Member } from '../domain/models'
@@ -26,7 +22,6 @@ export function Sidebar({ groups, selectedId, onSelect, onCreate, onReset }: {
   onReset: () => void
 }) {
   const [mobileOpen, setMobileOpen] = useState(false)
-  const items = [[LayoutDashboard, 'Overview'], [Activity, 'Activity'], [Users, 'Groups'], [WalletCards, 'Friends']] as const
 
   return (
     <>
@@ -36,13 +31,6 @@ export function Sidebar({ groups, selectedId, onSelect, onCreate, onReset }: {
           <div className="brand">Tally<span>.</span></div>
           <button className="sidebar-close" aria-label="Close navigation" onClick={() => setMobileOpen(false)}><X /></button>
         </div>
-        <nav aria-label="Primary navigation">
-          {items.map(([Icon, label], index) => (
-            <button key={label} className={`nav-item ${index === 0 ? 'is-active' : ''}`} onClick={() => setMobileOpen(false)}>
-              <Icon size={19} strokeWidth={1.8} /><span>{label}</span>
-            </button>
-          ))}
-        </nav>
         <button className="add-button" onClick={() => { onCreate(); setMobileOpen(false) }}><Plus size={20} />New activity</button>
         <div className="group-section">
           <p className="section-label">Your activities</p>
@@ -65,7 +53,6 @@ export function Topbar({ query, setQuery, onSettings }: { query: string; setQuer
   return (
     <header className="topbar">
       <div className="search-box"><Search size={18} /><input aria-label="Search expenses" placeholder="Search this activity…" value={query} onChange={event => setQuery(event.target.value)} />{query ? <button onClick={() => setQuery('')} aria-label="Clear search"><X size={16} /></button> : null}</div>
-      <button className="icon-button" aria-label="Notifications"><Bell size={20} /><i /></button>
       <button className="icon-button" aria-label="Settings" onClick={onSettings}><Settings size={20} /></button>
     </header>
   )

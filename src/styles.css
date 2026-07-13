@@ -30,16 +30,11 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 
 .app-shell { min-height: 100vh; display: grid; grid-template-columns: 244px minmax(0, 1fr); }
 .sidebar { position: fixed; inset: 0 auto 0 0; width: 244px; background: rgba(251, 249, 245, .76); border-right: 1px solid var(--line); padding: 28px 18px 18px; display: flex; flex-direction: column; z-index: 30; backdrop-filter: blur(18px); }
-.sidebar-top { display: flex; align-items: center; justify-content: space-between; margin: 0 8px 25px; }
+.sidebar-top { display: flex; align-items: center; justify-content: space-between; margin: 0 8px 20px; }
 .brand { font-family: var(--serif); font-size: 38px; line-height: 1; color: var(--coral); letter-spacing: -1.5px; }
 .brand span { color: var(--green); }
 .sidebar-close, .mobile-menu { display: none; }
-.sidebar nav { display: grid; gap: 4px; }
-.nav-item { position: relative; width: 100%; border: 0; background: transparent; display: flex; gap: 13px; align-items: center; padding: 12px 14px; border-radius: 10px; font-size: 14px; font-weight: 600; text-align: left; }
-.nav-item:hover { background: #f0ece6; }
-.nav-item.is-active { background: #ece8e2; }
-.nav-item.is-active::before { content: ''; width: 4px; border-radius: 4px; position: absolute; left: -18px; top: 7px; bottom: 7px; background: var(--coral); }
-.add-button { border: 0; background: var(--coral); color: white; border-radius: 12px; height: 48px; margin: 20px 3px 30px; display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: 700; box-shadow: 0 8px 20px rgba(242, 76, 67, .16); transition: .2s ease; }
+.add-button { border: 0; background: var(--coral); color: white; border-radius: 12px; height: 48px; margin: 0 3px 30px; display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: 700; box-shadow: 0 8px 20px rgba(242, 76, 67, .16); transition: .2s ease; }
 .add-button:hover, .confirm-button:hover { background: var(--coral-dark); transform: translateY(-1px); }
 .section-label { margin: 0 10px 12px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
 .group-section { overflow: auto; }
@@ -60,7 +55,6 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .search-box button { border: 0; background: transparent; color: var(--muted); display: grid; place-items: center; padding: 2px; }
 .icon-button { width: 40px; height: 40px; background: transparent; border: 0; display: grid; place-items: center; border-radius: 50%; position: relative; }
 .icon-button:hover { background: #ece8e2; }
-.icon-button i { width: 6px; height: 6px; border-radius: 50%; background: var(--coral); position: absolute; right: 8px; top: 7px; border: 1px solid var(--paper); }
 
 .dashboard { display: grid; grid-template-columns: minmax(0, 1fr) 314px; min-height: calc(100vh - 76px); }
 .main-column { padding: 32px 36px 50px; min-width: 0; }
@@ -318,7 +312,6 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
   .welcome .date { padding-left: 2px; }
   .balance-row, .activity-row { padding-inline: 2px; gap: 10px; }
   .activity-row .row-copy small { max-width: 160px; overflow: hidden; white-space: nowrap; }
-  .icon-button:last-child { display: none; }
   .spending { max-width: 440px; }
   .fresh-start { min-height: calc(100vh - 66px); padding-bottom: 60px; }
   .fresh-steps { gap: 12px; flex-direction: column; align-items: flex-start; }
@@ -334,7 +327,6 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 
 @media (max-width: 430px) {
   .brand { font-size: 34px; }
-  .topbar .icon-button { display: none; }
   .section-heading h2 { font-size: 17px; }
   .filter-control { padding-inline: 8px; }
   .filter-control svg:first-child { display: none; }

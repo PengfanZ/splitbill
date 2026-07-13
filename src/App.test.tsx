@@ -240,15 +240,14 @@ describe('small UI building blocks', () => {
     expect(screen.getByText('MC')).toHaveClass('avatar--lg')
   })
 
-  it('supports sidebar navigation, creation, reset, and mobile controls', async () => {
+  it('supports activity selection, creation, reset, and mobile sidebar controls', async () => {
     const user = userEvent.setup()
     const onSelect = vi.fn()
     const onCreate = vi.fn()
     const onReset = vi.fn()
     const { rerender } = render(<Sidebar groups={[]} selectedId={null} onSelect={onSelect} onCreate={onCreate} onReset={onReset} />)
     expect(screen.getByText('No activities yet.')).toBeVisible()
-    await user.click(screen.getByRole('button', { name: 'Open navigation' }))
-    await user.click(screen.getByRole('button', { name: 'Activity' }))
+    expect(screen.queryByRole('button', { name: 'Overview' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Open navigation' }))
     await user.click(screen.getAllByRole('button', { name: 'Close navigation' })[0])
     await user.click(screen.getByRole('button', { name: 'New activity' }))
@@ -270,6 +269,7 @@ describe('small UI building blocks', () => {
     const user = userEvent.setup()
     const setQuery = vi.fn()
     const { rerender } = render(<Topbar query="" setQuery={setQuery} />)
+    expect(screen.queryByRole('button', { name: 'Notifications' })).not.toBeInTheDocument()
     await user.type(screen.getByRole('textbox', { name: 'Search expenses' }), 'din')
     expect(setQuery).toHaveBeenCalled()
     rerender(<Topbar query="din" setQuery={setQuery} />)
