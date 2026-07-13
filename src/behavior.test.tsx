@@ -143,6 +143,55 @@ describe('happy paths', () => {
     expect(screen.getByText((_, node) => node?.textContent === 'You paidSplit equally · 2 people')).toBeVisible()
     expect(screen.getByText((_, node) => node?.textContent === 'You paidSplit equally · 3 people')).toBeVisible()
   })
+
+  it('lets the user explicitly update an older expense to include a newly added friend', async () => {
+    const user = userEvent.setup()
+    const originalExpense: Expense = {
+      id: 'groceries',
+      groupId: 'trip',
+      title: 'Groceries',
+      amount: 40,
+      payerId: 'me',
+      splitMethod: 'equal',
+      shares: { me: 20, maya: 20 },
+      createdAt: 'Monday',
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      groups: [trip],
+      friends: [maya, jordan],
+      expenses: [originalExpense, { ...originalExpense, id: 'other-expense', groupId: 'other', title: 'Unrelated expense' }],
+      selectedGroupId: trip.id,
+    } satisfies PersistedState))
+    const { unmount } = render(<App />)
+
+    expect(screen.getByText((_, node) => node?.textContent === 'You paidSplit equally · 2 people')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Edit Groceries' }))
+    expect(screen.getByRole('heading', { name: 'Edit expense' })).toBeVisible()
+    expect(screen.getByLabelText('Description')).toHaveValue('Groceries')
+    expect(screen.getByLabelText('Amount')).toHaveValue(40)
+    expect(screen.getByText('$13.33')).toBeVisible()
+    expect(screen.getByText('Saving replaces this expense’s split using all 3 current activity members.')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    expect(screen.getByRole('status')).toHaveTextContent('Groceries was updated. Splits and balances were recalculated.')
+    expect(screen.getByText((_, node) => node?.textContent === 'You paidSplit equally · 3 people')).toBeVisible()
+    expect(screen.getByText('Maya owes You').closest('.balance-row')).toHaveTextContent('$13.33')
+    expect(screen.getByText('Jordan owes You').closest('.balance-row')).toHaveTextContent('$13.33')
+    await waitFor(() => {
+      const savedState = parseState(localStorage.getItem(STORAGE_KEY))
+      const savedExpense = savedState.expenses.find(item => item.id === originalExpense.id)
+      expect(savedExpense).toEqual({
+        ...originalExpense,
+        shares: { me: 13.34, maya: 13.33, jordan: 13.33 },
+      })
+      expect(savedState.expenses.find(item => item.id === 'other-expense')?.title).toBe('Unrelated expense')
+    })
+
+    unmount()
+    render(<App />)
+    expect(screen.getByText((_, node) => node?.textContent === 'You paidSplit equally · 3 people')).toBeVisible()
+    expect(screen.getByText('Jordan owes You')).toBeVisible()
+  })
 })
 
 describe('edge cases', () => {

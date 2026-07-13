@@ -96,7 +96,9 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .expense-icon { width: 35px; height: 35px; border-radius: 50%; display: grid; place-items: center; flex: 0 0 auto; }
 .expense-amount { display: grid; text-align: right; gap: 3px; }
 .expense-amount b { font-size: 13px; font-weight: 600; }
-.expense-delete { width: 34px; height: 34px; border: 0; border-radius: 50%; background: transparent; color: #958e86; display: grid; place-items: center; flex: 0 0 auto; transition: color .15s ease, background .15s ease, transform .15s ease; }
+.expense-actions { display: flex; align-items: center; flex: 0 0 auto; }
+.expense-edit, .expense-delete { width: 32px; height: 32px; border: 0; border-radius: 50%; background: transparent; color: #958e86; display: grid; place-items: center; flex: 0 0 auto; transition: color .15s ease, background .15s ease, transform .15s ease; }
+.expense-edit:hover { color: var(--green); background: #dcece3; transform: translateY(-1px); }
 .expense-delete:hover { color: var(--red); background: #f7dfdc; transform: translateY(-1px); }
 .empty-state { height: 180px; display: grid; place-items: center; align-content: center; color: var(--muted); gap: 8px; }
 .empty-state p { margin: 0; font-size: 13px; }
@@ -164,6 +166,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .future-note span { display: flex; flex-direction: column; gap: 3px; }
 .future-note b { color: var(--ink); font-size: 13px; }
 .future-note small { color: var(--muted); line-height: 1.4; }
+.edit-note { align-items: flex-start; line-height: 1.45; }
 .modal-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; margin-top: 4px; }
 
 /* Activity-first workspace */

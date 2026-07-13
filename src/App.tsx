@@ -9,6 +9,7 @@ import {
   CircleDollarSign,
   LayoutDashboard,
   Menu,
+  Pencil,
   Plus,
   ReceiptText,
   Search,
@@ -407,7 +408,7 @@ export function SettlementDirections({ members, expenses }: { members: Member[];
   )
 }
 
-export function ExpenseList({ expenses, members, query, onDeleteExpense }: { expenses: Expense[]; members: Member[]; query: string; onDeleteExpense: (expense: Expense) => void }) {
+export function ExpenseList({ expenses, members, query, onEditExpense, onDeleteExpense }: { expenses: Expense[]; members: Member[]; query: string; onEditExpense: (expense: Expense) => void; onDeleteExpense: (expense: Expense) => void }) {
   const memberMap = useMemo(() => new Map(members.map(member => [member.id, member])), [members])
   const visible = expenses.filter(expense => expense.title.toLowerCase().includes(query.toLowerCase()))
   return (
@@ -422,7 +423,10 @@ export function ExpenseList({ expenses, members, query, onDeleteExpense }: { exp
               <span className="expense-icon"><ReceiptText size={18} /></span>
               <span className="row-copy"><b>{expense.title}</b><small>{payer.name} paid<i />{expense.splitMethod === 'equal' ? 'Split equally' : 'Exact split'} · {participantCount} {participantCount === 1 ? 'person' : 'people'}</small></span>
               <span className="expense-amount"><b>{money(expense.amount)}</b><small>{expense.createdAt}</small></span>
-              <button className="expense-delete" type="button" aria-label={`Delete ${expense.title}`} title="Delete expense" onClick={() => onDeleteExpense(expense)}><Trash2 size={16} /></button>
+              <span className="expense-actions">
+                <button className="expense-edit" type="button" aria-label={`Edit ${expense.title}`} title="Edit expense" onClick={() => onEditExpense(expense)}><Pencil size={15} /></button>
+                <button className="expense-delete" type="button" aria-label={`Delete ${expense.title}`} title="Delete expense" onClick={() => onDeleteExpense(expense)}><Trash2 size={16} /></button>
+              </span>
             </div>
           )
         }) : <div className="empty-state"><Sparkles size={22} /><p>{query ? 'No expenses match your search.' : 'No expenses yet. Add the first one when you’re ready.'}</p></div>}
@@ -450,7 +454,7 @@ export function MembersRail({ members, expenses, onAddFriend }: { members: Membe
   )
 }
 
-export function GroupDashboard({ group, members, expenses, query, activityFeedback, onShare, onAddFriend, onAddExpense, onDeleteExpense }: {
+export function GroupDashboard({ group, members, expenses, query, activityFeedback, onShare, onAddFriend, onAddExpense, onEditExpense, onDeleteExpense }: {
   group: ActivityGroup
   members: Member[]
   expenses: Expense[]
@@ -459,6 +463,7 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
   onShare: () => void
   onAddFriend: () => void
   onAddExpense: () => void
+  onEditExpense: (expense: Expense) => void
   onDeleteExpense: (expense: Expense) => void
 }) {
   return (
@@ -470,7 +475,7 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
         </header>
         <ActivitySummary expenses={expenses} />
         <SettlementDirections members={members} expenses={expenses} />
-        <ExpenseList expenses={expenses} members={members} query={query} onDeleteExpense={onDeleteExpense} />
+        <ExpenseList expenses={expenses} members={members} query={query} onEditExpense={onEditExpense} onDeleteExpense={onDeleteExpense} />
       </div>
       <MembersRail members={members} expenses={expenses} onAddFriend={onAddFriend} />
     </main>
@@ -527,12 +532,14 @@ export function AddFriendModal({ existingExpenseCount, onClose, onSave }: { exis
   )
 }
 
-export function ExpenseModal({ group, members, onClose, onSave }: { group: ActivityGroup; members: Member[]; onClose: () => void; onSave: (expense: Expense) => void }) {
-  const [title, setTitle] = useState('')
-  const [amount, setAmount] = useState('')
-  const [payerId, setPayerId] = useState('me')
-  const [method, setMethod] = useState<SplitMethod>('equal')
-  const [exactShares, setExactShares] = useState<Record<string, string>>({})
+export function ExpenseModal({ group, members, expense, onClose, onSave }: { group: ActivityGroup; members: Member[]; expense?: Expense; onClose: () => void; onSave: (expense: Expense) => void }) {
+  const [title, setTitle] = useState(expense?.title ?? '')
+  const [amount, setAmount] = useState(expense ? expense.amount.toString() : '')
+  const [payerId, setPayerId] = useState(expense?.payerId ?? 'me')
+  const [method, setMethod] = useState<SplitMethod>(expense?.splitMethod ?? 'equal')
+  const [exactShares, setExactShares] = useState<Record<string, string>>(() => expense?.splitMethod === 'exact'
+    ? Object.fromEntries(members.map(member => [member.id, expense.shares[member.id]?.toString() ?? '']))
+    : {})
   const numericAmount = Number(amount) || 0
   const exactTotal = members.reduce((sum, member) => sum + (Number(exactShares[member.id]) || 0), 0)
   const remaining = numericAmount - exactTotal
@@ -554,11 +561,11 @@ export function ExpenseModal({ group, members, onClose, onSave }: { group: Activ
     } else {
       shares = Object.fromEntries(members.map(member => [member.id, Number(exactShares[member.id]) || 0]))
     }
-    onSave({ id: makeId('expense'), groupId: group.id, title: title.trim(), amount: numericAmount, payerId, splitMethod: method, shares, createdAt: 'Just now' })
+    onSave({ id: expense?.id ?? makeId('expense'), groupId: group.id, title: title.trim(), amount: numericAmount, payerId, splitMethod: method, shares, createdAt: expense?.createdAt ?? 'Just now' })
   }
 
   return (
-    <ModalShell eyebrow={group.name} title="Add a shared expense" onClose={onClose}>
+    <ModalShell eyebrow={group.name} title={expense ? 'Edit expense' : 'Add a shared expense'} onClose={onClose}>
       <form onSubmit={submit}>
         <label>Description<input autoFocus value={title} onChange={event => setTitle(event.target.value)} placeholder="e.g. Groceries" required /></label>
         <label>Amount<span className="modal-amount"><i>$</i><input aria-label="Amount" value={amount} onChange={event => setAmount(event.target.value)} type="number" min="0.01" step="0.01" placeholder="0.00" required /></span></label>
@@ -574,7 +581,8 @@ export function ExpenseModal({ group, members, onClose, onSave }: { group: Activ
             {members.map(member => <label className="share-row" key={member.id}><span><Avatar member={member} size="sm" />{member.name}</span><span className="share-input"><i>$</i><input aria-label={`${member.name} share`} type="number" min="0" step="0.01" value={exactShares[member.id] ?? ''} onChange={event => setExactShares(current => ({ ...current, [member.id]: event.target.value }))} placeholder="0.00" /></span></label>)}
           </div>
         )}
-        <div className="modal-actions"><button type="button" className="outline-button" onClick={onClose}>Cancel</button><button className="confirm-button" type="submit" disabled={method === 'exact' && !exactValid}>Save expense</button></div>
+        {expense ? <div className="split-note edit-note"><Pencil size={17} /><span>Saving replaces this expense’s split using all {members.length} current activity members.</span></div> : null}
+        <div className="modal-actions"><button type="button" className="outline-button" onClick={onClose}>Cancel</button><button className="confirm-button" type="submit" disabled={method === 'exact' && !exactValid}>{expense ? 'Save changes' : 'Save expense'}</button></div>
       </form>
     </ModalShell>
   )
@@ -584,6 +592,7 @@ export default function App() {
   const [state, setState] = useState<PersistedState>(() => loadState())
   const [query, setQuery] = useState('')
   const [modal, setModal] = useState<'group' | 'friend' | 'expense' | null>(null)
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
   const [activityFeedback, setActivityFeedback] = useState<{ groupId: string; message: string } | null>(null)
 
   useEffect(() => saveState(state), [state])
@@ -623,6 +632,29 @@ export default function App() {
 
   const addExpense = (expense: Expense) => {
     setState(current => ({ ...current, expenses: [expense, ...current.expenses] }))
+    setEditingExpense(null)
+    setModal(null)
+  }
+
+  const updateExpense = (expense: Expense) => {
+    setState(current => ({ ...current, expenses: current.expenses.map(item => item.id === expense.id ? expense : item) }))
+    setActivityFeedback({ groupId: expense.groupId, message: `${expense.title} was updated. Splits and balances were recalculated.` })
+    setEditingExpense(null)
+    setModal(null)
+  }
+
+  const openNewExpense = () => {
+    setEditingExpense(null)
+    setModal('expense')
+  }
+
+  const openEditExpense = (expense: Expense) => {
+    setEditingExpense(expense)
+    setModal('expense')
+  }
+
+  const closeExpenseModal = () => {
+    setEditingExpense(null)
     setModal(null)
   }
 
@@ -647,11 +679,11 @@ export default function App() {
       <Sidebar groups={state.groups} selectedId={selectedGroup?.id ?? null} onSelect={id => setState(current => ({ ...current, selectedGroupId: id }))} onCreate={() => setModal('group')} onReset={resetData} />
       <div className="workspace">
         <Topbar query={query} setQuery={setQuery} />
-        {selectedGroup ? <GroupDashboard group={selectedGroup} members={selectedMembers} expenses={selectedExpenses} query={query} activityFeedback={activityFeedback?.groupId === selectedGroup.id ? activityFeedback.message : null} onShare={() => shareGroup(selectedGroup, selectedMembers, selectedExpenses)} onAddFriend={() => setModal('friend')} onAddExpense={() => setModal('expense')} onDeleteExpense={deleteExpense} /> : <FreshStart onCreate={() => setModal('group')} />}
+        {selectedGroup ? <GroupDashboard group={selectedGroup} members={selectedMembers} expenses={selectedExpenses} query={query} activityFeedback={activityFeedback?.groupId === selectedGroup.id ? activityFeedback.message : null} onShare={() => shareGroup(selectedGroup, selectedMembers, selectedExpenses)} onAddFriend={() => setModal('friend')} onAddExpense={openNewExpense} onEditExpense={openEditExpense} onDeleteExpense={deleteExpense} /> : <FreshStart onCreate={() => setModal('group')} />}
       </div>
       {modal === 'group' ? <CreateGroupModal onClose={() => setModal(null)} onSave={createGroup} /> : null}
       {modal === 'friend' ? <AddFriendModal existingExpenseCount={selectedExpenses.length} onClose={() => setModal(null)} onSave={addFriends} /> : null}
-      {modal === 'expense' && selectedGroup ? <ExpenseModal group={selectedGroup} members={selectedMembers} onClose={() => setModal(null)} onSave={addExpense} /> : null}
+      {modal === 'expense' && selectedGroup ? <ExpenseModal group={selectedGroup} members={selectedMembers} expense={editingExpense ?? undefined} onClose={closeExpenseModal} onSave={editingExpense ? updateExpense : addExpense} /> : null}
     </div>
   )
 }

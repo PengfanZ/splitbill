@@ -346,18 +346,21 @@ describe('small UI building blocks', () => {
   it('filters expenses and handles known and fallback payers', async () => {
     const user = userEvent.setup()
     const onDelete = vi.fn()
+    const onEdit = vi.fn()
     const unknownPayer = expense({ id: 'e2', title: 'Taxi', payerId: 'missing', splitMethod: 'exact' })
-    const { rerender } = render(<ExpenseList expenses={[expense(), unknownPayer]} members={[CURRENT_USER, maya]} query="" onDeleteExpense={onDelete} />)
+    const { rerender } = render(<ExpenseList expenses={[expense(), unknownPayer]} members={[CURRENT_USER, maya]} query="" onEditExpense={onEdit} onDeleteExpense={onDelete} />)
     expect(screen.getByText('2 entries')).toBeVisible()
     expect(screen.getByText((_, node) => node?.textContent === 'You paidSplit equally · 3 people')).toBeVisible()
     expect(screen.getByText((_, node) => node?.textContent === 'You paidExact split · 3 people')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Edit Dinner' }))
+    expect(onEdit).toHaveBeenCalledWith(expect.objectContaining({ title: 'Dinner' }))
     await user.click(screen.getByRole('button', { name: 'Delete Dinner' }))
     expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ title: 'Dinner' }))
-    rerender(<ExpenseList expenses={[expense()]} members={[CURRENT_USER]} query="zzz" onDeleteExpense={onDelete} />)
+    rerender(<ExpenseList expenses={[expense()]} members={[CURRENT_USER]} query="zzz" onEditExpense={onEdit} onDeleteExpense={onDelete} />)
     expect(screen.getByText('No expenses match your search.')).toBeVisible()
-    rerender(<ExpenseList expenses={[expense({ shares: { me: 30 } })]} members={[CURRENT_USER]} query="" onDeleteExpense={onDelete} />)
+    rerender(<ExpenseList expenses={[expense({ shares: { me: 30 } })]} members={[CURRENT_USER]} query="" onEditExpense={onEdit} onDeleteExpense={onDelete} />)
     expect(screen.getByText((_, node) => node?.textContent === 'You paidSplit equally · 1 person')).toBeVisible()
-    rerender(<ExpenseList expenses={[]} members={[CURRENT_USER]} query="" onDeleteExpense={onDelete} />)
+    rerender(<ExpenseList expenses={[]} members={[CURRENT_USER]} query="" onEditExpense={onEdit} onDeleteExpense={onDelete} />)
     expect(screen.getByText('No expenses yet. Add the first one when you’re ready.')).toBeVisible()
   })
 
@@ -366,6 +369,7 @@ describe('small UI building blocks', () => {
     const addFriend = vi.fn()
     const addExpense = vi.fn()
     const share = vi.fn()
+    const editExpense = vi.fn()
     const deleteExpense = vi.fn()
     const { rerender } = render(<MembersRail members={[CURRENT_USER, maya]} expenses={[expense()]} onAddFriend={addFriend} />)
     expect(screen.getByText('Friend')).toBeVisible()
@@ -373,14 +377,16 @@ describe('small UI building blocks', () => {
     await user.click(screen.getByRole('button', { name: 'Add friend' }))
     expect(addFriend).toHaveBeenCalledOnce()
 
-    rerender(<GroupDashboard group={group} members={[CURRENT_USER, maya, jordan]} expenses={[expense()]} query="" activityFeedback="Summary copied." onShare={share} onAddFriend={addFriend} onAddExpense={addExpense} onDeleteExpense={deleteExpense} />)
+    rerender(<GroupDashboard group={group} members={[CURRENT_USER, maya, jordan]} expenses={[expense()]} query="" activityFeedback="Summary copied." onShare={share} onAddFriend={addFriend} onAddExpense={addExpense} onEditExpense={editExpense} onDeleteExpense={deleteExpense} />)
     expect(screen.getByRole('status')).toHaveTextContent('Summary copied.')
     await user.click(screen.getByRole('button', { name: 'Share summary' }))
     await user.click(screen.getAllByRole('button', { name: 'Add friend' })[0])
     await user.click(screen.getByRole('button', { name: 'Add expense' }))
+    await user.click(screen.getByRole('button', { name: 'Edit Dinner' }))
     expect(addFriend).toHaveBeenCalledTimes(2)
     expect(addExpense).toHaveBeenCalledOnce()
     expect(share).toHaveBeenCalledOnce()
+    expect(editExpense).toHaveBeenCalledWith(expect.objectContaining({ title: 'Dinner' }))
   })
 })
 
@@ -474,6 +480,37 @@ describe('modals', () => {
     await user.type(screen.getByLabelText('You share'), '20')
     await user.click(screen.getByRole('button', { name: 'Save expense' }))
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ splitMethod: 'exact', shares: { me: 20, maya: 0 } }))
+  })
+
+  it('prefills and updates an existing exact expense with every current member', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn()
+    const existing = expense({
+      id: 'hotel',
+      title: 'Hotel',
+      amount: 30,
+      payerId: 'maya',
+      splitMethod: 'exact',
+      shares: { me: 10, maya: 20 },
+      createdAt: 'Friday',
+    })
+    render(<ExpenseModal group={group} members={[CURRENT_USER, maya, jordan]} expense={existing} onClose={vi.fn()} onSave={onSave} />)
+
+    expect(screen.getByRole('heading', { name: 'Edit expense' })).toBeVisible()
+    expect(screen.getByLabelText('Description')).toHaveValue('Hotel')
+    expect(screen.getByLabelText('Amount')).toHaveValue(30)
+    expect(screen.getByLabelText('Paid by')).toHaveValue('maya')
+    expect(screen.getByLabelText('Split method')).toHaveValue('exact')
+    expect(screen.getByLabelText('You share')).toHaveValue(10)
+    expect(screen.getByLabelText('Maya Chen share')).toHaveValue(20)
+    expect(screen.getByLabelText('Jordan share')).toHaveValue(null)
+    expect(screen.getByText('Saving replaces this expense’s split using all 3 current activity members.')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    expect(onSave).toHaveBeenCalledWith({
+      ...existing,
+      shares: { me: 10, maya: 20, jordan: 0 },
+    })
   })
 
   it('handles an empty member list in the equal preview', async () => {

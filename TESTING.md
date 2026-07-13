@@ -4,7 +4,7 @@ Coverage is necessary, but it is not the definition of correctness. Every produc
 
 ## Required layers
 
-1. **Happy paths** — realistic end-to-end user flows such as creating an activity, adding friends, recording equal and exact expenses, seeing settlements, exporting, deleting, and reloading persisted data.
+1. **Happy paths** — realistic end-to-end user flows such as creating an activity, adding friends, recording and editing equal and exact expenses, seeing settlements, exporting, deleting, and reloading persisted data.
 2. **Edge cases** — cent rounding, floating-point totals, empty and corrupted storage, unavailable browser APIs, cancelled sharing, long expense lists, multiple creditors and debtors, and invalid form input.
 3. **Component and helper tests** — focused tests for calculations, persistence, rendering states, and browser fallbacks.
 4. **Rendered browser smoke tests** — interaction, responsive layout, persistence after reload, and console health for user-visible changes.
