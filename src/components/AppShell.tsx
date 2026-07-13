@@ -5,6 +5,7 @@ import {
   Plus,
   Search,
   Settings,
+  Trash2,
   Users,
   X,
 } from 'lucide-react'
@@ -14,11 +15,12 @@ export function Avatar({ member, size = 'md' }: { member: Member; size?: 'sm' | 
   return <span className={`avatar avatar--${size}`} style={{ background: member.color }}>{member.initials}</span>
 }
 
-export function Sidebar({ groups, selectedId, onSelect, onCreate, onReset }: {
+export function Sidebar({ groups, selectedId, onSelect, onCreate, onDelete, onReset }: {
   groups: ActivityGroup[]
   selectedId: string | null
   onSelect: (id: string) => void
   onCreate: () => void
+  onDelete: (group: ActivityGroup) => void
   onReset: () => void
 }) {
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -35,11 +37,14 @@ export function Sidebar({ groups, selectedId, onSelect, onCreate, onReset }: {
         <div className="group-section">
           <p className="section-label">Your activities</p>
           {groups.length ? groups.map(group => (
-            <button key={group.id} className={`group-row group-row--button ${group.id === selectedId ? 'is-selected' : ''}`} onClick={() => { onSelect(group.id); setMobileOpen(false) }}>
-              <span className="group-icon green">{group.emoji}</span>
-              <span><b>{group.name}</b><small>{group.memberIds.length} {group.memberIds.length === 1 ? 'person' : 'people'}</small></span>
-              <ChevronRight size={15} />
-            </button>
+            <div key={group.id} className={`group-row ${group.id === selectedId ? 'is-selected' : ''}`}>
+              <button className="group-select" aria-label={`Open ${group.name} activity`} onClick={() => { onSelect(group.id); setMobileOpen(false) }}>
+                <span className="group-icon green">{group.emoji}</span>
+                <span><b>{group.name}</b><small>{group.memberIds.length} {group.memberIds.length === 1 ? 'person' : 'people'}</small></span>
+                <ChevronRight size={15} />
+              </button>
+              <button className="group-delete" aria-label={`Delete ${group.name} activity`} title="Delete activity" onClick={() => onDelete(group)}><Trash2 size={15} /></button>
+            </div>
           )) : <p className="sidebar-empty">No activities yet.</p>}
         </div>
         {groups.length ? <button className="reset-button" onClick={onReset}>Reset local data</button> : null}

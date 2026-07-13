@@ -154,6 +154,24 @@ export default function App() {
     setState(current => ({ ...current, expenses: current.expenses.filter(item => item.id !== expense.id) }))
   }
 
+  const deleteActivity = (group: ActivityGroup) => {
+    if (!window.confirm(`Delete "${group.name}"? This removes the activity and all its expenses from this browser. This cannot be undone.`)) return
+    const deletingSelectedActivity = selectedGroup?.id === group.id
+    setState(current => {
+      const groups = current.groups.filter(item => item.id !== group.id)
+      const remainingMemberIds = new Set(groups.flatMap(item => item.memberIds))
+      return {
+        ...current,
+        groups,
+        friends: current.friends.filter(friend => remainingMemberIds.has(friend.id)),
+        expenses: current.expenses.filter(expense => expense.groupId !== group.id),
+        selectedGroupId: deletingSelectedActivity ? groups[0]?.id ?? null : current.selectedGroupId,
+      }
+    })
+    setActivityFeedback(null)
+    if (deletingSelectedActivity) setQuery('')
+  }
+
   const resetData = () => {
     if (!window.confirm('Reset every local activity, friend, and expense? This cannot be undone.')) return
     setState(EMPTY_STATE)
@@ -173,6 +191,7 @@ export default function App() {
           closeSharedActivity()
           setModal('group')
         }}
+        onDelete={deleteActivity}
         onReset={resetData}
       />
       <div className="workspace">

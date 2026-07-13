@@ -244,8 +244,9 @@ describe('small UI building blocks', () => {
     const user = userEvent.setup()
     const onSelect = vi.fn()
     const onCreate = vi.fn()
+    const onDelete = vi.fn()
     const onReset = vi.fn()
-    const { rerender } = render(<Sidebar groups={[]} selectedId={null} onSelect={onSelect} onCreate={onCreate} onReset={onReset} />)
+    const { rerender } = render(<Sidebar groups={[]} selectedId={null} onSelect={onSelect} onCreate={onCreate} onDelete={onDelete} onReset={onReset} />)
     expect(screen.getByText('No activities yet.')).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Overview' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Open navigation' }))
@@ -254,11 +255,13 @@ describe('small UI building blocks', () => {
     expect(onCreate).toHaveBeenCalledOnce()
 
     const home: ActivityGroup = { id: 'home', name: 'Home', emoji: '⌂', memberIds: ['me'] }
-    rerender(<Sidebar groups={[home, group]} selectedId="home" onSelect={onSelect} onCreate={onCreate} onReset={onReset} />)
+    rerender(<Sidebar groups={[home, group]} selectedId="home" onSelect={onSelect} onCreate={onCreate} onDelete={onDelete} onReset={onReset} />)
     expect(screen.getByText('1 person')).toBeVisible()
     expect(screen.getByText('3 people')).toBeVisible()
-    await user.click(screen.getByRole('button', { name: /Trip/ }))
+    await user.click(screen.getByRole('button', { name: 'Open Trip activity' }))
     expect(onSelect).toHaveBeenCalledWith('trip')
+    await user.click(screen.getByRole('button', { name: 'Delete Trip activity' }))
+    expect(onDelete).toHaveBeenCalledWith(group)
     await user.click(screen.getByRole('button', { name: 'Reset local data' }))
     expect(onReset).toHaveBeenCalledOnce()
     await user.click(screen.getByRole('button', { name: 'Open navigation' }))
@@ -625,7 +628,7 @@ describe('complete app workflows', () => {
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
     await user.click(screen.getByRole('button', { name: 'Share summary' }))
     expect(await screen.findByRole('status')).toHaveTextContent('Summary copied')
-    await user.click(screen.getByRole('button', { name: /Home/ }))
+    await user.click(screen.getByRole('button', { name: 'Open Home activity' }))
     expect(screen.getByRole('heading', { name: 'Home' })).toBeVisible()
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
     await user.click(screen.getAllByRole('button', { name: 'Add friend' })[0])
@@ -635,6 +638,52 @@ describe('complete app workflows', () => {
     expect(screen.getByRole('heading', { name: 'Home' })).toBeVisible()
     fireEvent(window, new StorageEvent('storage', { key: STORAGE_KEY, newValue: JSON.stringify(storedState()) }))
     expect(screen.getByRole('heading', { name: 'Trip' })).toBeVisible()
+  })
+
+  it('deletes activities, their expenses, and friends unused by remaining activities', async () => {
+    const user = userEvent.setup()
+    const home: ActivityGroup = { id: 'home', name: 'Home', emoji: '⌂', memberIds: ['me', 'maya'] }
+    const cabin: ActivityGroup = { id: 'cabin', name: 'Cabin', emoji: '△', memberIds: ['me', 'sam'] }
+    const sam: Member = { id: 'sam', name: 'Sam', initials: 'S', color: '#fed' }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState({
+      groups: [group, home, cabin],
+      friends: [maya, jordan, sam],
+      expenses: [
+        expense(),
+        expense({ id: 'rent', groupId: 'home', title: 'Rent' }),
+        expense({ id: 'wood', groupId: 'cabin', title: 'Firewood' }),
+      ],
+    })))
+    render(<App />)
+
+    vi.mocked(window.confirm).mockReturnValueOnce(false).mockReturnValue(true)
+    await user.click(screen.getByRole('button', { name: 'Delete Cabin activity' }))
+    expect(screen.getByRole('button', { name: 'Delete Cabin activity' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Delete Cabin activity' }))
+    expect(screen.getByRole('heading', { name: 'Trip' })).toBeVisible()
+    await waitFor(() => {
+      const saved = parseState(localStorage.getItem(STORAGE_KEY))
+      expect(saved.groups.map(item => item.id)).toEqual(['trip', 'home'])
+      expect(saved.friends.map(friend => friend.id)).toEqual(['maya', 'jordan'])
+      expect(saved.expenses.map(item => item.title)).toEqual(['Dinner', 'Rent'])
+      expect(saved.selectedGroupId).toBe('trip')
+    })
+
+    await user.type(screen.getByRole('textbox', { name: 'Search expenses' }), 'dinner')
+    await user.click(screen.getByRole('button', { name: 'Delete Trip activity' }))
+    expect(screen.getByRole('heading', { name: 'Home' })).toBeVisible()
+    expect(screen.getByRole('textbox', { name: 'Search expenses' })).toHaveValue('')
+    await waitFor(() => {
+      const saved = parseState(localStorage.getItem(STORAGE_KEY))
+      expect(saved.groups).toEqual([home])
+      expect(saved.friends).toEqual([maya])
+      expect(saved.expenses.map(item => item.title)).toEqual(['Rent'])
+      expect(saved.selectedGroupId).toBe('home')
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Delete Home activity' }))
+    expect(screen.getByRole('heading', { name: 'Start your first activity' })).toBeVisible()
+    await waitFor(() => expect(parseState(localStorage.getItem(STORAGE_KEY))).toEqual(EMPTY_STATE))
   })
 
   it('handles a group disappearing while friend and expense dialogs are open', async () => {

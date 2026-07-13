@@ -38,8 +38,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .add-button:hover, .confirm-button:hover { background: var(--coral-dark); transform: translateY(-1px); }
 .section-label { margin: 0 10px 12px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
 .group-section { overflow: auto; }
-.group-row { display: flex; gap: 11px; align-items: center; padding: 9px 8px; }
-.group-row > span:last-child { display: grid; gap: 3px; flex: 1; min-width: 0; }
+.group-row { display: flex; align-items: center; border-radius: 10px; transition: background .15s ease; }
 .group-row b { font-size: 13px; font-weight: 600; white-space: nowrap; }
 .group-row small { font-size: 11px; color: var(--muted); }
 .group-icon { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-family: Georgia, serif; font-size: 17px; }
@@ -169,11 +168,13 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .modal-actions--single { grid-template-columns: 1fr; }
 
 /* Activity-first workspace */
-.group-row--button { width: 100%; border: 0; background: transparent; text-align: left; border-radius: 10px; color: var(--ink); transition: background .15s ease; }
-.group-row--button:hover, .group-row--button.is-selected { background: #ece8e2; }
-.group-row--button.is-selected { box-shadow: inset 3px 0 var(--coral); }
-.group-row--button > span:nth-child(2) { display: grid; gap: 3px; flex: 1; min-width: 0; }
-.group-row--button > svg { color: var(--muted); }
+.group-row:hover, .group-row.is-selected { background: #ece8e2; }
+.group-row.is-selected { box-shadow: inset 3px 0 var(--coral); }
+.group-select { min-width: 0; flex: 1; border: 0; background: transparent; color: var(--ink); display: flex; align-items: center; gap: 11px; padding: 9px 3px 9px 8px; text-align: left; }
+.group-select > span:nth-child(2) { display: grid; gap: 3px; flex: 1; min-width: 0; }
+.group-select > svg { color: var(--muted); flex: 0 0 auto; }
+.group-delete { width: 30px; height: 32px; margin-right: 3px; border: 0; border-radius: 50%; background: transparent; color: #958e86; display: grid; place-items: center; flex: 0 0 auto; }
+.group-delete:hover { color: var(--red); background: #f7dfdc; }
 .sidebar-empty { color: var(--muted); font-size: 12px; line-height: 1.5; margin: 6px 10px; }
 .reset-button { border: 0; background: transparent; color: var(--muted); font-size: 11px; text-decoration: underline; text-underline-offset: 3px; margin: auto auto 12px 10px; }
 .reset-button:hover { color: var(--red); }

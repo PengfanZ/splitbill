@@ -26,7 +26,7 @@ This is asynchronous snapshot sharing, not live collaboration. A newer edit prod
 - Record who paid and split expenses equally among everyone or only selected people, or enter exact amounts.
 - Keep historical splits stable when friends join later, then explicitly edit an expense when it should include them.
 - See clear person-to-person settlement directions instead of an ambiguous group balance.
-- Edit and delete expenses with immediate balance recalculation.
+- Edit and delete expenses, or delete an entire activity and its local data.
 - Export a shareable PNG summary for friends.
 - Persist data in the browser and synchronize changes across open tabs.
 - Use the responsive interface on desktop or mobile.
