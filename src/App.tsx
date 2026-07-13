@@ -13,6 +13,7 @@ import {
   ReceiptText,
   Search,
   Settings,
+  Share2,
   Sparkles,
   Trash2,
   Users,
@@ -39,6 +40,8 @@ export type PersistedState = {
   expenses: Expense[]
   selectedGroupId: string | null
 }
+export type Settlement = { from: Member; to: Member; amount: number }
+export type ShareResult = 'shared' | 'copied' | 'downloaded' | 'cancelled' | 'failed'
 
 export const STORAGE_KEY = 'tally:frontend:v2'
 export const CURRENT_USER: Member = { id: 'me', name: 'You', initials: 'ME', color: '#ead1b9' }
@@ -48,6 +51,98 @@ export const EMPTY_STATE: PersistedState = { groups: [], friends: [], expenses: 
 export const makeId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 export const money = (value: number) => `$${Math.abs(value).toFixed(2)}`
 export const initialsFor = (name: string) => name.trim().split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase()).join('') || '?'
+export const SHARE_MESSAGES: Record<ShareResult, string> = {
+  shared: 'Summary shared.',
+  copied: 'Summary copied. Paste it into any chat.',
+  downloaded: 'Summary downloaded as a text file.',
+  cancelled: 'Sharing cancelled.',
+  failed: 'Could not export the summary. Please try again.',
+}
+
+export function calculateSettlements(members: Member[], expenses: Expense[]): Settlement[] {
+  const balances = members.map(member => {
+    const paid = expenses.reduce((sum, expense) => sum + (expense.payerId === member.id ? expense.amount : 0), 0)
+    const share = expenses.reduce((sum, expense) => sum + (expense.shares[member.id] ?? 0), 0)
+    return { member, balance: paid - share }
+  })
+  const creditors = balances.filter(item => item.balance > 0.005).map(item => ({ member: item.member, cents: Math.round(item.balance * 100) }))
+  const debtors = balances.filter(item => item.balance < -0.005).map(item => ({ member: item.member, cents: Math.round(Math.abs(item.balance) * 100) }))
+  const settlements: Settlement[] = []
+  let creditorIndex = 0
+  let debtorIndex = 0
+
+  while (creditorIndex < creditors.length && debtorIndex < debtors.length) {
+    const creditor = creditors[creditorIndex]
+    const debtor = debtors[debtorIndex]
+    const cents = Math.min(creditor.cents, debtor.cents)
+    settlements.push({ from: debtor.member, to: creditor.member, amount: cents / 100 })
+    creditor.cents -= cents
+    debtor.cents -= cents
+    if (creditor.cents === 0) creditorIndex += 1
+    if (debtor.cents === 0) debtorIndex += 1
+  }
+
+  return settlements
+}
+
+export function buildShareSummary(group: ActivityGroup, members: Member[], expenses: Expense[]) {
+  const memberMap = new Map(members.map(member => [member.id, member]))
+  const total = expenses.reduce((sum, item) => sum + item.amount, 0)
+  const expenseLines = expenses.length
+    ? expenses.map(item => `• ${item.title} — ${money(item.amount)}, paid by ${memberMap.get(item.payerId)?.name ?? 'Unknown'} (${item.splitMethod === 'equal' ? 'split equally' : 'exact split'})`)
+    : ['• No expenses yet.']
+  const settlements = calculateSettlements(members, expenses)
+  const settlementLines = settlements.length
+    ? settlements.map(item => `• ${item.from.name} pays ${item.to.name} ${money(item.amount)}`)
+    : ['• Everyone is settled.']
+
+  return [
+    `Tally summary — ${group.name}`,
+    `Total spent: ${money(total)}`,
+    '',
+    'Expenses',
+    ...expenseLines,
+    '',
+    'Suggested payments',
+    ...settlementLines,
+    '',
+    'Shared from Tally',
+  ].join('\n')
+}
+
+export async function shareActivitySummary(title: string, text: string): Promise<ShareResult> {
+  if (typeof navigator.share === 'function') {
+    try {
+      await navigator.share({ title, text })
+      return 'shared'
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return 'cancelled'
+    }
+  }
+
+  if (typeof navigator.clipboard?.writeText === 'function') {
+    try {
+      await navigator.clipboard.writeText(text)
+      return 'copied'
+    } catch {
+      // Continue to the file download fallback.
+    }
+  }
+
+  try {
+    const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'tally-summary'}.txt`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+    return 'downloaded'
+  } catch {
+    return 'failed'
+  }
+}
 
 export function parseState(stored: string | null): PersistedState {
   try {
@@ -167,27 +262,7 @@ export function ActivitySummary({ expenses }: { expenses: Expense[] }) {
 }
 
 export function SettlementDirections({ members, expenses }: { members: Member[]; expenses: Expense[] }) {
-  const balances = members.map(member => {
-    const paid = expenses.reduce((sum, expense) => sum + (expense.payerId === member.id ? expense.amount : 0), 0)
-    const share = expenses.reduce((sum, expense) => sum + (expense.shares[member.id] ?? 0), 0)
-    return { member, balance: paid - share }
-  })
-  const creditors = balances.filter(item => item.balance > 0.005).map(item => ({ member: item.member, cents: Math.round(item.balance * 100) }))
-  const debtors = balances.filter(item => item.balance < -0.005).map(item => ({ member: item.member, cents: Math.round(Math.abs(item.balance) * 100) }))
-  const settlements: Array<{ from: Member; to: Member; amount: number }> = []
-  let creditorIndex = 0
-  let debtorIndex = 0
-
-  while (creditorIndex < creditors.length && debtorIndex < debtors.length) {
-    const creditor = creditors[creditorIndex]
-    const debtor = debtors[debtorIndex]
-    const cents = Math.min(creditor.cents, debtor.cents)
-    settlements.push({ from: debtor.member, to: creditor.member, amount: cents / 100 })
-    creditor.cents -= cents
-    debtor.cents -= cents
-    if (creditor.cents === 0) creditorIndex += 1
-    if (debtor.cents === 0) debtorIndex += 1
-  }
+  const settlements = calculateSettlements(members, expenses)
 
   return (
     <section className="content-section">
@@ -247,11 +322,13 @@ export function MembersRail({ members, expenses, onAddFriend }: { members: Membe
   )
 }
 
-export function GroupDashboard({ group, members, expenses, query, onAddFriend, onAddExpense, onDeleteExpense }: {
+export function GroupDashboard({ group, members, expenses, query, shareFeedback, onShare, onAddFriend, onAddExpense, onDeleteExpense }: {
   group: ActivityGroup
   members: Member[]
   expenses: Expense[]
   query: string
+  shareFeedback: string | null
+  onShare: () => void
   onAddFriend: () => void
   onAddExpense: () => void
   onDeleteExpense: (expense: Expense) => void
@@ -261,7 +338,7 @@ export function GroupDashboard({ group, members, expenses, query, onAddFriend, o
       <div className="main-column">
         <header className="group-welcome">
           <div><span className="date">{group.emoji} Activity group</span><h1>{group.name}</h1><p>{members.length} people sharing expenses together.</p></div>
-          <div className="group-actions"><button className="outline-button" onClick={onAddFriend}><Users size={16} />Add friend</button><button className="confirm-button" onClick={onAddExpense}><Plus size={17} />Add expense</button></div>
+          <div className="group-share"><div className="group-actions"><button className="outline-button" onClick={onShare}><Share2 size={16} />Share summary</button><button className="outline-button" onClick={onAddFriend}><Users size={16} />Add friend</button><button className="confirm-button" onClick={onAddExpense}><Plus size={17} />Add expense</button></div>{shareFeedback ? <span className="share-feedback" role="status">{shareFeedback}</span> : null}</div>
         </header>
         <ActivitySummary expenses={expenses} />
         <SettlementDirections members={members} expenses={expenses} />
@@ -378,6 +455,7 @@ export default function App() {
   const [state, setState] = useState<PersistedState>(() => loadState())
   const [query, setQuery] = useState('')
   const [modal, setModal] = useState<'group' | 'friend' | 'expense' | null>(null)
+  const [shareFeedback, setShareFeedback] = useState<{ groupId: string; message: string } | null>(null)
 
   useEffect(() => saveState(state), [state])
   useEffect(() => {
@@ -417,6 +495,11 @@ export default function App() {
     setModal(null)
   }
 
+  const shareGroup = async (group: ActivityGroup, members: Member[], expenses: Expense[]) => {
+    const result = await shareActivitySummary(`${group.name} — Tally`, buildShareSummary(group, members, expenses))
+    setShareFeedback({ groupId: group.id, message: SHARE_MESSAGES[result] })
+  }
+
   const deleteExpense = (expense: Expense) => {
     if (!window.confirm(`Delete "${expense.title}"? This removes it from the activity and recalculates everyone’s balances.`)) return
     setState(current => ({ ...current, expenses: current.expenses.filter(item => item.id !== expense.id) }))
@@ -433,7 +516,7 @@ export default function App() {
       <Sidebar groups={state.groups} selectedId={selectedGroup?.id ?? null} onSelect={id => setState(current => ({ ...current, selectedGroupId: id }))} onCreate={() => setModal('group')} onReset={resetData} />
       <div className="workspace">
         <Topbar query={query} setQuery={setQuery} />
-        {selectedGroup ? <GroupDashboard group={selectedGroup} members={selectedMembers} expenses={selectedExpenses} query={query} onAddFriend={() => setModal('friend')} onAddExpense={() => setModal('expense')} onDeleteExpense={deleteExpense} /> : <FreshStart onCreate={() => setModal('group')} />}
+        {selectedGroup ? <GroupDashboard group={selectedGroup} members={selectedMembers} expenses={selectedExpenses} query={query} shareFeedback={shareFeedback?.groupId === selectedGroup.id ? shareFeedback.message : null} onShare={() => shareGroup(selectedGroup, selectedMembers, selectedExpenses)} onAddFriend={() => setModal('friend')} onAddExpense={() => setModal('expense')} onDeleteExpense={deleteExpense} /> : <FreshStart onCreate={() => setModal('group')} />}
       </div>
       {modal === 'group' ? <CreateGroupModal onClose={() => setModal(null)} onSave={createGroup} /> : null}
       {modal === 'friend' ? <AddFriendModal onClose={() => setModal(null)} onSave={addFriends} /> : null}

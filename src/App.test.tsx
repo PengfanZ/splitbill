@@ -5,6 +5,7 @@ import App, {
   ActivitySummary,
   AddFriendModal,
   Avatar,
+  buildShareSummary,
   CreateGroupModal,
   CURRENT_USER,
   EMPTY_STATE,
@@ -22,6 +23,8 @@ import App, {
   parseState,
   PersistedState,
   saveState,
+  SHARE_MESSAGES,
+  shareActivitySummary,
   SettlementDirections,
   Sidebar,
   STORAGE_KEY,
@@ -56,6 +59,8 @@ const storedState = (overrides: Partial<PersistedState> = {}): PersistedState =>
 
 beforeEach(() => {
   vi.restoreAllMocks()
+  Object.defineProperty(navigator, 'share', { configurable: true, value: undefined })
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined })
   vi.spyOn(window, 'confirm').mockReturnValue(true)
 })
 
@@ -101,6 +106,66 @@ describe('state and formatting helpers', () => {
     vi.spyOn(localStorage, 'getItem').mockImplementation(() => { throw new Error('blocked') })
     expect(loadState()).toBe(EMPTY_STATE)
     expect(() => saveState(EMPTY_STATE)).not.toThrow()
+  })
+
+  it('builds readable summaries for empty, equal, exact, and unknown-payer data', () => {
+    const empty = buildShareSummary(group, [CURRENT_USER, maya, jordan], [])
+    expect(empty).toContain('Total spent: $0.00')
+    expect(empty).toContain('• No expenses yet.')
+    expect(empty).toContain('• Everyone is settled.')
+
+    const populated = buildShareSummary(group, [CURRENT_USER, maya, jordan], [
+      expense(),
+      expense({ id: 'e2', title: 'Taxi', amount: 15, payerId: 'missing', splitMethod: 'exact', shares: {} }),
+    ])
+    expect(populated).toContain('Dinner — $30.00, paid by You (split equally)')
+    expect(populated).toContain('Taxi — $15.00, paid by Unknown (exact split)')
+    expect(populated).toContain('Maya Chen pays You $10.00')
+    expect(populated).toContain('Jordan pays You $10.00')
+  })
+
+  it('shares natively and reports user cancellation', async () => {
+    const nativeShare = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'share', { configurable: true, value: nativeShare })
+    expect(await shareActivitySummary('Trip — Tally', 'Summary')).toBe('shared')
+    expect(nativeShare).toHaveBeenCalledWith({ title: 'Trip — Tally', text: 'Summary' })
+
+    nativeShare.mockRejectedValueOnce(new DOMException('cancelled', 'AbortError'))
+    expect(await shareActivitySummary('Trip — Tally', 'Summary')).toBe('cancelled')
+  })
+
+  it('falls back from native sharing to the clipboard', async () => {
+    Object.defineProperty(navigator, 'share', { configurable: true, value: vi.fn().mockRejectedValue(new Error('unavailable')) })
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    expect(await shareActivitySummary('Trip — Tally', 'Summary')).toBe('copied')
+    expect(writeText).toHaveBeenCalledWith('Summary')
+  })
+
+  it('downloads a text file when sharing and copying are unavailable', async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error('blocked'))
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    const anchor = document.createElement('a')
+    const click = vi.spyOn(anchor, 'click').mockImplementation(() => {})
+    vi.spyOn(document, 'createElement').mockReturnValue(anchor)
+    const createObjectURL = vi.fn().mockReturnValue('blob:summary')
+    const revokeObjectURL = vi.fn()
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL })
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURL })
+
+    expect(await shareActivitySummary('Trip — Tally', 'Summary')).toBe('downloaded')
+    expect(anchor.download).toBe('trip-tally.txt')
+    expect(click).toHaveBeenCalledOnce()
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:summary')
+
+    expect(await shareActivitySummary('!!!', 'Summary')).toBe('downloaded')
+    expect(anchor.download).toBe('tally-summary.txt')
+  })
+
+  it('reports a failed export when every browser fallback is unavailable', async () => {
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => { throw new Error('blocked') }) })
+    expect(await shareActivitySummary('Trip', 'Summary')).toBe('failed')
+    expect(SHARE_MESSAGES.failed).toContain('Could not export')
   })
 })
 
@@ -205,6 +270,7 @@ describe('small UI building blocks', () => {
     const user = userEvent.setup()
     const addFriend = vi.fn()
     const addExpense = vi.fn()
+    const share = vi.fn()
     const deleteExpense = vi.fn()
     const { rerender } = render(<MembersRail members={[CURRENT_USER, maya]} expenses={[expense()]} onAddFriend={addFriend} />)
     expect(screen.getByText('Friend')).toBeVisible()
@@ -212,11 +278,14 @@ describe('small UI building blocks', () => {
     await user.click(screen.getByRole('button', { name: 'Add friend' }))
     expect(addFriend).toHaveBeenCalledOnce()
 
-    rerender(<GroupDashboard group={group} members={[CURRENT_USER, maya, jordan]} expenses={[expense()]} query="" onAddFriend={addFriend} onAddExpense={addExpense} onDeleteExpense={deleteExpense} />)
+    rerender(<GroupDashboard group={group} members={[CURRENT_USER, maya, jordan]} expenses={[expense()]} query="" shareFeedback="Summary copied." onShare={share} onAddFriend={addFriend} onAddExpense={addExpense} onDeleteExpense={deleteExpense} />)
+    expect(screen.getByRole('status')).toHaveTextContent('Summary copied.')
+    await user.click(screen.getByRole('button', { name: 'Share summary' }))
     await user.click(screen.getAllByRole('button', { name: 'Add friend' })[0])
     await user.click(screen.getByRole('button', { name: 'Add expense' }))
     expect(addFriend).toHaveBeenCalledTimes(2)
     expect(addExpense).toHaveBeenCalledOnce()
+    expect(share).toHaveBeenCalledOnce()
   })
 })
 
@@ -334,6 +403,8 @@ describe('complete app workflows', () => {
 
   it('creates an activity, adds people and expenses, searches, deletes, and resets', async () => {
     const user = userEvent.setup()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
     render(<App />)
     await user.click(screen.getByRole('button', { name: 'Create an activity' }))
     await user.type(screen.getByLabelText('Activity name'), 'Road trip')
@@ -351,6 +422,10 @@ describe('complete app workflows', () => {
     await user.type(screen.getByLabelText('Amount'), '30')
     await user.click(screen.getByRole('button', { name: 'Save expense' }))
     expect(screen.getByText('+$20.00')).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Share summary' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('Summary copied')
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Maya pays You $10.00'))
 
     await user.type(screen.getByRole('textbox', { name: 'Search expenses' }), 'zzz')
     expect(screen.getByText('No expenses match your search.')).toBeVisible()
@@ -374,8 +449,13 @@ describe('complete app workflows', () => {
     const second: ActivityGroup = { id: 'home', name: 'Home', emoji: '⌂', memberIds: ['me'] }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState({ groups: [group, second] })))
     render(<App />)
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    await user.click(screen.getByRole('button', { name: 'Share summary' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('Summary copied')
     await user.click(screen.getByRole('button', { name: /Home/ }))
     expect(screen.getByRole('heading', { name: 'Home' })).toBeVisible()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
     await user.click(screen.getAllByRole('button', { name: 'Add friend' })[0])
     await user.type(screen.getByLabelText(/Friend names/), 'Sam')
     await user.click(screen.getByRole('button', { name: 'Add friends' }))
