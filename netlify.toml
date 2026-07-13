@@ -1,6 +1,9 @@
 [build]
   command = "npm run build:static"
   publish = "dist-static"
+  # GitHub Pages is the production host. Keep this project dormant on Netlify
+  # so repository pushes do not consume production-deploy credits.
+  ignore = "exit 0"
 
 [build.environment]
   NODE_VERSION = "24"

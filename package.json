@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "A frontend-first shared-expense app with equal and exact splits, settlement directions, and browser persistence.",
   "private": true,
-  "homepage": "https://fanciful-ganache-eb8c6a.netlify.app/",
+  "homepage": "https://pengfanz.github.io/splitbill/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/PengfanZ/splitbill.git"
@@ -18,6 +18,7 @@
     "dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext dev",
     "build": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext build",
     "build:static": "vite build --config vite.static.config.ts --outDir dist-static",
+    "build:pages": "vite build --config vite.static.config.ts --outDir dist-static --base=/splitbill/",
     "test": "vitest run",
     "test:behavior": "vitest run src/behavior.test.tsx",
     "test:coverage": "vitest run --coverage",

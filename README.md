@@ -1,12 +1,12 @@
 # Tally
 
 [![CI](https://github.com/PengfanZ/splitbill/actions/workflows/ci.yml/badge.svg)](https://github.com/PengfanZ/splitbill/actions/workflows/ci.yml)
-[![Live demo](https://img.shields.io/badge/demo-live-e8584f)](https://fanciful-ganache-eb8c6a.netlify.app/)
+[![Live demo](https://img.shields.io/badge/demo-live-e8584f)](https://pengfanz.github.io/splitbill/)
 [![Coverage](https://img.shields.io/badge/coverage-100%25-16724c)](TESTING.md)
 
 A frontend-first shared-expense app for trips, dinners, homes, and other group activities. Tally tracks who paid, supports equal or exact splits, and calculates clear suggested payments to settle the group.
 
-[Try the live demo](https://fanciful-ganache-eb8c6a.netlify.app/)
+[Try the live demo](https://pengfanz.github.io/splitbill/)
 
 ![Friends sharing expenses with Tally](public/og.png)
 
@@ -31,8 +31,8 @@ Tally is currently a frontend-only prototype. Activities, friends, and expenses 
 - Vinext / Vite
 - Lucide icons
 - Vitest and Testing Library
-- GitHub Actions for CI
-- Netlify for the static deployment
+- GitHub Actions for CI and deployment
+- GitHub Pages for static hosting
 
 ## Getting started
 
@@ -58,7 +58,8 @@ Open [http://localhost:3000](http://localhost:3000).
 | `npm test` | Run the complete automated test suite |
 | `npm run test:behavior` | Run focused happy-path and edge-case scenarios |
 | `npm run test:coverage` | Run all tests and enforce 100% coverage |
-| `npm run build:static` | Build the static Netlify artifact |
+| `npm run build:static` | Build a root-hosted static artifact |
+| `npm run build:pages` | Build the static artifact with the GitHub Pages base path |
 | `npm run build` | Build through Vinext |
 
 ## Project structure
@@ -91,7 +92,7 @@ The complete contract is documented in [TESTING.md](TESTING.md).
 
 ## Deployment
 
-`main` is validated by GitHub Actions. Netlify builds the public site with `npm run build:static` and publishes `dist-static` according to [netlify.toml](netlify.toml).
+Every pull request is tested and built by GitHub Actions. A successful `main` build is published from `dist-static` to GitHub Pages. The dormant [netlify.toml](netlify.toml) configuration prevents repository pushes from creating paid Netlify production deploys while preserving the previous host configuration for rollback.
 
 ## Contributing
 
