@@ -45,3 +45,7 @@ Please include:
 - tests added or updated;
 - screenshots for visible UI changes;
 - known limitations or follow-up work.
+
+## Contribution license
+
+By contributing to Tally, you agree that your contributions will be licensed under the project's [MIT License](LICENSE).

@@ -190,7 +190,10 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .group-delete { width: 30px; height: 32px; margin-right: 3px; border: 0; border-radius: 50%; background: transparent; color: #958e86; display: grid; place-items: center; flex: 0 0 auto; }
 .group-delete:hover { color: var(--red); background: #f7dfdc; }
 .sidebar-empty { color: var(--muted); font-size: 12px; line-height: 1.5; margin: 6px 10px; }
-.reset-button { border: 0; background: transparent; color: var(--muted); font-size: 11px; text-decoration: underline; text-underline-offset: 3px; margin: auto auto 12px 10px; }
+.sidebar-footer { margin-top: auto; padding: 16px 10px 12px; border-top: 1px solid var(--line); display: grid; gap: 10px; }
+.source-link { color: var(--muted); display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; text-decoration: none; }
+.source-link:hover { color: var(--ink); }
+.reset-button { border: 0; background: transparent; color: var(--muted); font-size: 11px; text-decoration: underline; text-underline-offset: 3px; justify-self: start; padding: 0; }
 .reset-button:hover { color: var(--red); }
 
 .fresh-start { min-height: calc(100vh - 76px); display: grid; place-items: center; align-content: center; text-align: center; padding: 40px 24px 90px; }

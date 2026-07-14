@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "A local-first shared-expense app with optional Supabase-backed live collaboration.",
   "private": true,
+  "license": "MIT",
   "homepage": "https://pengfanz.github.io/splitbill/",
   "repository": {
     "type": "git",
