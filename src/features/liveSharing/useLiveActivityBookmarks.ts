@@ -5,6 +5,14 @@ export const LIVE_ACTIVITY_BOOKMARKS_KEY = 'tally:live-activity-bookmarks:v1'
 
 export type LiveActivityBookmarks = Record<string, LiveActivityCredentials>
 
+export function findLiveActivityBookmarkGroupId(bookmarks: LiveActivityBookmarks, credentials: LiveActivityCredentials) {
+  return Object.entries(bookmarks).find(([, saved]) => saved.code === credentials.code && saved.editToken === credentials.editToken)?.[0] ?? null
+}
+
+export function liveActivityShortcutId(code: string) {
+  return `live-${code.toLowerCase()}`
+}
+
 export function parseLiveActivityBookmarks(stored: string | null): LiveActivityBookmarks {
   try {
     if (!stored) return {}

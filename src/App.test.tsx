@@ -907,12 +907,18 @@ describe('complete app workflows', () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
     window.history.replaceState(null, '', `/${LIVE_ACTIVITY_HASH_PREFIX}${credentials.code}.${credentials.editToken}`)
-    render(<App liveActivityClient={client} />)
+    const { unmount } = render(<App liveActivityClient={client} />)
 
     expect(await screen.findByLabelText('Live activity')).toBeVisible()
     expect(await screen.findByText('Live · revision 1')).toBeVisible()
     expect(screen.getByText('Activity creator')).toBeVisible()
     expect(screen.getByText('Alex balance')).toBeVisible()
+    await waitFor(() => expect(JSON.parse(localStorage.getItem(LIVE_ACTIVITY_BOOKMARKS_KEY)!)).toEqual({
+      'live-a1b2c3d4e5': credentials,
+    }))
+    expect(parseState(localStorage.getItem(STORAGE_KEY)).groups).toContainEqual(expect.objectContaining({ id: 'live-a1b2c3d4e5', name: 'Trip' }))
+    expect(screen.getByText('Live · A1B2C3D4E5')).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Back to my activities' })).not.toBeInTheDocument()
 
     await user.click(screen.getAllByRole('button', { name: 'Add friend' })[0])
     await user.type(screen.getByLabelText(/Friend names/), 'Sam')
@@ -950,6 +956,20 @@ describe('complete app workflows', () => {
     await user.click(screen.getByRole('button', { name: 'New activity' }))
     expect(window.location.hash).toBe('')
     expect(screen.getByRole('dialog', { name: 'What are you sharing?' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await user.click(screen.getByRole('button', { name: 'Open Trip activity' }))
+    expect(await screen.findByText('Live · revision 5')).toBeVisible()
+
+    unmount()
+    window.history.replaceState(null, '', '/')
+    render(<App liveActivityClient={client} />)
+    expect(await screen.findByText('Live · revision 5')).toBeVisible()
+    expect(window.location.hash).toContain(`${LIVE_ACTIVITY_HASH_PREFIX}${credentials.code}.`)
+
+    await user.click(screen.getByRole('button', { name: 'Delete Trip activity' }))
+    expect(await screen.findByRole('heading', { name: 'Start your first activity' })).toBeVisible()
+    expect(window.location.hash).toBe('')
+    expect(JSON.parse(localStorage.getItem(LIVE_ACTIVITY_BOOKMARKS_KEY)!)).toEqual({})
   })
 
   it('surfaces missing configuration, stale revisions, load failures, and copy failures', async () => {

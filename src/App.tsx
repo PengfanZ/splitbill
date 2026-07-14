@@ -12,7 +12,7 @@ import { IdentityModal } from './features/identity/IdentityModal'
 import { LiveActivityApiError, type LiveActivityRecord } from './features/liveSharing/liveActivityApi'
 import { createConfiguredLiveActivityClient, type LiveActivityClient } from './features/liveSharing/liveActivityConfig'
 import { buildLiveActivityUrl, clearLiveActivityHash, parseLiveActivityHash, type LiveActivityCredentials } from './features/liveSharing/liveActivityLink'
-import { useLiveActivityBookmarks } from './features/liveSharing/useLiveActivityBookmarks'
+import { findLiveActivityBookmarkGroupId, liveActivityShortcutId, useLiveActivityBookmarks } from './features/liveSharing/useLiveActivityBookmarks'
 import { exportActivitySummary, SHARE_MESSAGES } from './features/sharing/shareActivity'
 import { SharedActivityIdentityModal } from './features/sharing/SharedActivityIdentityModal'
 import {
@@ -96,15 +96,28 @@ export default function App({ liveActivityClient }: AppProps = {}) {
     let active = true
     liveClient.load(liveCredentials).then(record => {
       if (!active) return
+      const shortcutGroupId = findLiveActivityBookmarkGroupId(liveActivityBookmarks, liveCredentials) ?? liveActivityShortcutId(record.code)
       setLiveSession({ credentials: liveCredentials, record })
       setLiveNotice(null)
+      setLiveActivityBookmarks(current => findLiveActivityBookmarkGroupId(current, liveCredentials)
+        ? current
+        : { ...current, [shortcutGroupId]: liveCredentials })
+      setState(current => {
+        const shortcutGroup = { ...record.snapshot.group, id: shortcutGroupId }
+        const hasShortcut = current.groups.some(group => group.id === shortcutGroupId)
+        return {
+          ...current,
+          groups: hasShortcut ? current.groups.map(group => group.id === shortcutGroupId ? shortcutGroup : group) : [...current.groups, shortcutGroup],
+          selectedGroupId: shortcutGroupId,
+        }
+      })
     }).catch(error => {
       if (active) setLiveNotice(liveActivityErrorMessage(error))
     }).finally(() => {
       if (active) setLiveLoading(false)
     })
     return () => { active = false }
-  }, [liveClient, liveCredentials, liveSession])
+  }, [liveActivityBookmarks, liveClient, liveCredentials, liveSession, setLiveActivityBookmarks, setState])
 
   const selectedGroup = state.groups.find(group => group.id === state.selectedGroupId) ?? state.groups[0] ?? null
   const currentUser = identity ?? CURRENT_USER
@@ -122,9 +135,7 @@ export default function App({ liveActivityClient }: AppProps = {}) {
   const activeExpenses = liveActivity?.expenses ?? selectedExpenses
   const displayedLiveNotice = liveNotice ?? (!liveClient && liveCredentials ? 'Live sharing is not configured in this build.' : null)
   const liveActivityCodes = Object.fromEntries(Object.entries(liveActivityBookmarks).map(([groupId, credentials]) => [groupId, credentials.code]))
-  const bookmarkedLiveGroupId = liveCredentials
-    ? Object.entries(liveActivityBookmarks).find(([, credentials]) => credentials.code === liveCredentials.code && credentials.editToken === liveCredentials.editToken)?.[0] ?? null
-    : null
+  const bookmarkedLiveGroupId = liveCredentials ? findLiveActivityBookmarkGroupId(liveActivityBookmarks, liveCredentials) : null
 
   const closeSharedActivity = () => {
     clearSharedActivityHash()
@@ -368,6 +379,7 @@ export default function App({ liveActivityClient }: AppProps = {}) {
   const deleteActivity = (group: ActivityGroup) => {
     if (!window.confirm(`Delete "${group.name}"? This removes the activity and all its expenses from this browser. This cannot be undone.`)) return
     const deletingSelectedActivity = selectedGroup?.id === group.id
+    const deletingOpenLiveActivity = bookmarkedLiveGroupId === group.id
     setState(current => {
       const groups = current.groups.filter(item => item.id !== group.id)
       const remainingMemberIds = new Set(groups.flatMap(item => item.memberIds))
@@ -381,6 +393,7 @@ export default function App({ liveActivityClient }: AppProps = {}) {
     })
     setActivityFeedback(null)
     setLiveActivityBookmarks(current => Object.fromEntries(Object.entries(current).filter(([groupId]) => groupId !== group.id)))
+    if (deletingOpenLiveActivity) closeLiveActivity()
     if (deletingSelectedActivity) setQuery('')
   }
 

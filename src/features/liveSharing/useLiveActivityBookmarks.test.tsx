@@ -3,6 +3,8 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   LIVE_ACTIVITY_BOOKMARKS_KEY,
+  findLiveActivityBookmarkGroupId,
+  liveActivityShortcutId,
   loadLiveActivityBookmarks,
   parseLiveActivityBookmarks,
   saveLiveActivityBookmarks,
@@ -22,6 +24,12 @@ beforeEach(() => {
 })
 
 describe('live activity bookmarks', () => {
+  it('finds saved capabilities and creates stable shortcut IDs', () => {
+    expect(findLiveActivityBookmarkGroupId({ trip: credentials }, credentials)).toBe('trip')
+    expect(findLiveActivityBookmarkGroupId({ trip: credentials }, { ...credentials, editToken: 'b'.repeat(64) })).toBeNull()
+    expect(liveActivityShortcutId(credentials.code)).toBe('live-a1b2c3d4e5')
+  })
+
   it('parses only valid group capability records', () => {
     expect(parseLiveActivityBookmarks(null)).toEqual({})
     expect(parseLiveActivityBookmarks('{')).toEqual({})

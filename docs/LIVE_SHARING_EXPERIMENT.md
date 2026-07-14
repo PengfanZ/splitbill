@@ -71,8 +71,8 @@ The UI shows a conflict banner with **Refresh latest**. Automatic field-level me
 ## Implemented frontend experiment
 
 - **Share live** creates a backend activity and immediately moves the creator's tab into that live revision, without removing the existing read-only snapshot option.
-- The creator's browser remembers the live capability against the original local activity. The sidebar labels and selects that activity with `Live · CODE`; the creator stays on the canonical live state until choosing another activity, and reopening or reloading reconnects to the latest backend copy.
-- Opening someone else's live link does not silently add it to **My activities**. Only the browser that created the live copy keeps this automatic bookmark for now.
+- Every browser that successfully opens a live capability remembers it under **Your activities**. The creator keeps the original local activity entry; recipients receive a lightweight `Live · CODE` shortcut that always reopens the canonical backend copy.
+- A remembered live activity stays selected until another activity is chosen. Returning to the app or clicking its sidebar shortcut reconnects to the latest backend revision without requiring the link again.
 - The QR dialog displays the short `#live=` capability URL and copies it directly to the clipboard.
 - Opening a live link loads the canonical backend snapshot and enables adding friends plus creating, editing, and deleting expenses.
 - Every mutation sends the last loaded revision. A stale save is rejected with a visible conflict message instead of overwriting someone else's work.
@@ -81,10 +81,10 @@ The UI shows a conflict banner with **Refresh latest**. Automatic field-level me
 
 Automatic polling and Supabase Realtime are intentionally deferred. Manual refresh keeps this first experiment predictable while the capability-token authorization model is evaluated.
 
-The creator bookmark is stored in browser local storage. Clearing site data or moving to another browser removes that bookmark but does not delete the backend activity; the original capability link is still required to reconnect from that browser.
+Each browser's shortcut is stored in local storage. Removing the shortcut, clearing site data, or moving to another browser does not delete the backend activity; that browser needs the original capability link to reconnect again.
 
 ## Verification
 
 - Vitest enforces 100% statement, branch, function, and line coverage, including happy paths and failure states.
-- Playwright covers a multi-page collaboration flow: the creator leaves and reopens its bookmarked live activity (including across a page reload), another page edits it, and a third page reopens the same code at the new revision.
+- Playwright covers isolated creator, editor, and observer browser sessions. Recipients persist the live shortcut locally, reopen it without the original URL, and share revision-checked updates through the backend.
 - pgTAP verifies the SQL capability, privacy, validation, and optimistic-concurrency contract.
