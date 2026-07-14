@@ -1,6 +1,6 @@
 'use client'
 
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { FreshStart, Sidebar, Topbar } from './components/AppShell'
 import { createIdentity } from './data/identity'
 import { EMPTY_STATE } from './data/storage'
@@ -72,6 +72,7 @@ export default function App({ liveActivityClient }: AppProps = {}) {
   const [liveSession, setLiveSession] = useState<LiveSession | null>(null)
   const [liveLoading, setLiveLoading] = useState(() => Boolean((parseLiveActivityHash(window.location.hash) ?? bookmarkedCredentialsAtLoad) && liveClient))
   const [liveSaving, setLiveSaving] = useState(false)
+  const liveSaveInFlight = useRef(false)
   const [liveNotice, setLiveNotice] = useState<string | null>(null)
   const [sharedActivity, setSharedActivity] = useState(() => parseLiveActivityHash(window.location.hash) || bookmarkedCredentialsAtLoad ? null : decodeSharedActivityHash(window.location.hash))
 
@@ -190,8 +191,10 @@ export default function App({ liveActivityClient }: AppProps = {}) {
   }
 
   const saveLiveActivity = async (snapshot: SharedActivity, successMessage: string) => {
+    if (liveSaveInFlight.current) return false
     const client = liveClient!
     const session = liveSession!
+    liveSaveInFlight.current = true
     setLiveSaving(true)
     try {
       const record = await client.update(session.credentials, snapshot, session.record.revision)
@@ -199,9 +202,15 @@ export default function App({ liveActivityClient }: AppProps = {}) {
       setLiveNotice(successMessage)
       return true
     } catch (error) {
-      setLiveNotice(liveActivityErrorMessage(error))
+      if (error instanceof LiveActivityApiError && error.kind === 'conflict' && error.latestRecord) {
+        setLiveSession({ credentials: session.credentials, record: error.latestRecord })
+        setLiveNotice('Someone saved a newer version. The latest changes are loaded—review and save again.')
+      } else {
+        setLiveNotice(liveActivityErrorMessage(error))
+      }
       return false
     } finally {
+      liveSaveInFlight.current = false
       setLiveSaving(false)
     }
   }

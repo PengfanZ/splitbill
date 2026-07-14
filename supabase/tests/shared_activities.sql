@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(30);
+select plan(37);
 
 select has_schema('private', 'private schema exists');
 select has_table('private', 'shared_activities', 'shared activity storage exists');
@@ -27,6 +27,11 @@ select is(
   true,
   'anonymous clients can execute only the public create wrapper'
 );
+select is(
+  has_function_privilege('anon', 'public.update_shared_activity_v2(text,text,bigint,jsonb)', 'EXECUTE'),
+  true,
+  'anonymous clients can execute the conflict-aware update wrapper'
+);
 select ok(
   exists (
     select 1
@@ -40,6 +45,7 @@ select ok(
 select has_function('public', 'create_shared_activity', array['jsonb'], 'create RPC exists');
 select has_function('public', 'load_shared_activity', array['text', 'text'], 'load RPC exists');
 select has_function('public', 'update_shared_activity', array['text', 'text', 'bigint', 'jsonb'], 'update RPC exists');
+select has_function('public', 'update_shared_activity_v2', array['text', 'text', 'bigint', 'jsonb'], 'conflict-aware update RPC exists');
 
 create temporary table created_activity as
 select * from public.create_shared_activity(jsonb_build_object(
@@ -78,10 +84,37 @@ select throws_ok(
     (select edit_token from created_activity),
     (select snapshot::text from created_activity)
   ),
-  '40001',
+  'PT409',
   'shared_activity_conflict',
-  'stale revisions cannot overwrite newer data'
+  'legacy stale revisions return a semantic HTTP conflict'
 );
+
+create temporary table v2_updated_activity as
+select updated.*
+from created_activity created
+cross join lateral public.update_shared_activity_v2(
+  created.code,
+  created.edit_token,
+  2,
+  jsonb_set(created.snapshot, '{group,name}', '"Conflict-aware weekend"')
+) updated;
+
+select is(revision, 3::bigint, 'conflict-aware updates increment the revision') from v2_updated_activity;
+select is(conflicted, false, 'successful conflict-aware updates are not marked conflicted') from v2_updated_activity;
+
+create temporary table v2_conflicted_activity as
+select conflicted.*
+from created_activity created
+cross join lateral public.update_shared_activity_v2(
+  created.code,
+  created.edit_token,
+  2,
+  created.snapshot
+) conflicted;
+
+select is(conflicted, true, 'stale conflict-aware updates return a normal conflict result') from v2_conflicted_activity;
+select is(revision, 3::bigint, 'conflict results include the latest revision') from v2_conflicted_activity;
+select is(snapshot #>> '{group,name}', 'Conflict-aware weekend', 'conflict results include the latest snapshot') from v2_conflicted_activity;
 
 select throws_ok(
   format('select public.load_shared_activity(%L, %L)', (select code from created_activity), repeat('0', 64)),
