@@ -993,12 +993,26 @@ describe('complete app workflows', () => {
     window.history.replaceState(null, '', `/${LIVE_ACTIVITY_HASH_PREFIX}${credentials.code}.${credentials.editToken}`)
 
     const snapshot = createSharedActivity(group, [CURRENT_USER, maya, jordan], [expense()])
+    const latestSnapshot = createSharedActivity(
+      { ...group, name: 'Latest trip' },
+      [CURRENT_USER, maya, jordan],
+      [expense()],
+    )
     const client = {
       create: vi.fn(),
       load: vi.fn()
         .mockRejectedValueOnce(new LiveActivityApiError('not-found', 'missing'))
         .mockResolvedValue({ code: credentials.code, revision: 2, snapshot, updatedAt: '2026-07-14T01:00:00.000Z' }),
-      update: vi.fn().mockRejectedValue(new LiveActivityApiError('conflict', 'stale')),
+      update: vi.fn()
+        .mockRejectedValueOnce(new LiveActivityApiError('conflict', 'stale', {
+          latestRecord: {
+            code: credentials.code,
+            revision: 3,
+            snapshot: latestSnapshot,
+            updatedAt: '2026-07-14T01:01:00.000Z',
+          },
+        }))
+        .mockRejectedValue(new LiveActivityApiError('conflict', 'stale')),
     } satisfies LiveActivityClient
     render(<App liveActivityClient={client} />)
     expect(await screen.findByRole('status')).toHaveTextContent('invalid or no longer available')
@@ -1007,7 +1021,9 @@ describe('complete app workflows', () => {
     await user.click(screen.getAllByRole('button', { name: 'Add friend' })[0])
     await user.type(screen.getByLabelText(/Friend names/), 'Sam')
     await user.click(screen.getByRole('button', { name: 'Add friends' }))
-    expect(screen.getAllByRole('status').some(status => status.textContent?.includes('newer version'))).toBe(true)
+    expect(await screen.findByRole('heading', { name: 'Latest trip' })).toBeVisible()
+    expect(screen.getByText('Live · revision 3')).toBeVisible()
+    expect(screen.getAllByRole('status').some(status => status.textContent?.includes('latest changes are loaded'))).toBe(true)
     expect(screen.getByRole('dialog', { name: 'Who’s joining?' })).toBeVisible()
 
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
@@ -1029,6 +1045,48 @@ describe('complete app workflows', () => {
     client.load.mockRejectedValueOnce(new LiveActivityApiError('network', 'offline'))
     await user.click(screen.getByRole('button', { name: 'Refresh latest' }))
     expect(screen.getByRole('status')).toHaveTextContent('Could not reach the live activity service')
+  })
+
+  it('serializes saves from one live browser tab', async () => {
+    const user = userEvent.setup()
+    const credentials = { code: 'A1B2C3D4E5', editToken: 'a'.repeat(64) }
+    const snapshot = createSharedActivity(group, [CURRENT_USER, maya, jordan], [expense()])
+    let resolveUpdate!: (record: LiveActivityRecord) => void
+    let pendingSnapshot!: SharedActivity
+    const client = {
+      create: vi.fn(),
+      load: vi.fn().mockResolvedValue({
+        code: credentials.code,
+        revision: 1,
+        snapshot,
+        updatedAt: '2026-07-14T01:00:00.000Z',
+      }),
+      update: vi.fn((_credentials, nextSnapshot) => {
+        pendingSnapshot = nextSnapshot
+        return new Promise<LiveActivityRecord>(resolve => { resolveUpdate = resolve })
+      }),
+    } satisfies LiveActivityClient
+
+    window.history.replaceState(null, '', `/${LIVE_ACTIVITY_HASH_PREFIX}${credentials.code}.${credentials.editToken}`)
+    render(<App liveActivityClient={client} />)
+    expect(await screen.findByText('Live · revision 1')).toBeVisible()
+
+    await user.click(screen.getAllByRole('button', { name: 'Add friend' })[0])
+    await user.type(screen.getByLabelText(/Friend names/), 'Sam')
+    const saveButton = screen.getByRole('button', { name: 'Add friends' })
+    await user.click(saveButton)
+    await user.click(saveButton)
+    expect(client.update).toHaveBeenCalledTimes(1)
+
+    resolveUpdate({
+      code: credentials.code,
+      revision: 2,
+      snapshot: pendingSnapshot,
+      updatedAt: '2026-07-14T01:01:00.000Z',
+    })
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Who’s joining?' })).not.toBeInTheDocument())
+    expect(screen.getByText('Sam', { selector: '.member-row b' })).toBeVisible()
+    expect(screen.getByText('Live · revision 2')).toBeVisible()
   })
 
   it('ignores an obsolete live response after the URL changes', async () => {

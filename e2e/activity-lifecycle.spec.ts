@@ -118,6 +118,11 @@ test('shares a QR destination that opens the same read-only activity on another 
 })
 
 test('shares one editable backend activity across isolated browser sessions', async ({ page, context, browser }) => {
+  const browserErrors: string[] = []
+  page.on('console', message => {
+    if (message.type() === 'error') browserErrors.push(message.text())
+  })
+  page.on('pageerror', error => browserErrors.push(error.message))
   const code = 'A1B2C3D4E5'
   const editToken = 'a'.repeat(64)
   let revision = 1
@@ -135,9 +140,21 @@ test('shares one editable backend activity across isolated browser sessions', as
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ code, revision, snapshot, updated_at: '2026-07-14T01:00:00.000Z' }]) })
       return
     }
+    if (body.p_expected_revision !== revision) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([{ code, revision, snapshot, updated_at: '2026-07-14T01:01:00.000Z', conflicted: true }]),
+      })
+      return
+    }
     snapshot = body.p_snapshot
     revision += 1
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ code, revision, snapshot, updated_at: '2026-07-14T01:01:00.000Z' }]) })
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([{ code, revision, snapshot, updated_at: '2026-07-14T01:01:00.000Z', conflicted: false }]),
+    })
   }
   const prepareSharedSession = async (targetContext: BrowserContext) => {
     await targetContext.route('https://static.cloudflareinsights.com/**', route => route.fulfill({
@@ -190,6 +207,10 @@ test('shares one editable backend activity across isolated browser sessions', as
   const editorContext = await browser.newContext()
   await prepareSharedSession(editorContext)
   const editor = await editorContext.newPage()
+  editor.on('console', message => {
+    if (message.type() === 'error') browserErrors.push(message.text())
+  })
+  editor.on('pageerror', error => browserErrors.push(error.message))
   await editor.goto(liveUrl)
   await editor.getByLabel('Display name').fill('Blair')
   await editor.getByRole('button', { name: 'Continue' }).click()
@@ -207,16 +228,36 @@ test('shares one editable backend activity across isolated browser sessions', as
   await expect(editor.getByText('Firewood', { exact: true })).toBeVisible()
   await expect(editor.getByText('Live · revision 3')).toBeVisible()
 
+  // The creator is still on revision 2. Its first save receives the current
+  // snapshot as a normal conflict result; the modal stays open for a retry.
+  await page.getByRole('button', { name: 'Add expense' }).click()
+  await page.getByLabel('Description').fill('Cabin fee')
+  await page.getByRole('spinbutton', { name: 'Amount' }).fill('50')
+  await page.getByRole('button', { name: 'Save expense' }).click()
+  await expect(page.getByText('Live · revision 3')).toBeVisible()
+  await expect(page.getByText('Firewood', { exact: true })).toBeVisible()
+  await expect(page.getByText(/latest changes are loaded/i)).toBeVisible()
+  await expect(page.getByRole('dialog', { name: 'Add a shared expense' })).toBeVisible()
+  await page.getByRole('button', { name: 'Save expense' }).click()
+  await expect(page.getByText('Cabin fee', { exact: true })).toBeVisible()
+  await expect(page.getByText('Live · revision 4')).toBeVisible()
+
   const observerContext = await browser.newContext()
   await prepareSharedSession(observerContext)
   const observer = await observerContext.newPage()
+  observer.on('console', message => {
+    if (message.type() === 'error') browserErrors.push(message.text())
+  })
+  observer.on('pageerror', error => browserErrors.push(error.message))
   await observer.goto(liveUrl)
   await observer.getByLabel('Display name').fill('Casey')
   await observer.getByRole('button', { name: 'Continue' }).click()
-  await expect(observer.getByText('Live · revision 3')).toBeVisible()
+  await expect(observer.getByText('Live · revision 4')).toBeVisible()
   await expect(observer.getByText('Groceries', { exact: true })).toBeVisible()
   await expect(observer.getByText('Firewood', { exact: true })).toBeVisible()
+  await expect(observer.getByText('Cabin fee', { exact: true })).toBeVisible()
   await expect(observer.getByText(`Live · ${code}`, { exact: true })).toBeVisible()
+  expect(browserErrors).toEqual([])
   await editorContext.close()
   await observerContext.close()
 })

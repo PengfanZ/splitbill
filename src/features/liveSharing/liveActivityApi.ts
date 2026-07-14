@@ -23,10 +23,15 @@ export type LiveActivityApiErrorKind =
   | 'network'
   | 'invalid-response'
 
+type LiveActivityApiErrorOptions = ErrorOptions & { latestRecord?: LiveActivityRecord }
+
 export class LiveActivityApiError extends Error {
-  constructor(public readonly kind: LiveActivityApiErrorKind, message: string, options?: ErrorOptions) {
+  public readonly latestRecord?: LiveActivityRecord
+
+  constructor(public readonly kind: LiveActivityApiErrorKind, message: string, options?: LiveActivityApiErrorOptions) {
     super(message, options)
     this.name = 'LiveActivityApiError'
+    this.latestRecord = options?.latestRecord
   }
 }
 
@@ -39,6 +44,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function responseErrorKind(body: unknown, status: number): LiveActivityApiErrorKind {
   if (status === 429) return 'rate-limit'
+  if (status === 409) return 'conflict'
   const code = isRecord(body) && typeof body.code === 'string' ? body.code : ''
   if (code === '40001') return 'conflict'
   if (code === 'P0002') return 'not-found'
@@ -150,12 +156,20 @@ export function createLiveActivityClient(configuration: ApiConfiguration, fetche
       if (!Number.isInteger(expectedRevision) || expectedRevision < 1) {
         throw new LiveActivityApiError('invalid-input', 'A positive expected revision is required.')
       }
-      return parseRecord(await rpc('update_shared_activity', {
+      const result = await rpc('update_shared_activity_v2', {
         p_code: credentials.code,
         p_edit_token: credentials.editToken,
         p_expected_revision: expectedRevision,
         p_snapshot: snapshot,
-      }), false)
+      })
+      if (!isRecord(result) || typeof result.conflicted !== 'boolean') {
+        throw new LiveActivityApiError('invalid-response', 'The live activity service returned an invalid update result.')
+      }
+      const record = parseRecord(result, false) as LiveActivityRecord
+      if (result.conflicted) {
+        throw new LiveActivityApiError('conflict', 'A newer activity revision is available.', { latestRecord: record })
+      }
+      return record
     },
   }
 }

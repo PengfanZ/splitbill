@@ -40,7 +40,7 @@ describe('live activity API client', () => {
     fetcher
       .mockResolvedValueOnce(response([row()]))
       .mockResolvedValueOnce(response([row({ edit_token: undefined })]))
-      .mockResolvedValueOnce(response([row({ edit_token: undefined, revision: 2 })]))
+      .mockResolvedValueOnce(response([row({ edit_token: undefined, revision: 2, conflicted: false })]))
     const client = createLiveActivityClient({ supabaseUrl: ' https://project.supabase.co/// ', publishableKey: ' publishable ' }, fetcher)
 
     await expect(client.create(snapshot)).resolves.toEqual({ ...credentials, revision: 1, snapshot, updatedAt })
@@ -61,6 +61,7 @@ describe('live activity API client', () => {
       body: JSON.stringify({ p_snapshot: snapshot }),
     }))
     expect(JSON.parse(fetcher.mock.calls[1][1]?.body as string)).toEqual({ p_code: credentials.code, p_edit_token: credentials.editToken })
+    expect(fetcher.mock.calls[2][0]).toBe('https://project.supabase.co/rest/v1/rpc/update_shared_activity_v2')
     expect(JSON.parse(fetcher.mock.calls[2][1]?.body as string)).toMatchObject({ p_expected_revision: 1, p_snapshot: snapshot })
   })
 
@@ -90,6 +91,7 @@ describe('live activity API client', () => {
 
   it.each([
     ['40001', 400, 'conflict'],
+    ['PT409', 409, 'conflict'],
     ['P0002', 404, 'not-found'],
     ['22023', 400, 'invalid-input'],
     ['rate_limit_exceeded', 429, 'rate-limit'],
@@ -98,6 +100,30 @@ describe('live activity API client', () => {
     fetcher.mockResolvedValue(response({ code, message: `backend ${code}` }, status))
     const client = createLiveActivityClient({ supabaseUrl: 'https://project.supabase.co', publishableKey: 'key' }, fetcher)
     await expectApiError(client.load(credentials), kind)
+  })
+
+  it('turns a normal conflict result into an error carrying the latest record', async () => {
+    fetcher.mockResolvedValue(response([row({
+      edit_token: undefined,
+      revision: 4,
+      conflicted: true,
+    })]))
+    const client = createLiveActivityClient({ supabaseUrl: 'https://project.supabase.co', publishableKey: 'key' }, fetcher)
+
+    await expect(client.update(credentials, snapshot, 3)).rejects.toMatchObject({
+      kind: 'conflict',
+      latestRecord: { code: credentials.code, revision: 4, snapshot, updatedAt },
+    })
+  })
+
+  it.each([
+    null,
+    row({ edit_token: undefined }),
+    row({ edit_token: undefined, conflicted: 'yes' }),
+  ])('rejects malformed update results: %j', async invalidRow => {
+    fetcher.mockResolvedValue(response([invalidRow]))
+    const client = createLiveActivityClient({ supabaseUrl: 'https://project.supabase.co', publishableKey: 'key' }, fetcher)
+    await expectApiError(client.update(credentials, snapshot, 1), 'invalid-response')
   })
 
   it('allows HTTP only for local development Supabase URLs', () => {
