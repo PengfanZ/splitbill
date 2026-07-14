@@ -11,6 +11,8 @@ export type LiveActivityRecord = {
   updatedAt: string
 }
 
+export type LiveActivityRevision = Omit<LiveActivityRecord, 'snapshot'>
+
 export type CreatedLiveActivity = LiveActivityRecord & LiveActivityCredentials
 
 export type LiveActivityApiErrorKind =
@@ -52,28 +54,40 @@ function responseErrorKind(body: unknown, status: number): LiveActivityApiErrorK
   return 'backend'
 }
 
-function parseRecord(value: unknown, requireToken: boolean): CreatedLiveActivity | LiveActivityRecord {
+function parseRevision(value: unknown): LiveActivityRevision {
   if (!isRecord(value)
     || !Number.isInteger(value.revision)
     || (value.revision as number) < 1
     || typeof value.updated_at !== 'string'
-    || Number.isNaN(Date.parse(value.updated_at))
-    || !isSharedActivity(value.snapshot)) {
+    || Number.isNaN(Date.parse(value.updated_at))) {
     throw new LiveActivityApiError('invalid-response', 'The live activity service returned an invalid record.')
   }
 
-  const credentials = { code: value.code, editToken: value.edit_token }
-  if (requireToken ? !isLiveActivityCredentials(credentials) : typeof value.code !== 'string' || !isLiveActivityCredentials({ code: value.code, editToken: '0'.repeat(64) })) {
+  if (typeof value.code !== 'string' || !isLiveActivityCredentials({ code: value.code, editToken: '0'.repeat(64) })) {
     throw new LiveActivityApiError('invalid-response', 'The live activity service returned invalid credentials.')
   }
 
-  const record: LiveActivityRecord = {
-    code: value.code as string,
+  return {
+    code: value.code,
     revision: value.revision as number,
-    snapshot: value.snapshot,
     updatedAt: value.updated_at,
   }
-  return requireToken ? { ...record, editToken: value.edit_token as string } : record
+}
+
+function parseRecord(value: unknown, requireToken: boolean): CreatedLiveActivity | LiveActivityRecord {
+  const revision = parseRevision(value)
+  const row = value as Record<string, unknown>
+  if (!isSharedActivity(row.snapshot)) {
+    throw new LiveActivityApiError('invalid-response', 'The live activity service returned an invalid record.')
+  }
+
+  const credentials = { code: row.code, editToken: row.edit_token }
+  if (requireToken && !isLiveActivityCredentials(credentials)) {
+    throw new LiveActivityApiError('invalid-response', 'The live activity service returned invalid credentials.')
+  }
+
+  const record: LiveActivityRecord = { ...revision, snapshot: row.snapshot }
+  return requireToken ? { ...record, editToken: row.edit_token as string } : record
 }
 
 function assertSnapshot(snapshot: SharedActivity) {
@@ -149,6 +163,13 @@ export function createLiveActivityClient(configuration: ApiConfiguration, fetche
         p_code: credentials.code,
         p_edit_token: credentials.editToken,
       }), false)
+    },
+    async poll(credentials: LiveActivityCredentials): Promise<LiveActivityRevision> {
+      assertCredentials(credentials)
+      return parseRevision(await rpc('poll_shared_activity', {
+        p_code: credentials.code,
+        p_edit_token: credentials.editToken,
+      }))
     },
     async update(credentials: LiveActivityCredentials, snapshot: SharedActivity, expectedRevision: number): Promise<LiveActivityRecord> {
       assertCredentials(credentials)

@@ -160,6 +160,10 @@ test('shares a QR destination that opens the same read-only activity on another 
     contentType: 'application/javascript',
     body: '',
   }))
+  await recipientContext.route('https://live-sharing.test/rest/v1/rpc/record_analytics_event', route => route.fulfill({
+    status: 204,
+    body: '',
+  }))
   const recipientPage = await recipientContext.newPage()
   recipientPage.on('console', message => {
     if (message.type() === 'error') browserErrors.push(message.text())
@@ -202,6 +206,10 @@ test('shares one editable backend activity across isolated browser sessions', as
     }
     if (functionName === 'load_shared_activity') {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ code, revision, snapshot, updated_at: '2026-07-14T01:00:00.000Z' }]) })
+      return
+    }
+    if (functionName === 'poll_shared_activity') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ code, revision, updated_at: '2026-07-14T01:00:00.000Z' }]) })
       return
     }
     if (body.p_expected_revision !== revision) {
@@ -292,16 +300,15 @@ test('shares one editable backend activity across isolated browser sessions', as
   await expect(editor.getByText('Firewood', { exact: true })).toBeVisible()
   await expect(editor.getByText('Live · revision 3')).toBeVisible()
 
-  // The creator is still on revision 2. Its first save receives the current
-  // snapshot as a normal conflict result; the modal stays open for a retry.
+  await page.bringToFront()
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+  await expect(page.getByText('Live · revision 3')).toBeVisible()
+  await expect(page.getByText('Firewood', { exact: true })).toBeVisible()
+  await expect(page.getByRole('status')).toContainText('New shared changes loaded automatically')
+
   await page.getByRole('button', { name: 'Add expense' }).click()
   await page.getByLabel('Description').fill('Cabin fee')
   await page.getByRole('spinbutton', { name: 'Amount' }).fill('50')
-  await page.getByRole('button', { name: 'Save expense' }).click()
-  await expect(page.getByText('Live · revision 3')).toBeVisible()
-  await expect(page.getByText('Firewood', { exact: true })).toBeVisible()
-  await expect(page.getByText(/latest changes are loaded/i)).toBeVisible()
-  await expect(page.getByRole('dialog', { name: 'Add a shared expense' })).toBeVisible()
   await page.getByRole('button', { name: 'Save expense' }).click()
   await expect(page.getByText('Cabin fee', { exact: true })).toBeVisible()
   await expect(page.getByText('Live · revision 4')).toBeVisible()

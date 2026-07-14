@@ -25,7 +25,7 @@ The link is intentionally a bearer capability: anyone who has the full link can 
 
 - **GitHub Pages** continues to host the React app.
 - **Supabase Postgres** stores the canonical JSON snapshot, hashed edit token, revision, timestamps, and sliding expiration.
-- **PostgREST RPCs** provide create, load, and revision-checked update operations.
+- **PostgREST RPCs** provide create, lightweight revision polling, full snapshot loading, and revision-checked update operations.
 - The storage table and privileged functions live in the non-exposed `private` schema.
 - Narrow security-definer `public` wrappers are callable with the project's publishable key. Browser roles cannot query private tables or execute private functions directly.
 - RLS, validated JSON constraints, hashed-IP request throttling, statement timeouts, and 90-day sliding expiration provide defense in depth.
@@ -58,7 +58,7 @@ An update sends `expectedRevision`. A conditional database update compares the c
 - Invalid snapshot or revision: SQLSTATE `22023`, surfaced as `invalid-input`.
 - Too many requests from one network: HTTP `429`, surfaced as `rate-limit`.
 
-The UI immediately loads the latest record, keeps the editor open, and asks the person to review and save again. **Refresh latest** remains available for manual synchronization. Automatic field-level merging should wait until we have evidence that whole-activity optimistic concurrency is too disruptive.
+The UI immediately loads the latest record, keeps the editor open, and asks the person to review and save again. Visible live-activity tabs poll a lightweight revision-only RPC every 15 seconds and fetch the full snapshot only when that revision changes. They also check immediately when they regain focus or reconnect. **Refresh latest** remains available as a manual fallback. Automatic field-level merging should wait until we have evidence that whole-activity optimistic concurrency is too disruptive.
 
 ## Remaining trusted-group limitations
 
@@ -76,10 +76,11 @@ The UI immediately loads the latest record, keeps the editor open, and asks the 
 - The QR dialog displays the short `#live=` capability URL and copies it directly to the clipboard.
 - Opening a live link loads the canonical backend snapshot and enables adding friends plus creating, editing, and deleting expenses.
 - Every mutation sends the last loaded revision. A stale save loads the current activity with a visible conflict message instead of overwriting someone else's work.
+- Newer revisions load automatically while the live activity is visible. Polling pauses for hidden, offline, or actively-saving tabs and backs off to at most one request per minute after failures.
 - **Refresh latest** manually loads the current revision, and **Show QR** reopens the same live link for sharing.
 - A missing backend configuration, invalid link, network failure, and clipboard failure each have explicit UI feedback.
 
-Automatic polling and Supabase Realtime are intentionally deferred. Manual refresh keeps this first experiment predictable while the capability-token authorization model is evaluated.
+Supabase Realtime remains deferred until the capability-token authorization model is evaluated. Visibility-aware polling provides automatic synchronization without exposing the private activity table or requiring user accounts.
 
 Each browser's shortcut is stored in local storage. Removing the shortcut, clearing site data, or moving to another browser does not delete the backend activity; that browser needs the original capability link to reconnect again.
 

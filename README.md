@@ -33,7 +33,7 @@ Opening a snapshot never overwrites browser data, and shared-preview URLs never 
 - Edit and delete expenses, or delete an entire activity and its local data.
 - Export a shareable PNG summary for friends.
 - Persist data in the browser and synchronize changes across open tabs.
-- Collaborate across browsers through short, revision-checked live activity links.
+- Collaborate across browsers through short, revision-checked live activity links that automatically load newer changes while visible.
 - Measure anonymous local and live feature usage without sending activity data or secret URLs to analytics.
 - Use the responsive interface on desktop or mobile.
 
