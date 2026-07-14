@@ -21,6 +21,11 @@ export default defineConfig({
   },
   webServer: {
     command: 'npm run build:pages && npm run preview -- --host 127.0.0.1 --port 4173 --base=/splitbill/',
+    env: {
+      ...process.env,
+      VITE_SUPABASE_URL: 'https://live-sharing.test',
+      VITE_SUPABASE_PUBLISHABLE_KEY: 'test-publishable-key',
+    },
     url: baseURL,
     reuseExistingServer: false,
     timeout: 120_000,

@@ -9,6 +9,7 @@ Coverage is necessary, but it is not the definition of correctness. Every produc
 3. **Domain unit tests** — direct tests beside pure financial and member modules, independent of React and browser workflows.
 4. **Component and helper tests** — focused tests for persistence, rendering states, and browser fallbacks.
 5. **Rendered browser integration tests** — Playwright runs the production GitHub Pages build in Chromium and verifies interaction, responsive layout, persistence after reload, destructive confirmations, and console health.
+6. **Database security tests** — pgTAP recreates the schema from migrations and verifies capability checks, RLS, least-privilege grants, expiration, rate limiting, validation, and optimistic concurrency.
 
 ## CI gate
 
@@ -20,6 +21,7 @@ Every push and pull request type-checks and lints all TypeScript files, then run
 - `npm run test:behavior` runs the focused happy-path and edge-case suite.
 - `npm run test:coverage` runs the complete suite and enforces coverage thresholds.
 - `npm run test:e2e` builds the GitHub Pages bundle, starts a local preview, and runs the Chromium integration suite.
+- `npm run test:backend` runs the pgTAP contract suite against the local Supabase database.
 - `npm run typecheck` validates executable modules, configuration, and type-only files such as `models.ts`.
 
 Add a regression test whenever a bug is fixed. A test should fail for the broken behavior and pass after the fix.

@@ -11,13 +11,16 @@ import {
 } from 'lucide-react'
 import type { ActivityGroup, Member } from '../domain/models'
 
+const EMPTY_LIVE_ACTIVITY_CODES: Record<string, string> = {}
+
 export function Avatar({ member, size = 'md' }: { member: Member; size?: 'sm' | 'md' | 'lg' }) {
   return <span className={`avatar avatar--${size}`} style={{ background: member.color }}>{member.initials}</span>
 }
 
-export function Sidebar({ groups, selectedId, onSelect, onCreate, onDelete, onReset }: {
+export function Sidebar({ groups, selectedId, liveActivityCodes = EMPTY_LIVE_ACTIVITY_CODES, onSelect, onCreate, onDelete, onReset }: {
   groups: ActivityGroup[]
   selectedId: string | null
+  liveActivityCodes?: Record<string, string>
   onSelect: (id: string) => void
   onCreate: () => void
   onDelete: (group: ActivityGroup) => void
@@ -40,7 +43,7 @@ export function Sidebar({ groups, selectedId, onSelect, onCreate, onDelete, onRe
             <div key={group.id} className={`group-row ${group.id === selectedId ? 'is-selected' : ''}`}>
               <button className="group-select" aria-label={`Open ${group.name} activity`} onClick={() => { onSelect(group.id); setMobileOpen(false) }}>
                 <span className="group-icon green">{group.emoji}</span>
-                <span><b>{group.name}</b><small>{group.memberIds.length} {group.memberIds.length === 1 ? 'person' : 'people'}</small></span>
+                <span><b>{group.name}</b><small>{liveActivityCodes[group.id] ? `Live · ${liveActivityCodes[group.id]}` : `${group.memberIds.length} ${group.memberIds.length === 1 ? 'person' : 'people'}`}</small></span>
                 <ChevronRight size={15} />
               </button>
               <button className="group-delete" aria-label={`Delete ${group.name} activity`} title="Delete activity" onClick={() => onDelete(group)}><Trash2 size={15} /></button>

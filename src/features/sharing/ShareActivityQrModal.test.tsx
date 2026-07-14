@@ -28,4 +28,25 @@ describe('ShareActivityQrModal', () => {
     expect(onCopy).toHaveBeenCalledOnce()
     expect(onClose).toHaveBeenCalledOnce()
   })
+
+  it('explains that a live QR link grants editing access', () => {
+    const { rerender } = render(
+      <ShareActivityQrModal
+        groupName="Weekend"
+        url="https://example.com/splitbill/#live=code.token"
+        mode="live"
+        activityCode="A1B2C3D4E5"
+        onClose={vi.fn()}
+        onCopy={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('dialog', { name: 'Scan to join Weekend' })).toBeVisible()
+    expect(screen.getByText('Live activity · A1B2C3D4E5')).toBeVisible()
+    expect(screen.getByText('The code opens the same editable activity on Tally.')).toBeVisible()
+    expect(screen.getByText('Anyone with the link can edit')).toBeVisible()
+
+    rerender(<ShareActivityQrModal groupName="Weekend" url="https://example.com" mode="live" onClose={vi.fn()} onCopy={vi.fn()} />)
+    expect(screen.getByText('Live activity')).toBeVisible()
+  })
 })

@@ -11,6 +11,7 @@ import {
   decodeSharedActivityHash,
   encodeSharedActivity,
   getSharedActivitySender,
+  isSharedActivity,
   LINK_SENDER,
   MAX_SHARE_URL_LENGTH,
   MAX_QR_URL_LENGTH,
@@ -66,6 +67,8 @@ beforeEach(() => {
 describe('URL activity serialization', () => {
   it('creates a portable snapshot without duplicating the current user', () => {
     expect(shared).toEqual({ version: 2, sender: CURRENT_USER, group, friends: [maya], expenses: [expense] })
+    expect(isSharedActivity(shared)).toBe(true)
+    expect(isSharedActivity({ ...shared, version: 3 })).toBe(false)
     expect(createSharedActivity(group, [maya], [expense]).sender).toBe(CURRENT_USER)
     expect(getSharedActivitySender(shared)).toBe(CURRENT_USER)
     expect(getSharedActivitySender({ ...shared, sender: undefined } as unknown as SharedActivity)).toBe(LINK_SENDER)

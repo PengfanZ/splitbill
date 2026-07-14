@@ -27,8 +27,14 @@ describe('initializeAnalytics', () => {
     expect(document.querySelector(beaconSelector)).toBeNull()
   })
 
-  it('does not load analytics for activity URLs containing private state', () => {
-    window.history.replaceState(null, '', '/#share=private-state')
+  it('does not load third-party analytics when live sharing is configured', () => {
+    initializeAnalytics(true, true)
+
+    expect(document.querySelector(beaconSelector)).toBeNull()
+  })
+
+  it.each(['#share=private-state', '#live=PRIVATE-CAPABILITY'])('does not load analytics for activity URL %s', hash => {
+    window.history.replaceState(null, '', `/${hash}`)
 
     initializeAnalytics(true)
 

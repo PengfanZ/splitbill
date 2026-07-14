@@ -5,6 +5,7 @@ import {
   Pencil,
   Plus,
   QrCode,
+  Radio,
   ReceiptText,
   Share2,
   Sparkles,
@@ -109,7 +110,7 @@ export function MembersRail({ members, expenses, readOnly = false, currentUserRo
   )
 }
 
-export function GroupDashboard({ group, members, expenses, query, activityFeedback, readOnly = false, currentUserLabel = 'You', onShare, onShareQr, onAddFriend, onAddExpense, onEditExpense, onDeleteExpense }: {
+export function GroupDashboard({ group, members, expenses, query, activityFeedback, readOnly = false, currentUserLabel = 'You', currentUserRole, statusLabel, shareQrLabel = 'Share QR', onShare, onShareQr, onShareLive, onAddFriend, onAddExpense, onEditExpense, onDeleteExpense }: {
   group: ActivityGroup
   members: Member[]
   expenses: Expense[]
@@ -117,8 +118,12 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
   activityFeedback: string | null
   readOnly?: boolean
   currentUserLabel?: string
+  currentUserRole?: string
+  statusLabel?: string
+  shareQrLabel?: string
   onShare?: () => void
   onShareQr?: () => void
+  onShareLive?: () => void
   onAddFriend?: () => void
   onAddExpense?: () => void
   onEditExpense?: (expense: Expense) => void
@@ -129,13 +134,13 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
       <div className="main-column">
         <header className="group-welcome">
           <div><span className="date">{group.emoji} Activity group</span><h1>{group.name}</h1><p>{members.length} people sharing expenses together.</p></div>
-          <div className="group-share">{readOnly ? <span className="read-only-badge">Read-only snapshot</span> : <div className="group-actions"><button className="outline-button" onClick={onShareQr}><QrCode size={16} />Share QR</button><button className="outline-button" onClick={onShare}><Share2 size={16} />Share summary</button><button className="outline-button" onClick={onAddFriend}><Users size={16} />Add friend</button><button className="confirm-button" onClick={onAddExpense}><Plus size={17} />Add expense</button></div>}{activityFeedback ? <span className="activity-feedback" role="status">{activityFeedback}</span> : null}</div>
+          <div className="group-share">{readOnly ? <span className="read-only-badge">Read-only snapshot</span> : <div className="group-actions">{statusLabel ? <span className="read-only-badge live-badge"><Radio size={14} />{statusLabel}</span> : null}{onShareQr ? <button className="outline-button" onClick={onShareQr}><QrCode size={16} />{shareQrLabel}</button> : null}{onShareLive ? <button className="outline-button" onClick={onShareLive}><Radio size={16} />Share live</button> : null}{onShare ? <button className="outline-button" onClick={onShare}><Share2 size={16} />Share summary</button> : null}{onAddFriend ? <button className="outline-button" onClick={onAddFriend}><Users size={16} />Add friend</button> : null}{onAddExpense ? <button className="confirm-button" onClick={onAddExpense}><Plus size={17} />Add expense</button> : null}</div>}{activityFeedback ? <span className="activity-feedback" role="status">{activityFeedback}</span> : null}</div>
         </header>
         <ActivitySummary expenses={expenses} currentUserLabel={currentUserLabel} />
         <SettlementDirections members={members} expenses={expenses} currentUserLabel={currentUserLabel} />
         <ExpenseList expenses={expenses} members={members} query={query} readOnly={readOnly} onEditExpense={onEditExpense} onDeleteExpense={onDeleteExpense} />
       </div>
-      <MembersRail members={members} expenses={expenses} readOnly={readOnly} currentUserRole={readOnly ? 'Shared role' : 'You'} onAddFriend={onAddFriend} />
+      <MembersRail members={members} expenses={expenses} readOnly={readOnly} currentUserRole={currentUserRole ?? (readOnly ? 'Shared role' : 'You')} onAddFriend={onAddFriend} />
     </main>
   )
 }

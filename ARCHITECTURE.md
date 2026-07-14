@@ -26,6 +26,14 @@ The current participant identity is stored separately under `tally:identity:v1`.
 
 URL state is a transport rather than synchronization: every edit produces a new snapshot, and there is no canonical latest version or automatic conflict resolution.
 
+## Live-sharing backend
+
+Supabase stores the canonical live activity. A short activity code identifies the row, while a secret edit token in the URL fragment grants read/write access. The database stores only a SHA-256 hash of that token. Every update supplies an expected revision and increments it atomically, preventing silent last-write-wins data loss.
+
+`src/features/liveSharing/` owns the typed API, URL, configuration, and versioned browser-shortcut contracts. `supabase/` contains RLS-protected private storage, hashed-IP request throttling, expiring activity rows, narrow security-definer RPC wrappers, and pgTAP security tests. Browser roles cannot query the private schema or execute private functions directly.
+
+The frontend treats Supabase as canonical whenever a live capability is active. Local shortcut rows contain only navigation metadata and credentials; they are never a second writable activity copy. Live capabilities are trusted-group bearer credentials rather than user authorization. See `docs/LIVE_SHARING_EXPERIMENT.md` and `docs/DEPLOYMENT.md` before changing this boundary.
+
 ## Change contract
 
 Put financial calculations in pure domain helpers, browser APIs behind data or feature boundaries, and component-specific state beside the component that owns it. Every behavior change still follows the test requirements in `TESTING.md`.

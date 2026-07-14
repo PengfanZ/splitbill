@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
@@ -9,9 +9,13 @@ import { CURRENT_USER } from './domain/members'
 import type { ActivityGroup, Expense, Member, PersistedState } from './domain/models'
 import { ActivitySummary, ExpenseList, GroupDashboard, MembersRail, SettlementDirections } from './features/activity/ActivityDashboard'
 import { AddFriendModal, CreateGroupModal, ExpenseModal } from './features/activity/ActivityModals'
+import { LiveActivityApiError, type LiveActivityRecord } from './features/liveSharing/liveActivityApi'
+import type { LiveActivityClient } from './features/liveSharing/liveActivityConfig'
+import { LIVE_ACTIVITY_HASH_PREFIX } from './features/liveSharing/liveActivityLink'
+import { LIVE_ACTIVITY_BOOKMARKS_KEY } from './features/liveSharing/useLiveActivityBookmarks'
 import { buildShareSummary, createSummaryCard, exportActivitySummary, SHARE_MESSAGES, shareActivitySummary } from './features/sharing/shareActivity'
 import { SharedActivityIdentityModal } from './features/sharing/SharedActivityIdentityModal'
-import { createSharedActivity, encodeSharedActivity, LINK_SENDER, SHARE_HASH_PREFIX } from './features/sharing/shareActivityUrl'
+import { createSharedActivity, encodeSharedActivity, LINK_SENDER, SHARE_HASH_PREFIX, type SharedActivity } from './features/sharing/shareActivityUrl'
 
 const maya: Member = { id: 'maya', name: 'Maya Chen', initials: 'MC', color: '#abc' }
 const jordan: Member = { id: 'jordan', name: 'Jordan', initials: 'J', color: '#def' }
@@ -268,6 +272,8 @@ describe('small UI building blocks', () => {
     rerender(<Sidebar groups={[home, group]} selectedId="home" onSelect={onSelect} onCreate={onCreate} onDelete={onDelete} onReset={onReset} />)
     expect(screen.getByText('1 person')).toBeVisible()
     expect(screen.getByText('3 people')).toBeVisible()
+    rerender(<Sidebar groups={[home, group]} selectedId={null} liveActivityCodes={{ trip: 'A1B2C3D4E5' }} onSelect={onSelect} onCreate={onCreate} onDelete={onDelete} onReset={onReset} />)
+    expect(screen.getByText('Live · A1B2C3D4E5')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Open Trip activity' }))
     expect(onSelect).toHaveBeenCalledWith('trip')
     await user.click(screen.getByRole('button', { name: 'Delete Trip activity' }))
@@ -353,6 +359,7 @@ describe('small UI building blocks', () => {
     const addExpense = vi.fn()
     const share = vi.fn()
     const shareQr = vi.fn()
+    const shareLive = vi.fn()
     const editExpense = vi.fn()
     const deleteExpense = vi.fn()
     const { rerender } = render(<MembersRail members={[CURRENT_USER, maya]} expenses={[expense()]} onAddFriend={addFriend} />)
@@ -361,9 +368,12 @@ describe('small UI building blocks', () => {
     await user.click(screen.getByRole('button', { name: 'Add friend' }))
     expect(addFriend).toHaveBeenCalledOnce()
 
-    rerender(<GroupDashboard group={group} members={[CURRENT_USER, maya, jordan]} expenses={[expense()]} query="" activityFeedback="Summary copied." onShare={share} onShareQr={shareQr} onAddFriend={addFriend} onAddExpense={addExpense} onEditExpense={editExpense} onDeleteExpense={deleteExpense} />)
+    rerender(<GroupDashboard group={group} members={[CURRENT_USER, maya, jordan]} expenses={[expense()]} query="" activityFeedback="Summary copied." statusLabel="Live · revision 2" shareQrLabel="Show QR" currentUserRole="Activity creator" onShare={share} onShareQr={shareQr} onShareLive={shareLive} onAddFriend={addFriend} onAddExpense={addExpense} onEditExpense={editExpense} onDeleteExpense={deleteExpense} />)
     expect(screen.getByRole('status')).toHaveTextContent('Summary copied.')
-    await user.click(screen.getByRole('button', { name: 'Share QR' }))
+    expect(screen.getByText('Live · revision 2')).toBeVisible()
+    expect(screen.getByText('Activity creator')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Show QR' }))
+    await user.click(screen.getByRole('button', { name: 'Share live' }))
     await user.click(screen.getByRole('button', { name: 'Share summary' }))
     await user.click(screen.getAllByRole('button', { name: 'Add friend' })[0])
     await user.click(screen.getByRole('button', { name: 'Add expense' }))
@@ -372,7 +382,12 @@ describe('small UI building blocks', () => {
     expect(addExpense).toHaveBeenCalledOnce()
     expect(share).toHaveBeenCalledOnce()
     expect(shareQr).toHaveBeenCalledOnce()
+    expect(shareLive).toHaveBeenCalledOnce()
     expect(editExpense).toHaveBeenCalledWith(expect.objectContaining({ title: 'Dinner' }))
+
+    rerender(<GroupDashboard group={group} members={[CURRENT_USER, maya]} expenses={[]} query="" activityFeedback={null} />)
+    expect(screen.queryByRole('button', { name: 'Share QR' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Live · revision 2')).not.toBeInTheDocument()
 
     rerender(<GroupDashboard group={group} members={[CURRENT_USER, maya]} expenses={[expense()]} query="" activityFeedback={null} readOnly />)
     expect(screen.getByText('Read-only snapshot')).toBeVisible()
@@ -683,6 +698,9 @@ describe('complete app workflows', () => {
         expense({ id: 'wood', groupId: 'cabin', title: 'Firewood' }),
       ],
     })))
+    localStorage.setItem(LIVE_ACTIVITY_BOOKMARKS_KEY, JSON.stringify({
+      cabin: { code: 'B1C2D3E4F5', editToken: 'b'.repeat(64) },
+    }))
     render(<App />)
 
     vi.mocked(window.confirm).mockReturnValueOnce(false).mockReturnValue(true)
@@ -696,6 +714,7 @@ describe('complete app workflows', () => {
       expect(saved.friends.map(friend => friend.id)).toEqual(['maya', 'jordan'])
       expect(saved.expenses.map(item => item.title)).toEqual(['Dinner', 'Rent'])
       expect(saved.selectedGroupId).toBe('trip')
+      expect(JSON.parse(localStorage.getItem(LIVE_ACTIVITY_BOOKMARKS_KEY)!)).toEqual({})
     })
 
     await user.type(screen.getByRole('textbox', { name: 'Search expenses' }), 'dinner')
@@ -784,5 +803,265 @@ describe('complete app workflows', () => {
     window.history.replaceState(null, '', '/')
     fireEvent(window, new HashChangeEvent('hashchange'))
     expect(screen.getByRole('heading', { name: 'Start your first activity' })).toBeVisible()
+  })
+
+  it('moves the creator into the live activity before later edits', async () => {
+    const user = userEvent.setup()
+    const home: ActivityGroup = { id: 'home', name: 'Home', emoji: '⌂', memberIds: ['me'] }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState({ groups: [group, home], expenses: [expense()] })))
+    const snapshot = createSharedActivity(group, [CURRENT_USER, maya, jordan], [expense()])
+    let latestSnapshot = snapshot
+    let revision = 1
+    const client = {
+      create: vi.fn().mockResolvedValue({ code: 'A1B2C3D4E5', editToken: 'a'.repeat(64), revision: 1, snapshot, updatedAt: '2026-07-14T01:00:00.000Z' }),
+      load: vi.fn().mockImplementation(async () => ({ code: 'A1B2C3D4E5', revision, snapshot: latestSnapshot, updatedAt: '2026-07-14T01:00:00.000Z' })),
+      update: vi.fn().mockImplementation(async (_credentials, nextSnapshot) => {
+        latestSnapshot = nextSnapshot
+        revision += 1
+        return { code: 'A1B2C3D4E5', revision, snapshot: latestSnapshot, updatedAt: '2026-07-14T01:01:00.000Z' }
+      }),
+    } satisfies LiveActivityClient
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    const { unmount } = render(<App liveActivityClient={client} />)
+
+    await user.click(screen.getByRole('button', { name: 'Share live' }))
+    expect(await screen.findByRole('dialog', { name: 'Scan to join Trip' })).toBeVisible()
+    expect(within(screen.getByRole('dialog', { name: 'Scan to join Trip' })).getByText('Live activity · A1B2C3D4E5')).toBeVisible()
+    expect(screen.getByText('Live · revision 1')).toBeVisible()
+    expect(window.location.hash).toContain(`${LIVE_ACTIVITY_HASH_PREFIX}A1B2C3D4E5.`)
+    expect(client.create).toHaveBeenCalledWith(expect.objectContaining({ group: expect.objectContaining({ name: 'Trip' }) }))
+    expect(client.load).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Copy link' }))
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining(`${LIVE_ACTIVITY_HASH_PREFIX}A1B2C3D4E5.`))
+    expect(await screen.findByRole('status')).toHaveTextContent('Live activity link copied')
+
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: vi.fn().mockRejectedValue(new Error('blocked')) } })
+    await user.click(screen.getByRole('button', { name: 'Show QR' }))
+    await user.click(await screen.findByRole('button', { name: 'Copy link' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('Could not copy the live activity link')
+    await user.click(screen.getAllByRole('button', { name: 'Close' })[0])
+
+    await user.click(screen.getByRole('button', { name: 'Add expense' }))
+    await user.type(screen.getByLabelText('Description'), 'Creator expense')
+    await user.type(screen.getByLabelText('Amount'), '12')
+    await user.click(screen.getByRole('button', { name: 'Save expense' }))
+    expect(await screen.findByText('Creator expense', { exact: true })).toBeVisible()
+    expect(screen.getByText('Live · revision 2')).toBeVisible()
+    expect(client.update).toHaveBeenCalledWith(expect.objectContaining({ code: 'A1B2C3D4E5' }), expect.objectContaining({ expenses: expect.arrayContaining([expect.objectContaining({ title: 'Creator expense' })]) }), 1)
+    await waitFor(() => expect(JSON.parse(localStorage.getItem(LIVE_ACTIVITY_BOOKMARKS_KEY)!)).toEqual({ trip: { code: 'A1B2C3D4E5', editToken: 'a'.repeat(64) } }))
+
+    expect(screen.queryByRole('button', { name: 'Back to my activities' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open Trip activity' }).closest('.group-row')).toHaveClass('is-selected')
+    expect(screen.getByText('Live · A1B2C3D4E5')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Open Home activity' }))
+    expect(screen.getByRole('heading', { name: 'Home' })).toBeVisible()
+    expect(window.location.hash).toBe('')
+    await user.click(screen.getByRole('button', { name: 'Open Trip activity' }))
+    expect(await screen.findByText('Live · revision 2')).toBeVisible()
+    expect(screen.getByText('Creator expense', { exact: true })).toBeVisible()
+
+    unmount()
+    window.history.replaceState(null, '', '/')
+    render(<App liveActivityClient={client} />)
+    expect(await screen.findByText('Live · revision 2')).toBeVisible()
+    expect(window.location.hash).toContain(`${LIVE_ACTIVITY_HASH_PREFIX}A1B2C3D4E5.`)
+  })
+
+  it('reports backend failures while creating a live activity', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState()))
+    const client = {
+      create: vi.fn()
+        .mockRejectedValueOnce(new LiveActivityApiError('network', 'offline'))
+        .mockRejectedValueOnce(new LiveActivityApiError('rate-limit', 'slow down'))
+        .mockRejectedValueOnce(new Error('unexpected'))
+        .mockRejectedValueOnce(new LiveActivityApiError('backend', 'broken')),
+      load: vi.fn(),
+      update: vi.fn(),
+    } satisfies LiveActivityClient
+    render(<App liveActivityClient={client} />)
+
+    await user.click(screen.getByRole('button', { name: 'Share live' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('Could not reach the live activity service')
+    await user.click(screen.getByRole('button', { name: 'Share live' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('Too many live activity requests')
+    await user.click(screen.getByRole('button', { name: 'Share live' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('could not be updated')
+    await user.click(screen.getByRole('button', { name: 'Share live' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('could not be updated')
+  })
+
+  it('edits, refreshes, shares, and leaves one backend activity from its capability URL', async () => {
+    const user = userEvent.setup()
+    const credentials = { code: 'A1B2C3D4E5', editToken: 'a'.repeat(64) }
+    const snapshot = createSharedActivity(group, [{ ...CURRENT_USER, name: 'Alex', initials: 'A' }, maya, jordan], [expense()])
+    let latestSnapshot = snapshot
+    let revision = 1
+    const client = {
+      create: vi.fn(),
+      load: vi.fn().mockImplementation(async () => ({ code: credentials.code, revision, snapshot: latestSnapshot, updatedAt: '2026-07-14T01:00:00.000Z' })),
+      update: vi.fn().mockImplementation(async (_credentials, nextSnapshot) => {
+        latestSnapshot = nextSnapshot
+        revision += 1
+        return { code: credentials.code, revision, snapshot: latestSnapshot, updatedAt: '2026-07-14T01:01:00.000Z' }
+      }),
+    } satisfies LiveActivityClient
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    window.history.replaceState(null, '', `/${LIVE_ACTIVITY_HASH_PREFIX}${credentials.code}.${credentials.editToken}`)
+    const { unmount } = render(<App liveActivityClient={client} />)
+
+    expect(await screen.findByLabelText('Live activity')).toBeVisible()
+    expect(await screen.findByText('Live · revision 1')).toBeVisible()
+    expect(screen.getByText('Activity creator')).toBeVisible()
+    expect(screen.getByText('Alex balance')).toBeVisible()
+    await waitFor(() => expect(JSON.parse(localStorage.getItem(LIVE_ACTIVITY_BOOKMARKS_KEY)!)).toEqual({
+      'live-a1b2c3d4e5': credentials,
+    }))
+    expect(parseState(localStorage.getItem(STORAGE_KEY)).groups).toContainEqual(expect.objectContaining({ id: 'live-a1b2c3d4e5', name: 'Trip' }))
+    expect(screen.getByText('Live · A1B2C3D4E5')).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Back to my activities' })).not.toBeInTheDocument()
+
+    await user.click(screen.getAllByRole('button', { name: 'Add friend' })[0])
+    await user.type(screen.getByLabelText(/Friend names/), 'Sam')
+    await user.click(screen.getByRole('button', { name: 'Add friends' }))
+    expect(await screen.findByText('Sam')).toBeVisible()
+    expect(screen.getByText('Live · revision 2')).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Add expense' }))
+    await user.type(screen.getByLabelText('Description'), 'Parking')
+    await user.type(screen.getByLabelText('Amount'), '40')
+    await user.click(screen.getByRole('button', { name: 'Save expense' }))
+    expect(await screen.findByText('Parking')).toBeVisible()
+    expect(screen.getByText('Live · revision 3')).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Edit Parking' }))
+    await user.clear(screen.getByLabelText('Amount'))
+    await user.type(screen.getByLabelText('Amount'), '80')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    expect(await screen.findByText('$80.00')).toBeVisible()
+    expect(screen.getByText('Live · revision 4')).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Delete Parking' }))
+    await waitFor(() => expect(screen.queryByText('Parking')).not.toBeInTheDocument())
+    expect(screen.getByText('Live · revision 5')).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Show QR' }))
+    expect(await screen.findByRole('dialog', { name: 'Scan to join Trip' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Copy link' }))
+    expect(screen.getAllByRole('status').some(status => status.textContent?.includes('Anyone with it can edit'))).toBe(true)
+
+    await user.click(screen.getByRole('button', { name: 'Share summary' }))
+
+    await user.click(screen.getByRole('button', { name: 'Refresh latest' }))
+    expect(await screen.findByText('Latest changes loaded.')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'New activity' }))
+    expect(window.location.hash).toBe('')
+    expect(screen.getByRole('dialog', { name: 'What are you sharing?' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await user.click(screen.getByRole('button', { name: 'Open Trip activity' }))
+    expect(await screen.findByText('Live · revision 5')).toBeVisible()
+
+    unmount()
+    window.history.replaceState(null, '', '/')
+    render(<App liveActivityClient={client} />)
+    expect(await screen.findByText('Live · revision 5')).toBeVisible()
+    expect(window.location.hash).toContain(`${LIVE_ACTIVITY_HASH_PREFIX}${credentials.code}.`)
+
+    await user.click(screen.getByRole('button', { name: 'Delete Trip activity' }))
+    expect(await screen.findByRole('heading', { name: 'Start your first activity' })).toBeVisible()
+    expect(window.location.hash).toBe('')
+    expect(JSON.parse(localStorage.getItem(LIVE_ACTIVITY_BOOKMARKS_KEY)!)).toEqual({})
+  })
+
+  it('surfaces missing configuration, stale revisions, load failures, and copy failures', async () => {
+    const user = userEvent.setup()
+    const credentials = { code: 'A1B2C3D4E5', editToken: 'a'.repeat(64) }
+    window.history.replaceState(null, '', `/${LIVE_ACTIVITY_HASH_PREFIX}${credentials.code}.${credentials.editToken}`)
+    const { unmount } = render(<App liveActivityClient={null} />)
+    expect(screen.getByRole('status')).toHaveTextContent('Live sharing is not configured')
+    expect(screen.queryByRole('button', { name: 'Refresh latest' })).not.toBeInTheDocument()
+    unmount()
+
+    window.history.replaceState(null, '', '/')
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState()))
+    const unavailable = render(<App liveActivityClient={null} />)
+    await user.click(screen.getByRole('button', { name: 'Share live' }))
+    expect(screen.getByRole('status')).toHaveTextContent('Live sharing is not configured')
+    unavailable.unmount()
+    window.history.replaceState(null, '', `/${LIVE_ACTIVITY_HASH_PREFIX}${credentials.code}.${credentials.editToken}`)
+
+    const snapshot = createSharedActivity(group, [CURRENT_USER, maya, jordan], [expense()])
+    const client = {
+      create: vi.fn(),
+      load: vi.fn()
+        .mockRejectedValueOnce(new LiveActivityApiError('not-found', 'missing'))
+        .mockResolvedValue({ code: credentials.code, revision: 2, snapshot, updatedAt: '2026-07-14T01:00:00.000Z' }),
+      update: vi.fn().mockRejectedValue(new LiveActivityApiError('conflict', 'stale')),
+    } satisfies LiveActivityClient
+    render(<App liveActivityClient={client} />)
+    expect(await screen.findByRole('status')).toHaveTextContent('invalid or no longer available')
+    await user.click(screen.getByRole('button', { name: 'Refresh latest' }))
+    expect(await screen.findByText('Live · revision 2')).toBeVisible()
+    await user.click(screen.getAllByRole('button', { name: 'Add friend' })[0])
+    await user.type(screen.getByLabelText(/Friend names/), 'Sam')
+    await user.click(screen.getByRole('button', { name: 'Add friends' }))
+    expect(screen.getAllByRole('status').some(status => status.textContent?.includes('newer version'))).toBe(true)
+    expect(screen.getByRole('dialog', { name: 'Who’s joining?' })).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await user.click(screen.getByRole('button', { name: 'Add expense' }))
+    await user.type(screen.getByLabelText('Description'), 'Failed parking')
+    await user.type(screen.getByLabelText('Amount'), '10')
+    await user.click(screen.getByRole('button', { name: 'Save expense' }))
+    expect(screen.getByRole('dialog', { name: 'Add a shared expense' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await user.click(screen.getByRole('button', { name: 'Edit Dinner' }))
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    expect(screen.getByRole('dialog', { name: 'Edit expense' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await user.click(screen.getByRole('button', { name: 'Show QR' }))
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: vi.fn().mockRejectedValue(new Error('blocked')) } })
+    await user.click(screen.getByRole('button', { name: 'Copy link' }))
+    expect(screen.getAllByRole('status').some(status => status.textContent?.includes('Could not copy'))).toBe(true)
+
+    client.load.mockRejectedValueOnce(new LiveActivityApiError('network', 'offline'))
+    await user.click(screen.getByRole('button', { name: 'Refresh latest' }))
+    expect(screen.getByRole('status')).toHaveTextContent('Could not reach the live activity service')
+  })
+
+  it('ignores an obsolete live response after the URL changes', async () => {
+    const credentials = { code: 'A1B2C3D4E5', editToken: 'a'.repeat(64) }
+    const snapshot = createSharedActivity(group, [CURRENT_USER, maya, jordan], [expense()])
+    let resolveLoad!: (record: { code: string; revision: number; snapshot: SharedActivity; updatedAt: string }) => void
+    const client = {
+      create: vi.fn(),
+      load: vi.fn(() => new Promise<LiveActivityRecord>(resolve => { resolveLoad = resolve })),
+      update: vi.fn(),
+    } satisfies LiveActivityClient
+    window.history.replaceState(null, '', '/')
+    render(<App liveActivityClient={client} />)
+
+    window.history.replaceState(null, '', `/${LIVE_ACTIVITY_HASH_PREFIX}${credentials.code}.${credentials.editToken}`)
+    fireEvent(window, new HashChangeEvent('hashchange'))
+    expect(screen.getByLabelText('Live activity')).toBeVisible()
+    window.history.replaceState(null, '', '/')
+    fireEvent(window, new HashChangeEvent('hashchange'))
+    resolveLoad({ code: credentials.code, revision: 1, snapshot, updatedAt: '2026-07-14T01:00:00.000Z' })
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Start your first activity' })).toBeVisible())
+
+    let rejectLoad!: (error: Error) => void
+    const rejectingClient = {
+      create: vi.fn(),
+      load: vi.fn(() => new Promise<LiveActivityRecord>((_resolve, reject) => { rejectLoad = reject })),
+      update: vi.fn(),
+    } satisfies LiveActivityClient
+    const second = render(<App liveActivityClient={rejectingClient} />)
+    window.history.replaceState(null, '', `/${LIVE_ACTIVITY_HASH_PREFIX}${credentials.code}.${credentials.editToken}`)
+    fireEvent(window, new HashChangeEvent('hashchange'))
+    second.unmount()
+    rejectLoad(new LiveActivityApiError('network', 'offline'))
+    await Promise.resolve()
   })
 })
