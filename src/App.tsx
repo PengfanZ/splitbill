@@ -50,6 +50,7 @@ function liveActivityErrorMessage(error: unknown) {
   if (error instanceof LiveActivityApiError) {
     if (error.kind === 'conflict') return 'Someone saved a newer version. Refresh the activity, then try your change again.'
     if (error.kind === 'not-found') return 'This live activity link is invalid or no longer available.'
+    if (error.kind === 'rate-limit') return 'Too many live activity requests from this network. Wait a few minutes, then try again.'
     if (error.kind === 'network') return 'Could not reach the live activity service. Check your connection and try again.'
   }
   return 'The live activity could not be updated. Please try again.'

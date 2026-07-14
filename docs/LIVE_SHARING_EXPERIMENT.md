@@ -1,6 +1,6 @@
-# Live sharing backend experiment
+# Live sharing backend
 
-This branch tests a backend-backed activity without replacing Tally's current local-first behavior.
+Live sharing adds a backend-backed activity without replacing Tally's local-first behavior.
 
 ## Proposed user flow
 
@@ -21,20 +21,21 @@ This branch tests a backend-backed activity without replacing Tally's current lo
 
 The link is intentionally a bearer capability: anyone who has the full link can read and edit the activity. A code without its edit token grants nothing.
 
-## Prototype architecture
+## Architecture
 
 - **GitHub Pages** continues to host the React app.
-- **Supabase Postgres** stores the canonical JSON snapshot, hashed edit token, revision, and timestamps.
+- **Supabase Postgres** stores the canonical JSON snapshot, hashed edit token, revision, timestamps, and sliding expiration.
 - **PostgREST RPCs** provide only three operations: create, load, and revision-checked update.
 - The storage table and privileged functions live in the non-exposed `private` schema.
-- Narrow `public` wrappers are callable with the project's publishable key. They cannot query the table directly.
+- Narrow security-definer `public` wrappers are callable with the project's publishable key. Browser roles cannot query private tables or execute private functions directly.
+- RLS, validated JSON constraints, hashed-IP request throttling, statement timeouts, and 90-day sliding expiration provide defense in depth.
 - The TypeScript client in `src/features/liveSharing/` validates credentials and every returned activity snapshot.
 
 The first schema deliberately stores an activity as one JSON document. That makes each activity update atomic and lets us reuse the existing versioned `SharedActivity` contract. If activity histories or high-frequency concurrent edits become important, we can later normalize members and expenses into separate tables without changing the share-link contract.
 
 ## Local setup
 
-Requirements: Node.js 20+, Docker-compatible container runtime, and the checked-in Supabase CLI dependency.
+Requirements: Node.js 22.13+, a Docker-compatible container runtime, and the checked-in Supabase CLI dependency.
 
 ```bash
 cp .env.example .env.local
@@ -55,20 +56,19 @@ An update sends `expectedRevision`. The database obtains a row lock, compares th
 - Valid capability + stale revision: SQLSTATE `40001`, surfaced as `conflict`.
 - Unknown code or invalid token: SQLSTATE `P0002`, surfaced as `not-found` without revealing which part was wrong.
 - Invalid snapshot or revision: SQLSTATE `22023`, surfaced as `invalid-input`.
+- Too many requests from one network: HTTP `429`, surfaced as `rate-limit`.
 
 The UI shows a conflict banner with **Refresh latest**. Automatic field-level merging should wait until we have evidence that whole-activity optimistic concurrency is too disruptive.
 
-## Security limitations before production
+## Remaining trusted-group limitations
 
-- Add rate limiting for create/load/update calls.
-- Add activity expiry or explicit deletion.
 - Decide whether separate read-only and edit tokens are useful.
-- Rotate a leaked edit token.
-- Add abuse monitoring and payload-size metrics.
-- Add a Content Security Policy that includes only the configured Supabase project.
+- Add token rotation, explicit backend deletion, and participant-level revocation.
+- Configure production alerts from API/database logs and tune request limits from observed traffic.
+- Replace the broad `*.supabase.co` CSP connection source if a dedicated custom API domain is introduced.
 - Enable Realtime only after defining how capability-token clients are authorized to subscribe.
 
-## Implemented frontend experiment
+## Implemented frontend
 
 - **Share live** creates a backend activity and immediately moves the creator's tab into that live revision, without removing the existing read-only snapshot option.
 - Every browser that successfully opens a live capability remembers it under **Your activities**. The creator keeps the original local activity entry; recipients receive a lightweight `Live · CODE` shortcut that always reopens the canonical backend copy.

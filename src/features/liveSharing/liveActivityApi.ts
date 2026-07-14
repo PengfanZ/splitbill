@@ -18,6 +18,7 @@ export type LiveActivityApiErrorKind =
   | 'invalid-input'
   | 'not-found'
   | 'conflict'
+  | 'rate-limit'
   | 'backend'
   | 'network'
   | 'invalid-response'
@@ -30,13 +31,14 @@ export class LiveActivityApiError extends Error {
 }
 
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
-type ApiConfiguration = { supabaseUrl: string; publishableKey: string }
+type ApiConfiguration = { supabaseUrl: string; publishableKey: string; requestTimeoutMs?: number }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function responseErrorKind(body: unknown): LiveActivityApiErrorKind {
+function responseErrorKind(body: unknown, status: number): LiveActivityApiErrorKind {
+  if (status === 429) return 'rate-limit'
   const code = isRecord(body) && typeof body.code === 'string' ? body.code : ''
   if (code === '40001') return 'conflict'
   if (code === 'P0002') return 'not-found'
@@ -79,7 +81,19 @@ function assertCredentials(credentials: LiveActivityCredentials) {
 export function createLiveActivityClient(configuration: ApiConfiguration, fetcher: Fetcher = fetch) {
   const supabaseUrl = configuration.supabaseUrl.trim().replace(/\/+$/, '')
   const publishableKey = configuration.publishableKey.trim()
-  if (!supabaseUrl || !publishableKey) {
+  const requestTimeoutMs = configuration.requestTimeoutMs ?? 15_000
+  let parsedUrl: URL
+  try {
+    parsedUrl = new URL(supabaseUrl)
+  } catch {
+    throw new LiveActivityApiError('configuration', 'A valid Supabase URL is required.')
+  }
+  const localDevelopmentUrl = parsedUrl.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(parsedUrl.hostname)
+  if (!supabaseUrl
+    || !publishableKey
+    || (parsedUrl.protocol !== 'https:' && !localDevelopmentUrl)
+    || !Number.isInteger(requestTimeoutMs)
+    || requestTimeoutMs < 1) {
     throw new LiveActivityApiError('configuration', 'Supabase URL and publishable key are required.')
   }
 
@@ -93,6 +107,10 @@ export function createLiveActivityClient(configuration: ApiConfiguration, fetche
           authorization: `Bearer ${publishableKey}`,
           'content-type': 'application/json',
         },
+        cache: 'no-store',
+        credentials: 'omit',
+        referrerPolicy: 'no-referrer',
+        signal: AbortSignal.timeout(requestTimeoutMs),
         body: JSON.stringify(body),
       })
     } catch (cause) {
@@ -106,7 +124,7 @@ export function createLiveActivityClient(configuration: ApiConfiguration, fetche
       throw new LiveActivityApiError('invalid-response', 'The live activity service returned unreadable data.', { cause })
     }
     if (!response.ok) {
-      throw new LiveActivityApiError(responseErrorKind(payload), isRecord(payload) && typeof payload.message === 'string' ? payload.message : 'Live activity request failed.')
+      throw new LiveActivityApiError(responseErrorKind(payload, response.status), isRecord(payload) && typeof payload.message === 'string' ? payload.message : 'Live activity request failed.')
     }
     if (!Array.isArray(payload) || payload.length !== 1) {
       throw new LiveActivityApiError('invalid-response', 'The live activity service returned an unexpected result.')

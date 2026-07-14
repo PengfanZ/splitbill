@@ -874,6 +874,7 @@ describe('complete app workflows', () => {
     const client = {
       create: vi.fn()
         .mockRejectedValueOnce(new LiveActivityApiError('network', 'offline'))
+        .mockRejectedValueOnce(new LiveActivityApiError('rate-limit', 'slow down'))
         .mockRejectedValueOnce(new Error('unexpected'))
         .mockRejectedValueOnce(new LiveActivityApiError('backend', 'broken')),
       load: vi.fn(),
@@ -883,6 +884,8 @@ describe('complete app workflows', () => {
 
     await user.click(screen.getByRole('button', { name: 'Share live' }))
     expect(await screen.findByRole('status')).toHaveTextContent('Could not reach the live activity service')
+    await user.click(screen.getByRole('button', { name: 'Share live' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('Too many live activity requests')
     await user.click(screen.getByRole('button', { name: 'Share live' }))
     expect(await screen.findByRole('status')).toHaveTextContent('could not be updated')
     await user.click(screen.getByRole('button', { name: 'Share live' }))

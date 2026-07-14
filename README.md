@@ -4,11 +4,11 @@
 [![Live demo](https://img.shields.io/badge/demo-live-e8584f)](https://pengfanz.github.io/splitbill/)
 [![Coverage](https://img.shields.io/badge/coverage-100%25-16724c)](TESTING.md)
 
-A frontend-first shared-expense app for trips, dinners, homes, and other group activities. Tally tracks who paid, supports equal or exact splits, and calculates clear suggested payments to settle the group.
+A local-first shared-expense app for trips, dinners, homes, and other group activities. Tally tracks who paid, supports equal or exact splits, calculates clear suggested payments, and optionally synchronizes a trusted group through a capability-protected live activity.
 
 On first use, Tally asks for a display name and stores that identity only in the current browser. The name replaces the ambiguous generic “You” in participant lists and is included as the sender identity when an activity link is shared.
 
-Production visits are measured with privacy-friendly Cloudflare Web Analytics. The beacon is deferred until after the React app mounts, is disabled during local development and tests, and uses no application data. In Cloudflare, filter page paths by `/splitbill/` to isolate this app from other pages on the same GitHub Pages domain.
+Frontend-only builds can use privacy-friendly Cloudflare Web Analytics. Production builds with live sharing enabled disable the third-party beacon so a script never gains access to bearer capability fragments.
 
 ## Experimental URL-state sharing
 
@@ -16,7 +16,7 @@ Production visits are measured with privacy-friendly Cloudflare Web Analytics. T
 
 This is asynchronous snapshot sharing, not live collaboration. A newer edit produces a new URL, links cannot be revoked, and activities above the conservative 12,000-character URL limit need a future file or backend transport.
 
-An experimental Supabase-backed collaboration path is available on the `codex/shared-activity-backend` branch. With the two `VITE_SUPABASE_*` settings configured, **Share live** creates a short capability URL that lets trusted recipients edit the same revision-checked activity. See [the live sharing experiment](docs/LIVE_SHARING_EXPERIMENT.md) for setup, security boundaries, and verification details.
+With the two `VITE_SUPABASE_*` settings configured, **Share live** creates a short capability URL that lets trusted recipients edit the same revision-checked activity. Every browser that opens it keeps a local shortcut to the canonical backend activity. See [the live sharing architecture](docs/LIVE_SHARING_EXPERIMENT.md) and [production deployment guide](docs/DEPLOYMENT.md).
 
 [Try the live demo](https://pengfanz.github.io/splitbill/)
 
@@ -35,7 +35,7 @@ An experimental Supabase-backed collaboration path is available on the `codex/sh
 
 ## Important data note
 
-Tally is currently a frontend-only prototype. Activities, friends, and expenses are stored in your browser under `localStorage`; there is no account, server database, or cross-device synchronization yet. Clearing browser data removes the saved state for that browser.
+Local activities remain in browser `localStorage`. Live activities are stored in Supabase and are editable by anyone with the full capability link. There are no user accounts or participant-level permissions. Read [PRIVACY.md](PRIVACY.md) before deploying or sharing real activity data.
 
 ## Tech stack
 
@@ -45,6 +45,7 @@ Tally is currently a frontend-only prototype. Activities, friends, and expenses 
 - Vitest and Testing Library
 - GitHub Actions for CI and deployment
 - GitHub Pages for static hosting
+- Supabase Postgres for optional live activities
 
 ## Getting started
 
@@ -67,6 +68,9 @@ Open [http://localhost:3000](http://localhost:3000).
 | Command | Purpose |
 | --- | --- |
 | `npm run dev` | Start the local development server |
+| `npm run backend:start` | Start the local Supabase stack |
+| `npm run backend:reset` | Recreate the local database and apply every migration |
+| `npm run test:backend` | Run pgTAP database and security contracts |
 | `npm run lint` | Lint all TypeScript and React files with zero warnings allowed |
 | `npm test` | Run the Vitest unit, component, and behavior suite |
 | `npm run test:all` | Run coverage plus the Playwright integration suite |
@@ -112,7 +116,7 @@ The complete contract is documented in [TESTING.md](TESTING.md).
 
 ## Deployment
 
-Every pull request is type-checked, linted, tested, and built by GitHub Actions. A successful `main` build is published from `dist` to GitHub Pages.
+Every pull request is type-checked, linted, tested, and built by GitHub Actions. A successful `main` release applies pending Supabase migrations before publishing the configured frontend artifact to GitHub Pages. Follow [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the one-time environment setup and release procedure.
 
 ## Contributing
 

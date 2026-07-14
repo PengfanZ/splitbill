@@ -49,6 +49,10 @@ describe('live activity API client', () => {
 
     expect(fetcher).toHaveBeenNthCalledWith(1, 'https://project.supabase.co/rest/v1/rpc/create_shared_activity', expect.objectContaining({
       method: 'POST',
+      cache: 'no-store',
+      credentials: 'omit',
+      referrerPolicy: 'no-referrer',
+      signal: expect.any(AbortSignal),
       headers: {
         apikey: 'publishable',
         authorization: 'Bearer publishable',
@@ -63,6 +67,10 @@ describe('live activity API client', () => {
   it.each([
     { supabaseUrl: '', publishableKey: 'key' },
     { supabaseUrl: 'https://project.supabase.co', publishableKey: ' ' },
+    { supabaseUrl: 'not a URL', publishableKey: 'key' },
+    { supabaseUrl: 'http://project.example.com', publishableKey: 'key' },
+    { supabaseUrl: 'https://project.supabase.co', publishableKey: 'key', requestTimeoutMs: 0 },
+    { supabaseUrl: 'https://project.supabase.co', publishableKey: 'key', requestTimeoutMs: 1.5 },
   ])('requires complete configuration: %j', configuration => {
     expect(() => createLiveActivityClient(configuration, fetcher)).toThrow(expect.objectContaining({ kind: 'configuration' }))
   })
@@ -81,14 +89,21 @@ describe('live activity API client', () => {
   })
 
   it.each([
-    ['40001', 'conflict'],
-    ['P0002', 'not-found'],
-    ['22023', 'invalid-input'],
-    ['XX000', 'backend'],
-  ] as const)('maps backend code %s to %s', async (code, kind) => {
-    fetcher.mockResolvedValue(response({ code, message: `backend ${code}` }, 400))
+    ['40001', 400, 'conflict'],
+    ['P0002', 404, 'not-found'],
+    ['22023', 400, 'invalid-input'],
+    ['rate_limit_exceeded', 429, 'rate-limit'],
+    ['XX000', 500, 'backend'],
+  ] as const)('maps backend code %s with status %s to %s', async (code, status, kind) => {
+    fetcher.mockResolvedValue(response({ code, message: `backend ${code}` }, status))
     const client = createLiveActivityClient({ supabaseUrl: 'https://project.supabase.co', publishableKey: 'key' }, fetcher)
     await expectApiError(client.load(credentials), kind)
+  })
+
+  it('allows HTTP only for local development Supabase URLs', () => {
+    expect(createLiveActivityClient({ supabaseUrl: 'http://127.0.0.1:54321', publishableKey: 'key' }, fetcher)).toMatchObject({ load: expect.any(Function) })
+    expect(createLiveActivityClient({ supabaseUrl: 'http://localhost:54321', publishableKey: 'key' }, fetcher)).toMatchObject({ load: expect.any(Function) })
+    expect(createLiveActivityClient({ supabaseUrl: 'http://[::1]:54321', publishableKey: 'key' }, fetcher)).toMatchObject({ load: expect.any(Function) })
   })
 
   it('uses a safe fallback for unstructured backend errors', async () => {
