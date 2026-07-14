@@ -9,7 +9,7 @@ The production workflow verifies the frontend and database, builds with producti
 
 ## Production scope
 
-This is a production-ready trusted-group MVP. Live links are bearer capabilities: anyone with the complete URL can read and edit that activity. There are no accounts, participant-level permissions, audit trail, realtime subscription, or token revocation yet. Do not use this release for regulated, highly sensitive, or adversarial financial data.
+This is a production-ready trusted-group MVP. Live links are bearer capabilities: anyone with the complete URL can read and edit that activity. Visible live tabs poll for newer revisions every 15 seconds, but there are no accounts, participant-level permissions, audit trail, realtime subscription, or token revocation yet. Do not use this release for regulated, highly sensitive, or adversarial financial data.
 
 ## One-time setup
 
@@ -72,7 +72,7 @@ The workflow can also be started manually from `main` with **Run workflow**.
 
 - Open `https://pengfanz.github.io/splitbill/` in a fresh browser.
 - Create an activity and choose **Share live**.
-- Open the link in a private browser, add an expense, and refresh the first browser.
+- Open the link in a private browser, add an expense, and confirm the first visible browser updates automatically within 15 seconds.
 - Confirm the recipient receives a persistent `Live · CODE` shortcut.
 - Create one local activity and one live activity, then confirm their allowlisted events appear separately in `private.analytics_daily` without URL or activity fields.
 - Run Supabase Security Advisor and Performance Advisor after the first migration.

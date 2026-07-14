@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(39);
+select plan(45);
 
 select has_schema('private', 'private schema exists');
 select has_table('private', 'shared_activities', 'shared activity storage exists');
@@ -38,6 +38,16 @@ select is(
   true,
   'anonymous clients can execute the conflict-aware update wrapper'
 );
+select is(
+  has_function_privilege('anon', 'private.poll_shared_activity(text,text)', 'EXECUTE'),
+  false,
+  'anonymous clients cannot execute the private polling function'
+);
+select is(
+  has_function_privilege('anon', 'public.poll_shared_activity(text,text)', 'EXECUTE'),
+  true,
+  'anonymous clients can execute the revision-only polling wrapper'
+);
 select ok(
   exists (
     select 1
@@ -50,6 +60,7 @@ select ok(
 );
 select has_function('public', 'create_shared_activity', array['jsonb'], 'create RPC exists');
 select has_function('public', 'load_shared_activity', array['text', 'text'], 'load RPC exists');
+select has_function('public', 'poll_shared_activity', array['text', 'text'], 'poll RPC exists');
 select has_function('public', 'update_shared_activity', array['text', 'text', 'bigint', 'jsonb'], 'update RPC exists');
 select has_function('public', 'update_shared_activity_v2', array['text', 'text', 'bigint', 'jsonb'], 'conflict-aware update RPC exists');
 
@@ -70,6 +81,12 @@ select is(
   (select loaded.revision from created_activity created cross join lateral public.load_shared_activity(created.code, created.edit_token) loaded),
   1::bigint,
   'valid capabilities load the activity'
+);
+
+select is(
+  (select polled.revision from created_activity created cross join lateral public.poll_shared_activity(created.code, created.edit_token) polled),
+  1::bigint,
+  'valid capabilities poll only the current revision'
 );
 
 select is(
@@ -127,6 +144,13 @@ select throws_ok(
   'P0002',
   'shared_activity_not_found',
   'invalid edit tokens do not reveal activities'
+);
+
+select throws_ok(
+  format('select public.poll_shared_activity(%L, %L)', (select code from created_activity), repeat('0', 64)),
+  'P0002',
+  'shared_activity_not_found',
+  'revision polling does not reveal invalid edit tokens'
 );
 
 select throws_ok(
@@ -219,6 +243,17 @@ select throws_ok(
   'P0002',
   'shared_activity_not_found',
   'expired activities cannot be loaded'
+);
+
+select throws_ok(
+  format(
+    'select public.poll_shared_activity(%L, %L)',
+    (select code from created_activity),
+    (select edit_token from created_activity)
+  ),
+  'P0002',
+  'shared_activity_not_found',
+  'expired activities cannot be polled'
 );
 
 select set_config('request.headers', '{"x-forwarded-for":"203.0.113.10"}', true);

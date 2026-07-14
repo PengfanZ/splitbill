@@ -14,6 +14,7 @@ import {
   liveActivityShortcutId,
   useLiveActivityBookmarks,
 } from './useLiveActivityBookmarks'
+import { useLiveActivityPolling } from './useLiveActivityPolling'
 
 type LiveSession = { credentials: LiveActivityCredentials; record: LiveActivityRecord }
 type CreateLiveActivityResult = { ok: true; code: string; url: string } | { ok: false; message: string }
@@ -50,6 +51,23 @@ export function useLiveActivitySession({
   const [saving, setSaving] = useState(false)
   const saveInFlight = useRef(false)
   const [notice, setNotice] = useState<string | null>(null)
+
+  useLiveActivityPolling({
+    enabled: Boolean(client && credentials && session && !saving),
+    poll: async () => {
+      const latest = await client!.poll(credentials!)
+      return latest.revision > session!.record.revision
+        ? client!.load(credentials!)
+        : null
+    },
+    onResult: record => {
+      if (!record) return
+      const activeSession = session!
+      if (record.revision <= activeSession.record.revision) return
+      setSession({ credentials: activeSession.credentials, record })
+      setNotice('New shared changes loaded automatically.')
+    },
+  })
 
   useEffect(() => {
     if (credentials && !parseLiveActivityHash(window.location.hash)) window.history.replaceState(null, '', buildLiveActivityUrl(credentials))

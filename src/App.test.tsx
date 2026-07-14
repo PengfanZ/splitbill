@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { StrictMode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -15,6 +15,7 @@ import { LiveActivityApiError, type LiveActivityRecord } from './features/liveSh
 import type { LiveActivityClient } from './features/liveSharing/liveActivityConfig'
 import { LIVE_ACTIVITY_HASH_PREFIX } from './features/liveSharing/liveActivityLink'
 import { LIVE_ACTIVITY_BOOKMARKS_KEY } from './features/liveSharing/useLiveActivityBookmarks'
+import { LIVE_ACTIVITY_POLL_INTERVAL_MS } from './features/liveSharing/useLiveActivityPolling'
 import { buildShareSummary, createSummaryCard, exportActivitySummary, SHARE_MESSAGES, shareActivitySummary } from './features/sharing/shareActivity'
 import { SharedActivityIdentityModal } from './features/sharing/SharedActivityIdentityModal'
 import { createSharedActivity, encodeSharedActivity, LINK_SENDER, SHARE_HASH_PREFIX, type SharedActivity } from './features/sharing/shareActivityUrl'
@@ -933,6 +934,7 @@ describe('complete app workflows', () => {
     const client = {
       create: vi.fn().mockResolvedValue({ code: 'A1B2C3D4E5', editToken: 'a'.repeat(64), revision: 1, snapshot, updatedAt: '2026-07-14T01:00:00.000Z' }),
       load: vi.fn().mockImplementation(async () => ({ code: 'A1B2C3D4E5', revision, snapshot: latestSnapshot, updatedAt: '2026-07-14T01:00:00.000Z' })),
+      poll: vi.fn(),
       update: vi.fn().mockImplementation(async (_credentials, nextSnapshot) => {
         latestSnapshot = nextSnapshot
         revision += 1
@@ -999,6 +1001,7 @@ describe('complete app workflows', () => {
     const client = {
       create: vi.fn(),
       load: vi.fn().mockResolvedValue({ code: credentials.code, revision: 1, snapshot, updatedAt: '2026-07-14T01:00:00.000Z' }),
+      poll: vi.fn(),
       update: vi.fn().mockImplementation(async (_credentials, nextSnapshot) => ({ code: credentials.code, revision: 2, snapshot: nextSnapshot, updatedAt: '2026-07-14T01:01:00.000Z' })),
     } satisfies LiveActivityClient
     window.history.replaceState(null, '', `/${LIVE_ACTIVITY_HASH_PREFIX}${credentials.code}.${credentials.editToken}`)
@@ -1024,6 +1027,59 @@ describe('complete app workflows', () => {
     expect(replacementAnalyticsClient.track).toHaveBeenCalledWith('settlement_recorded', 'live')
   })
 
+  it('automatically loads newer live revisions while the tab is visible', async () => {
+    vi.useFakeTimers()
+    const credentials = { code: 'A1B2C3D4E5', editToken: 'a'.repeat(64) }
+    const initialSnapshot = createSharedActivity(group, [CURRENT_USER, maya, jordan], [expense()])
+    const remoteSnapshot = createSharedActivity(group, [CURRENT_USER, maya, jordan], [
+      expense({ id: 'remote-expense', title: 'Remote taxi' }),
+      expense(),
+    ])
+    const client = {
+      create: vi.fn(),
+      load: vi.fn()
+        .mockResolvedValueOnce({ code: credentials.code, revision: 1, snapshot: initialSnapshot, updatedAt: '2026-07-14T01:00:00.000Z' })
+        .mockResolvedValue({ code: credentials.code, revision: 2, snapshot: remoteSnapshot, updatedAt: '2026-07-14T01:01:00.000Z' }),
+      poll: vi.fn()
+        .mockResolvedValueOnce({ code: credentials.code, revision: 2, updatedAt: '2026-07-14T01:01:00.000Z' })
+        .mockResolvedValueOnce({ code: credentials.code, revision: 2, updatedAt: '2026-07-14T01:01:00.000Z' })
+        .mockResolvedValue({ code: credentials.code, revision: 3, updatedAt: '2026-07-14T01:02:00.000Z' }),
+      update: vi.fn(),
+    } satisfies LiveActivityClient
+    window.history.replaceState(null, '', `/${LIVE_ACTIVITY_HASH_PREFIX}${credentials.code}.${credentials.editToken}`)
+    const view = render(<App liveActivityClient={client} />)
+
+    try {
+      await act(async () => { await Promise.resolve() })
+      expect(screen.getByText('Live · revision 1')).toBeVisible()
+      expect(screen.queryByText('Remote taxi')).not.toBeInTheDocument()
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LIVE_ACTIVITY_POLL_INTERVAL_MS)
+      })
+      expect(screen.getByText('Live · revision 2')).toBeVisible()
+      expect(screen.getByText('Remote taxi')).toBeVisible()
+      expect(screen.getByRole('status')).toHaveTextContent('New shared changes loaded automatically')
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LIVE_ACTIVITY_POLL_INTERVAL_MS)
+      })
+      expect(client.poll).toHaveBeenCalledTimes(2)
+      expect(client.load).toHaveBeenCalledTimes(2)
+      expect(screen.getByText('Live · revision 2')).toBeVisible()
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LIVE_ACTIVITY_POLL_INTERVAL_MS)
+      })
+      expect(client.poll).toHaveBeenCalledTimes(3)
+      expect(client.load).toHaveBeenCalledTimes(3)
+      expect(screen.getByText('Live · revision 2')).toBeVisible()
+    } finally {
+      view.unmount()
+      vi.useRealTimers()
+    }
+  })
+
   it('keeps the settlement dialog open when a live payment cannot be saved', async () => {
     const user = userEvent.setup()
     const credentials = { code: 'A1B2C3D4E5', editToken: 'a'.repeat(64) }
@@ -1031,6 +1087,7 @@ describe('complete app workflows', () => {
     const client = {
       create: vi.fn(),
       load: vi.fn().mockResolvedValue({ code: credentials.code, revision: 1, snapshot, updatedAt: '2026-07-14T01:00:00.000Z' }),
+      poll: vi.fn(),
       update: vi.fn().mockRejectedValue(new LiveActivityApiError('network', 'offline')),
     } satisfies LiveActivityClient
     window.history.replaceState(null, '', `/${LIVE_ACTIVITY_HASH_PREFIX}${credentials.code}.${credentials.editToken}`)
@@ -1056,6 +1113,7 @@ describe('complete app workflows', () => {
         .mockRejectedValueOnce(new Error('unexpected'))
         .mockRejectedValueOnce(new LiveActivityApiError('backend', 'broken')),
       load: vi.fn(),
+      poll: vi.fn(),
       update: vi.fn(),
     } satisfies LiveActivityClient
     render(<App liveActivityClient={client} />)
@@ -1079,6 +1137,7 @@ describe('complete app workflows', () => {
     const client = {
       create: vi.fn(),
       load: vi.fn().mockImplementation(async () => ({ code: credentials.code, revision, snapshot: latestSnapshot, updatedAt: '2026-07-14T01:00:00.000Z' })),
+      poll: vi.fn(),
       update: vi.fn().mockImplementation(async (_credentials, nextSnapshot) => {
         latestSnapshot = nextSnapshot
         revision += 1
@@ -1181,6 +1240,7 @@ describe('complete app workflows', () => {
       load: vi.fn()
         .mockRejectedValueOnce(new LiveActivityApiError('not-found', 'missing'))
         .mockResolvedValue({ code: credentials.code, revision: 2, snapshot, updatedAt: '2026-07-14T01:00:00.000Z' }),
+      poll: vi.fn(),
       update: vi.fn()
         .mockRejectedValueOnce(new LiveActivityApiError('conflict', 'stale', {
           latestRecord: {
@@ -1239,6 +1299,7 @@ describe('complete app workflows', () => {
         snapshot,
         updatedAt: '2026-07-14T01:00:00.000Z',
       }),
+      poll: vi.fn(),
       update: vi.fn((_credentials, nextSnapshot) => {
         pendingSnapshot = nextSnapshot
         return new Promise<LiveActivityRecord>(resolve => { resolveUpdate = resolve })
@@ -1274,6 +1335,7 @@ describe('complete app workflows', () => {
     const client = {
       create: vi.fn(),
       load: vi.fn(() => new Promise<LiveActivityRecord>(resolve => { resolveLoad = resolve })),
+      poll: vi.fn(),
       update: vi.fn(),
     } satisfies LiveActivityClient
     window.history.replaceState(null, '', '/')
@@ -1291,6 +1353,7 @@ describe('complete app workflows', () => {
     const rejectingClient = {
       create: vi.fn(),
       load: vi.fn(() => new Promise<LiveActivityRecord>((_resolve, reject) => { rejectLoad = reject })),
+      poll: vi.fn(),
       update: vi.fn(),
     } satisfies LiveActivityClient
     const second = render(<App liveActivityClient={rejectingClient} />)

@@ -40,11 +40,13 @@ describe('live activity API client', () => {
     fetcher
       .mockResolvedValueOnce(response([row()]))
       .mockResolvedValueOnce(response([row({ edit_token: undefined })]))
+      .mockResolvedValueOnce(response([row({ edit_token: undefined, snapshot: undefined })]))
       .mockResolvedValueOnce(response([row({ edit_token: undefined, revision: 2, conflicted: false })]))
     const client = createLiveActivityClient({ supabaseUrl: ' https://project.supabase.co/// ', publishableKey: ' publishable ' }, fetcher)
 
     await expect(client.create(snapshot)).resolves.toEqual({ ...credentials, revision: 1, snapshot, updatedAt })
     await expect(client.load(credentials)).resolves.toEqual({ code: credentials.code, revision: 1, snapshot, updatedAt })
+    await expect(client.poll(credentials)).resolves.toEqual({ code: credentials.code, revision: 1, updatedAt })
     await expect(client.update(credentials, snapshot, 1)).resolves.toEqual({ code: credentials.code, revision: 2, snapshot, updatedAt })
 
     expect(fetcher).toHaveBeenNthCalledWith(1, 'https://project.supabase.co/rest/v1/rpc/create_shared_activity', expect.objectContaining({
@@ -61,8 +63,10 @@ describe('live activity API client', () => {
       body: JSON.stringify({ p_snapshot: snapshot }),
     }))
     expect(JSON.parse(fetcher.mock.calls[1][1]?.body as string)).toEqual({ p_code: credentials.code, p_edit_token: credentials.editToken })
-    expect(fetcher.mock.calls[2][0]).toBe('https://project.supabase.co/rest/v1/rpc/update_shared_activity_v2')
-    expect(JSON.parse(fetcher.mock.calls[2][1]?.body as string)).toMatchObject({ p_expected_revision: 1, p_snapshot: snapshot })
+    expect(fetcher.mock.calls[2][0]).toBe('https://project.supabase.co/rest/v1/rpc/poll_shared_activity')
+    expect(JSON.parse(fetcher.mock.calls[2][1]?.body as string)).toEqual({ p_code: credentials.code, p_edit_token: credentials.editToken })
+    expect(fetcher.mock.calls[3][0]).toBe('https://project.supabase.co/rest/v1/rpc/update_shared_activity_v2')
+    expect(JSON.parse(fetcher.mock.calls[3][1]?.body as string)).toMatchObject({ p_expected_revision: 1, p_snapshot: snapshot })
   })
 
   it.each([
@@ -83,6 +87,7 @@ describe('live activity API client', () => {
 
     await expectApiError(client.create(invalidSnapshot), 'invalid-input')
     await expectApiError(client.load(invalidCredentials), 'invalid-input')
+    await expectApiError(client.poll(invalidCredentials), 'invalid-input')
     await expectApiError(client.update(credentials, invalidSnapshot, 1), 'invalid-input')
     await expectApiError(client.update(credentials, snapshot, 0), 'invalid-input')
     await expectApiError(client.update(credentials, snapshot, 1.5), 'invalid-input')
