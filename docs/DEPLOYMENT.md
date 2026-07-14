@@ -53,7 +53,7 @@ In **Settings → Pages**, set **Source** to **GitHub Actions**. The workflow us
 
 ## Deploy
 
-1. Open a pull request from `codex/shared-activity-backend` to `main`.
+1. Open a pull request from the release branch to `main`.
 2. Wait for the `verify` job to pass.
 3. Merge the pull request.
 4. Approve the `production` environment deployment if protection is enabled.

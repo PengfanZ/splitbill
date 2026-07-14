@@ -1,6 +1,4 @@
-'use client'
-
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { FreshStart, Sidebar, Topbar } from './components/AppShell'
 import { createIdentity } from './data/identity'
 import { EMPTY_STATE } from './data/storage'
@@ -9,10 +7,9 @@ import type { ActivityGroup, Expense, Member } from './domain/models'
 import { GroupDashboard } from './features/activity/ActivityDashboard'
 import { AddFriendModal, CreateGroupModal, ExpenseModal } from './features/activity/ActivityModals'
 import { IdentityModal } from './features/identity/IdentityModal'
-import { LiveActivityApiError, type LiveActivityRecord } from './features/liveSharing/liveActivityApi'
-import { createConfiguredLiveActivityClient, type LiveActivityClient } from './features/liveSharing/liveActivityConfig'
-import { buildLiveActivityUrl, clearLiveActivityHash, parseLiveActivityHash, type LiveActivityCredentials } from './features/liveSharing/liveActivityLink'
-import { findLiveActivityBookmarkGroupId, liveActivityShortcutId, useLiveActivityBookmarks } from './features/liveSharing/useLiveActivityBookmarks'
+import type { LiveActivityClient } from './features/liveSharing/liveActivityConfig'
+import { buildLiveActivityUrl, parseLiveActivityHash } from './features/liveSharing/liveActivityLink'
+import { useLiveActivitySession } from './features/liveSharing/useLiveActivitySession'
 import { exportActivitySummary, SHARE_MESSAGES } from './features/sharing/shareActivity'
 import { SharedActivityIdentityModal } from './features/sharing/SharedActivityIdentityModal'
 import {
@@ -32,7 +29,6 @@ import { useIdentity } from './hooks/useIdentity'
 type ModalType = 'group' | 'friend' | 'expense' | 'identity' | 'shared-identity' | null
 type ActivityFeedback = { groupId: string; message: string } | null
 type QrShare = { activity: SharedActivity; url: string; mode: 'snapshot' | 'live'; activityCode?: string } | null
-type LiveSession = { credentials: LiveActivityCredentials; record: LiveActivityRecord }
 type AppProps = { liveActivityClient?: LiveActivityClient | null }
 
 const ShareActivityQrModal = lazy(() => import('./features/sharing/ShareActivityQrModal').then(module => ({ default: module.ShareActivityQrModal })))
@@ -46,80 +42,22 @@ function createFriends(names: string[], colorOffset: number): Member[] {
   }))
 }
 
-function liveActivityErrorMessage(error: unknown) {
-  if (error instanceof LiveActivityApiError) {
-    if (error.kind === 'conflict') return 'Someone saved a newer version. Refresh the activity, then try your change again.'
-    if (error.kind === 'not-found') return 'This live activity link is invalid or no longer available.'
-    if (error.kind === 'rate-limit') return 'Too many live activity requests from this network. Wait a few minutes, then try again.'
-    if (error.kind === 'network') return 'Could not reach the live activity service. Check your connection and try again.'
-  }
-  return 'The live activity could not be updated. Please try again.'
-}
-
 export default function App({ liveActivityClient }: AppProps = {}) {
   const [state, setState] = usePersistedState()
   const [identity, setIdentity] = useIdentity()
-  const [liveActivityBookmarks, setLiveActivityBookmarks] = useLiveActivityBookmarks()
-  const [liveClient] = useState(() => liveActivityClient === undefined ? createConfiguredLiveActivityClient() : liveActivityClient)
   const [query, setQuery] = useState('')
   const [modal, setModal] = useState<ModalType>(null)
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
   const [activityFeedback, setActivityFeedback] = useState<ActivityFeedback>(null)
   const [qrShare, setQrShare] = useState<QrShare>(null)
   const selectedGroupIdAtLoad = state.selectedGroupId ?? state.groups[0]?.id ?? null
-  const bookmarkedCredentialsAtLoad = !window.location.hash && selectedGroupIdAtLoad ? liveActivityBookmarks[selectedGroupIdAtLoad] ?? null : null
-  const [liveCredentials, setLiveCredentials] = useState(() => parseLiveActivityHash(window.location.hash) ?? bookmarkedCredentialsAtLoad)
-  const [liveSession, setLiveSession] = useState<LiveSession | null>(null)
-  const [liveLoading, setLiveLoading] = useState(() => Boolean((parseLiveActivityHash(window.location.hash) ?? bookmarkedCredentialsAtLoad) && liveClient))
-  const [liveSaving, setLiveSaving] = useState(false)
-  const liveSaveInFlight = useRef(false)
-  const [liveNotice, setLiveNotice] = useState<string | null>(null)
-  const [sharedActivity, setSharedActivity] = useState(() => parseLiveActivityHash(window.location.hash) || bookmarkedCredentialsAtLoad ? null : decodeSharedActivityHash(window.location.hash))
-
-  useEffect(() => {
-    if (liveCredentials && !parseLiveActivityHash(window.location.hash)) window.history.replaceState(null, '', buildLiveActivityUrl(liveCredentials))
-  }, [liveCredentials])
-
-  useEffect(() => {
-    const syncSharedActivity = () => {
-      const credentials = parseLiveActivityHash(window.location.hash)
-      setLiveCredentials(credentials)
-      setLiveSession(null)
-      setLiveNotice(null)
-      setLiveLoading(Boolean(credentials && liveClient))
-      setSharedActivity(credentials ? null : decodeSharedActivityHash(window.location.hash))
-    }
-    window.addEventListener('hashchange', syncSharedActivity)
-    return () => window.removeEventListener('hashchange', syncSharedActivity)
-  }, [liveClient])
-
-  useEffect(() => {
-    if (!liveCredentials || !liveClient || (liveSession && liveSession.credentials.code === liveCredentials.code && liveSession.credentials.editToken === liveCredentials.editToken)) return
-    let active = true
-    liveClient.load(liveCredentials).then(record => {
-      if (!active) return
-      const shortcutGroupId = findLiveActivityBookmarkGroupId(liveActivityBookmarks, liveCredentials) ?? liveActivityShortcutId(record.code)
-      setLiveSession({ credentials: liveCredentials, record })
-      setLiveNotice(null)
-      setLiveActivityBookmarks(current => findLiveActivityBookmarkGroupId(current, liveCredentials)
-        ? current
-        : { ...current, [shortcutGroupId]: liveCredentials })
-      setState(current => {
-        const shortcutGroup = { ...record.snapshot.group, id: shortcutGroupId }
-        const hasShortcut = current.groups.some(group => group.id === shortcutGroupId)
-        return {
-          ...current,
-          groups: hasShortcut ? current.groups.map(group => group.id === shortcutGroupId ? shortcutGroup : group) : [...current.groups, shortcutGroup],
-          selectedGroupId: shortcutGroupId,
-        }
-      })
-    }).catch(error => {
-      if (active) setLiveNotice(liveActivityErrorMessage(error))
-    }).finally(() => {
-      if (active) setLiveLoading(false)
-    })
-    return () => { active = false }
-  }, [liveActivityBookmarks, liveClient, liveCredentials, liveSession, setLiveActivityBookmarks, setState])
+  const [sharedActivity, setSharedActivity] = useState(() => parseLiveActivityHash(window.location.hash) ? null : decodeSharedActivityHash(window.location.hash))
+  const live = useLiveActivitySession({
+    initialSelectedGroupId: selectedGroupIdAtLoad,
+    liveActivityClient,
+    onSharedActivityChange: setSharedActivity,
+    setPersistedState: setState,
+  })
 
   const selectedGroup = state.groups.find(group => group.id === state.selectedGroupId) ?? state.groups[0] ?? null
   const currentUser = identity ?? CURRENT_USER
@@ -130,14 +68,14 @@ export default function App({ liveActivityClient }: AppProps = {}) {
     ? state.expenses.filter(expense => expense.groupId === selectedGroup.id)
     : []
   const sharedMembers = sharedActivity ? [getSharedActivitySender(sharedActivity), ...sharedActivity.friends] : []
-  const liveActivity = liveSession?.record.snapshot ?? null
-  const liveMembers = liveActivity ? [getSharedActivitySender(liveActivity), ...liveActivity.friends] : []
+  const liveActivity = live.activity
+  const liveMembers = live.members
   const activeGroup = liveActivity?.group ?? selectedGroup
   const activeMembers = liveActivity ? liveMembers : selectedMembers
   const activeExpenses = liveActivity?.expenses ?? selectedExpenses
-  const displayedLiveNotice = liveNotice ?? (!liveClient && liveCredentials ? 'Live sharing is not configured in this build.' : null)
-  const liveActivityCodes = Object.fromEntries(Object.entries(liveActivityBookmarks).map(([groupId, credentials]) => [groupId, credentials.code]))
-  const bookmarkedLiveGroupId = liveCredentials ? findLiveActivityBookmarkGroupId(liveActivityBookmarks, liveCredentials) : null
+  const displayedLiveNotice = live.displayedNotice
+  const liveActivityCodes = live.activityCodes
+  const bookmarkedLiveGroupId = live.bookmarkedGroupId
 
   const closeSharedActivity = () => {
     clearSharedActivityHash()
@@ -146,73 +84,23 @@ export default function App({ liveActivityClient }: AppProps = {}) {
   }
 
   const closeLiveActivity = () => {
-    clearLiveActivityHash()
-    setLiveCredentials(null)
-    setLiveSession(null)
-    setLiveNotice(null)
+    live.close()
     setModal(null)
   }
 
   const closeSharedViews = () => {
-    if (liveCredentials) closeLiveActivity()
+    if (live.credentials) closeLiveActivity()
     else closeSharedActivity()
   }
 
   const openActivity = (groupId: string) => {
-    const bookmarkedCredentials = liveActivityBookmarks[groupId]
-    if (bookmarkedCredentials) {
-      window.history.replaceState(null, '', buildLiveActivityUrl(bookmarkedCredentials))
-      setState(current => ({ ...current, selectedGroupId: groupId }))
-      setLiveCredentials(bookmarkedCredentials)
-      setLiveSession(null)
-      setLiveNotice(null)
-      setLiveLoading(Boolean(liveClient))
+    if (live.openBookmarked(groupId)) {
       setSharedActivity(null)
       setModal(null)
       return
     }
     closeSharedViews()
     setState(current => ({ ...current, selectedGroupId: groupId }))
-  }
-
-  const refreshLiveActivity = async () => {
-    const client = liveClient!
-    const credentials = liveCredentials!
-    setLiveLoading(true)
-    try {
-      const record = await client.load(credentials)
-      setLiveSession({ credentials, record })
-      setLiveNotice('Latest changes loaded.')
-    } catch (error) {
-      setLiveNotice(liveActivityErrorMessage(error))
-    } finally {
-      setLiveLoading(false)
-    }
-  }
-
-  const saveLiveActivity = async (snapshot: SharedActivity, successMessage: string) => {
-    if (liveSaveInFlight.current) return false
-    const client = liveClient!
-    const session = liveSession!
-    liveSaveInFlight.current = true
-    setLiveSaving(true)
-    try {
-      const record = await client.update(session.credentials, snapshot, session.record.revision)
-      setLiveSession({ credentials: session.credentials, record })
-      setLiveNotice(successMessage)
-      return true
-    } catch (error) {
-      if (error instanceof LiveActivityApiError && error.kind === 'conflict' && error.latestRecord) {
-        setLiveSession({ credentials: session.credentials, record: error.latestRecord })
-        setLiveNotice('Someone saved a newer version. The latest changes are loaded—review and save again.')
-      } else {
-        setLiveNotice(liveActivityErrorMessage(error))
-      }
-      return false
-    } finally {
-      liveSaveInFlight.current = false
-      setLiveSaving(false)
-    }
   }
 
   const saveSharedActivity = (activity: NonNullable<typeof sharedActivity>, viewerId: string) => {
@@ -245,7 +133,7 @@ export default function App({ liveActivityClient }: AppProps = {}) {
     const existingExpenseCount = activeExpenses.length
     if (liveActivity) {
       const newFriends = createFriends(names, liveActivity.friends.length)
-      const saved = await saveLiveActivity({
+      const saved = await live.save({
         ...liveActivity,
         friends: [...liveActivity.friends, ...newFriends],
         group: { ...liveActivity.group, memberIds: [...liveActivity.group.memberIds, ...newFriends.map(friend => friend.id)] },
@@ -269,7 +157,7 @@ export default function App({ liveActivityClient }: AppProps = {}) {
 
   const addExpense = async (expense: Expense) => {
     if (liveActivity) {
-      const saved = await saveLiveActivity({ ...liveActivity, expenses: [expense, ...liveActivity.expenses] }, `${expense.title} was added to the live activity.`)
+      const saved = await live.save({ ...liveActivity, expenses: [expense, ...liveActivity.expenses] }, `${expense.title} was added to the live activity.`)
       if (saved) closeExpenseModal()
       return
     }
@@ -280,7 +168,7 @@ export default function App({ liveActivityClient }: AppProps = {}) {
 
   const updateExpense = async (expense: Expense) => {
     if (liveActivity) {
-      const saved = await saveLiveActivity({
+      const saved = await live.save({
         ...liveActivity,
         expenses: liveActivity.expenses.map(item => item.id === expense.id ? expense : item),
       }, `${expense.title} was updated. Splits and balances were recalculated.`)
@@ -326,32 +214,20 @@ export default function App({ liveActivityClient }: AppProps = {}) {
   }
 
   const openLiveShare = async (group: ActivityGroup, members: Member[], expenses: Expense[]) => {
-    if (!liveClient) {
-      setActivityFeedback({ groupId: group.id, message: 'Live sharing is not configured in this build.' })
-      return
-    }
     setActivityFeedback({ groupId: group.id, message: 'Creating a private live activity link…' })
     const activity = createSharedActivity(group, members, expenses)
-    try {
-      const created = await liveClient.create(activity)
-      const credentials = { code: created.code, editToken: created.editToken }
-      const liveUrl = buildLiveActivityUrl(credentials)
-      window.history.replaceState(null, '', liveUrl)
-      setLiveCredentials(credentials)
-      setLiveSession({ credentials, record: created })
-      setLiveActivityBookmarks(current => ({ ...current, [group.id]: credentials }))
-      setLiveLoading(false)
-      setSharedActivity(null)
-      setLiveNotice(`Live activity ${created.code} is ready. Changes in this tab now sync to the shared activity.`)
-      setActivityFeedback(null)
-      setQrShare({ activity, url: liveUrl, mode: 'live', activityCode: created.code })
-    } catch (error) {
-      setActivityFeedback({ groupId: group.id, message: liveActivityErrorMessage(error) })
+    const result = await live.create(activity, group.id)
+    if (!result.ok) {
+      setActivityFeedback({ groupId: group.id, message: result.message })
+      return
     }
+    setSharedActivity(null)
+    setActivityFeedback(null)
+    setQrShare({ activity, url: result.url, mode: 'live', activityCode: result.code })
   }
 
   const openCurrentLiveQr = () => {
-    const session = liveSession!
+    const session = live.session!
     setQrShare({
       activity: session.record.snapshot,
       url: buildLiveActivityUrl(session.credentials),
@@ -365,10 +241,10 @@ export default function App({ liveActivityClient }: AppProps = {}) {
       try {
         await navigator.clipboard.writeText(share.url)
         setQrShare(null)
-        setLiveNotice('Live activity link copied. Anyone with it can edit this activity.')
+        live.notify('Live activity link copied. Anyone with it can edit this activity.')
       } catch {
         const message = 'Could not copy the live activity link. Copy it from the browser address bar instead.'
-        setLiveNotice(message)
+        live.notify(message)
       }
       return
     }
@@ -380,7 +256,7 @@ export default function App({ liveActivityClient }: AppProps = {}) {
   const deleteExpense = async (expense: Expense) => {
     if (!window.confirm(`Delete "${expense.title}"? This removes it from the activity and recalculates everyone’s balances.`)) return
     if (liveActivity) {
-      await saveLiveActivity({ ...liveActivity, expenses: liveActivity.expenses.filter(item => item.id !== expense.id) }, `${expense.title} was deleted from the live activity.`)
+      await live.save({ ...liveActivity, expenses: liveActivity.expenses.filter(item => item.id !== expense.id) }, `${expense.title} was deleted from the live activity.`)
       return
     }
     setState(current => ({ ...current, expenses: current.expenses.filter(item => item.id !== expense.id) }))
@@ -402,7 +278,7 @@ export default function App({ liveActivityClient }: AppProps = {}) {
       }
     })
     setActivityFeedback(null)
-    setLiveActivityBookmarks(current => Object.fromEntries(Object.entries(current).filter(([groupId]) => groupId !== group.id)))
+    live.removeBookmark(group.id)
     if (deletingOpenLiveActivity) closeLiveActivity()
     if (deletingSelectedActivity) setQuery('')
   }
@@ -410,7 +286,7 @@ export default function App({ liveActivityClient }: AppProps = {}) {
   const resetData = () => {
     if (!window.confirm('Reset every local activity, friend, and expense? This cannot be undone.')) return
     setState(EMPTY_STATE)
-    setLiveActivityBookmarks({})
+    live.clearBookmarks()
     setQuery('')
   }
 
@@ -418,7 +294,7 @@ export default function App({ liveActivityClient }: AppProps = {}) {
     <div className="app-shell">
       <Sidebar
         groups={state.groups}
-        selectedId={sharedActivity ? null : liveCredentials ? bookmarkedLiveGroupId : selectedGroup?.id ?? null}
+        selectedId={sharedActivity ? null : live.credentials ? bookmarkedLiveGroupId : selectedGroup?.id ?? null}
         liveActivityCodes={liveActivityCodes}
         onSelect={openActivity}
         onCreate={() => {
@@ -430,11 +306,11 @@ export default function App({ liveActivityClient }: AppProps = {}) {
       />
       <div className="workspace">
         <Topbar query={query} setQuery={setQuery} onSettings={() => setModal('identity')} />
-        {liveCredentials ? (
+        {live.credentials ? (
           <>
             <section className="shared-preview live-preview" aria-label="Live activity">
-              <div><strong className={displayedLiveNotice && !liveSession ? 'live-error' : undefined}>{liveSession ? `Live activity · ${liveSession.record.code}` : 'Opening live activity'}</strong><span role={displayedLiveNotice ? 'status' : undefined}>{liveSaving ? 'Saving your change…' : displayedLiveNotice ?? (liveLoading ? 'Loading the latest version…' : 'Everyone with this private link can edit.')}</span></div>
-              <div>{bookmarkedLiveGroupId ? null : <button className="outline-button" onClick={closeLiveActivity}>Back to my activities</button>}{liveClient ? <button className="confirm-button" onClick={refreshLiveActivity} disabled={liveLoading}>{liveLoading ? 'Loading…' : 'Refresh latest'}</button> : null}</div>
+              <div><strong className={displayedLiveNotice && !live.session ? 'live-error' : undefined}>{live.session ? `Live activity · ${live.session.record.code}` : 'Opening live activity'}</strong><span role={displayedLiveNotice ? 'status' : undefined}>{live.saving ? 'Saving your change…' : displayedLiveNotice ?? (live.loading ? 'Loading the latest version…' : 'Everyone with this private link can edit.')}</span></div>
+              <div>{bookmarkedLiveGroupId ? null : <button className="outline-button" onClick={closeLiveActivity}>Back to my activities</button>}{live.client ? <button className="confirm-button" onClick={live.refresh} disabled={live.loading}>{live.loading ? 'Loading…' : 'Refresh latest'}</button> : null}</div>
             </section>
             {liveActivity ? (
               <GroupDashboard
@@ -445,7 +321,7 @@ export default function App({ liveActivityClient }: AppProps = {}) {
                 activityFeedback={null}
                 currentUserLabel={getSharedActivitySender(liveActivity).name}
                 currentUserRole="Activity creator"
-                statusLabel={`Live · revision ${liveSession!.record.revision}`}
+                statusLabel={`Live · revision ${live.session!.record.revision}`}
                 shareQrLabel="Show QR"
                 onShareQr={openCurrentLiveQr}
                 onShare={() => shareGroup(liveActivity.group, liveMembers, liveActivity.expenses)}
