@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import {
   ChevronRight,
+  Github,
   Menu,
   Plus,
   Search,
@@ -50,7 +51,10 @@ export function Sidebar({ groups, selectedId, liveActivityCodes = EMPTY_LIVE_ACT
             </div>
           )) : <p className="sidebar-empty">No activities yet.</p>}
         </div>
-        {groups.length ? <button className="reset-button" onClick={onReset}>Reset local data</button> : null}
+        <div className="sidebar-footer">
+          <a className="source-link" href="https://github.com/PengfanZ/splitbill" target="_blank" rel="noreferrer"><Github size={16} />Source &amp; feedback</a>
+          {groups.length ? <button className="reset-button" onClick={onReset}>Reset local data</button> : null}
+        </div>
       </aside>
       {mobileOpen ? <button className="backdrop" aria-label="Close navigation" onClick={() => setMobileOpen(false)} /> : null}
     </>

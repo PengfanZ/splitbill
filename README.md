@@ -143,3 +143,7 @@ Every pull request is type-checked, linted, tested, and built by GitHub Actions.
 ## Contributing
 
 Contributions and focused bug reports are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request, and use [SECURITY.md](SECURITY.md) for vulnerability reports.
+
+## License
+
+Tally is available under the [MIT License](LICENSE). Copyright (c) 2026 Pengfan Zhang.
