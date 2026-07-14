@@ -1,4 +1,4 @@
-import { calculateSettlements, money } from '../../domain/expenses'
+import { calculateSettlements, getSettlementRecipientId, isSettlementPayment, money, spendingExpenses } from '../../domain/expenses'
 import type { ActivityGroup, Expense, Member } from '../../domain/models'
 
 export type ShareResult = 'shared' | 'copied' | 'downloaded' | 'cancelled' | 'failed'
@@ -11,12 +11,25 @@ export const SHARE_MESSAGES: Record<ShareResult, string> = {
   failed: 'Could not export the summary. Please try again.',
 }
 
+function memberName(memberMap: Map<string, Member>, memberId: string | null) {
+  if (!memberId) return 'Unknown'
+  return memberMap.get(memberId)?.name ?? 'Unknown'
+}
+
 export function buildShareSummary(group: ActivityGroup, members: Member[], expenses: Expense[]) {
   const memberMap = new Map(members.map(member => [member.id, member]))
-  const total = expenses.reduce((sum, item) => sum + item.amount, 0)
-  const expenseLines = expenses.length
-    ? expenses.map(item => `• ${item.title} — ${money(item.amount)}, paid by ${memberMap.get(item.payerId)?.name ?? 'Unknown'} (${item.splitMethod === 'equal' ? 'split equally' : 'exact split'})`)
+  const spending = spendingExpenses(expenses)
+  const payments = expenses.filter(isSettlementPayment)
+  const total = spending.reduce((sum, item) => sum + item.amount, 0)
+  const expenseLines = spending.length
+    ? spending.map(item => `• ${item.title} — ${money(item.amount)}, paid by ${memberMap.get(item.payerId)?.name ?? 'Unknown'} (${item.splitMethod === 'equal' ? 'split equally' : 'exact split'})`)
     : ['• No expenses yet.']
+  const paymentLines = payments.length
+    ? payments.map(item => {
+      const recipientId = getSettlementRecipientId(item)
+      return `• ${memberName(memberMap, item.payerId)} paid ${memberName(memberMap, recipientId)} ${money(item.amount)}`
+    })
+    : ['• No settlement payments recorded.']
   const settlements = calculateSettlements(members, expenses)
   const settlementLines = settlements.length
     ? settlements.map(item => `• ${item.from.name} pays ${item.to.name} ${money(item.amount)}`)
@@ -28,6 +41,9 @@ export function buildShareSummary(group: ActivityGroup, members: Member[], expen
     '',
     'Expenses',
     ...expenseLines,
+    '',
+    'Recorded settlements',
+    ...paymentLines,
     '',
     'Suggested payments',
     ...settlementLines,
@@ -43,10 +59,10 @@ export async function createSummaryCard(group: ActivityGroup, members: Member[],
   const context = canvas.getContext('2d')
   if (!context) throw new Error('Canvas is unavailable')
 
-  const total = expenses.reduce((sum, item) => sum + item.amount, 0)
+  const total = spendingExpenses(expenses).reduce((sum, item) => sum + item.amount, 0)
   const settlements = calculateSettlements(members, expenses)
   const memberMap = new Map(members.map(member => [member.id, member]))
-  const visibleExpenses = expenses.slice(0, 5)
+  const visibleEntries = expenses.slice(0, 5)
 
   context.fillStyle = '#f7f4ee'
   context.fillRect(0, 0, canvas.width, canvas.height)
@@ -93,30 +109,33 @@ export async function createSummaryCard(group: ActivityGroup, members: Member[],
   const expenseHeadingY = 620 + Math.max(1, Math.min(4, settlements.length)) * 58 + 72
   context.fillStyle = '#26231f'
   context.font = '700 30px Arial, sans-serif'
-  context.fillText('Expenses', 72, expenseHeadingY)
+  context.fillText('Activity', 72, expenseHeadingY)
   context.fillStyle = '#d8d1c8'
   context.fillRect(72, expenseHeadingY + 20, 936, 2)
   context.font = '500 24px Arial, sans-serif'
-  if (visibleExpenses.length) {
-    visibleExpenses.forEach((item, index) => {
+  if (visibleEntries.length) {
+    visibleEntries.forEach((item, index) => {
       const y = expenseHeadingY + 78 + index * 58
+      const settlementPayment = isSettlementPayment(item)
+      const payer = memberName(memberMap, item.payerId)
+      const recipientId = getSettlementRecipientId(item)
+      const recipient = memberName(memberMap, recipientId)
       context.fillStyle = '#26231f'
-      context.fillText(item.title, 82, y, 460)
+      context.fillText(settlementPayment ? `${payer} paid ${recipient}` : item.title, 82, y, 460)
       context.fillStyle = '#746e67'
-      const payer = memberMap.get(item.payerId)?.name ?? 'Unknown'
-      context.fillText(`${payer} paid · ${item.splitMethod === 'equal' ? 'Equal split' : 'Exact split'}`, 390, y, 410)
+      context.fillText(settlementPayment ? 'Settlement payment' : `${payer} paid · ${item.splitMethod === 'equal' ? 'Equal split' : 'Exact split'}`, 390, y, 410)
       context.fillStyle = '#26231f'
       context.textAlign = 'right'
       context.fillText(money(item.amount), 998, y)
       context.textAlign = 'left'
     })
-    if (expenses.length > visibleExpenses.length) {
+    if (expenses.length > visibleEntries.length) {
       context.fillStyle = '#746e67'
-      context.fillText(`+ ${expenses.length - visibleExpenses.length} more expenses`, 82, expenseHeadingY + 78 + visibleExpenses.length * 58)
+      context.fillText(`+ ${expenses.length - visibleEntries.length} more entries`, 82, expenseHeadingY + 78 + visibleEntries.length * 58)
     }
   } else {
     context.fillStyle = '#746e67'
-    context.fillText('No expenses yet.', 82, expenseHeadingY + 78)
+    context.fillText('No activity yet.', 82, expenseHeadingY + 78)
   }
 
   context.fillStyle = '#746e67'

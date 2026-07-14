@@ -13,6 +13,7 @@ export type ActivityGroup = {
 }
 
 export type SplitMethod = 'equal' | 'exact'
+export type ExpenseKind = 'expense' | 'settlement'
 
 export type Expense = {
   id: string
@@ -23,6 +24,7 @@ export type Expense = {
   splitMethod: SplitMethod
   shares: Record<string, number>
   createdAt: string
+  kind?: ExpenseKind
 }
 
 export type PersistedState = {

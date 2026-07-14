@@ -29,6 +29,7 @@ Opening a snapshot never overwrites browser data, and shared-preview URLs skip a
 - Record who paid and split expenses equally among everyone or only selected people, or enter exact amounts.
 - Keep historical splits stable when friends join later, then explicitly edit an expense when it should include them.
 - See clear person-to-person settlement directions instead of an ambiguous group balance.
+- Record full or partial settlement payments, keep repayment history, and undo mistakes without inflating spending totals.
 - Edit and delete expenses, or delete an entire activity and its local data.
 - Export a shareable PNG summary for friends.
 - Persist data in the browser and synchronize changes across open tabs.

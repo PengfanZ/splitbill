@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calculateSettlements, createEqualShares, createExactShares, money } from './expenses'
+import { calculateMemberBalance, calculateSettlements, createEqualShares, createExactShares, createSettlementPayment, getSettlementRecipientId, isSettlementPayment, money, spendingExpenses } from './expenses'
 import type { Expense, Member } from './models'
 
 const alex: Member = { id: 'alex', name: 'Alex', initials: 'AL', color: '#aaa' }
@@ -58,6 +58,39 @@ describe('expense domain', () => {
       { from: casey, to: alex, amount: 3 },
       { from: casey, to: blair, amount: 5 },
     ])
+  })
+
+  it('creates full or partial settlement payments that reduce balances without counting as spending', () => {
+    const sharedExpense = expense({ amount: 20, payerId: alex.id, shares: { [blair.id]: 20 } })
+    const suggested = calculateSettlements([alex, blair], [sharedExpense])[0]
+    const payment = createSettlementPayment('group-1', suggested, 7.346, 'settlement-1', 'Today')
+
+    expect(payment).toEqual({
+      id: 'settlement-1',
+      groupId: 'group-1',
+      title: 'Settlement payment',
+      amount: 7.35,
+      payerId: blair.id,
+      splitMethod: 'exact',
+      shares: { [alex.id]: 7.35 },
+      createdAt: 'Today',
+      kind: 'settlement',
+    })
+    expect(isSettlementPayment(payment)).toBe(true)
+    expect(isSettlementPayment(sharedExpense)).toBe(false)
+    expect(getSettlementRecipientId(payment)).toBe(alex.id)
+    expect(getSettlementRecipientId(sharedExpense)).toBeNull()
+    expect(spendingExpenses([sharedExpense, payment])).toEqual([sharedExpense])
+    expect(calculateMemberBalance(blair.id, [sharedExpense, payment])).toBeCloseTo(-12.65)
+    expect(calculateSettlements([alex, blair], [sharedExpense, payment])).toEqual([{ from: blair, to: alex, amount: 12.65 }])
+  })
+
+  it('rejects zero, negative, and excessive settlement payments', () => {
+    const suggested = { from: blair, to: alex, amount: 10 }
+    expect(() => createSettlementPayment('group-1', suggested, 0, 'zero')).toThrow(RangeError)
+    expect(() => createSettlementPayment('group-1', suggested, -1, 'negative')).toThrow(RangeError)
+    expect(() => createSettlementPayment('group-1', suggested, 10.01, 'excessive')).toThrow(RangeError)
+    expect(getSettlementRecipientId({ ...expense({}), kind: 'settlement', payerId: alex.id, shares: { [alex.id]: 1 } })).toBeNull()
   })
 
   it('creates equal shares deterministically down to the final cent', () => {

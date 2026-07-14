@@ -8,7 +8,7 @@ import { EMPTY_STATE, loadState, parseState, saveState, STORAGE_KEY } from './da
 import { CURRENT_USER } from './domain/members'
 import type { ActivityGroup, Expense, Member, PersistedState } from './domain/models'
 import { ActivitySummary, ExpenseList, GroupDashboard, MembersRail, SettlementDirections } from './features/activity/ActivityDashboard'
-import { AddFriendModal, CreateGroupModal, ExpenseModal } from './features/activity/ActivityModals'
+import { AddFriendModal, CreateGroupModal, ExpenseModal, SettleUpModal } from './features/activity/ActivityModals'
 import { LiveActivityApiError, type LiveActivityRecord } from './features/liveSharing/liveActivityApi'
 import type { LiveActivityClient } from './features/liveSharing/liveActivityConfig'
 import { LIVE_ACTIVITY_HASH_PREFIX } from './features/liveSharing/liveActivityLink'
@@ -114,16 +114,26 @@ describe('state and formatting helpers', () => {
     const empty = buildShareSummary(group, [CURRENT_USER, maya, jordan], [])
     expect(empty).toContain('Total spent: $0.00')
     expect(empty).toContain('• No expenses yet.')
+    expect(empty).toContain('• No settlement payments recorded.')
     expect(empty).toContain('• Everyone is settled.')
 
     const populated = buildShareSummary(group, [CURRENT_USER, maya, jordan], [
       expense(),
       expense({ id: 'e2', title: 'Taxi', amount: 15, payerId: 'missing', splitMethod: 'exact', shares: {} }),
+      expense({ id: 'payment', kind: 'settlement', title: 'Settlement payment', amount: 5, payerId: 'maya', splitMethod: 'exact', shares: { me: 5 } }),
     ])
+    expect(populated).toContain('Total spent: $45.00')
     expect(populated).toContain('Dinner — $30.00, paid by You (split equally)')
     expect(populated).toContain('Taxi — $15.00, paid by Unknown (exact split)')
-    expect(populated).toContain('Maya Chen pays You $10.00')
+    expect(populated).toContain('Maya Chen paid You $5.00')
+    expect(populated).toContain('Maya Chen pays You $5.00')
     expect(populated).toContain('Jordan pays You $10.00')
+
+    const malformedPayments = buildShareSummary(group, [CURRENT_USER], [
+      expense({ id: 'missing-payer', kind: 'settlement', title: 'Settlement payment', amount: 5, payerId: 'missing', splitMethod: 'exact', shares: {} }),
+      expense({ id: 'missing-recipient', kind: 'settlement', title: 'Settlement payment', amount: 5, payerId: 'missing', splitMethod: 'exact', shares: { missing: 5 } }),
+    ])
+    expect(malformedPayments.match(/Unknown paid Unknown \$5\.00/g)).toHaveLength(2)
   })
 
   it('renders populated and empty PNG cards', async () => {
@@ -133,7 +143,7 @@ describe('state and formatting helpers', () => {
     let drawnText = context.fillText.mock.calls.map(call => call[0])
     expect(drawnText).toContain('1 person sharing expenses')
     expect(drawnText).toContain('Everyone is settled')
-    expect(drawnText).toContain('No expenses yet.')
+    expect(drawnText).toContain('No activity yet.')
     await createSummaryCard(group, [CURRENT_USER, maya, jordan], [expense()])
 
     vi.restoreAllMocks()
@@ -141,6 +151,7 @@ describe('state and formatting helpers', () => {
     const manyExpenses = [
       expense(),
       expense({ id: 'e2', title: 'Taxi', payerId: 'missing', splitMethod: 'exact', shares: {} }),
+      expense({ id: 'payment', kind: 'settlement', title: 'Settlement payment', amount: 5, payerId: 'maya', splitMethod: 'exact', shares: { me: 5 } }),
       ...Array.from({ length: 5 }, (_, index) => expense({ id: `extra-${index}`, title: `Extra ${index}`, payerId: 'missing', shares: {} })),
     ]
     await createSummaryCard(group, [CURRENT_USER, maya, jordan], manyExpenses)
@@ -148,7 +159,16 @@ describe('state and formatting helpers', () => {
     expect(drawnText).toContain('3 people sharing expenses')
     expect(drawnText).toContain('Maya Chen pays You')
     expect(drawnText).toContain('Unknown paid · Exact split')
-    expect(drawnText).toContain('+ 2 more expenses')
+    expect(drawnText).toContain('Maya Chen paid You')
+    expect(drawnText).toContain('Settlement payment')
+    expect(drawnText).toContain('+ 3 more entries')
+
+    await createSummaryCard(group, [CURRENT_USER], [
+      expense({ id: 'missing-payer', kind: 'settlement', title: 'Settlement payment', amount: 5, payerId: 'missing', splitMethod: 'exact', shares: {} }),
+      expense({ id: 'missing-recipient', kind: 'settlement', title: 'Settlement payment', amount: 5, payerId: 'missing', splitMethod: 'exact', shares: { missing: 5 } }),
+    ])
+    drawnText = populatedContext.fillText.mock.calls.map(call => call[0])
+    expect(drawnText.filter(text => text === 'Unknown paid Unknown')).toHaveLength(2)
   })
 
   it('reports unavailable canvas and failed PNG encoding', async () => {
@@ -313,6 +333,10 @@ describe('small UI building blocks', () => {
     expect(screen.getByText('+$30.00')).toHaveClass('positive')
     rerender(<ActivitySummary expenses={[]} />)
     expect(screen.getAllByText('$0.00')[2]).toHaveClass('settled')
+    rerender(<ActivitySummary expenses={[expense(), expense({ id: 'payment', kind: 'settlement', title: 'Settlement payment', amount: 5, payerId: 'maya', splitMethod: 'exact', shares: { me: 5 } })]} />)
+    const summary = screen.getByLabelText('Activity summary')
+    expect(within(summary).getAllByText('$30.00')).toHaveLength(2)
+    expect(within(summary).getByText('+$15.00')).toHaveClass('positive')
   })
 
   it('calculates settlement directions for multiple debtors and the current user', () => {
@@ -330,6 +354,15 @@ describe('small UI building blocks', () => {
     ]} />)
     expect(screen.getByText('Jordan owes You')).toBeVisible()
     expect(screen.getByText('Jordan owes Maya Chen')).toBeVisible()
+  })
+
+  it('forwards a suggested direction from its settle-up button', async () => {
+    const user = userEvent.setup()
+    const onSettleUp = vi.fn()
+    render(<SettlementDirections members={[CURRENT_USER, maya]} expenses={[expense({ amount: 20, shares: { maya: 20 } })]} onSettleUp={onSettleUp} />)
+
+    await user.click(screen.getByRole('button', { name: 'Settle up' }))
+    expect(onSettleUp).toHaveBeenCalledWith({ from: maya, to: CURRENT_USER, amount: 20 })
   })
 
   it('filters expenses and handles known and fallback payers', async () => {
@@ -351,6 +384,25 @@ describe('small UI building blocks', () => {
     expect(screen.getByText((_, node) => node?.textContent === 'You paidSplit equally · 1 person')).toBeVisible()
     rerender(<ExpenseList expenses={[]} members={[CURRENT_USER]} query="" onEditExpense={onEdit} onDeleteExpense={onDelete} />)
     expect(screen.getByText('No expenses yet. Add the first one when you’re ready.')).toBeVisible()
+
+    const payment = expense({ id: 'payment', kind: 'settlement', title: 'Settlement payment', amount: 10, payerId: 'maya', splitMethod: 'exact', shares: { me: 10 } })
+    rerender(<ExpenseList expenses={[payment]} members={[CURRENT_USER, maya]} query="maya" onEditExpense={onEdit} onDeleteExpense={onDelete} />)
+    expect(screen.getByText('Maya Chen paid You')).toBeVisible()
+    expect(screen.getByText('Settlement payment')).toBeVisible()
+    expect(screen.queryByRole('button', { name: /Edit/ })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Delete Maya Chen payment to You' }))
+    expect(onDelete).toHaveBeenCalledWith(payment)
+    rerender(<ExpenseList expenses={[payment]} members={[CURRENT_USER, maya]} query="you" onEditExpense={onEdit} onDeleteExpense={onDelete} />)
+    expect(screen.getByText('Maya Chen paid You')).toBeVisible()
+
+    const missingRecipient = expense({ ...payment, id: 'missing-recipient', payerId: 'missing', shares: { missing: 10 } })
+    rerender(<ExpenseList expenses={[missingRecipient]} members={[CURRENT_USER, maya]} query="unknown" onEditExpense={onEdit} onDeleteExpense={onDelete} />)
+    expect(screen.getByText('No expenses match your search.')).toBeVisible()
+    const malformedPayment = expense({ ...payment, id: 'malformed', payerId: 'missing', shares: {} })
+    rerender(<ExpenseList expenses={[malformedPayment]} members={[CURRENT_USER, maya]} query="" onEditExpense={onEdit} onDeleteExpense={onDelete} />)
+    expect(screen.getByText('You paid Unknown')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Delete You payment to Unknown' }))
+    expect(onDelete).toHaveBeenCalledWith(malformedPayment)
   })
 
   it('renders members and forwards rail and dashboard actions', async () => {
@@ -362,13 +414,14 @@ describe('small UI building blocks', () => {
     const shareLive = vi.fn()
     const editExpense = vi.fn()
     const deleteExpense = vi.fn()
+    const settleUp = vi.fn()
     const { rerender } = render(<MembersRail members={[CURRENT_USER, maya]} expenses={[expense()]} onAddFriend={addFriend} />)
     expect(screen.getByText('Friend')).toBeVisible()
     expect(screen.getByText('$30.00')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Add friend' }))
     expect(addFriend).toHaveBeenCalledOnce()
 
-    rerender(<GroupDashboard group={group} members={[CURRENT_USER, maya, jordan]} expenses={[expense()]} query="" activityFeedback="Summary copied." statusLabel="Live · revision 2" shareQrLabel="Show QR" currentUserRole="Activity creator" onShare={share} onShareQr={shareQr} onShareLive={shareLive} onAddFriend={addFriend} onAddExpense={addExpense} onEditExpense={editExpense} onDeleteExpense={deleteExpense} />)
+    rerender(<GroupDashboard group={group} members={[CURRENT_USER, maya, jordan]} expenses={[expense()]} query="" activityFeedback="Summary copied." statusLabel="Live · revision 2" shareQrLabel="Show QR" currentUserRole="Activity creator" onShare={share} onShareQr={shareQr} onShareLive={shareLive} onAddFriend={addFriend} onAddExpense={addExpense} onSettleUp={settleUp} onEditExpense={editExpense} onDeleteExpense={deleteExpense} />)
     expect(screen.getByRole('status')).toHaveTextContent('Summary copied.')
     expect(screen.getByText('Live · revision 2')).toBeVisible()
     expect(screen.getByText('Activity creator')).toBeVisible()
@@ -377,6 +430,7 @@ describe('small UI building blocks', () => {
     await user.click(screen.getByRole('button', { name: 'Share summary' }))
     await user.click(screen.getAllByRole('button', { name: 'Add friend' })[0])
     await user.click(screen.getByRole('button', { name: 'Add expense' }))
+    await user.click(screen.getAllByRole('button', { name: 'Settle up' })[0])
     await user.click(screen.getByRole('button', { name: 'Edit Dinner' }))
     expect(addFriend).toHaveBeenCalledTimes(2)
     expect(addExpense).toHaveBeenCalledOnce()
@@ -384,6 +438,7 @@ describe('small UI building blocks', () => {
     expect(shareQr).toHaveBeenCalledOnce()
     expect(shareLive).toHaveBeenCalledOnce()
     expect(editExpense).toHaveBeenCalledWith(expect.objectContaining({ title: 'Dinner' }))
+    expect(settleUp).toHaveBeenCalledWith(expect.objectContaining({ amount: 10 }))
 
     rerender(<GroupDashboard group={group} members={[CURRENT_USER, maya]} expenses={[]} query="" activityFeedback={null} />)
     expect(screen.queryByRole('button', { name: 'Share QR' })).not.toBeInTheDocument()
@@ -466,6 +521,36 @@ describe('modals', () => {
       payerId: 'maya',
       shares: { me: 5, maya: 5 },
     }))
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('records full or partial settlements and rejects invalid payment amounts', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn()
+    const onClose = vi.fn()
+    const settlement = { from: maya, to: CURRENT_USER, amount: 10 }
+    const { container } = render(<SettleUpModal group={group} settlement={settlement} onClose={onClose} onSave={onSave} />)
+
+    expect(screen.getByLabelText('Maya Chen pays You')).toBeVisible()
+    expect(screen.getByLabelText('Payment amount')).toHaveValue(10)
+    await user.clear(screen.getByLabelText('Payment amount'))
+    await user.type(screen.getByLabelText('Payment amount'), '10.01')
+    expect(screen.getByRole('alert')).toHaveTextContent('between $0.01 and $10.00')
+    expect(screen.getByRole('button', { name: 'Record payment' })).toBeDisabled()
+    fireEvent.submit(container.querySelector('form')!)
+    expect(onSave).not.toHaveBeenCalled()
+
+    await user.clear(screen.getByLabelText('Payment amount'))
+    await user.type(screen.getByLabelText('Payment amount'), '4.25')
+    await user.click(screen.getByRole('button', { name: 'Record payment' }))
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'settlement',
+      groupId: group.id,
+      amount: 4.25,
+      payerId: maya.id,
+      shares: { me: 4.25 },
+    }), settlement)
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(onClose).toHaveBeenCalledOnce()
   })
@@ -866,6 +951,57 @@ describe('complete app workflows', () => {
     render(<App liveActivityClient={client} />)
     expect(await screen.findByText('Live · revision 2')).toBeVisible()
     expect(window.location.hash).toContain(`${LIVE_ACTIVITY_HASH_PREFIX}A1B2C3D4E5.`)
+  })
+
+  it('saves settlement payments to the canonical live activity', async () => {
+    const user = userEvent.setup()
+    const credentials = { code: 'A1B2C3D4E5', editToken: 'a'.repeat(64) }
+    const snapshot = createSharedActivity(group, [CURRENT_USER, maya, jordan], [expense()])
+    const client = {
+      create: vi.fn(),
+      load: vi.fn().mockResolvedValue({ code: credentials.code, revision: 1, snapshot, updatedAt: '2026-07-14T01:00:00.000Z' }),
+      update: vi.fn().mockImplementation(async (_credentials, nextSnapshot) => ({ code: credentials.code, revision: 2, snapshot: nextSnapshot, updatedAt: '2026-07-14T01:01:00.000Z' })),
+    } satisfies LiveActivityClient
+    window.history.replaceState(null, '', `/${LIVE_ACTIVITY_HASH_PREFIX}${credentials.code}.${credentials.editToken}`)
+    render(<App liveActivityClient={client} />)
+
+    expect(await screen.findByText('Live · revision 1')).toBeVisible()
+    const direction = screen.getByText('Maya Chen owes You').closest('.balance-row') as HTMLElement
+    await user.click(within(direction).getByRole('button', { name: 'Settle up' }))
+    await user.click(screen.getByRole('button', { name: 'Record payment' }))
+
+    expect(await screen.findByText('Live · revision 2')).toBeVisible()
+    expect(client.update).toHaveBeenCalledWith(credentials, expect.objectContaining({
+      expenses: expect.arrayContaining([expect.objectContaining({
+        kind: 'settlement',
+        payerId: maya.id,
+        shares: { me: 10 },
+      })]),
+    }), 1)
+    expect(screen.getByText('Maya Chen paid You')).toBeVisible()
+    expect(screen.queryByText('Maya Chen owes You')).not.toBeInTheDocument()
+  })
+
+  it('keeps the settlement dialog open when a live payment cannot be saved', async () => {
+    const user = userEvent.setup()
+    const credentials = { code: 'A1B2C3D4E5', editToken: 'a'.repeat(64) }
+    const snapshot = createSharedActivity(group, [CURRENT_USER, maya, jordan], [expense()])
+    const client = {
+      create: vi.fn(),
+      load: vi.fn().mockResolvedValue({ code: credentials.code, revision: 1, snapshot, updatedAt: '2026-07-14T01:00:00.000Z' }),
+      update: vi.fn().mockRejectedValue(new LiveActivityApiError('network', 'offline')),
+    } satisfies LiveActivityClient
+    window.history.replaceState(null, '', `/${LIVE_ACTIVITY_HASH_PREFIX}${credentials.code}.${credentials.editToken}`)
+    render(<App liveActivityClient={client} />)
+
+    expect(await screen.findByText('Live · revision 1')).toBeVisible()
+    const direction = screen.getByText('Maya Chen owes You').closest('.balance-row') as HTMLElement
+    await user.click(within(direction).getByRole('button', { name: 'Settle up' }))
+    await user.click(screen.getByRole('button', { name: 'Record payment' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Could not reach the live activity service')
+    expect(screen.getByRole('heading', { name: 'Record a settlement' })).toBeVisible()
+    expect(screen.getByText('Live · revision 1')).toBeVisible()
   })
 
   it('reports backend failures while creating a live activity', async () => {

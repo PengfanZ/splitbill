@@ -2,10 +2,11 @@ import { lazy, Suspense, useState } from 'react'
 import { FreshStart, Sidebar, Topbar } from './components/AppShell'
 import { createIdentity } from './data/identity'
 import { EMPTY_STATE } from './data/storage'
+import { isSettlementPayment, money, spendingExpenses } from './domain/expenses'
 import { ACTIVITY_EMOJIS, addedFriendsMessage, CURRENT_USER, FRIEND_COLORS, initialsFor, makeId } from './domain/members'
-import type { ActivityGroup, Expense, Member } from './domain/models'
+import type { ActivityGroup, Expense, Member, Settlement } from './domain/models'
 import { GroupDashboard } from './features/activity/ActivityDashboard'
-import { AddFriendModal, CreateGroupModal, ExpenseModal } from './features/activity/ActivityModals'
+import { AddFriendModal, CreateGroupModal, ExpenseModal, SettleUpModal } from './features/activity/ActivityModals'
 import { IdentityModal } from './features/identity/IdentityModal'
 import type { LiveActivityClient } from './features/liveSharing/liveActivityConfig'
 import { buildLiveActivityUrl, parseLiveActivityHash } from './features/liveSharing/liveActivityLink'
@@ -26,7 +27,7 @@ import {
 import { usePersistedState } from './hooks/usePersistedState'
 import { useIdentity } from './hooks/useIdentity'
 
-type ModalType = 'group' | 'friend' | 'expense' | 'identity' | 'shared-identity' | null
+type ModalType = 'group' | 'friend' | 'expense' | 'settlement' | 'identity' | 'shared-identity' | null
 type ActivityFeedback = { groupId: string; message: string } | null
 type QrShare = { activity: SharedActivity; url: string; mode: 'snapshot' | 'live'; activityCode?: string } | null
 type AppProps = { liveActivityClient?: LiveActivityClient | null }
@@ -48,6 +49,7 @@ export default function App({ liveActivityClient }: AppProps = {}) {
   const [query, setQuery] = useState('')
   const [modal, setModal] = useState<ModalType>(null)
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
+  const [settlingDirection, setSettlingDirection] = useState<Settlement | null>(null)
   const [activityFeedback, setActivityFeedback] = useState<ActivityFeedback>(null)
   const [qrShare, setQrShare] = useState<QrShare>(null)
   const selectedGroupIdAtLoad = state.selectedGroupId ?? state.groups[0]?.id ?? null
@@ -130,7 +132,7 @@ export default function App({ liveActivityClient }: AppProps = {}) {
 
   const addFriends = async (names: string[]) => {
     if (!activeGroup) return
-    const existingExpenseCount = activeExpenses.length
+    const existingExpenseCount = spendingExpenses(activeExpenses).length
     if (liveActivity) {
       const newFriends = createFriends(names, liveActivity.friends.length)
       const saved = await live.save({
@@ -199,6 +201,28 @@ export default function App({ liveActivityClient }: AppProps = {}) {
     setModal(null)
   }
 
+  const openSettleUp = (settlement: Settlement) => {
+    setSettlingDirection(settlement)
+    setModal('settlement')
+  }
+
+  const closeSettleUpModal = () => {
+    setSettlingDirection(null)
+    setModal(null)
+  }
+
+  const recordSettlement = async (payment: Expense, settlement: Settlement) => {
+    const message = `${settlement.from.name} paid ${settlement.to.name} ${money(payment.amount)}. Remaining balances were recalculated.`
+    if (liveActivity) {
+      const saved = await live.save({ ...liveActivity, expenses: [payment, ...liveActivity.expenses] }, message)
+      if (saved) closeSettleUpModal()
+      return
+    }
+    setState(current => ({ ...current, expenses: [payment, ...current.expenses] }))
+    setActivityFeedback({ groupId: payment.groupId, message })
+    closeSettleUpModal()
+  }
+
   const shareGroup = async (group: ActivityGroup, members: Member[], expenses: Expense[]) => {
     const result = await exportActivitySummary(group, members, expenses)
     setActivityFeedback({ groupId: group.id, message: SHARE_MESSAGES[result] })
@@ -254,7 +278,8 @@ export default function App({ liveActivityClient }: AppProps = {}) {
   }
 
   const deleteExpense = async (expense: Expense) => {
-    if (!window.confirm(`Delete "${expense.title}"? This removes it from the activity and recalculates everyone’s balances.`)) return
+    const label = isSettlementPayment(expense) ? 'this settlement payment' : `"${expense.title}"`
+    if (!window.confirm(`Delete ${label}? This removes it from the activity and recalculates everyone’s balances.`)) return
     if (liveActivity) {
       await live.save({ ...liveActivity, expenses: liveActivity.expenses.filter(item => item.id !== expense.id) }, `${expense.title} was deleted from the live activity.`)
       return
@@ -327,6 +352,7 @@ export default function App({ liveActivityClient }: AppProps = {}) {
                 onShare={() => shareGroup(liveActivity.group, liveMembers, liveActivity.expenses)}
                 onAddFriend={() => setModal('friend')}
                 onAddExpense={openNewExpense}
+                onSettleUp={openSettleUp}
                 onEditExpense={openEditExpense}
                 onDeleteExpense={deleteExpense}
               />
@@ -360,13 +386,14 @@ export default function App({ liveActivityClient }: AppProps = {}) {
             onShareLive={() => openLiveShare(selectedGroup, selectedMembers, selectedExpenses)}
             onAddFriend={() => setModal('friend')}
             onAddExpense={openNewExpense}
+            onSettleUp={openSettleUp}
             onEditExpense={openEditExpense}
             onDeleteExpense={deleteExpense}
           />
         ) : <FreshStart onCreate={() => setModal('group')} />}
       </div>
       {modal === 'group' ? <CreateGroupModal onClose={() => setModal(null)} onSave={createGroup} /> : null}
-      {modal === 'friend' ? <AddFriendModal existingExpenseCount={activeExpenses.length} onClose={() => setModal(null)} onSave={addFriends} /> : null}
+      {modal === 'friend' ? <AddFriendModal existingExpenseCount={spendingExpenses(activeExpenses).length} onClose={() => setModal(null)} onSave={addFriends} /> : null}
       {modal === 'expense' && activeGroup ? (
         <ExpenseModal
           group={activeGroup}
@@ -376,6 +403,7 @@ export default function App({ liveActivityClient }: AppProps = {}) {
           onSave={editingExpense ? updateExpense : addExpense}
         />
       ) : null}
+      {modal === 'settlement' && activeGroup && settlingDirection ? <SettleUpModal group={activeGroup} settlement={settlingDirection} onClose={closeSettleUpModal} onSave={recordSettlement} /> : null}
       {modal === 'shared-identity' && sharedActivity ? <SharedActivityIdentityModal members={sharedMembers} onClose={() => setModal(null)} onSave={viewerId => saveSharedActivity(sharedActivity, viewerId)} /> : null}
       {qrShare ? <Suspense fallback={null}><ShareActivityQrModal groupName={qrShare.activity.group.name} url={qrShare.url} mode={qrShare.mode} activityCode={qrShare.activityCode} onClose={() => setQrShare(null)} onCopy={() => copyQrLink(qrShare)} /></Suspense> : null}
       {!identity || modal === 'identity' ? <IdentityModal initialName={identity?.name} onClose={identity ? () => setModal(null) : undefined} onSave={name => { setIdentity(createIdentity(name)); setModal(null) }} /> : null}

@@ -1,12 +1,43 @@
 import type { Expense, Member, Settlement } from './models'
 
 export const money = (value: number) => `$${Math.abs(value).toFixed(2)}`
+export const isSettlementPayment = (expense: Expense) => expense.kind === 'settlement'
+export const spendingExpenses = (expenses: Expense[]) => expenses.filter(expense => !isSettlementPayment(expense))
+
+export function calculateMemberBalance(memberId: string, expenses: Expense[]) {
+  return expenses.reduce((balance, expense) => (
+    balance
+    + (expense.payerId === memberId ? expense.amount : 0)
+    - (expense.shares[memberId] ?? 0)
+  ), 0)
+}
+
+export function getSettlementRecipientId(expense: Expense) {
+  if (!isSettlementPayment(expense)) return null
+  return Object.keys(expense.shares).find(memberId => memberId !== expense.payerId) ?? null
+}
+
+export function createSettlementPayment(groupId: string, settlement: Settlement, amount: number, id: string, createdAt = 'Just now'): Expense {
+  const amountCents = Math.round(amount * 100)
+  const suggestedCents = Math.round(settlement.amount * 100)
+  if (amountCents <= 0 || amountCents > suggestedCents) throw new RangeError('Settlement amount must be within the suggested payment')
+  const roundedAmount = amountCents / 100
+  return {
+    id,
+    groupId,
+    title: 'Settlement payment',
+    amount: roundedAmount,
+    payerId: settlement.from.id,
+    splitMethod: 'exact',
+    shares: { [settlement.to.id]: roundedAmount },
+    createdAt,
+    kind: 'settlement',
+  }
+}
 
 export function calculateSettlements(members: Member[], expenses: Expense[]): Settlement[] {
   const balances = members.map(member => {
-    const paid = expenses.reduce((sum, expense) => sum + (expense.payerId === member.id ? expense.amount : 0), 0)
-    const share = expenses.reduce((sum, expense) => sum + (expense.shares[member.id] ?? 0), 0)
-    return { member, balance: paid - share }
+    return { member, balance: calculateMemberBalance(member.id, expenses) }
   })
   const creditors = balances
     .filter(item => item.balance > 0.005)
