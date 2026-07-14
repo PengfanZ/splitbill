@@ -4,6 +4,7 @@ import { CURRENT_USER } from '../../domain/members'
 import type { ActivityGroup, Expense, Member } from '../../domain/models'
 import {
   buildSharedActivityUrl,
+  buildSharedActivityQrUrl,
   clearSharedActivityHash,
   COMPRESSED_SHARE_PREFIX,
   createSharedActivity,
@@ -12,6 +13,7 @@ import {
   getSharedActivitySender,
   LINK_SENDER,
   MAX_SHARE_URL_LENGTH,
+  MAX_QR_URL_LENGTH,
   saveSharedActivityCopy,
   SHARE_HASH_PREFIX,
   SHARE_URL_MESSAGES,
@@ -136,6 +138,14 @@ describe('URL activity serialization', () => {
   it('enforces a conservative URL size limit', () => {
     const oversized = { ...shared, group: { ...group, name: incompressibleText(MAX_SHARE_URL_LENGTH) } }
     expect(() => buildSharedActivityUrl(oversized)).toThrow(RangeError)
+  })
+
+  it('keeps QR links below a reliable scanning limit without reducing copy-link capacity', () => {
+    expect(buildSharedActivityQrUrl(shared, 'https://example.com/splitbill/')).toBe(buildSharedActivityUrl(shared, 'https://example.com/splitbill/'))
+
+    const qrOversized = { ...shared, group: { ...group, name: incompressibleText(MAX_QR_URL_LENGTH * 2) } }
+    expect(buildSharedActivityUrl(qrOversized).length).toBeLessThan(MAX_SHARE_URL_LENGTH)
+    expect(() => buildSharedActivityQrUrl(qrOversized)).toThrow(RangeError)
   })
 })
 

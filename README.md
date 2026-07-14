@@ -12,7 +12,7 @@ Production visits are measured with privacy-friendly Cloudflare Web Analytics. T
 
 ## Experimental URL-state sharing
 
-**Copy link** compresses the selected activity into the URL fragment and writes the result directly to the clipboard. Opening that URL shows a validated, read-only preview. Before saving an isolated local copy, the recipient chooses which participant they are; that participant and every payer/share reference are remapped consistently to “You.” Existing uncompressed links remain compatible, opening a link never overwrites browser data, and shared-preview URLs skip analytics because the fragment contains names and expense details.
+**Share QR** compresses the selected activity into the URL fragment and displays a scannable code that opens the Tally website. A copy-link fallback is available in the QR dialog. Opening the destination shows a validated, read-only preview. Before saving an isolated local copy, the recipient chooses which participant they are; that participant and every payer/share reference are remapped consistently to “You.” Existing uncompressed links remain compatible, opening a link never overwrites browser data, and shared-preview URLs skip analytics because the fragment contains names and expense details.
 
 This is asynchronous snapshot sharing, not live collaboration. A newer edit produces a new URL, links cannot be revoked, and activities above the conservative 12,000-character URL limit need a future file or backend transport.
 

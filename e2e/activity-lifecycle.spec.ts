@@ -66,3 +66,53 @@ test('persists a selective equal split and deletes its activity safely', async (
   await expect(page.getByText('No activities yet.')).toBeVisible()
   expect(browserErrors).toEqual([])
 })
+
+test('shares a QR destination that opens the same read-only activity on another device', async ({ page, context, browser }) => {
+  const browserErrors: string[] = []
+  page.on('console', message => {
+    if (message.type() === 'error') browserErrors.push(message.text())
+  })
+  page.on('pageerror', error => browserErrors.push(error.message))
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: 'http://127.0.0.1:4173' })
+
+  await page.goto('./')
+  await page.getByLabel('Display name').fill('Alex')
+  await page.getByRole('button', { name: 'Continue' }).click()
+  await page.getByRole('button', { name: 'Create an activity' }).click()
+  await page.getByLabel('Activity name').fill('Weekend')
+  await page.getByLabel(/Add friends/).fill('Maya')
+  await page.getByRole('button', { name: 'Create activity' }).click()
+  await page.getByRole('button', { name: 'Add expense' }).click()
+  await page.getByLabel('Description').fill('Dinner')
+  await page.getByRole('spinbutton', { name: 'Amount' }).fill('40')
+  await page.getByRole('button', { name: 'Save expense' }).click()
+
+  await page.getByRole('button', { name: 'Share QR' }).click()
+  await expect(page.getByRole('dialog', { name: 'Scan to open Weekend' })).toBeVisible()
+  await expect(page.getByRole('img', { name: 'Weekend shared activity QR code' })).toBeVisible()
+  await page.getByRole('button', { name: 'Copy link' }).click()
+  const sharedUrl = await page.evaluate(() => navigator.clipboard.readText())
+  expect(sharedUrl).toContain('/splitbill/#share=z.')
+
+  const recipientContext = await browser.newContext()
+  await recipientContext.route('https://static.cloudflareinsights.com/**', route => route.fulfill({
+    status: 200,
+    contentType: 'application/javascript',
+    body: '',
+  }))
+  const recipientPage = await recipientContext.newPage()
+  recipientPage.on('console', message => {
+    if (message.type() === 'error') browserErrors.push(message.text())
+  })
+  recipientPage.on('pageerror', error => browserErrors.push(error.message))
+  await recipientPage.goto(sharedUrl)
+
+  await expect(recipientPage.getByLabel('Shared activity preview')).toBeVisible()
+  await expect(recipientPage.getByRole('heading', { name: 'Weekend' })).toBeVisible()
+  await expect(recipientPage.getByText('Read-only snapshot')).toBeVisible()
+  await expect(recipientPage.getByText('Dinner')).toBeVisible()
+  await expect(recipientPage.getByText('Alex paid', { exact: true })).toBeVisible()
+  await expect(recipientPage.getByRole('button', { name: 'Add expense' })).toHaveCount(0)
+  expect(browserErrors).toEqual([])
+  await recipientContext.close()
+})

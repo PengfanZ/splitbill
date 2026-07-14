@@ -166,6 +166,16 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .identity-note small { color: var(--muted); line-height: 1.45; }
 .modal-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; margin-top: 4px; }
 .modal-actions--single { grid-template-columns: 1fr; }
+.qr-share { display: grid; gap: 16px; }
+.qr-code { width: min(100%, 312px); margin: 0 auto; padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: white; box-shadow: 0 12px 30px rgba(34, 29, 25, .08); }
+.qr-code svg { display: block; width: 100%; height: auto; }
+.qr-instructions { display: flex; align-items: flex-start; justify-content: center; gap: 10px; text-align: left; }
+.qr-instructions > svg { color: var(--coral); flex: 0 0 auto; }
+.qr-instructions span, .qr-privacy span { display: grid; gap: 3px; }
+.qr-instructions b, .qr-privacy b { color: var(--ink); font-size: 12px; }
+.qr-instructions small, .qr-privacy small { color: var(--muted); font-size: 10px; line-height: 1.45; }
+.qr-privacy { align-items: flex-start; border-color: #cddfd4; background: #eef6f1; }
+.qr-copy-button { display: flex; align-items: center; justify-content: center; gap: 7px; }
 
 /* Activity-first workspace */
 .group-row:hover, .group-row.is-selected { background: #ece8e2; }

@@ -37,6 +37,16 @@ const storedState = (overrides: Partial<PersistedState> = {}): PersistedState =>
   ...overrides,
 })
 
+function incompressibleText(length: number) {
+  let value = ''
+  let seed = 987_654_321
+  for (let index = 0; index < length; index += 1) {
+    seed = (Math.imul(seed, 1_664_525) + 1_013_904_223) >>> 0
+    value += String.fromCharCode(32 + (seed % 95))
+  }
+  return value
+}
+
 beforeEach(() => {
   vi.restoreAllMocks()
   window.history.replaceState(null, '', '/')
@@ -342,7 +352,7 @@ describe('small UI building blocks', () => {
     const addFriend = vi.fn()
     const addExpense = vi.fn()
     const share = vi.fn()
-    const shareLink = vi.fn()
+    const shareQr = vi.fn()
     const editExpense = vi.fn()
     const deleteExpense = vi.fn()
     const { rerender } = render(<MembersRail members={[CURRENT_USER, maya]} expenses={[expense()]} onAddFriend={addFriend} />)
@@ -351,9 +361,9 @@ describe('small UI building blocks', () => {
     await user.click(screen.getByRole('button', { name: 'Add friend' }))
     expect(addFriend).toHaveBeenCalledOnce()
 
-    rerender(<GroupDashboard group={group} members={[CURRENT_USER, maya, jordan]} expenses={[expense()]} query="" activityFeedback="Summary copied." onShare={share} onShareLink={shareLink} onAddFriend={addFriend} onAddExpense={addExpense} onEditExpense={editExpense} onDeleteExpense={deleteExpense} />)
+    rerender(<GroupDashboard group={group} members={[CURRENT_USER, maya, jordan]} expenses={[expense()]} query="" activityFeedback="Summary copied." onShare={share} onShareQr={shareQr} onAddFriend={addFriend} onAddExpense={addExpense} onEditExpense={editExpense} onDeleteExpense={deleteExpense} />)
     expect(screen.getByRole('status')).toHaveTextContent('Summary copied.')
-    await user.click(screen.getByRole('button', { name: 'Copy link' }))
+    await user.click(screen.getByRole('button', { name: 'Share QR' }))
     await user.click(screen.getByRole('button', { name: 'Share summary' }))
     await user.click(screen.getAllByRole('button', { name: 'Add friend' })[0])
     await user.click(screen.getByRole('button', { name: 'Add expense' }))
@@ -361,12 +371,12 @@ describe('small UI building blocks', () => {
     expect(addFriend).toHaveBeenCalledTimes(2)
     expect(addExpense).toHaveBeenCalledOnce()
     expect(share).toHaveBeenCalledOnce()
-    expect(shareLink).toHaveBeenCalledOnce()
+    expect(shareQr).toHaveBeenCalledOnce()
     expect(editExpense).toHaveBeenCalledWith(expect.objectContaining({ title: 'Dinner' }))
 
     rerender(<GroupDashboard group={group} members={[CURRENT_USER, maya]} expenses={[expense()]} query="" activityFeedback={null} readOnly />)
     expect(screen.getByText('Read-only snapshot')).toBeVisible()
-    expect(screen.queryByRole('button', { name: 'Copy link' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Share QR' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Add friend' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Edit Dinner' })).not.toBeInTheDocument()
   })
@@ -570,6 +580,11 @@ describe('complete app workflows', () => {
     await user.click(screen.getByRole('button', { name: 'Add expense' }))
     await user.click(screen.getByRole('button', { name: 'Close' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Share QR' }))
+    expect(await screen.findByRole('dialog', { name: 'Scan to open Trip' })).toBeVisible()
+    await user.click(screen.getAllByRole('button', { name: 'Close' })[0])
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('creates an activity, adds people and expenses, searches, deletes, and resets', async () => {
@@ -598,6 +613,9 @@ describe('complete app workflows', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('Summary copied')
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Maya pays You $10.00'))
 
+    await user.click(screen.getByRole('button', { name: 'Share QR' }))
+    expect(await screen.findByRole('dialog', { name: 'Scan to open Road trip' })).toBeVisible()
+    expect(screen.getByLabelText('Road trip shared activity QR code').querySelector('svg')).toBeTruthy()
     await user.click(screen.getByRole('button', { name: 'Copy link' }))
     expect(await screen.findByRole('status')).toHaveTextContent('Activity link copied')
     expect(writeText).toHaveBeenLastCalledWith(expect.stringContaining('#share='))
@@ -617,6 +635,17 @@ describe('complete app workflows', () => {
     expect(screen.getByRole('heading', { name: 'Road trip' })).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Reset local data' }))
     expect(screen.getByRole('heading', { name: 'Start your first activity' })).toBeVisible()
+  })
+
+  it('guides oversized activities to the summary fallback instead of rendering an unreliable QR code', async () => {
+    const user = userEvent.setup()
+    const oversizedGroup = { ...group, name: incompressibleText(4_000) }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState({ groups: [oversizedGroup] })))
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'Share QR' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('too large for a reliable QR code')
+    expect(screen.queryByText(/Scan to open/)).not.toBeInTheDocument()
   })
 
   it('selects another activity and synchronizes matching storage events', async () => {

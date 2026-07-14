@@ -2,9 +2,9 @@ import { useMemo } from 'react'
 import {
   Check,
   CircleDollarSign,
-  Link2,
   Pencil,
   Plus,
+  QrCode,
   ReceiptText,
   Share2,
   Sparkles,
@@ -109,7 +109,7 @@ export function MembersRail({ members, expenses, readOnly = false, currentUserRo
   )
 }
 
-export function GroupDashboard({ group, members, expenses, query, activityFeedback, readOnly = false, currentUserLabel = 'You', onShare, onShareLink, onAddFriend, onAddExpense, onEditExpense, onDeleteExpense }: {
+export function GroupDashboard({ group, members, expenses, query, activityFeedback, readOnly = false, currentUserLabel = 'You', onShare, onShareQr, onAddFriend, onAddExpense, onEditExpense, onDeleteExpense }: {
   group: ActivityGroup
   members: Member[]
   expenses: Expense[]
@@ -118,7 +118,7 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
   readOnly?: boolean
   currentUserLabel?: string
   onShare?: () => void
-  onShareLink?: () => void
+  onShareQr?: () => void
   onAddFriend?: () => void
   onAddExpense?: () => void
   onEditExpense?: (expense: Expense) => void
@@ -129,7 +129,7 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
       <div className="main-column">
         <header className="group-welcome">
           <div><span className="date">{group.emoji} Activity group</span><h1>{group.name}</h1><p>{members.length} people sharing expenses together.</p></div>
-          <div className="group-share">{readOnly ? <span className="read-only-badge">Read-only snapshot</span> : <div className="group-actions"><button className="outline-button" onClick={onShareLink}><Link2 size={16} />Copy link</button><button className="outline-button" onClick={onShare}><Share2 size={16} />Share summary</button><button className="outline-button" onClick={onAddFriend}><Users size={16} />Add friend</button><button className="confirm-button" onClick={onAddExpense}><Plus size={17} />Add expense</button></div>}{activityFeedback ? <span className="activity-feedback" role="status">{activityFeedback}</span> : null}</div>
+          <div className="group-share">{readOnly ? <span className="read-only-badge">Read-only snapshot</span> : <div className="group-actions"><button className="outline-button" onClick={onShareQr}><QrCode size={16} />Share QR</button><button className="outline-button" onClick={onShare}><Share2 size={16} />Share summary</button><button className="outline-button" onClick={onAddFriend}><Users size={16} />Add friend</button><button className="confirm-button" onClick={onAddExpense}><Plus size={17} />Add expense</button></div>}{activityFeedback ? <span className="activity-feedback" role="status">{activityFeedback}</span> : null}</div>
         </header>
         <ActivitySummary expenses={expenses} currentUserLabel={currentUserLabel} />
         <SettlementDirections members={members} expenses={expenses} currentUserLabel={currentUserLabel} />

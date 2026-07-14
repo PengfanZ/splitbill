@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { FreshStart, Sidebar, Topbar } from './components/AppShell'
 import { createIdentity } from './data/identity'
 import { EMPTY_STATE } from './data/storage'
@@ -13,18 +13,23 @@ import { exportActivitySummary, SHARE_MESSAGES } from './features/sharing/shareA
 import { SharedActivityIdentityModal } from './features/sharing/SharedActivityIdentityModal'
 import {
   clearSharedActivityHash,
+  buildSharedActivityQrUrl,
   createSharedActivity,
   decodeSharedActivityHash,
   getSharedActivitySender,
   saveSharedActivityCopy,
   shareActivityUrl,
   SHARE_URL_MESSAGES,
+  type SharedActivity,
 } from './features/sharing/shareActivityUrl'
 import { usePersistedState } from './hooks/usePersistedState'
 import { useIdentity } from './hooks/useIdentity'
 
 type ModalType = 'group' | 'friend' | 'expense' | 'identity' | 'shared-identity' | null
 type ActivityFeedback = { groupId: string; message: string } | null
+type QrShare = { activity: SharedActivity; url: string } | null
+
+const ShareActivityQrModal = lazy(() => import('./features/sharing/ShareActivityQrModal').then(module => ({ default: module.ShareActivityQrModal })))
 
 function createFriends(names: string[], colorOffset: number): Member[] {
   return names.map((name, index) => ({
@@ -42,6 +47,7 @@ export default function App() {
   const [modal, setModal] = useState<ModalType>(null)
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
   const [activityFeedback, setActivityFeedback] = useState<ActivityFeedback>(null)
+  const [qrShare, setQrShare] = useState<QrShare>(null)
   const [sharedActivity, setSharedActivity] = useState(() => decodeSharedActivityHash(window.location.hash))
 
   useEffect(() => {
@@ -144,9 +150,19 @@ export default function App() {
     setActivityFeedback({ groupId: group.id, message: SHARE_MESSAGES[result] })
   }
 
-  const shareGroupLink = async (group: ActivityGroup, members: Member[], expenses: Expense[]) => {
-    const result = await shareActivityUrl(createSharedActivity(group, members, expenses))
-    setActivityFeedback({ groupId: group.id, message: SHARE_URL_MESSAGES[result] })
+  const openShareQr = (group: ActivityGroup, members: Member[], expenses: Expense[]) => {
+    const activity = createSharedActivity(group, members, expenses)
+    try {
+      setQrShare({ activity, url: buildSharedActivityQrUrl(activity) })
+    } catch {
+      setActivityFeedback({ groupId: group.id, message: 'This activity is too large for a reliable QR code. Use Share summary instead.' })
+    }
+  }
+
+  const copyQrLink = async (share: NonNullable<QrShare>) => {
+    const result = await shareActivityUrl(share.activity)
+    setQrShare(null)
+    setActivityFeedback({ groupId: share.activity.group.id, message: SHARE_URL_MESSAGES[result] })
   }
 
   const deleteExpense = (expense: Expense) => {
@@ -220,7 +236,7 @@ export default function App() {
             query={query}
             activityFeedback={activityFeedback?.groupId === selectedGroup.id ? activityFeedback.message : null}
             onShare={() => shareGroup(selectedGroup, selectedMembers, selectedExpenses)}
-            onShareLink={() => shareGroupLink(selectedGroup, selectedMembers, selectedExpenses)}
+            onShareQr={() => openShareQr(selectedGroup, selectedMembers, selectedExpenses)}
             onAddFriend={() => setModal('friend')}
             onAddExpense={openNewExpense}
             onEditExpense={openEditExpense}
@@ -240,6 +256,7 @@ export default function App() {
         />
       ) : null}
       {modal === 'shared-identity' && sharedActivity ? <SharedActivityIdentityModal members={sharedMembers} onClose={() => setModal(null)} onSave={viewerId => saveSharedActivity(sharedActivity, viewerId)} /> : null}
+      {qrShare ? <Suspense fallback={null}><ShareActivityQrModal groupName={qrShare.activity.group.name} url={qrShare.url} onClose={() => setQrShare(null)} onCopy={() => copyQrLink(qrShare)} /></Suspense> : null}
       {!identity || modal === 'identity' ? <IdentityModal initialName={identity?.name} onClose={identity ? () => setModal(null) : undefined} onSave={name => { setIdentity(createIdentity(name)); setModal(null) }} /> : null}
     </div>
   )

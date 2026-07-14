@@ -5,6 +5,7 @@ import type { ActivityGroup, Expense, Member, PersistedState } from '../../domai
 export const SHARE_HASH_PREFIX = '#share='
 export const COMPRESSED_SHARE_PREFIX = 'z.'
 export const MAX_SHARE_URL_LENGTH = 12_000
+export const MAX_QR_URL_LENGTH = 2_000
 export const LINK_SENDER: Member = {
   ...CURRENT_USER,
   name: 'Link sender',
@@ -135,6 +136,12 @@ export function buildSharedActivityUrl(activity: SharedActivity, currentUrl = wi
   url.hash = `${SHARE_HASH_PREFIX.slice(1)}${encodeSharedActivity(activity)}`
   if (url.href.length > MAX_SHARE_URL_LENGTH) throw new RangeError('Shared activity URL is too large')
   return url.href
+}
+
+export function buildSharedActivityQrUrl(activity: SharedActivity, currentUrl = window.location.href) {
+  const url = buildSharedActivityUrl(activity, currentUrl)
+  if (url.length > MAX_QR_URL_LENGTH) throw new RangeError('Shared activity is too large for a reliable QR code')
+  return url
 }
 
 export async function shareActivityUrl(activity: SharedActivity, currentUrl = window.location.href): Promise<ShareUrlResult> {
