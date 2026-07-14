@@ -99,16 +99,11 @@ jobs:
       - name: Build the production GitHub Pages artifact
         run: npm run build:pages
 
-      - name: Set up Supabase CLI
-        uses: supabase/setup-cli@v1
-        with:
-          version: 2.109.1
-
       - name: Link the production database
-        run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
+        run: npx supabase link --project-ref "$SUPABASE_PROJECT_ID"
 
       - name: Apply pending production migrations
-        run: supabase db push
+        run: npx supabase db push
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v6

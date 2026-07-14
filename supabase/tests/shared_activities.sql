@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(37);
+select plan(39);
 
 select has_schema('private', 'private schema exists');
 select has_table('private', 'shared_activities', 'shared activity storage exists');
@@ -12,6 +12,12 @@ select is(
   'shared activity storage has row security enabled'
 );
 select has_table('private', 'shared_activity_rate_limits', 'private API rate limits exist');
+select has_index(
+  'private',
+  'shared_activity_rate_limits',
+  'shared_activity_rate_limits_window_started_at_idx',
+  'rate limit cleanup is indexed'
+);
 select is(
   (select relrowsecurity from pg_class where oid = 'private.shared_activity_rate_limits'::regclass),
   true,
@@ -139,7 +145,7 @@ select throws_ok(
 
 select throws_ok(
   format(
-    'select public.update_shared_activity(%L, %L, 0, %L::jsonb)',
+    'select public.update_shared_activity_v2(%L, %L, 0, %L::jsonb)',
     (select code from created_activity),
     (select edit_token from created_activity),
     (select snapshot::text from created_activity)
@@ -151,7 +157,7 @@ select throws_ok(
 
 select throws_ok(
   format(
-    'select public.update_shared_activity(%L, %L, null, %L::jsonb)',
+    'select public.update_shared_activity_v2(%L, %L, null, %L::jsonb)',
     (select code from created_activity),
     (select edit_token from created_activity),
     (select snapshot::text from created_activity)
@@ -159,6 +165,18 @@ select throws_ok(
   '22023',
   'invalid_expected_revision',
   'null revisions are rejected explicitly'
+);
+
+select throws_ok(
+  format(
+    'select public.update_shared_activity_v2(%L, %L, 3, %L::jsonb)',
+    (select code from created_activity),
+    repeat('0', 64),
+    (select snapshot::text from created_activity)
+  ),
+  'P0002',
+  'shared_activity_not_found',
+  'conflict-aware updates do not reveal invalid edit tokens'
 );
 
 select throws_ok(
