@@ -84,7 +84,7 @@ export default function App({ liveActivityClient }: AppProps = {}) {
   }, [liveClient])
 
   useEffect(() => {
-    if (!liveCredentials || !liveClient) return
+    if (!liveCredentials || !liveClient || (liveSession && liveSession.credentials.code === liveCredentials.code && liveSession.credentials.editToken === liveCredentials.editToken)) return
     let active = true
     liveClient.load(liveCredentials).then(record => {
       if (!active) return
@@ -96,7 +96,7 @@ export default function App({ liveActivityClient }: AppProps = {}) {
       if (active) setLiveLoading(false)
     })
     return () => { active = false }
-  }, [liveClient, liveCredentials])
+  }, [liveClient, liveCredentials, liveSession])
 
   const selectedGroup = state.groups.find(group => group.id === state.selectedGroupId) ?? state.groups[0] ?? null
   const currentUser = identity ?? CURRENT_USER
@@ -285,8 +285,15 @@ export default function App({ liveActivityClient }: AppProps = {}) {
     try {
       const created = await liveClient.create(activity)
       const credentials = { code: created.code, editToken: created.editToken }
-      setQrShare({ activity, url: buildLiveActivityUrl(credentials), mode: 'live', activityCode: created.code })
-      setActivityFeedback({ groupId: group.id, message: `Live activity ${created.code} is ready to share.` })
+      const liveUrl = buildLiveActivityUrl(credentials)
+      window.history.replaceState(null, '', liveUrl)
+      setLiveCredentials(credentials)
+      setLiveSession({ credentials, record: created })
+      setLiveLoading(false)
+      setSharedActivity(null)
+      setLiveNotice(`Live activity ${created.code} is ready. Changes in this tab now sync to the shared activity.`)
+      setActivityFeedback(null)
+      setQrShare({ activity, url: liveUrl, mode: 'live', activityCode: created.code })
     } catch (error) {
       setActivityFeedback({ groupId: group.id, message: liveActivityErrorMessage(error) })
     }
@@ -307,12 +314,10 @@ export default function App({ liveActivityClient }: AppProps = {}) {
       try {
         await navigator.clipboard.writeText(share.url)
         setQrShare(null)
-        if (liveSession) setLiveNotice('Live activity link copied. Anyone with it can edit this activity.')
-        else setActivityFeedback({ groupId: share.activity.group.id, message: 'Live activity link copied.' })
+        setLiveNotice('Live activity link copied. Anyone with it can edit this activity.')
       } catch {
         const message = 'Could not copy the live activity link. Copy it from the browser address bar instead.'
-        if (liveSession) setLiveNotice(message)
-        else setActivityFeedback({ groupId: share.activity.group.id, message })
+        setLiveNotice(message)
       }
       return
     }

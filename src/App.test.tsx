@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
@@ -798,14 +798,14 @@ describe('complete app workflows', () => {
     expect(screen.getByRole('heading', { name: 'Start your first activity' })).toBeVisible()
   })
 
-  it('creates and copies a short editable live activity link', async () => {
+  it('moves the creator into the live activity before later edits', async () => {
     const user = userEvent.setup()
     localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState({ expenses: [expense()] })))
     const snapshot = createSharedActivity(group, [CURRENT_USER, maya, jordan], [expense()])
     const client = {
       create: vi.fn().mockResolvedValue({ code: 'A1B2C3D4E5', editToken: 'a'.repeat(64), revision: 1, snapshot, updatedAt: '2026-07-14T01:00:00.000Z' }),
       load: vi.fn(),
-      update: vi.fn(),
+      update: vi.fn().mockImplementation(async (_credentials, nextSnapshot) => ({ code: 'A1B2C3D4E5', revision: 2, snapshot: nextSnapshot, updatedAt: '2026-07-14T01:01:00.000Z' })),
     } satisfies LiveActivityClient
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
@@ -813,25 +813,47 @@ describe('complete app workflows', () => {
 
     await user.click(screen.getByRole('button', { name: 'Share live' }))
     expect(await screen.findByRole('dialog', { name: 'Scan to join Trip' })).toBeVisible()
-    expect(screen.getByText('Live activity · A1B2C3D4E5')).toBeVisible()
+    expect(within(screen.getByRole('dialog', { name: 'Scan to join Trip' })).getByText('Live activity · A1B2C3D4E5')).toBeVisible()
+    expect(screen.getByText('Live · revision 1')).toBeVisible()
+    expect(window.location.hash).toContain(`${LIVE_ACTIVITY_HASH_PREFIX}A1B2C3D4E5.`)
     expect(client.create).toHaveBeenCalledWith(expect.objectContaining({ group: expect.objectContaining({ name: 'Trip' }) }))
+    expect(client.load).not.toHaveBeenCalled()
     await user.click(screen.getByRole('button', { name: 'Copy link' }))
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining(`${LIVE_ACTIVITY_HASH_PREFIX}A1B2C3D4E5.`))
     expect(await screen.findByRole('status')).toHaveTextContent('Live activity link copied')
 
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: vi.fn().mockRejectedValue(new Error('blocked')) } })
-    await user.click(screen.getByRole('button', { name: 'Share live' }))
+    await user.click(screen.getByRole('button', { name: 'Show QR' }))
     await user.click(await screen.findByRole('button', { name: 'Copy link' }))
     expect(await screen.findByRole('status')).toHaveTextContent('Could not copy the live activity link')
     await user.click(screen.getAllByRole('button', { name: 'Close' })[0])
 
-    client.create.mockRejectedValueOnce(new LiveActivityApiError('network', 'offline'))
+    await user.click(screen.getByRole('button', { name: 'Add expense' }))
+    await user.type(screen.getByLabelText('Description'), 'Creator expense')
+    await user.type(screen.getByLabelText('Amount'), '12')
+    await user.click(screen.getByRole('button', { name: 'Save expense' }))
+    expect(await screen.findByText('Creator expense', { exact: true })).toBeVisible()
+    expect(screen.getByText('Live · revision 2')).toBeVisible()
+    expect(client.update).toHaveBeenCalledWith(expect.objectContaining({ code: 'A1B2C3D4E5' }), expect.objectContaining({ expenses: expect.arrayContaining([expect.objectContaining({ title: 'Creator expense' })]) }), 1)
+  })
+
+  it('reports backend failures while creating a live activity', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState()))
+    const client = {
+      create: vi.fn()
+        .mockRejectedValueOnce(new LiveActivityApiError('network', 'offline'))
+        .mockRejectedValueOnce(new Error('unexpected'))
+        .mockRejectedValueOnce(new LiveActivityApiError('backend', 'broken')),
+      load: vi.fn(),
+      update: vi.fn(),
+    } satisfies LiveActivityClient
+    render(<App liveActivityClient={client} />)
+
     await user.click(screen.getByRole('button', { name: 'Share live' }))
     expect(await screen.findByRole('status')).toHaveTextContent('Could not reach the live activity service')
-    client.create.mockRejectedValueOnce(new Error('unexpected'))
     await user.click(screen.getByRole('button', { name: 'Share live' }))
     expect(await screen.findByRole('status')).toHaveTextContent('could not be updated')
-    client.create.mockRejectedValueOnce(new LiveActivityApiError('backend', 'broken'))
     await user.click(screen.getByRole('button', { name: 'Share live' }))
     expect(await screen.findByRole('status')).toHaveTextContent('could not be updated')
   })
