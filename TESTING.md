@@ -20,6 +20,7 @@ Every push and pull request type-checks and lints all TypeScript files, then run
 - `npm run test:behavior` runs the focused happy-path and edge-case suite.
 - `npm run test:coverage` runs the complete suite and enforces coverage thresholds.
 - `npm run test:e2e` builds the GitHub Pages bundle, starts a local preview, and runs the Chromium integration suite.
+- `npm run test:backend` runs the pgTAP contract suite against the local Supabase database.
 - `npm run typecheck` validates executable modules, configuration, and type-only files such as `models.ts`.
 
 Add a regression test whenever a bug is fixed. A test should fail for the broken behavior and pass after the fix.

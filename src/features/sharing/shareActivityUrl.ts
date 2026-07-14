@@ -109,6 +109,14 @@ export function createSharedActivity(group: ActivityGroup, members: Member[], ex
   }
 }
 
+export function isSharedActivity(value: unknown): value is SharedActivity {
+  return isRecord(value)
+    && value.version === 2
+    && isMember(value.sender)
+    && value.sender.id === 'me'
+    && hasValidActivityData(value)
+}
+
 export function encodeSharedActivity(activity: SharedActivity) {
   return `${COMPRESSED_SHARE_PREFIX}${compressToEncodedURIComponent(JSON.stringify(activity))}`
 }
@@ -124,7 +132,7 @@ export function decodeSharedActivityHash(hash: string): SharedActivity | null {
     const parsed: unknown = JSON.parse(serialized)
     if (!isRecord(parsed) || !hasValidActivityData(parsed)) return null
     if (parsed.version === 1) return { ...parsed, version: 2, sender: LINK_SENDER } as SharedActivity
-    if (parsed.version !== 2 || !isMember(parsed.sender) || parsed.sender.id !== 'me') return null
+    if (!isSharedActivity(parsed)) return null
     return parsed as SharedActivity
   } catch {
     return null

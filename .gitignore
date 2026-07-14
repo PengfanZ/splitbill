@@ -4,6 +4,7 @@
 /playwright-report
 /test-results
 /.env*
+!/.env.example
 *.tsbuildinfo
 npm-debug.log*
 .DS_Store
