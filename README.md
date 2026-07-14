@@ -16,6 +16,8 @@ Production visits are measured with privacy-friendly Cloudflare Web Analytics. T
 
 This is asynchronous snapshot sharing, not live collaboration. A newer edit produces a new URL, links cannot be revoked, and activities above the conservative 12,000-character URL limit need a future file or backend transport.
 
+An experimental Supabase-backed collaboration path is available on the `codex/shared-activity-backend` branch. With the two `VITE_SUPABASE_*` settings configured, **Share live** creates a short capability URL that lets trusted recipients edit the same revision-checked activity. See [the live sharing experiment](docs/LIVE_SHARING_EXPERIMENT.md) for setup, security boundaries, and verification details.
+
 [Try the live demo](https://pengfanz.github.io/splitbill/)
 
 ![Friends sharing expenses with Tally](public/og.png)

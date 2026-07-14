@@ -116,3 +116,56 @@ test('shares a QR destination that opens the same read-only activity on another 
   expect(browserErrors).toEqual([])
   await recipientContext.close()
 })
+
+test('shares one editable backend activity across browser pages', async ({ page, context }) => {
+  const code = 'A1B2C3D4E5'
+  const editToken = 'a'.repeat(64)
+  let revision = 1
+  let snapshot: unknown
+
+  await context.route('https://live-sharing.test/rest/v1/rpc/**', async route => {
+    const functionName = new URL(route.request().url()).pathname.split('/').at(-1)
+    const body = route.request().postDataJSON()
+    if (functionName === 'create_shared_activity') {
+      snapshot = body.p_snapshot
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ code, edit_token: editToken, revision, snapshot, updated_at: '2026-07-14T01:00:00.000Z' }]) })
+      return
+    }
+    if (functionName === 'load_shared_activity') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ code, revision, snapshot, updated_at: '2026-07-14T01:00:00.000Z' }]) })
+      return
+    }
+    snapshot = body.p_snapshot
+    revision += 1
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ code, revision, snapshot, updated_at: '2026-07-14T01:01:00.000Z' }]) })
+  })
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: 'http://127.0.0.1:4173' })
+
+  await page.goto('./')
+  await page.getByLabel('Display name').fill('Alex')
+  await page.getByRole('button', { name: 'Continue' }).click()
+  await page.getByRole('button', { name: 'Create an activity' }).click()
+  await page.getByLabel('Activity name').fill('Shared cabin')
+  await page.getByLabel(/Add friends/).fill('Maya')
+  await page.getByRole('button', { name: 'Create activity' }).click()
+  await page.getByRole('button', { name: 'Share live' }).click()
+  await expect(page.getByRole('dialog', { name: 'Scan to join Shared cabin' })).toBeVisible()
+  await page.getByRole('button', { name: 'Copy link' }).click()
+  const liveUrl = await page.evaluate(() => navigator.clipboard.readText())
+  expect(liveUrl).toContain(`#live=${code}.${editToken}`)
+
+  const editor = await context.newPage()
+  await editor.goto(liveUrl)
+  await expect(editor.getByText('Live · revision 1')).toBeVisible()
+  await editor.getByRole('button', { name: 'Add expense' }).click()
+  await editor.getByLabel('Description').fill('Firewood')
+  await editor.getByRole('spinbutton', { name: 'Amount' }).fill('24')
+  await editor.getByRole('button', { name: 'Save expense' }).click()
+  await expect(editor.getByText('Firewood', { exact: true })).toBeVisible()
+  await expect(editor.getByText('Live · revision 2')).toBeVisible()
+
+  const observer = await context.newPage()
+  await observer.goto(liveUrl)
+  await expect(observer.getByText('Live · revision 2')).toBeVisible()
+  await expect(observer.getByText('Firewood', { exact: true })).toBeVisible()
+})

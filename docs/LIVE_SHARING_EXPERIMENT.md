@@ -4,7 +4,7 @@ This branch tests a backend-backed activity without replacing Tally's current lo
 
 ## Proposed user flow
 
-1. A person creates an activity locally and chooses **Create live activity**.
+1. A person creates an activity locally and chooses **Share live**.
 2. The backend stores one canonical activity snapshot and returns:
    - a 10-character activity code, such as `A1B2C3D4E5`;
    - a random 64-character edit token, shown only inside the share link;
@@ -56,7 +56,7 @@ An update sends `expectedRevision`. The database obtains a row lock, compares th
 - Unknown code or invalid token: SQLSTATE `P0002`, surfaced as `not-found` without revealing which part was wrong.
 - Invalid snapshot or revision: SQLSTATE `22023`, surfaced as `invalid-input`.
 
-The first UI experiment should show a conflict banner with **Reload latest activity**. Automatic field-level merging should wait until we have evidence that whole-activity optimistic concurrency is too disruptive.
+The UI shows a conflict banner with **Refresh latest**. Automatic field-level merging should wait until we have evidence that whole-activity optimistic concurrency is too disruptive.
 
 ## Security limitations before production
 
@@ -68,11 +68,19 @@ The first UI experiment should show a conflict banner with **Reload latest activ
 - Add a Content Security Policy that includes only the configured Supabase project.
 - Enable Realtime only after defining how capability-token clients are authorized to subscribe.
 
-## Next frontend slice
+## Implemented frontend experiment
 
-1. Feature-detect the two Supabase environment variables.
-2. Add **Create live activity** beside the existing static QR action.
-3. Render the returned short live link as a QR code.
-4. Load `#live=` links into a dedicated live-activity state hook.
-5. Save edits with the last loaded revision and show conflict/retry states.
-6. Poll for a newer revision initially; evaluate Supabase Realtime after the authorization model is proven.
+- **Share live** creates a backend activity without removing the existing read-only snapshot option.
+- The QR dialog displays the short `#live=` capability URL and copies it directly to the clipboard.
+- Opening a live link loads the canonical backend snapshot and enables adding friends plus creating, editing, and deleting expenses.
+- Every mutation sends the last loaded revision. A stale save is rejected with a visible conflict message instead of overwriting someone else's work.
+- **Refresh latest** manually loads the current revision, and **Show QR** reopens the same live link for sharing.
+- A missing backend configuration, invalid link, network failure, and clipboard failure each have explicit UI feedback.
+
+Automatic polling and Supabase Realtime are intentionally deferred. Manual refresh keeps this first experiment predictable while the capability-token authorization model is evaluated.
+
+## Verification
+
+- Vitest enforces 100% statement, branch, function, and line coverage, including happy paths and failure states.
+- Playwright covers a multi-page collaboration flow: one page creates a live link, another edits it, and a third reopens the same code at the new revision.
+- pgTAP verifies the SQL capability, privacy, validation, and optimistic-concurrency contract.

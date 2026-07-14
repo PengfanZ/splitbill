@@ -29,3 +29,9 @@ export function parseLiveActivityHash(hash: string): LiveActivityCredentials | n
   const credentials = { code, editToken }
   return extra === undefined && isLiveActivityCredentials(credentials) ? credentials : null
 }
+
+export function clearLiveActivityHash() {
+  const url = new URL(window.location.href)
+  url.hash = ''
+  window.history.replaceState(null, '', url)
+}

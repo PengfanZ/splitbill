@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildLiveActivityUrl,
+  clearLiveActivityHash,
   isLiveActivityCredentials,
   LIVE_ACTIVITY_HASH_PREFIX,
   parseLiveActivityHash,
@@ -37,5 +38,12 @@ describe('live activity capability links', () => {
     `#live=BADCODE.${credentials.editToken}`,
   ])('rejects invalid live activity hashes: %s', hash => {
     expect(parseLiveActivityHash(hash)).toBeNull()
+  })
+
+  it('clears a live capability from the current address', () => {
+    window.history.replaceState(null, '', `/splitbill/${LIVE_ACTIVITY_HASH_PREFIX}${credentials.code}.${credentials.editToken}`)
+    clearLiveActivityHash()
+    expect(window.location.hash).toBe('')
+    expect(window.location.pathname).toBe('/splitbill/')
   })
 })

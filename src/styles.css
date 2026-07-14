@@ -213,6 +213,9 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .group-actions button { display: flex; align-items: center; justify-content: center; gap: 7px; min-width: 106px; padding-inline: 13px; }
 .activity-feedback { color: var(--green); font-size: 11px; font-weight: 600; max-width: 470px; text-align: right; line-height: 1.4; }
 .read-only-badge { display: inline-flex; align-items: center; min-height: 34px; padding: 0 13px; border: 1px solid #c9ddd1; border-radius: 999px; background: #eaf4ee; color: var(--green); font-size: 11px; font-weight: 700; }
+.live-badge { gap: 6px; }
+.shared-preview.live-preview { border-color: #c9ddd1; }
+.shared-preview.live-preview .live-error { color: #a33c32; }
 .shared-preview { margin: 18px 36px 0; padding: 15px 17px; border: 1px solid #c9ddd1; border-radius: 14px; background: #edf6f0; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
 .shared-preview > div { display: flex; align-items: center; gap: 10px; }
 .shared-preview > div:first-child { display: grid; gap: 3px; }
