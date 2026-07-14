@@ -4,7 +4,7 @@ Tally is designed for small trusted groups.
 
 ## Data stored in your browser
 
-Your display name, local activities, saved live shortcuts, friends, and expenses are stored in browser local storage. Clearing site data removes that browser's local copy and shortcuts.
+Your display name, local activities, saved live shortcuts, friends, and expenses are stored in browser local storage. A random analytics session token is stored separately in session storage and disappears when the browser session ends. Clearing site data removes that browser's local copy and shortcuts.
 
 ## Data stored for live activities
 
@@ -14,7 +14,11 @@ Anyone with the complete live URL can read and edit the activity. Share it only 
 
 ## Abuse protection and analytics
 
-The backend rate-limits requests using a one-way hash of the client IP address; the raw address is not stored in the application rate-limit table. Production builds with live sharing enabled do not load the third-party Cloudflare analytics script because it could observe capability URLs in the browser.
+The backend rate-limits requests using a one-way hash of the client IP address; the raw address is not stored in the application rate-limit table.
+
+Production records a small allowlist of first-party product events for both local and live workflows. Each event contains only an event name, a coarse `local`, `live`, or `snapshot` surface, a one-way hash of the session token, and the event time. Analytics never receives a page URL or fragment, activity code, edit token, participant identity, activity name, expense description, amount, balance, or activity snapshot. Event rows expire after 90 days. Browser roles can write through a validated, rate-limited RPC but cannot read analytics events or reports.
+
+Frontend-only production builds may use Cloudflare Web Analytics on ordinary app pages. The third-party beacon is always suppressed on `#share=` and `#live=` URLs so it cannot observe shared state or capability tokens.
 
 ## Scope
 

@@ -1,4 +1,5 @@
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import type { AnalyticsClient, AnalyticsSurface } from './analytics'
 import { FreshStart, Sidebar, Topbar } from './components/AppShell'
 import { createIdentity } from './data/identity'
 import { EMPTY_STATE } from './data/storage'
@@ -30,7 +31,10 @@ import { useIdentity } from './hooks/useIdentity'
 type ModalType = 'group' | 'friend' | 'expense' | 'settlement' | 'identity' | 'shared-identity' | null
 type ActivityFeedback = { groupId: string; message: string } | null
 type QrShare = { activity: SharedActivity; url: string; mode: 'snapshot' | 'live'; activityCode?: string } | null
-type AppProps = { liveActivityClient?: LiveActivityClient | null }
+type AppProps = {
+  analyticsClient?: AnalyticsClient | null
+  liveActivityClient?: LiveActivityClient | null
+}
 
 const ShareActivityQrModal = lazy(() => import('./features/sharing/ShareActivityQrModal').then(module => ({ default: module.ShareActivityQrModal })))
 
@@ -43,7 +47,7 @@ function createFriends(names: string[], colorOffset: number): Member[] {
   }))
 }
 
-export default function App({ liveActivityClient }: AppProps = {}) {
+export default function App({ analyticsClient = null, liveActivityClient }: AppProps = {}) {
   const [state, setState] = usePersistedState()
   const [identity, setIdentity] = useIdentity()
   const [query, setQuery] = useState('')
@@ -78,6 +82,30 @@ export default function App({ liveActivityClient }: AppProps = {}) {
   const displayedLiveNotice = live.displayedNotice
   const liveActivityCodes = live.activityCodes
   const bookmarkedLiveGroupId = live.bookmarkedGroupId
+  const initialOpenTracked = useRef(false)
+  const trackedLiveActivityCode = useRef<string | null>(null)
+  const analyticsSurface: AnalyticsSurface = live.credentials
+    ? 'live'
+    : sharedActivity
+      ? 'snapshot'
+      : 'local'
+
+  useEffect(() => {
+    if (initialOpenTracked.current) return
+    initialOpenTracked.current = true
+    analyticsClient?.track('app_opened', analyticsSurface)
+  }, [analyticsClient, analyticsSurface])
+
+  useEffect(() => {
+    const code = live.session?.record.code ?? null
+    if (!code) {
+      trackedLiveActivityCode.current = null
+      return
+    }
+    if (trackedLiveActivityCode.current === code) return
+    trackedLiveActivityCode.current = code
+    analyticsClient?.track('live_activity_opened', 'live')
+  }, [analyticsClient, live.session?.record.code])
 
   const closeSharedActivity = () => {
     clearSharedActivityHash()
@@ -107,6 +135,7 @@ export default function App({ liveActivityClient }: AppProps = {}) {
 
   const saveSharedActivity = (activity: NonNullable<typeof sharedActivity>, viewerId: string) => {
     setState(current => saveSharedActivityCopy(current, activity, viewerId))
+    analyticsClient?.track('activity_created', 'snapshot')
     closeSharedActivity()
   }
 
@@ -127,6 +156,7 @@ export default function App({ liveActivityClient }: AppProps = {}) {
         selectedGroupId: group.id,
       }
     })
+    analyticsClient?.track('activity_created', 'local')
     setModal(null)
   }
 
@@ -160,10 +190,14 @@ export default function App({ liveActivityClient }: AppProps = {}) {
   const addExpense = async (expense: Expense) => {
     if (liveActivity) {
       const saved = await live.save({ ...liveActivity, expenses: [expense, ...liveActivity.expenses] }, `${expense.title} was added to the live activity.`)
-      if (saved) closeExpenseModal()
+      if (saved) {
+        analyticsClient?.track('expense_added', 'live')
+        closeExpenseModal()
+      }
       return
     }
     setState(current => ({ ...current, expenses: [expense, ...current.expenses] }))
+    analyticsClient?.track('expense_added', 'local')
     setEditingExpense(null)
     setModal(null)
   }
@@ -215,10 +249,14 @@ export default function App({ liveActivityClient }: AppProps = {}) {
     const message = `${settlement.from.name} paid ${settlement.to.name} ${money(payment.amount)}. Remaining balances were recalculated.`
     if (liveActivity) {
       const saved = await live.save({ ...liveActivity, expenses: [payment, ...liveActivity.expenses] }, message)
-      if (saved) closeSettleUpModal()
+      if (saved) {
+        analyticsClient?.track('settlement_recorded', 'live')
+        closeSettleUpModal()
+      }
       return
     }
     setState(current => ({ ...current, expenses: [payment, ...current.expenses] }))
+    analyticsClient?.track('settlement_recorded', 'local')
     setActivityFeedback({ groupId: payment.groupId, message })
     closeSettleUpModal()
   }
@@ -247,6 +285,7 @@ export default function App({ liveActivityClient }: AppProps = {}) {
     }
     setSharedActivity(null)
     setActivityFeedback(null)
+    analyticsClient?.track('live_activity_created', 'local')
     setQrShare({ activity, url: result.url, mode: 'live', activityCode: result.code })
   }
 

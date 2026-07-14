@@ -74,6 +74,7 @@ The workflow can also be started manually from `main` with **Run workflow**.
 - Create an activity and choose **Share live**.
 - Open the link in a private browser, add an expense, and refresh the first browser.
 - Confirm the recipient receives a persistent `Live · CODE` shortcut.
+- Create one local activity and one live activity, then confirm their allowlisted events appear separately in `private.analytics_daily` without URL or activity fields.
 - Run Supabase Security Advisor and Performance Advisor after the first migration.
 - Confirm the migration list is synchronized before the next release with `supabase migration list`.
 
@@ -81,6 +82,7 @@ The workflow can also be started manually from `main` with **Run workflow**.
 
 - Activities expire 90 days after their last successful update. Expired rows are removed incrementally during new activity creation.
 - Create, load, and update RPCs are rate-limited per hashed client IP. Review API/database logs and tune limits from observed traffic.
+- First-party analytics events expire after 90 days and contain no URL, capability, identity, activity, or financial payload. Review aggregate usage with the queries in [ANALYTICS.md](ANALYTICS.md).
 - Free-tier projects should export regular off-site logical backups with `supabase db dump`. Paid projects provide daily backups; consider point-in-time recovery when the recovery objective warrants it. See [Supabase backups](https://supabase.com/docs/guides/platform/backups).
 - Review Security Advisor and Performance Advisor after every schema change.
 - If a capability URL leaks, treat the activity as compromised. Token rotation/revocation is a required follow-up before serving groups that need stronger access control.

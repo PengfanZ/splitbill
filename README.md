@@ -8,7 +8,7 @@ A local-first, full-stack shared-expense app for trips, dinners, homes, and othe
 
 On first use, Tally asks for a display name and stores that identity only in the current browser. The name replaces the ambiguous generic “You” in participant lists and is included as the sender identity when an activity link is shared.
 
-Local-only deployments can use privacy-friendly Cloudflare Web Analytics. Production builds with live sharing enabled disable the third-party beacon so a script never gains access to bearer capability fragments.
+Production uses privacy-preserving first-party analytics through Supabase for both browser-local and live activity workflows. Only allowlisted event names, a coarse `local`/`live`/`snapshot` surface, and a one-way session hash are stored—never URLs, capability tokens, activity IDs, names, descriptions, amounts, or balances. Frontend-only deployments can retain Cloudflare Web Analytics, but third-party analytics never loads on shared activity URLs. See [the analytics design](docs/ANALYTICS.md).
 
 ## Sharing and live collaboration
 
@@ -17,7 +17,7 @@ Tally supports two deliberately different sharing modes:
 - **Share QR** creates a read-only snapshot compressed into the URL fragment. Recipients can inspect it or save an isolated local copy without changing the sender's activity.
 - **Share live** creates a short capability URL for one canonical activity in Supabase. Trusted recipients with the complete link can load and edit the same revision-checked data from different browsers.
 
-Opening a snapshot never overwrites browser data, and shared-preview URLs skip analytics because the fragment contains names and expense details. Live links keep their secret edit token in the fragment; Supabase stores only its SHA-256 hash. Every browser that opens a live link keeps a local shortcut, while Supabase remains the source of truth. See [the live sharing architecture](docs/LIVE_SHARING_EXPERIMENT.md) and [production deployment guide](docs/DEPLOYMENT.md).
+Opening a snapshot never overwrites browser data, and shared-preview URLs never load third-party analytics because the fragment contains names and expense details. First-party measurement records only the coarse `snapshot` surface. Live links keep their secret edit token in the fragment; Supabase stores only its SHA-256 hash. Every browser that opens a live link keeps a local shortcut, while Supabase remains the source of truth. See [the live sharing architecture](docs/LIVE_SHARING_EXPERIMENT.md) and [production deployment guide](docs/DEPLOYMENT.md).
 
 [Try the live demo](https://pengfanz.github.io/splitbill/)
 
@@ -34,6 +34,7 @@ Opening a snapshot never overwrites browser data, and shared-preview URLs skip a
 - Export a shareable PNG summary for friends.
 - Persist data in the browser and synchronize changes across open tabs.
 - Collaborate across browsers through short, revision-checked live activity links.
+- Measure anonymous local and live feature usage without sending activity data or secret URLs to analytics.
 - Use the responsive interface on desktop or mobile.
 
 ## Important data note
@@ -48,7 +49,7 @@ Local activities remain in browser `localStorage`. Live activities are stored in
 - Vitest and Testing Library
 - GitHub Actions for CI and deployment
 - GitHub Pages for static hosting
-- Supabase Postgres for optional live activities
+- Supabase Postgres for optional live activities and first-party product analytics
 
 ## Getting started
 
@@ -129,7 +130,7 @@ Every push and pull request must pass:
 - ESLint with TypeScript and React Hooks rules and zero warnings;
 - component and helper tests;
 - Playwright integration tests against the production GitHub Pages build;
-- pgTAP contracts for live-activity access control, conflicts, and rate limits;
+- pgTAP contracts for live-activity and analytics access control, validation, privacy, retention, and rate limits;
 - 100% statement, branch, function, and line coverage;
 - a production static build.
 
