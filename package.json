@@ -1,7 +1,7 @@
 {
   "name": "tally-splitbill",
   "version": "1.0.0",
-  "description": "A frontend-first shared-expense app with equal and exact splits, settlement directions, and browser persistence.",
+  "description": "A local-first shared-expense app with optional Supabase-backed live collaboration.",
   "private": true,
   "homepage": "https://pengfanz.github.io/splitbill/",
   "repository": {

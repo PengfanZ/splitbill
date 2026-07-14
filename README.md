@@ -4,19 +4,20 @@
 [![Live demo](https://img.shields.io/badge/demo-live-e8584f)](https://pengfanz.github.io/splitbill/)
 [![Coverage](https://img.shields.io/badge/coverage-100%25-16724c)](TESTING.md)
 
-A local-first shared-expense app for trips, dinners, homes, and other group activities. Tally tracks who paid, supports equal or exact splits, calculates clear suggested payments, and optionally synchronizes a trusted group through a capability-protected live activity.
+A local-first, full-stack shared-expense app for trips, dinners, homes, and other group activities. Tally tracks who paid, supports equal or exact splits, calculates clear suggested payments, and can synchronize a trusted group through a capability-protected live activity backed by Supabase.
 
 On first use, Tally asks for a display name and stores that identity only in the current browser. The name replaces the ambiguous generic “You” in participant lists and is included as the sender identity when an activity link is shared.
 
-Frontend-only builds can use privacy-friendly Cloudflare Web Analytics. Production builds with live sharing enabled disable the third-party beacon so a script never gains access to bearer capability fragments.
+Local-only deployments can use privacy-friendly Cloudflare Web Analytics. Production builds with live sharing enabled disable the third-party beacon so a script never gains access to bearer capability fragments.
 
-## Experimental URL-state sharing
+## Sharing and live collaboration
 
-**Share QR** compresses the selected activity into the URL fragment and displays a scannable code that opens the Tally website. A copy-link fallback is available in the QR dialog. Opening the destination shows a validated, read-only preview. Before saving an isolated local copy, the recipient chooses which participant they are; that participant and every payer/share reference are remapped consistently to “You.” Existing uncompressed links remain compatible, opening a link never overwrites browser data, and shared-preview URLs skip analytics because the fragment contains names and expense details.
+Tally supports two deliberately different sharing modes:
 
-This is asynchronous snapshot sharing, not live collaboration. A newer edit produces a new URL, links cannot be revoked, and activities above the conservative 12,000-character URL limit need a future file or backend transport.
+- **Share QR** creates a read-only snapshot compressed into the URL fragment. Recipients can inspect it or save an isolated local copy without changing the sender's activity.
+- **Share live** creates a short capability URL for one canonical activity in Supabase. Trusted recipients with the complete link can load and edit the same revision-checked data from different browsers.
 
-With the two `VITE_SUPABASE_*` settings configured, **Share live** creates a short capability URL that lets trusted recipients edit the same revision-checked activity. Every browser that opens it keeps a local shortcut to the canonical backend activity. See [the live sharing architecture](docs/LIVE_SHARING_EXPERIMENT.md) and [production deployment guide](docs/DEPLOYMENT.md).
+Opening a snapshot never overwrites browser data, and shared-preview URLs skip analytics because the fragment contains names and expense details. Live links keep their secret edit token in the fragment; Supabase stores only its SHA-256 hash. Every browser that opens a live link keeps a local shortcut, while Supabase remains the source of truth. See [the live sharing architecture](docs/LIVE_SHARING_EXPERIMENT.md) and [production deployment guide](docs/DEPLOYMENT.md).
 
 [Try the live demo](https://pengfanz.github.io/splitbill/)
 
@@ -31,6 +32,7 @@ With the two `VITE_SUPABASE_*` settings configured, **Share live** creates a sho
 - Edit and delete expenses, or delete an entire activity and its local data.
 - Export a shareable PNG summary for friends.
 - Persist data in the browser and synchronize changes across open tabs.
+- Collaborate across browsers through short, revision-checked live activity links.
 - Use the responsive interface on desktop or mobile.
 
 ## Important data note
@@ -63,6 +65,18 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+Local activities and QR snapshots work without a backend. To develop live sharing as well, install a Docker-compatible runtime and the Supabase CLI dependencies included in this repository, then run:
+
+```bash
+cp .env.example .env.local
+npm run backend:start
+npm run backend:reset
+npm run test:backend
+npm run dev
+```
+
+After the local stack starts, replace `your-publishable-key` in `.env.local` with the publishable key printed by `npm run backend:start`. Production configuration and secrets are documented in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
 ## Available scripts
 
 | Command | Purpose |
@@ -92,8 +106,13 @@ src/
 ├── domain/                    # Models and pure financial logic
 ├── features/
 │   ├── activity/              # Dashboard and expense workflows
-│   └── sharing/               # Text and PNG exports
+│   ├── identity/              # Browser-local participant identity
+│   ├── liveSharing/           # Capability links and backend synchronization
+│   └── sharing/               # QR snapshots and PNG exports
 └── hooks/                     # React lifecycle integrations
+supabase/
+├── migrations/                # Versioned schema and RPC releases
+└── tests/                     # pgTAP database and security contracts
 ```
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for dependency boundaries and persistence rules.
@@ -109,6 +128,7 @@ Every push and pull request must pass:
 - ESLint with TypeScript and React Hooks rules and zero warnings;
 - component and helper tests;
 - Playwright integration tests against the production GitHub Pages build;
+- pgTAP contracts for live-activity access control, conflicts, and rate limits;
 - 100% statement, branch, function, and line coverage;
 - a production static build.
 

@@ -1,6 +1,6 @@
-# Frontend architecture
+# Application architecture
 
-Tally keeps browser persistence and product behavior small enough for a frontend-only release while separating responsibilities clearly.
+Tally is local-first rather than frontend-only. Browser persistence powers private local activities, while an optional Supabase backend provides one canonical record for live activities. The codebase keeps those persistence modes and the financial domain separated clearly.
 
 ## Module boundaries
 
@@ -20,6 +20,8 @@ Dependencies point inward: UI features may use domain and data utilities, while 
 The local-storage key remains `tally:frontend:v2`. Refactors must preserve this schema unless a deliberate migration is included and tested.
 
 The current participant identity is stored separately under `tally:identity:v1`. Keeping it outside the activity schema avoids rewriting existing activity data when the user changes their display name.
+
+Local activities continue to work when no Supabase environment variables are configured. A live activity is not duplicated into the local activity store: the browser saves only a shortcut and its capability, then loads the canonical state from Supabase.
 
 ## URL-state sharing experiment
 
