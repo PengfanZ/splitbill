@@ -42,3 +42,5 @@ The frontend treats Supabase as canonical whenever a live capability is active. 
 Put financial calculations in pure domain helpers, browser APIs behind data or feature boundaries, and component-specific state beside the component that owns it. Every behavior change still follows the test requirements in `TESTING.md`.
 
 Equal expenses store shares only for the selected participants. This keeps partial-group splits compatible with the existing expense schema and lets expense history display the participant count without a separate membership field.
+
+Settlement payments use the same transaction shape with `kind: "settlement"`: the payer is the person sending money and the single share belongs to the recipient. This lets the balance engine account for repayments without a parallel ledger. Spending summaries and exports exclude settlement amounts from total spending while preserving the payment in activity history, URL snapshots, and live Supabase state.

@@ -60,6 +60,44 @@ describe('happy paths', () => {
     await waitFor(() => expect(parseState(localStorage.getItem(STORAGE_KEY)).expenses).toHaveLength(2))
   })
 
+  it('records, persists, and can undo a partial settlement without changing spending totals', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(persistedTrip))
+    render(<App />)
+
+    const summary = screen.getByLabelText('Activity summary')
+    expect(within(summary).getByText('$240.00')).toBeVisible()
+    const originalDirection = screen.getByText('Maya owes You').closest('.balance-row') as HTMLElement
+    expect(originalDirection).toHaveTextContent('$10.00')
+    await user.click(within(originalDirection).getByRole('button', { name: 'Settle up' }))
+
+    expect(screen.getByRole('heading', { name: 'Record a settlement' })).toBeVisible()
+    expect(screen.getByLabelText('Maya pays You')).toBeVisible()
+    await user.clear(screen.getByLabelText('Payment amount'))
+    await user.type(screen.getByLabelText('Payment amount'), '5')
+    await user.click(screen.getByRole('button', { name: 'Record payment' }))
+
+    expect(screen.getByRole('status')).toHaveTextContent('Maya paid You $5.00. Remaining balances were recalculated.')
+    expect(within(summary).getByText('$240.00')).toBeVisible()
+    expect(within(summary).getByText('$90.00')).toBeVisible()
+    expect(within(summary).getByText('+$5.00')).toBeVisible()
+    expect(screen.getByText('Maya paid You')).toBeVisible()
+    expect(screen.getByText('Settlement payment')).toBeVisible()
+    expect(screen.getByText('Maya owes You').closest('.balance-row')).toHaveTextContent('$5.00')
+    await waitFor(() => expect(parseState(localStorage.getItem(STORAGE_KEY)).expenses[0]).toMatchObject({
+      kind: 'settlement',
+      amount: 5,
+      payerId: maya.id,
+      shares: { me: 5 },
+    }))
+
+    await user.click(screen.getByRole('button', { name: 'Delete Maya payment to You' }))
+    expect(screen.queryByText('Maya paid You')).not.toBeInTheDocument()
+    expect(screen.getByText('Maya owes You').closest('.balance-row')).toHaveTextContent('$10.00')
+    expect(within(summary).getByText('$240.00')).toBeVisible()
+    await waitFor(() => expect(parseState(localStorage.getItem(STORAGE_KEY)).expenses).toEqual(realisticExpenses))
+  })
+
   it('creates an exact split paid by a friend and shows who the current user owes', async () => {
     const user = userEvent.setup()
     render(<App />)

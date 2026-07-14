@@ -13,27 +13,27 @@ import {
   Users,
 } from 'lucide-react'
 import { Avatar } from '../../components/AppShell'
-import { calculateSettlements, money } from '../../domain/expenses'
+import { calculateMemberBalance, calculateSettlements, getSettlementRecipientId, isSettlementPayment, money, spendingExpenses } from '../../domain/expenses'
 import { CURRENT_USER } from '../../domain/members'
-import type { ActivityGroup, Expense, Member } from '../../domain/models'
+import type { ActivityGroup, Expense, Member, Settlement } from '../../domain/models'
 
 export function ActivitySummary({ expenses, currentUserLabel = 'You' }: { expenses: Expense[]; currentUserLabel?: string }) {
-  const total = expenses.reduce((sum, expense) => sum + expense.amount, 0)
-  const paid = expenses.reduce((sum, expense) => sum + (expense.payerId === 'me' ? expense.amount : 0), 0)
-  const share = expenses.reduce((sum, expense) => sum + (expense.shares.me ?? 0), 0)
-  const balance = paid - share
+  const spending = spendingExpenses(expenses)
+  const total = spending.reduce((sum, expense) => sum + expense.amount, 0)
+  const paid = spending.reduce((sum, expense) => sum + (expense.payerId === 'me' ? expense.amount : 0), 0)
+  const balance = calculateMemberBalance('me', expenses)
   const balanceLabel = currentUserLabel === 'You' ? 'Your balance' : `${currentUserLabel} balance`
 
   return (
     <div className="summary" aria-label="Activity summary">
-      <div><span>Total spent</span><strong>{money(total)}</strong></div>
-      <div><span>{currentUserLabel} paid</span><strong>{money(paid)}</strong></div>
-      <div><span>{balanceLabel}</span><strong className={balance > 0 ? 'positive' : balance < 0 ? 'negative' : 'settled'}>{balance > 0 ? '+' : balance < 0 ? '−' : ''}{money(balance)}</strong></div>
+      <div aria-label="Total spent"><span>Total spent</span><strong>{money(total)}</strong></div>
+      <div aria-label={`${currentUserLabel} paid`}><span>{currentUserLabel} paid</span><strong>{money(paid)}</strong></div>
+      <div aria-label={balanceLabel}><span>{balanceLabel}</span><strong className={balance > 0 ? 'positive' : balance < 0 ? 'negative' : 'settled'}>{balance > 0 ? '+' : balance < 0 ? '−' : ''}{money(balance)}</strong></div>
     </div>
   )
 }
 
-export function SettlementDirections({ members, expenses, currentUserLabel = 'You' }: { members: Member[]; expenses: Expense[]; currentUserLabel?: string }) {
+export function SettlementDirections({ members, expenses, currentUserLabel = 'You', onSettleUp }: { members: Member[]; expenses: Expense[]; currentUserLabel?: string; onSettleUp?: (settlement: Settlement) => void }) {
   const settlements = calculateSettlements(members, expenses)
   const currentUserOwes = currentUserLabel === 'You' ? 'You owe' : `${currentUserLabel} owes`
 
@@ -45,7 +45,7 @@ export function SettlementDirections({ members, expenses, currentUserLabel = 'Yo
           <div className="balance-row settlement-row" key={`${settlement.from.id}-${settlement.to.id}`}>
             <span className="settlement-avatars"><Avatar member={settlement.from} /><i>→</i><Avatar member={settlement.to} /></span>
             <span className="row-copy"><b>{settlement.from.id === 'me' ? `${currentUserOwes} ${settlement.to.name}` : `${settlement.from.name} owes ${settlement.to.name}`}</b><small>Suggested payment</small></span>
-            <strong>{money(settlement.amount)}</strong>
+            <span className="settlement-action"><strong>{money(settlement.amount)}</strong>{onSettleUp ? <button type="button" className="settle-up-button" onClick={() => onSettleUp(settlement)}>Settle up</button> : null}</span>
           </div>
         )) : <div className="all-settled"><span><Check size={18} /></span><div><b>Everyone is settled</b><p>Add an expense to calculate who should pay whom.</p></div></div>}
       </div>
@@ -62,7 +62,14 @@ export function ExpenseList({ expenses, members, query, readOnly = false, onEdit
   onDeleteExpense?: (expense: Expense) => void
 }) {
   const memberMap = useMemo(() => new Map(members.map(member => [member.id, member])), [members])
-  const visible = expenses.filter(expense => expense.title.toLowerCase().includes(query.toLowerCase()))
+  const normalizedQuery = query.toLowerCase()
+  const visible = expenses.filter(expense => {
+    if (expense.title.toLowerCase().includes(normalizedQuery)) return true
+    if (!isSettlementPayment(expense)) return false
+    const recipientId = getSettlementRecipientId(expense)
+    return [memberMap.get(expense.payerId)?.name, recipientId ? memberMap.get(recipientId)?.name : undefined]
+      .some(name => name?.toLowerCase().includes(normalizedQuery))
+  })
 
   return (
     <section className="content-section activity-section">
@@ -70,16 +77,19 @@ export function ExpenseList({ expenses, members, query, readOnly = false, onEdit
       <div className="activity-list">
         {visible.length ? visible.map(expense => {
           const payer = memberMap.get(expense.payerId) ?? CURRENT_USER
+          const settlementRecipientId = getSettlementRecipientId(expense)
+          const settlementRecipient = settlementRecipientId ? memberMap.get(settlementRecipientId) : undefined
+          const settlementPayment = isSettlementPayment(expense)
           const participantCount = Object.keys(expense.shares).length
           return (
-            <div className="activity-row" key={expense.id}>
-              <span className="expense-icon"><ReceiptText size={18} /></span>
-              <span className="row-copy"><b>{expense.title}</b><small>{payer.name} paid<i />{expense.splitMethod === 'equal' ? 'Split equally' : 'Exact split'} · {participantCount} {participantCount === 1 ? 'person' : 'people'}</small></span>
+            <div className={`activity-row${settlementPayment ? ' settlement-payment-row' : ''}`} key={expense.id}>
+              <span className={`expense-icon${settlementPayment ? ' settlement-icon' : ''}`}>{settlementPayment ? <CircleDollarSign size={18} /> : <ReceiptText size={18} />}</span>
+              <span className="row-copy"><b>{settlementPayment ? `${payer.name} paid ${settlementRecipient?.name ?? 'Unknown'}` : expense.title}</b><small>{settlementPayment ? 'Settlement payment' : <>{payer.name} paid<i />{expense.splitMethod === 'equal' ? 'Split equally' : 'Exact split'} · {participantCount} {participantCount === 1 ? 'person' : 'people'}</>}</small></span>
               <span className="expense-amount"><b>{money(expense.amount)}</b><small>{expense.createdAt}</small></span>
               {readOnly ? null : (
                 <span className="expense-actions">
-                  <button className="expense-edit" type="button" aria-label={`Edit ${expense.title}`} title="Edit expense" onClick={() => onEditExpense?.(expense)}><Pencil size={15} /></button>
-                  <button className="expense-delete" type="button" aria-label={`Delete ${expense.title}`} title="Delete expense" onClick={() => onDeleteExpense?.(expense)}><Trash2 size={16} /></button>
+                  {settlementPayment ? null : <button className="expense-edit" type="button" aria-label={`Edit ${expense.title}`} title="Edit expense" onClick={() => onEditExpense?.(expense)}><Pencil size={15} /></button>}
+                  <button className="expense-delete" type="button" aria-label={`Delete ${settlementPayment ? `${payer.name} payment to ${settlementRecipient?.name ?? 'Unknown'}` : expense.title}`} title={settlementPayment ? 'Delete settlement' : 'Delete expense'} onClick={() => onDeleteExpense?.(expense)}><Trash2 size={16} /></button>
                 </span>
               )}
             </div>
@@ -91,7 +101,7 @@ export function ExpenseList({ expenses, members, query, readOnly = false, onEdit
 }
 
 export function MembersRail({ members, expenses, readOnly = false, currentUserRole = 'You', onAddFriend }: { members: Member[]; expenses: Expense[]; readOnly?: boolean; currentUserRole?: string; onAddFriend?: () => void }) {
-  const total = expenses.reduce((sum, expense) => sum + expense.amount, 0)
+  const total = spendingExpenses(expenses).reduce((sum, expense) => sum + expense.amount, 0)
 
   return (
     <aside className="right-rail activity-rail">
@@ -110,7 +120,7 @@ export function MembersRail({ members, expenses, readOnly = false, currentUserRo
   )
 }
 
-export function GroupDashboard({ group, members, expenses, query, activityFeedback, readOnly = false, currentUserLabel = 'You', currentUserRole, statusLabel, shareQrLabel = 'Share QR', onShare, onShareQr, onShareLive, onAddFriend, onAddExpense, onEditExpense, onDeleteExpense }: {
+export function GroupDashboard({ group, members, expenses, query, activityFeedback, readOnly = false, currentUserLabel = 'You', currentUserRole, statusLabel, shareQrLabel = 'Share QR', onShare, onShareQr, onShareLive, onAddFriend, onAddExpense, onSettleUp, onEditExpense, onDeleteExpense }: {
   group: ActivityGroup
   members: Member[]
   expenses: Expense[]
@@ -126,6 +136,7 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
   onShareLive?: () => void
   onAddFriend?: () => void
   onAddExpense?: () => void
+  onSettleUp?: (settlement: Settlement) => void
   onEditExpense?: (expense: Expense) => void
   onDeleteExpense?: (expense: Expense) => void
 }) {
@@ -137,7 +148,7 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
           <div className="group-share">{readOnly ? <span className="read-only-badge">Read-only snapshot</span> : <div className="group-actions">{statusLabel ? <span className="read-only-badge live-badge"><Radio size={14} />{statusLabel}</span> : null}{onShareQr ? <button className="outline-button" onClick={onShareQr}><QrCode size={16} />{shareQrLabel}</button> : null}{onShareLive ? <button className="outline-button" onClick={onShareLive}><Radio size={16} />Share live</button> : null}{onShare ? <button className="outline-button" onClick={onShare}><Share2 size={16} />Share summary</button> : null}{onAddFriend ? <button className="outline-button" onClick={onAddFriend}><Users size={16} />Add friend</button> : null}{onAddExpense ? <button className="confirm-button" onClick={onAddExpense}><Plus size={17} />Add expense</button> : null}</div>}{activityFeedback ? <span className="activity-feedback" role="status">{activityFeedback}</span> : null}</div>
         </header>
         <ActivitySummary expenses={expenses} currentUserLabel={currentUserLabel} />
-        <SettlementDirections members={members} expenses={expenses} currentUserLabel={currentUserLabel} />
+        <SettlementDirections members={members} expenses={expenses} currentUserLabel={currentUserLabel} onSettleUp={readOnly ? undefined : onSettleUp} />
         <ExpenseList expenses={expenses} members={members} query={query} readOnly={readOnly} onEditExpense={onEditExpense} onDeleteExpense={onDeleteExpense} />
       </div>
       <MembersRail members={members} expenses={expenses} readOnly={readOnly} currentUserRole={currentUserRole ?? (readOnly ? 'Shared role' : 'You')} onAddFriend={onAddFriend} />

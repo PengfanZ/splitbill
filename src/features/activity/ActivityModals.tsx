@@ -1,9 +1,9 @@
 import { useState, type FormEvent } from 'react'
-import { Pencil, Users } from 'lucide-react'
+import { ArrowRight, CircleDollarSign, Pencil, Users } from 'lucide-react'
 import { Avatar, ModalShell } from '../../components/AppShell'
-import { createEqualShares, createExactShares, money } from '../../domain/expenses'
+import { createEqualShares, createExactShares, createSettlementPayment, money } from '../../domain/expenses'
 import { makeId } from '../../domain/members'
-import type { ActivityGroup, Expense, Member, SplitMethod } from '../../domain/models'
+import type { ActivityGroup, Expense, Member, Settlement, SplitMethod } from '../../domain/models'
 
 export function CreateGroupModal({ onClose, onSave }: { onClose: () => void; onSave: (name: string, friendNames: string[]) => void }) {
   const [name, setName] = useState('')
@@ -43,6 +43,41 @@ export function AddFriendModal({ existingExpenseCount, onClose, onSave }: { exis
         <label>Friend names <small>Separate multiple names with commas.</small><textarea autoFocus value={names} onChange={event => setNames(event.target.value)} placeholder="Sam Rivera, Taylor Kim" rows={3} required /></label>
         {existingExpenseCount ? <div className="split-note future-note"><Users size={18} /><span><b>Future expenses only</b><small>{existingExpenseCount} existing {existingExpenseCount === 1 ? 'expense will' : 'expenses will'} stay unchanged.</small></span></div> : null}
         <div className="modal-actions"><button type="button" className="outline-button" onClick={onClose}>Cancel</button><button className="confirm-button" type="submit">Add friends</button></div>
+      </form>
+    </ModalShell>
+  )
+}
+
+export function SettleUpModal({ group, settlement, onClose, onSave }: {
+  group: ActivityGroup
+  settlement: Settlement
+  onClose: () => void
+  onSave: (payment: Expense, settlement: Settlement) => void
+}) {
+  const [amount, setAmount] = useState(settlement.amount.toFixed(2))
+  const numericAmount = Number(amount) || 0
+  const amountCents = Math.round(numericAmount * 100)
+  const suggestedCents = Math.round(settlement.amount * 100)
+  const valid = amountCents > 0 && amountCents <= suggestedCents
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    if (!valid) return
+    onSave(createSettlementPayment(group.id, settlement, numericAmount, makeId('settlement')), settlement)
+  }
+
+  return (
+    <ModalShell eyebrow={group.name} title="Record a settlement" onClose={onClose}>
+      <form onSubmit={submit}>
+        <div className="settlement-parties" aria-label={`${settlement.from.name} pays ${settlement.to.name}`}>
+          <span><Avatar member={settlement.from} /><b>{settlement.from.name}</b><small>Pays</small></span>
+          <ArrowRight size={20} />
+          <span><Avatar member={settlement.to} /><b>{settlement.to.name}</b><small>Receives</small></span>
+        </div>
+        <label>Payment amount <small>Suggested amount: {money(settlement.amount)}</small><span className="modal-amount"><i>$</i><input autoFocus aria-label="Payment amount" value={amount} onChange={event => setAmount(event.target.value)} type="number" min="0.01" max={settlement.amount.toFixed(2)} step="0.01" required /></span></label>
+        {valid ? null : <small className="split-error" role="alert">Enter an amount between $0.01 and {money(settlement.amount)}.</small>}
+        <div className="split-note settlement-note"><CircleDollarSign size={18} /><span>This records a full or partial payment and recalculates the remaining balances. It does not increase the activity’s spending total.</span></div>
+        <div className="modal-actions"><button type="button" className="outline-button" onClick={onClose}>Cancel</button><button className="confirm-button" type="submit" disabled={!valid}>Record payment</button></div>
       </form>
     </ModalShell>
   )

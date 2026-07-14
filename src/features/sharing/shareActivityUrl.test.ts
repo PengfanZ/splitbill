@@ -34,6 +34,17 @@ const expense: Expense = {
   shares: { me: 15, maya: 15 },
   createdAt: 'Today',
 }
+const settlementPayment: Expense = {
+  id: 'settlement',
+  groupId: group.id,
+  title: 'Settlement payment',
+  amount: 5,
+  payerId: maya.id,
+  splitMethod: 'exact',
+  shares: { me: 5 },
+  createdAt: 'Today',
+  kind: 'settlement',
+}
 const shared = createSharedActivity(group, [CURRENT_USER, maya], [expense])
 
 function encoded(value: unknown) {
@@ -72,6 +83,7 @@ describe('URL activity serialization', () => {
     expect(createSharedActivity(group, [maya], [expense]).sender).toBe(CURRENT_USER)
     expect(getSharedActivitySender(shared)).toBe(CURRENT_USER)
     expect(getSharedActivitySender({ ...shared, sender: undefined } as unknown as SharedActivity)).toBe(LINK_SENDER)
+    expect(isSharedActivity({ ...shared, expenses: [{ ...expense, kind: 'expense' }, settlementPayment] })).toBe(true)
   })
 
   it('round-trips Unicode activity state through a URL-safe fragment', () => {
@@ -129,6 +141,12 @@ describe('URL activity serialization', () => {
       { ...shared, expenses: [{ ...expense, shares: { me: Number.POSITIVE_INFINITY } }] },
       { ...shared, expenses: [{ ...expense, shares: { me: -1 } }] },
       { ...shared, expenses: [{ ...expense, createdAt: 1 }] },
+      { ...shared, expenses: [{ ...expense, kind: 'refund' }] },
+      { ...shared, expenses: [{ ...settlementPayment, amount: 0 }] },
+      { ...shared, expenses: [{ ...settlementPayment, splitMethod: 'equal' }] },
+      { ...shared, expenses: [{ ...settlementPayment, shares: { me: 4 } }] },
+      { ...shared, expenses: [{ ...settlementPayment, shares: { me: 5, maya: 0 } }] },
+      { ...shared, expenses: [{ ...settlementPayment, payerId: 'me', shares: { me: 5 } }] },
       { ...shared, group: { ...group, memberIds: ['me', 'missing'] } },
       { ...shared, expenses: [{ ...expense, groupId: 'other' }] },
       { ...shared, expenses: [{ ...expense, payerId: 'missing' }] },
@@ -213,7 +231,7 @@ describe('URL activity sharing and saving', () => {
   })
 
   it('remaps the selected friend to the local current user', () => {
-    const namedShared = { ...shared, sender: { ...CURRENT_USER, name: 'Pengfan', initials: 'P' } }
+    const namedShared = { ...shared, sender: { ...CURRENT_USER, name: 'Pengfan', initials: 'P' }, expenses: [expense, settlementPayment] }
     const result = saveSharedActivityCopy(EMPTY_STATE, namedShared, maya.id)
     const linkSender = result.friends.find(friend => friend.name === 'Pengfan')
 
@@ -222,6 +240,7 @@ describe('URL activity sharing and saving', () => {
     expect(result.groups[0].memberIds).toEqual([linkSender?.id, 'me'])
     expect(result.expenses[0].payerId).toBe(linkSender?.id)
     expect(result.expenses[0].shares).toEqual({ [linkSender!.id]: 15, me: 15 })
+    expect(result.expenses[1]).toMatchObject({ kind: 'settlement', payerId: 'me', shares: { [linkSender!.id]: 5 } })
     expect(() => saveSharedActivityCopy(EMPTY_STATE, shared, 'missing')).toThrow(RangeError)
   })
 

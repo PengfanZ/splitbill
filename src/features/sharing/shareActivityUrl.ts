@@ -64,8 +64,8 @@ function isShares(value: unknown): value is Record<string, number> {
 }
 
 function isExpense(value: unknown): value is Expense {
-  return isRecord(value)
-    && typeof value.id === 'string'
+  if (!isRecord(value)) return false
+  const baseValid = typeof value.id === 'string'
     && typeof value.groupId === 'string'
     && typeof value.title === 'string'
     && typeof value.amount === 'number'
@@ -75,6 +75,16 @@ function isExpense(value: unknown): value is Expense {
     && (value.splitMethod === 'equal' || value.splitMethod === 'exact')
     && isShares(value.shares)
     && typeof value.createdAt === 'string'
+    && (value.kind === undefined || value.kind === 'expense' || value.kind === 'settlement')
+  if (!baseValid) return false
+  const expense = value as Expense
+  if (expense.kind !== 'settlement') return true
+  const recipients = Object.entries(expense.shares)
+  return expense.amount > 0
+    && expense.splitMethod === 'exact'
+    && recipients.length === 1
+    && recipients[0][0] !== expense.payerId
+    && Math.abs(recipients[0][1] - expense.amount) < 0.005
 }
 
 function hasValidActivityData(value: Record<string, unknown>) {
