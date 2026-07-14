@@ -71,6 +71,8 @@ The UI shows a conflict banner with **Refresh latest**. Automatic field-level me
 ## Implemented frontend experiment
 
 - **Share live** creates a backend activity and immediately moves the creator's tab into that live revision, without removing the existing read-only snapshot option.
+- The creator's browser remembers the live capability against the original local activity. The sidebar labels that activity with `Live · CODE`, reopens the canonical backend copy, and reconnects to it after a page reload.
+- Opening someone else's live link does not silently add it to **My activities**. Only the browser that created the live copy keeps this automatic bookmark for now.
 - The QR dialog displays the short `#live=` capability URL and copies it directly to the clipboard.
 - Opening a live link loads the canonical backend snapshot and enables adding friends plus creating, editing, and deleting expenses.
 - Every mutation sends the last loaded revision. A stale save is rejected with a visible conflict message instead of overwriting someone else's work.
@@ -79,8 +81,10 @@ The UI shows a conflict banner with **Refresh latest**. Automatic field-level me
 
 Automatic polling and Supabase Realtime are intentionally deferred. Manual refresh keeps this first experiment predictable while the capability-token authorization model is evaluated.
 
+The creator bookmark is stored in browser local storage. Clearing site data or moving to another browser removes that bookmark but does not delete the backend activity; the original capability link is still required to reconnect from that browser.
+
 ## Verification
 
 - Vitest enforces 100% statement, branch, function, and line coverage, including happy paths and failure states.
-- Playwright covers a multi-page collaboration flow: one page creates a live link, another edits it, and a third reopens the same code at the new revision.
+- Playwright covers a multi-page collaboration flow: the creator leaves and reopens its bookmarked live activity (including across a page reload), another page edits it, and a third page reopens the same code at the new revision.
 - pgTAP verifies the SQL capability, privacy, validation, and optimistic-concurrency contract.

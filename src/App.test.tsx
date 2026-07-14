@@ -12,6 +12,7 @@ import { AddFriendModal, CreateGroupModal, ExpenseModal } from './features/activ
 import { LiveActivityApiError, type LiveActivityRecord } from './features/liveSharing/liveActivityApi'
 import type { LiveActivityClient } from './features/liveSharing/liveActivityConfig'
 import { LIVE_ACTIVITY_HASH_PREFIX } from './features/liveSharing/liveActivityLink'
+import { LIVE_ACTIVITY_BOOKMARKS_KEY } from './features/liveSharing/useLiveActivityBookmarks'
 import { buildShareSummary, createSummaryCard, exportActivitySummary, SHARE_MESSAGES, shareActivitySummary } from './features/sharing/shareActivity'
 import { SharedActivityIdentityModal } from './features/sharing/SharedActivityIdentityModal'
 import { createSharedActivity, encodeSharedActivity, LINK_SENDER, SHARE_HASH_PREFIX, type SharedActivity } from './features/sharing/shareActivityUrl'
@@ -271,6 +272,8 @@ describe('small UI building blocks', () => {
     rerender(<Sidebar groups={[home, group]} selectedId="home" onSelect={onSelect} onCreate={onCreate} onDelete={onDelete} onReset={onReset} />)
     expect(screen.getByText('1 person')).toBeVisible()
     expect(screen.getByText('3 people')).toBeVisible()
+    rerender(<Sidebar groups={[home, group]} selectedId={null} liveActivityCodes={{ trip: 'A1B2C3D4E5' }} onSelect={onSelect} onCreate={onCreate} onDelete={onDelete} onReset={onReset} />)
+    expect(screen.getByText('Live · A1B2C3D4E5')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Open Trip activity' }))
     expect(onSelect).toHaveBeenCalledWith('trip')
     await user.click(screen.getByRole('button', { name: 'Delete Trip activity' }))
@@ -695,6 +698,9 @@ describe('complete app workflows', () => {
         expense({ id: 'wood', groupId: 'cabin', title: 'Firewood' }),
       ],
     })))
+    localStorage.setItem(LIVE_ACTIVITY_BOOKMARKS_KEY, JSON.stringify({
+      cabin: { code: 'B1C2D3E4F5', editToken: 'b'.repeat(64) },
+    }))
     render(<App />)
 
     vi.mocked(window.confirm).mockReturnValueOnce(false).mockReturnValue(true)
@@ -708,6 +714,7 @@ describe('complete app workflows', () => {
       expect(saved.friends.map(friend => friend.id)).toEqual(['maya', 'jordan'])
       expect(saved.expenses.map(item => item.title)).toEqual(['Dinner', 'Rent'])
       expect(saved.selectedGroupId).toBe('trip')
+      expect(JSON.parse(localStorage.getItem(LIVE_ACTIVITY_BOOKMARKS_KEY)!)).toEqual({})
     })
 
     await user.type(screen.getByRole('textbox', { name: 'Search expenses' }), 'dinner')
@@ -802,14 +809,20 @@ describe('complete app workflows', () => {
     const user = userEvent.setup()
     localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState({ expenses: [expense()] })))
     const snapshot = createSharedActivity(group, [CURRENT_USER, maya, jordan], [expense()])
+    let latestSnapshot = snapshot
+    let revision = 1
     const client = {
       create: vi.fn().mockResolvedValue({ code: 'A1B2C3D4E5', editToken: 'a'.repeat(64), revision: 1, snapshot, updatedAt: '2026-07-14T01:00:00.000Z' }),
-      load: vi.fn(),
-      update: vi.fn().mockImplementation(async (_credentials, nextSnapshot) => ({ code: 'A1B2C3D4E5', revision: 2, snapshot: nextSnapshot, updatedAt: '2026-07-14T01:01:00.000Z' })),
+      load: vi.fn().mockImplementation(async () => ({ code: 'A1B2C3D4E5', revision, snapshot: latestSnapshot, updatedAt: '2026-07-14T01:00:00.000Z' })),
+      update: vi.fn().mockImplementation(async (_credentials, nextSnapshot) => {
+        latestSnapshot = nextSnapshot
+        revision += 1
+        return { code: 'A1B2C3D4E5', revision, snapshot: latestSnapshot, updatedAt: '2026-07-14T01:01:00.000Z' }
+      }),
     } satisfies LiveActivityClient
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
-    render(<App liveActivityClient={client} />)
+    const { unmount } = render(<App liveActivityClient={client} />)
 
     await user.click(screen.getByRole('button', { name: 'Share live' }))
     expect(await screen.findByRole('dialog', { name: 'Scan to join Trip' })).toBeVisible()
@@ -835,6 +848,20 @@ describe('complete app workflows', () => {
     expect(await screen.findByText('Creator expense', { exact: true })).toBeVisible()
     expect(screen.getByText('Live · revision 2')).toBeVisible()
     expect(client.update).toHaveBeenCalledWith(expect.objectContaining({ code: 'A1B2C3D4E5' }), expect.objectContaining({ expenses: expect.arrayContaining([expect.objectContaining({ title: 'Creator expense' })]) }), 1)
+    await waitFor(() => expect(JSON.parse(localStorage.getItem(LIVE_ACTIVITY_BOOKMARKS_KEY)!)).toEqual({ trip: { code: 'A1B2C3D4E5', editToken: 'a'.repeat(64) } }))
+
+    await user.click(screen.getByRole('button', { name: 'Back to my activities' }))
+    expect(window.location.hash).toBe('')
+    expect(screen.getByText('Live · A1B2C3D4E5')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Open Trip activity' }))
+    expect(await screen.findByText('Live · revision 2')).toBeVisible()
+    expect(screen.getByText('Creator expense', { exact: true })).toBeVisible()
+
+    unmount()
+    window.history.replaceState(null, '', '/')
+    render(<App liveActivityClient={client} />)
+    expect(await screen.findByText('Live · revision 2')).toBeVisible()
+    expect(window.location.hash).toContain(`${LIVE_ACTIVITY_HASH_PREFIX}A1B2C3D4E5.`)
   })
 
   it('reports backend failures while creating a live activity', async () => {

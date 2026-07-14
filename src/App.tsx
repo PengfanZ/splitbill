@@ -12,6 +12,7 @@ import { IdentityModal } from './features/identity/IdentityModal'
 import { LiveActivityApiError, type LiveActivityRecord } from './features/liveSharing/liveActivityApi'
 import { createConfiguredLiveActivityClient, type LiveActivityClient } from './features/liveSharing/liveActivityConfig'
 import { buildLiveActivityUrl, clearLiveActivityHash, parseLiveActivityHash, type LiveActivityCredentials } from './features/liveSharing/liveActivityLink'
+import { useLiveActivityBookmarks } from './features/liveSharing/useLiveActivityBookmarks'
 import { exportActivitySummary, SHARE_MESSAGES } from './features/sharing/shareActivity'
 import { SharedActivityIdentityModal } from './features/sharing/SharedActivityIdentityModal'
 import {
@@ -57,18 +58,25 @@ function liveActivityErrorMessage(error: unknown) {
 export default function App({ liveActivityClient }: AppProps = {}) {
   const [state, setState] = usePersistedState()
   const [identity, setIdentity] = useIdentity()
+  const [liveActivityBookmarks, setLiveActivityBookmarks] = useLiveActivityBookmarks()
   const [liveClient] = useState(() => liveActivityClient === undefined ? createConfiguredLiveActivityClient() : liveActivityClient)
   const [query, setQuery] = useState('')
   const [modal, setModal] = useState<ModalType>(null)
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
   const [activityFeedback, setActivityFeedback] = useState<ActivityFeedback>(null)
   const [qrShare, setQrShare] = useState<QrShare>(null)
-  const [liveCredentials, setLiveCredentials] = useState(() => parseLiveActivityHash(window.location.hash))
+  const selectedGroupIdAtLoad = state.selectedGroupId ?? state.groups[0]?.id ?? null
+  const bookmarkedCredentialsAtLoad = !window.location.hash && selectedGroupIdAtLoad ? liveActivityBookmarks[selectedGroupIdAtLoad] ?? null : null
+  const [liveCredentials, setLiveCredentials] = useState(() => parseLiveActivityHash(window.location.hash) ?? bookmarkedCredentialsAtLoad)
   const [liveSession, setLiveSession] = useState<LiveSession | null>(null)
-  const [liveLoading, setLiveLoading] = useState(() => Boolean(parseLiveActivityHash(window.location.hash) && liveClient))
+  const [liveLoading, setLiveLoading] = useState(() => Boolean((parseLiveActivityHash(window.location.hash) ?? bookmarkedCredentialsAtLoad) && liveClient))
   const [liveSaving, setLiveSaving] = useState(false)
   const [liveNotice, setLiveNotice] = useState<string | null>(null)
-  const [sharedActivity, setSharedActivity] = useState(() => parseLiveActivityHash(window.location.hash) ? null : decodeSharedActivityHash(window.location.hash))
+  const [sharedActivity, setSharedActivity] = useState(() => parseLiveActivityHash(window.location.hash) || bookmarkedCredentialsAtLoad ? null : decodeSharedActivityHash(window.location.hash))
+
+  useEffect(() => {
+    if (liveCredentials && !parseLiveActivityHash(window.location.hash)) window.history.replaceState(null, '', buildLiveActivityUrl(liveCredentials))
+  }, [liveCredentials])
 
   useEffect(() => {
     const syncSharedActivity = () => {
@@ -113,6 +121,7 @@ export default function App({ liveActivityClient }: AppProps = {}) {
   const activeMembers = liveActivity ? liveMembers : selectedMembers
   const activeExpenses = liveActivity?.expenses ?? selectedExpenses
   const displayedLiveNotice = liveNotice ?? (!liveClient && liveCredentials ? 'Live sharing is not configured in this build.' : null)
+  const liveActivityCodes = Object.fromEntries(Object.entries(liveActivityBookmarks).map(([groupId, credentials]) => [groupId, credentials.code]))
 
   const closeSharedActivity = () => {
     clearSharedActivityHash()
@@ -131,6 +140,23 @@ export default function App({ liveActivityClient }: AppProps = {}) {
   const closeSharedViews = () => {
     if (liveCredentials) closeLiveActivity()
     else closeSharedActivity()
+  }
+
+  const openActivity = (groupId: string) => {
+    const bookmarkedCredentials = liveActivityBookmarks[groupId]
+    if (bookmarkedCredentials) {
+      window.history.replaceState(null, '', buildLiveActivityUrl(bookmarkedCredentials))
+      setState(current => ({ ...current, selectedGroupId: groupId }))
+      setLiveCredentials(bookmarkedCredentials)
+      setLiveSession(null)
+      setLiveNotice(null)
+      setLiveLoading(Boolean(liveClient))
+      setSharedActivity(null)
+      setModal(null)
+      return
+    }
+    closeSharedViews()
+    setState(current => ({ ...current, selectedGroupId: groupId }))
   }
 
   const refreshLiveActivity = async () => {
@@ -289,6 +315,7 @@ export default function App({ liveActivityClient }: AppProps = {}) {
       window.history.replaceState(null, '', liveUrl)
       setLiveCredentials(credentials)
       setLiveSession({ credentials, record: created })
+      setLiveActivityBookmarks(current => ({ ...current, [group.id]: credentials }))
       setLiveLoading(false)
       setSharedActivity(null)
       setLiveNotice(`Live activity ${created.code} is ready. Changes in this tab now sync to the shared activity.`)
@@ -350,12 +377,14 @@ export default function App({ liveActivityClient }: AppProps = {}) {
       }
     })
     setActivityFeedback(null)
+    setLiveActivityBookmarks(current => Object.fromEntries(Object.entries(current).filter(([groupId]) => groupId !== group.id)))
     if (deletingSelectedActivity) setQuery('')
   }
 
   const resetData = () => {
     if (!window.confirm('Reset every local activity, friend, and expense? This cannot be undone.')) return
     setState(EMPTY_STATE)
+    setLiveActivityBookmarks({})
     setQuery('')
   }
 
@@ -364,10 +393,8 @@ export default function App({ liveActivityClient }: AppProps = {}) {
       <Sidebar
         groups={state.groups}
         selectedId={sharedActivity || liveCredentials ? null : selectedGroup?.id ?? null}
-        onSelect={id => {
-          closeSharedViews()
-          setState(current => ({ ...current, selectedGroupId: id }))
-        }}
+        liveActivityCodes={liveActivityCodes}
+        onSelect={openActivity}
         onCreate={() => {
           closeSharedViews()
           setModal('group')

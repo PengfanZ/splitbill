@@ -162,6 +162,15 @@ test('shares one editable backend activity across browser pages', async ({ page,
   await expect(page.getByText('Groceries', { exact: true })).toBeVisible()
   await expect(page.getByText('Live · revision 2')).toBeVisible()
 
+  await page.getByRole('button', { name: 'Back to my activities' }).click()
+  await expect(page.getByText(`Live · ${code}`, { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Open Shared cabin activity' }).click()
+  await expect(page.getByText('Live · revision 2')).toBeVisible()
+  await page.getByRole('button', { name: 'Back to my activities' }).click()
+  await page.reload()
+  await expect(page.getByText('Live · revision 2')).toBeVisible()
+  await expect(page.getByText('Groceries', { exact: true })).toBeVisible()
+
   const editor = await context.newPage()
   await editor.goto(liveUrl)
   await expect(editor.getByText('Live · revision 2')).toBeVisible()
