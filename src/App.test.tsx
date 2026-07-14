@@ -807,7 +807,8 @@ describe('complete app workflows', () => {
 
   it('moves the creator into the live activity before later edits', async () => {
     const user = userEvent.setup()
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState({ expenses: [expense()] })))
+    const home: ActivityGroup = { id: 'home', name: 'Home', emoji: '⌂', memberIds: ['me'] }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState({ groups: [group, home], expenses: [expense()] })))
     const snapshot = createSharedActivity(group, [CURRENT_USER, maya, jordan], [expense()])
     let latestSnapshot = snapshot
     let revision = 1
@@ -850,9 +851,12 @@ describe('complete app workflows', () => {
     expect(client.update).toHaveBeenCalledWith(expect.objectContaining({ code: 'A1B2C3D4E5' }), expect.objectContaining({ expenses: expect.arrayContaining([expect.objectContaining({ title: 'Creator expense' })]) }), 1)
     await waitFor(() => expect(JSON.parse(localStorage.getItem(LIVE_ACTIVITY_BOOKMARKS_KEY)!)).toEqual({ trip: { code: 'A1B2C3D4E5', editToken: 'a'.repeat(64) } }))
 
-    await user.click(screen.getByRole('button', { name: 'Back to my activities' }))
-    expect(window.location.hash).toBe('')
+    expect(screen.queryByRole('button', { name: 'Back to my activities' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open Trip activity' }).closest('.group-row')).toHaveClass('is-selected')
     expect(screen.getByText('Live · A1B2C3D4E5')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Open Home activity' }))
+    expect(screen.getByRole('heading', { name: 'Home' })).toBeVisible()
+    expect(window.location.hash).toBe('')
     await user.click(screen.getByRole('button', { name: 'Open Trip activity' }))
     expect(await screen.findByText('Live · revision 2')).toBeVisible()
     expect(screen.getByText('Creator expense', { exact: true })).toBeVisible()

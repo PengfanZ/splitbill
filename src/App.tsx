@@ -122,6 +122,9 @@ export default function App({ liveActivityClient }: AppProps = {}) {
   const activeExpenses = liveActivity?.expenses ?? selectedExpenses
   const displayedLiveNotice = liveNotice ?? (!liveClient && liveCredentials ? 'Live sharing is not configured in this build.' : null)
   const liveActivityCodes = Object.fromEntries(Object.entries(liveActivityBookmarks).map(([groupId, credentials]) => [groupId, credentials.code]))
+  const bookmarkedLiveGroupId = liveCredentials
+    ? Object.entries(liveActivityBookmarks).find(([, credentials]) => credentials.code === liveCredentials.code && credentials.editToken === liveCredentials.editToken)?.[0] ?? null
+    : null
 
   const closeSharedActivity = () => {
     clearSharedActivityHash()
@@ -392,7 +395,7 @@ export default function App({ liveActivityClient }: AppProps = {}) {
     <div className="app-shell">
       <Sidebar
         groups={state.groups}
-        selectedId={sharedActivity || liveCredentials ? null : selectedGroup?.id ?? null}
+        selectedId={sharedActivity ? null : liveCredentials ? bookmarkedLiveGroupId : selectedGroup?.id ?? null}
         liveActivityCodes={liveActivityCodes}
         onSelect={openActivity}
         onCreate={() => {
@@ -408,7 +411,7 @@ export default function App({ liveActivityClient }: AppProps = {}) {
           <>
             <section className="shared-preview live-preview" aria-label="Live activity">
               <div><strong className={displayedLiveNotice && !liveSession ? 'live-error' : undefined}>{liveSession ? `Live activity · ${liveSession.record.code}` : 'Opening live activity'}</strong><span role={displayedLiveNotice ? 'status' : undefined}>{liveSaving ? 'Saving your change…' : displayedLiveNotice ?? (liveLoading ? 'Loading the latest version…' : 'Everyone with this private link can edit.')}</span></div>
-              <div><button className="outline-button" onClick={closeLiveActivity}>Back to my activities</button>{liveClient ? <button className="confirm-button" onClick={refreshLiveActivity} disabled={liveLoading}>{liveLoading ? 'Loading…' : 'Refresh latest'}</button> : null}</div>
+              <div>{bookmarkedLiveGroupId ? null : <button className="outline-button" onClick={closeLiveActivity}>Back to my activities</button>}{liveClient ? <button className="confirm-button" onClick={refreshLiveActivity} disabled={liveLoading}>{liveLoading ? 'Loading…' : 'Refresh latest'}</button> : null}</div>
             </section>
             {liveActivity ? (
               <GroupDashboard

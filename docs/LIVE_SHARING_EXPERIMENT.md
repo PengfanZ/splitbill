@@ -71,7 +71,7 @@ The UI shows a conflict banner with **Refresh latest**. Automatic field-level me
 ## Implemented frontend experiment
 
 - **Share live** creates a backend activity and immediately moves the creator's tab into that live revision, without removing the existing read-only snapshot option.
-- The creator's browser remembers the live capability against the original local activity. The sidebar labels that activity with `Live · CODE`, reopens the canonical backend copy, and reconnects to it after a page reload.
+- The creator's browser remembers the live capability against the original local activity. The sidebar labels and selects that activity with `Live · CODE`; the creator stays on the canonical live state until choosing another activity, and reopening or reloading reconnects to the latest backend copy.
 - Opening someone else's live link does not silently add it to **My activities**. Only the browser that created the live copy keeps this automatic bookmark for now.
 - The QR dialog displays the short `#live=` capability URL and copies it directly to the clipboard.
 - Opening a live link loads the canonical backend snapshot and enables adding friends plus creating, editing, and deleting expenses.
