@@ -1,11 +1,57 @@
 import { expect, test, type BrowserContext, type Route } from '@playwright/test'
 
+type AnalyticsPayload = {
+  p_event_name: string
+  p_surface: string
+  p_session_token: string
+}
+
 test.beforeEach(async ({ context }) => {
   await context.route('https://static.cloudflareinsights.com/**', route => route.fulfill({
     status: 200,
     contentType: 'application/javascript',
     body: '',
   }))
+  await context.route('https://live-sharing.test/rest/v1/rpc/record_analytics_event', route => route.fulfill({
+    status: 204,
+    body: '',
+  }))
+})
+
+test('tracks local outcomes without sending local activity data or loading third-party analytics', async ({ page, context }) => {
+  const events: AnalyticsPayload[] = []
+  const thirdPartyRequests: string[] = []
+  page.on('request', request => {
+    if (request.url().includes('cloudflareinsights.com')) thirdPartyRequests.push(request.url())
+  })
+  await context.route('https://live-sharing.test/rest/v1/rpc/record_analytics_event', async route => {
+    events.push(route.request().postDataJSON() as AnalyticsPayload)
+    await route.fulfill({ status: 204, body: '' })
+  })
+
+  await page.goto('./')
+  await page.getByLabel('Display name').fill('Private Person')
+  await page.getByRole('button', { name: 'Continue' }).click()
+  await page.getByRole('button', { name: 'Create an activity' }).click()
+  await page.getByLabel('Activity name').fill('Secret local weekend')
+  await page.getByLabel(/Add friends/).fill('Private Friend')
+  await page.getByRole('button', { name: 'Create activity' }).click()
+  await page.getByRole('button', { name: 'Add expense' }).click()
+  await page.getByLabel('Description').fill('Private dinner description')
+  await page.getByRole('spinbutton', { name: 'Amount' }).fill('42.37')
+  await page.getByRole('button', { name: 'Save expense' }).click()
+
+  await expect.poll(() => events.length).toBe(3)
+  const sessionTokens = new Set(events.map(event => event.p_session_token))
+  expect(events.map(({ p_event_name, p_surface }) => ({ p_event_name, p_surface }))).toEqual([
+    { p_event_name: 'app_opened', p_surface: 'local' },
+    { p_event_name: 'activity_created', p_surface: 'local' },
+    { p_event_name: 'expense_added', p_surface: 'local' },
+  ])
+  expect(sessionTokens.size).toBe(1)
+  expect([...sessionTokens][0]).toMatch(/^[a-f0-9]{32}$/)
+  expect(JSON.stringify(events)).not.toMatch(/Private|Secret|dinner|42\.37|#live=|#share=/i)
+  expect(thirdPartyRequests).toEqual([])
 })
 
 test('persists a selective equal split and deletes its activity safely', async ({ page }) => {
@@ -145,6 +191,10 @@ test('shares one editable backend activity across isolated browser sessions', as
   const handleLiveBackend = async (route: Route) => {
     const functionName = new URL(route.request().url()).pathname.split('/').at(-1)
     const body = route.request().postDataJSON()
+    if (functionName === 'record_analytics_event') {
+      await route.fulfill({ status: 204, body: '' })
+      return
+    }
     if (functionName === 'create_shared_activity') {
       snapshot = body.p_snapshot
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ code, edit_token: editToken, revision, snapshot, updated_at: '2026-07-14T01:00:00.000Z' }]) })

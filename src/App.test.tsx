@@ -1,7 +1,9 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { StrictMode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+import type { AnalyticsClient } from './analytics'
 import { Avatar, FreshStart, ModalShell, Sidebar, Topbar } from './components/AppShell'
 import { IDENTITY_KEY } from './data/identity'
 import { EMPTY_STATE, loadState, parseState, saveState, STORAGE_KEY } from './data/storage'
@@ -638,6 +640,33 @@ describe('modals', () => {
 })
 
 describe('complete app workflows', () => {
+  it('tracks successful local activity, expense, and settlement outcomes without payload data', async () => {
+    const user = userEvent.setup()
+    const analyticsClient = { track: vi.fn() } satisfies AnalyticsClient
+    render(<StrictMode><App analyticsClient={analyticsClient} /></StrictMode>)
+
+    await waitFor(() => expect(analyticsClient.track).toHaveBeenCalledWith('app_opened', 'local'))
+    await user.click(screen.getByRole('button', { name: 'Create an activity' }))
+    await user.type(screen.getByLabelText('Activity name'), 'Analytics trip')
+    await user.type(screen.getByLabelText(/Add friends/), 'Maya')
+    await user.click(screen.getByRole('button', { name: 'Create activity' }))
+    await user.click(screen.getByRole('button', { name: 'Add expense' }))
+    await user.type(screen.getByLabelText('Description'), 'Dinner')
+    await user.type(screen.getByLabelText('Amount'), '20')
+    await user.click(screen.getByRole('button', { name: 'Save expense' }))
+
+    const direction = screen.getByText('Maya owes You').closest('.balance-row') as HTMLElement
+    await user.click(within(direction).getByRole('button', { name: 'Settle up' }))
+    await user.click(screen.getByRole('button', { name: 'Record payment' }))
+
+    expect(analyticsClient.track.mock.calls).toEqual([
+      ['app_opened', 'local'],
+      ['activity_created', 'local'],
+      ['expense_added', 'local'],
+      ['settlement_recorded', 'local'],
+    ])
+  })
+
   it('creates and updates a persistent local identity', async () => {
     const user = userEvent.setup()
     localStorage.removeItem(IDENTITY_KEY)
@@ -837,10 +866,11 @@ describe('complete app workflows', () => {
 
   it('opens URL state as read-only and saves an isolated local copy explicitly', async () => {
     const user = userEvent.setup()
+    const analyticsClient = { track: vi.fn() } satisfies AnalyticsClient
     const sender = { ...CURRENT_USER, name: 'Alex', initials: 'A' }
     const shared = createSharedActivity(group, [sender, maya, jordan], [expense()])
     window.history.replaceState(null, '', `/${SHARE_HASH_PREFIX}${encodeSharedActivity(shared)}`)
-    const { unmount } = render(<App />)
+    const { unmount } = render(<App analyticsClient={analyticsClient} />)
 
     expect(screen.getByLabelText('Shared activity preview')).toBeVisible()
     expect(screen.getByRole('heading', { name: 'Trip' })).toBeVisible()
@@ -865,6 +895,8 @@ describe('complete app workflows', () => {
     expect(screen.getByText((_, node) => node?.textContent === 'Alex paidSplit equally · 3 people')).toBeVisible()
     expect(screen.getByText('You owe Alex')).toBeVisible()
     await waitFor(() => expect(parseState(localStorage.getItem(STORAGE_KEY)).groups).toHaveLength(1))
+    expect(analyticsClient.track).toHaveBeenCalledWith('app_opened', 'snapshot')
+    expect(analyticsClient.track).toHaveBeenCalledWith('activity_created', 'snapshot')
 
     unmount()
     localStorage.clear()
@@ -892,6 +924,7 @@ describe('complete app workflows', () => {
 
   it('moves the creator into the live activity before later edits', async () => {
     const user = userEvent.setup()
+    const analyticsClient = { track: vi.fn() } satisfies AnalyticsClient
     const home: ActivityGroup = { id: 'home', name: 'Home', emoji: '⌂', memberIds: ['me'] }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState({ groups: [group, home], expenses: [expense()] })))
     const snapshot = createSharedActivity(group, [CURRENT_USER, maya, jordan], [expense()])
@@ -908,7 +941,7 @@ describe('complete app workflows', () => {
     } satisfies LiveActivityClient
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
-    const { unmount } = render(<App liveActivityClient={client} />)
+    const { unmount } = render(<App analyticsClient={analyticsClient} liveActivityClient={client} />)
 
     await user.click(screen.getByRole('button', { name: 'Share live' }))
     expect(await screen.findByRole('dialog', { name: 'Scan to join Trip' })).toBeVisible()
@@ -917,6 +950,9 @@ describe('complete app workflows', () => {
     expect(window.location.hash).toContain(`${LIVE_ACTIVITY_HASH_PREFIX}A1B2C3D4E5.`)
     expect(client.create).toHaveBeenCalledWith(expect.objectContaining({ group: expect.objectContaining({ name: 'Trip' }) }))
     expect(client.load).not.toHaveBeenCalled()
+    await waitFor(() => expect(analyticsClient.track).toHaveBeenCalledWith('live_activity_opened', 'live'))
+    expect(analyticsClient.track).toHaveBeenCalledWith('app_opened', 'local')
+    expect(analyticsClient.track).toHaveBeenCalledWith('live_activity_created', 'local')
     await user.click(screen.getByRole('button', { name: 'Copy link' }))
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining(`${LIVE_ACTIVITY_HASH_PREFIX}A1B2C3D4E5.`))
     expect(await screen.findByRole('status')).toHaveTextContent('Live activity link copied')
@@ -934,6 +970,7 @@ describe('complete app workflows', () => {
     expect(await screen.findByText('Creator expense', { exact: true })).toBeVisible()
     expect(screen.getByText('Live · revision 2')).toBeVisible()
     expect(client.update).toHaveBeenCalledWith(expect.objectContaining({ code: 'A1B2C3D4E5' }), expect.objectContaining({ expenses: expect.arrayContaining([expect.objectContaining({ title: 'Creator expense' })]) }), 1)
+    expect(analyticsClient.track).toHaveBeenCalledWith('expense_added', 'live')
     await waitFor(() => expect(JSON.parse(localStorage.getItem(LIVE_ACTIVITY_BOOKMARKS_KEY)!)).toEqual({ trip: { code: 'A1B2C3D4E5', editToken: 'a'.repeat(64) } }))
 
     expect(screen.queryByRole('button', { name: 'Back to my activities' })).not.toBeInTheDocument()
@@ -955,6 +992,8 @@ describe('complete app workflows', () => {
 
   it('saves settlement payments to the canonical live activity', async () => {
     const user = userEvent.setup()
+    const analyticsClient = { track: vi.fn() } satisfies AnalyticsClient
+    const replacementAnalyticsClient = { track: vi.fn() } satisfies AnalyticsClient
     const credentials = { code: 'A1B2C3D4E5', editToken: 'a'.repeat(64) }
     const snapshot = createSharedActivity(group, [CURRENT_USER, maya, jordan], [expense()])
     const client = {
@@ -963,9 +1002,10 @@ describe('complete app workflows', () => {
       update: vi.fn().mockImplementation(async (_credentials, nextSnapshot) => ({ code: credentials.code, revision: 2, snapshot: nextSnapshot, updatedAt: '2026-07-14T01:01:00.000Z' })),
     } satisfies LiveActivityClient
     window.history.replaceState(null, '', `/${LIVE_ACTIVITY_HASH_PREFIX}${credentials.code}.${credentials.editToken}`)
-    render(<App liveActivityClient={client} />)
+    const { rerender } = render(<App analyticsClient={analyticsClient} liveActivityClient={client} />)
 
     expect(await screen.findByText('Live · revision 1')).toBeVisible()
+    rerender(<App analyticsClient={replacementAnalyticsClient} liveActivityClient={client} />)
     const direction = screen.getByText('Maya Chen owes You').closest('.balance-row') as HTMLElement
     await user.click(within(direction).getByRole('button', { name: 'Settle up' }))
     await user.click(screen.getByRole('button', { name: 'Record payment' }))
@@ -980,6 +1020,8 @@ describe('complete app workflows', () => {
     }), 1)
     expect(screen.getByText('Maya Chen paid You')).toBeVisible()
     expect(screen.queryByText('Maya Chen owes You')).not.toBeInTheDocument()
+    expect(replacementAnalyticsClient.track).not.toHaveBeenCalledWith('live_activity_opened', 'live')
+    expect(replacementAnalyticsClient.track).toHaveBeenCalledWith('settlement_recorded', 'live')
   })
 
   it('keeps the settlement dialog open when a live payment cannot be saved', async () => {
