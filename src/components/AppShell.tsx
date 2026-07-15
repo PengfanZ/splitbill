@@ -88,7 +88,7 @@ export function ModalShell({ eyebrow, title, onClose, children }: { eyebrow: str
     <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (onClose && event.currentTarget === event.target) onClose() }}>
       <section className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <div className="modal-header"><div><span>{eyebrow}</span><h2 id="modal-title">{title}</h2></div>{onClose ? <button aria-label="Close" onClick={onClose}><X size={20} /></button> : null}</div>
-        {children}
+        <div className="modal-body">{children}</div>
       </section>
     </div>
   )

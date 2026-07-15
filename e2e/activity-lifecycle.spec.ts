@@ -18,6 +18,32 @@ test.beforeEach(async ({ context }) => {
   }))
 })
 
+test('keeps the expense action reachable on a short mobile viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 667 })
+  await page.goto('./')
+  await page.getByLabel('Display name').fill('Mobile Tester')
+  await page.getByRole('button', { name: 'Continue' }).click()
+  await page.getByRole('button', { name: 'Create an activity' }).click()
+  await page.getByLabel('Activity name').fill('Mobile weekend')
+  await page.getByLabel(/Add friends/).fill('Maya')
+  await page.getByRole('button', { name: 'Create activity' }).click()
+  await page.getByRole('button', { name: 'Add expense' }).click()
+
+  const saveExpense = page.getByRole('button', { name: 'Save expense' })
+  await expect(saveExpense).toBeVisible()
+  const actionBounds = await saveExpense.evaluate(element => {
+    const bounds = element.getBoundingClientRect()
+    return { top: bounds.top, bottom: bounds.bottom }
+  })
+  expect(actionBounds.top).toBeGreaterThanOrEqual(0)
+  expect(actionBounds.bottom).toBeLessThanOrEqual(667)
+
+  await page.getByLabel('Description').fill('Mobile dinner')
+  await page.getByRole('spinbutton', { name: 'Amount' }).fill('24')
+  await saveExpense.click()
+  await expect(page.getByText('Mobile dinner')).toBeVisible()
+})
+
 test('tracks local outcomes without sending local activity data or loading third-party analytics', async ({ page, context }) => {
   const events: AnalyticsPayload[] = []
   const thirdPartyRequests: string[] = []

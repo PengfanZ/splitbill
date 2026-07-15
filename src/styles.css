@@ -146,11 +146,12 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .report-link { border: 0; background: transparent; color: var(--coral); font-size: 12px; font-weight: 700; display: flex; align-items: center; padding: 18px 0 0; gap: 4px; }
 
 .modal-backdrop { position: fixed; inset: 0; z-index: 100; background: rgba(37, 35, 32, .42); backdrop-filter: blur(5px); display: grid; place-items: center; padding: 20px; animation: fade .18s ease; }
-.modal { width: min(460px, 100%); background: var(--surface); border-radius: 18px; padding: 26px; box-shadow: 0 28px 90px rgba(34, 29, 25, .25); animation: rise .22s ease; }
-.modal-header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 24px; }
+.modal { width: min(460px, 100%); max-height: calc(100dvh - 40px); background: var(--surface); border-radius: 18px; padding: 26px; box-shadow: 0 28px 90px rgba(34, 29, 25, .25); animation: rise .22s ease; display: flex; flex-direction: column; overflow: hidden; }
+.modal-header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 24px; flex: 0 0 auto; }
 .modal-header span { color: var(--coral); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
 .modal-header h2 { font-family: var(--serif); font-size: 28px; font-weight: 400; margin: 4px 0 0; }
 .modal-header button { border: 0; background: #ece8e2; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; }
+.modal-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .modal form { display: grid; gap: 17px; }
 .modal input, .modal select { height: 47px; border: 1px solid #d4cec6; border-radius: 10px; background: white; padding: 0 13px; outline: 0; color: var(--ink); }
 .modal input:focus, .modal select:focus { border-color: var(--coral); }
@@ -325,6 +326,15 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 }
 
 @media (max-width: 720px) {
+  .modal-backdrop { place-items: end center; padding: 12px; }
+  .modal { max-height: calc(100dvh - 24px); padding: 20px; }
+  .modal-header { margin-bottom: 18px; }
+  .modal-header h2 { font-size: 25px; line-height: 1.08; }
+  .modal form { gap: 14px; }
+  .modal input, .modal select { height: 44px; }
+  .modal-amount { height: 54px; }
+  .modal-amount input { height: 52px; }
+  .modal-actions { position: sticky; bottom: 0; z-index: 2; margin-top: 0; padding-top: 12px; padding-bottom: max(4px, env(safe-area-inset-bottom)); background: var(--surface); box-shadow: 0 -12px 18px var(--surface); }
   .topbar { height: 66px; padding-right: 10px; gap: 2px; }
   .search-box { width: 100%; }
   .dashboard { display: block; min-height: calc(100vh - 66px); }
