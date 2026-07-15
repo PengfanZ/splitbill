@@ -1,6 +1,6 @@
 {
   "name": "tally-splitbill",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "A local-first shared-expense app with optional Supabase-backed live collaboration.",
   "private": true,
   "license": "MIT",
