@@ -12,7 +12,11 @@ const precacheUrls = resolvePrecacheUrls(precacheManifest, self.location.href)
 const appShellUrl = new URL('index.html', self.location.href).href
 
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(cacheName).then(cache => cache.addAll(precacheUrls)))
+  event.waitUntil((async () => {
+    const cache = await caches.open(cacheName)
+    await cache.addAll(precacheUrls)
+    await self.skipWaiting()
+  })())
 })
 
 self.addEventListener('activate', event => {
