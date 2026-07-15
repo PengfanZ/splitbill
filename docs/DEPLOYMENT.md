@@ -68,23 +68,6 @@ The release order is:
 
 The workflow can also be started manually from `main` with **Run workflow**.
 
-## Publish a milestone version
-
-Deployments and versions serve different purposes: every verified `main` push deploys, but only a meaningful product milestone receives a version and GitHub Release.
-
-1. Update the semantic version in `package.json` and `package-lock.json` and add its dated entry to `CHANGELOG.md` in a normal `main` commit.
-2. Wait for that commit's **CI and production deployment** workflow to finish successfully.
-3. Tag that exact commit and push the tag:
-
-   ```bash
-   git tag -a v0.2.0 -m "Tally v0.2.0"
-   git push origin v0.2.0
-   ```
-
-4. Watch **Actions → Publish GitHub release**. The workflow rejects malformed tags, a tag that does not match `package.json`, or a missing changelog entry, then publishes that version's changelog as the release notes. Versions below `v1.0.0` are marked as public betas.
-
-Use patch versions for backward-compatible fixes, minor versions for backward-compatible features, and `v1.0.0` when the product and compatibility contract are ready to be declared stable. Supabase migration timestamps remain separate from the app version: deployed migrations are immutable and must never be renamed to match a release.
-
 ## Verify the release
 
 - Open `https://pengfanz.github.io/splitbill/` in a fresh browser.
