@@ -12,6 +12,7 @@ Tally is local-first rather than frontend-only. Browser persistence powers priva
 - `src/features/activity/` contains the activity dashboard and activity form workflows.
 - `src/features/liveSharing/useLiveActivitySession.ts` owns capability-URL synchronization, backend loading and saving, optimistic-conflict recovery, and local live shortcuts.
 - `src/features/sharing/` owns text summaries, PNG generation, and browser sharing fallbacks.
+- `src/pwa/` contains pure service-worker cache-manifest helpers, while `src/sw.ts` owns install, activation, and fetch lifecycle events.
 - `src/analytics.ts` owns the typed, non-blocking first-party event client and frontend-only Cloudflare fallback.
 
 Dependencies point inward: UI features may use domain and data utilities, while domain modules never import React or feature components. Imports are direct instead of routed through a barrel file.
@@ -23,6 +24,12 @@ The local-storage key remains `tally:frontend:v2`. Refactors must preserve this 
 The current participant identity is stored separately under `tally:identity:v1`. Keeping it outside the activity schema avoids rewriting existing activity data when the user changes their display name.
 
 Local activities continue to work when no Supabase environment variables are configured. A live activity is not duplicated into the local activity store: the browser saves only a shortcut and its capability, then loads the canonical state from Supabase.
+
+## PWA and offline boundary
+
+The production build generates an installable manifest, standard and maskable icons, and a versioned service worker under the configured Vite base path. The worker precaches only the static application shell and install assets. The large social preview image, cross-origin fonts, analytics requests, Supabase RPC responses, live activity data, and URL fragments are not stored in Cache Storage.
+
+Same-origin precached assets are served by exact URL, with `Vary` ignored because every entry is a build-controlled immutable asset. Any same-origin request that is not already in the versioned precache goes to the network and is not added at runtime. Navigation falls back to the cached `index.html`, allowing browser-local activities from `localStorage` to render offline; live activities still require the network to load or synchronize. New service workers wait until existing app tabs close instead of forcing a reload that could interrupt an expense form.
 
 ## URL-state sharing experiment
 

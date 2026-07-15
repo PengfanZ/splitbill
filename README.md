@@ -33,18 +33,20 @@ Opening a snapshot never overwrites browser data, and shared-preview URLs never 
 - Edit and delete expenses, or delete an entire activity and its local data.
 - Export a shareable PNG summary for friends.
 - Persist data in the browser and synchronize changes across open tabs.
+- Install Tally as a PWA and reopen the local app shell without a network connection.
 - Collaborate across browsers through short, revision-checked live activity links that automatically load newer changes while visible.
 - Measure anonymous local and live feature usage without sending activity data or secret URLs to analytics.
 - Use the responsive interface on desktop or mobile.
 
 ## Important data note
 
-Local activities remain in browser `localStorage`. Live activities are stored in Supabase and are editable by anyone with the full capability link. There are no user accounts or participant-level permissions. Read [PRIVACY.md](PRIVACY.md) before deploying or sharing real activity data.
+Local activities remain in browser `localStorage` and can be viewed after the installed app shell has been cached for offline use. Live activities are stored in Supabase, require a network connection to synchronize, and are editable by anyone with the full capability link. There are no user accounts or participant-level permissions. Read [PRIVACY.md](PRIVACY.md) before deploying or sharing real activity data.
 
 ## Tech stack
 
 - React 19 and TypeScript
 - Vite
+- Vite PWA and Workbox for installation and offline app-shell caching
 - Lucide icons
 - Vitest and Testing Library
 - GitHub Actions for CI and deployment
@@ -111,7 +113,9 @@ src/
 │   ├── identity/              # Browser-local participant identity
 │   ├── liveSharing/           # Capability links and backend synchronization
 │   └── sharing/               # QR snapshots and PNG exports
-└── hooks/                     # React lifecycle integrations
+├── hooks/                     # React lifecycle integrations
+├── pwa/                       # Testable service-worker cache helpers
+└── sw.ts                      # Offline shell and cache lifecycle
 supabase/
 ├── migrations/                # Versioned schema and RPC releases
 └── tests/                     # pgTAP database and security contracts

@@ -8,7 +8,7 @@ Coverage is necessary, but it is not the definition of correctness. Every produc
 2. **Edge cases** — cent rounding, floating-point totals, empty and corrupted storage, unavailable browser APIs, cancelled sharing, long expense lists, multiple creditors and debtors, and invalid form input.
 3. **Domain unit tests** — direct tests beside pure financial and member modules, independent of React and browser workflows.
 4. **Component and helper tests** — focused tests for persistence, rendering states, and browser fallbacks.
-5. **Rendered browser integration tests** — Playwright runs the production GitHub Pages build in Chromium and verifies interaction, responsive layout, persistence after reload, destructive confirmations, and console health.
+5. **Rendered browser integration tests** — Playwright runs the production GitHub Pages build in Chromium and verifies interaction, responsive layout, persistence after reload, PWA metadata and offline app-shell loading, destructive confirmations, and console health.
 6. **Database security tests** — pgTAP recreates the schema from migrations and verifies capability checks, RLS, least-privilege grants, expiration, rate limiting, analytics data minimization, retention, validation, and optimistic concurrency.
 
 ## CI gate
@@ -23,5 +23,7 @@ Every push and pull request type-checks and lints all TypeScript files, then run
 - `npm run test:e2e` builds the GitHub Pages bundle, starts a local preview, and runs the Chromium integration suite.
 - `npm run test:backend` runs the pgTAP contract suite against the local Supabase database.
 - `npm run typecheck` validates executable modules, configuration, and type-only files such as `models.ts`.
+
+`src/sw.ts` runs in the service-worker global and is therefore excluded from jsdom coverage instrumentation. Its cache-manifest helper is directly unit tested, and Playwright verifies the built worker's registration, cache policy, controlled navigation, and offline app-shell behavior.
 
 Add a regression test whenever a bug is fixed. A test should fail for the broken behavior and pass after the fix.

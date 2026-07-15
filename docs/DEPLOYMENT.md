@@ -71,6 +71,7 @@ The workflow can also be started manually from `main` with **Run workflow**.
 ## Verify the release
 
 - Open `https://pengfanz.github.io/splitbill/` in a fresh browser.
+- Confirm the browser recognizes the web app manifest and offers installation, then load the installed app once and verify the local activity shell reopens while offline.
 - Create an activity and choose **Share live**.
 - Open the link in a private browser, add an expense, and confirm the first visible browser updates automatically within 15 seconds.
 - Confirm the recipient receives a persistent `Live · CODE` shortcut.

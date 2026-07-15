@@ -18,18 +18,91 @@ test.beforeEach(async ({ context }) => {
   }))
 })
 
-test('serves the branded browser tab icon from the configured base path', async ({ page }) => {
-  await page.goto('./')
+test('is installable and reloads the local app shell while offline', async ({ browser }) => {
+  const context = await browser.newContext()
+  const page = await context.newPage()
 
-  const favicon = page.locator('link[rel~="icon"]')
-  await expect(favicon).toHaveAttribute('type', 'image/svg+xml')
-  await expect(favicon).toHaveAttribute('href', '/splitbill/favicon.svg')
+  try {
+    await page.goto('./')
 
-  const faviconUrl = await favicon.evaluate((element: HTMLLinkElement) => element.href)
-  const response = await page.request.get(faviconUrl)
-  expect(response.ok()).toBe(true)
-  expect(response.headers()['content-type']).toContain('image/svg+xml')
-  expect(await response.text()).toContain('<svg')
+    const metadata = await page.locator('head').evaluate(element => {
+      const manifest = element.querySelector<HTMLLinkElement>('link[rel="manifest"]')
+      const icons = [...element.querySelectorAll<HTMLLinkElement>('link[rel~="icon"]')]
+      const appleIcon = element.querySelector<HTMLLinkElement>('link[rel="apple-touch-icon"]')
+      const registerScript = element.querySelector<HTMLScriptElement>('script[src$="registerSW.js"]')
+      return {
+        manifestHref: manifest?.getAttribute('href'),
+        iconHrefs: icons.map(icon => icon.getAttribute('href')),
+        appleIconHref: appleIcon?.getAttribute('href'),
+        registerScriptSrc: registerScript?.getAttribute('src'),
+      }
+    })
+    expect(metadata).toEqual({
+      manifestHref: '/splitbill/manifest.webmanifest',
+      iconHrefs: ['/splitbill/favicon.ico', '/splitbill/favicon.svg'],
+      appleIconHref: '/splitbill/apple-touch-icon-180x180.png',
+      registerScriptSrc: '/splitbill/registerSW.js',
+    })
+
+    const manifestResponse = await page.request.get('/splitbill/manifest.webmanifest')
+    expect(manifestResponse.ok()).toBe(true)
+    expect(manifestResponse.headers()['content-type']).toContain('application/manifest+json')
+    expect(await manifestResponse.json()).toMatchObject({
+      id: './',
+      name: 'Tally — Shared expenses, settled',
+      short_name: 'Tally',
+      start_url: './',
+      scope: './',
+      display: 'standalone',
+      icons: [
+        { src: 'pwa-64x64.png', sizes: '64x64', type: 'image/png' },
+        { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
+        { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },
+        { src: 'maskable-icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      ],
+    })
+
+    await page.getByLabel('Display name').fill('Offline Tester')
+    await page.getByRole('button', { name: 'Continue' }).click()
+    await page.getByRole('button', { name: 'Create an activity' }).click()
+    await page.getByLabel('Activity name').fill('Offline trip')
+    await page.getByLabel(/Add friends/).fill('Maya')
+    await page.getByRole('button', { name: 'Create activity' }).click()
+
+    await page.evaluate(() => navigator.serviceWorker.ready)
+    await page.reload()
+    await expect.poll(() => page.evaluate(() => navigator.serviceWorker.controller?.scriptURL ?? null)).toContain('/splitbill/sw.js')
+    const controlledResponse = await page.goto('./')
+    expect(controlledResponse?.fromServiceWorker()).toBe(true)
+    const cachedUrls = await page.evaluate(async () => {
+      const cacheNames = await caches.keys()
+      const requests = await Promise.all(cacheNames.map(async cacheName => (await caches.open(cacheName)).keys()))
+      return requests.flat().map(request => request.url)
+    })
+    expect(cachedUrls.some(url => url.includes('supabase.co'))).toBe(false)
+    expect(cachedUrls.some(url => url.endsWith('/og.png'))).toBe(false)
+    expect(cachedUrls.some(url => /\/assets\/index-.+\.js$/.test(url))).toBe(true)
+    expect(cachedUrls.some(url => /\/assets\/index-.+\.css$/.test(url))).toBe(true)
+
+    const blockedRequests: Array<{ ownedByServiceWorker: boolean, url: string }> = []
+    await context.route('**/*', route => {
+      blockedRequests.push({
+        ownedByServiceWorker: Boolean(route.request().serviceWorker()),
+        url: route.request().url(),
+      })
+      return route.abort('internetdisconnected')
+    })
+    const offlineResponse = await page.goto('./')
+    expect(offlineResponse?.fromServiceWorker()).toBe(true)
+    await expect(page).toHaveTitle('Tally — Shared expenses, settled')
+    expect(blockedRequests.every(request => (
+      !request.ownedByServiceWorker && !request.url.startsWith('http://127.0.0.1:4173/splitbill/')
+    ))).toBe(true)
+    await expect(page.getByRole('heading', { name: 'Offline trip' })).toBeVisible()
+  } finally {
+    await context.unroute('**/*')
+    await context.close()
+  }
 })
 
 test('keeps the expense action reachable on a short mobile viewport', async ({ page }) => {

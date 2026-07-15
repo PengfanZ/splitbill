@@ -6,6 +6,8 @@ Tally is designed for small trusted groups.
 
 Your display name, local activities, saved live shortcuts, friends, and expenses are stored in browser local storage. A random analytics session token is stored separately in session storage and disappears when the browser session ends. Clearing site data removes that browser's local copy and shortcuts.
 
+When Tally is installed as a PWA, Cache Storage contains only versioned static application files and install icons. The service worker does not cache local activity records, live activity responses, Supabase requests, analytics payloads, shared URL fragments, or the social preview image.
+
 ## Data stored for live activities
 
 When someone chooses **Share live**, the activity name, participant names, expenses, splits, and sender identity are stored in the configured Supabase project. The backend stores a one-way hash of the secret edit token, not the token itself. Live activities expire 90 days after their most recent successful update.
