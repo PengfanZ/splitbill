@@ -18,6 +18,20 @@ test.beforeEach(async ({ context }) => {
   }))
 })
 
+test('serves the branded browser tab icon from the configured base path', async ({ page }) => {
+  await page.goto('./')
+
+  const favicon = page.locator('link[rel~="icon"]')
+  await expect(favicon).toHaveAttribute('type', 'image/svg+xml')
+  await expect(favicon).toHaveAttribute('href', '/splitbill/favicon.svg')
+
+  const faviconUrl = await favicon.evaluate((element: HTMLLinkElement) => element.href)
+  const response = await page.request.get(faviconUrl)
+  expect(response.ok()).toBe(true)
+  expect(response.headers()['content-type']).toContain('image/svg+xml')
+  expect(await response.text()).toContain('<svg')
+})
+
 test('keeps the expense action reachable on a short mobile viewport', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 667 })
   await page.goto('./')
