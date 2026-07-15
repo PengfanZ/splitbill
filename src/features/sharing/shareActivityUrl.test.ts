@@ -84,6 +84,7 @@ describe('URL activity serialization', () => {
     expect(getSharedActivitySender(shared)).toBe(CURRENT_USER)
     expect(getSharedActivitySender({ ...shared, sender: undefined } as unknown as SharedActivity)).toBe(LINK_SENDER)
     expect(isSharedActivity({ ...shared, expenses: [{ ...expense, kind: 'expense' }, settlementPayment] })).toBe(true)
+    expect(isSharedActivity({ ...shared, expenses: [{ ...expense, updatedAt: '2026-07-15T03:04:00.000Z' }] })).toBe(true)
   })
 
   it('round-trips Unicode activity state through a URL-safe fragment', () => {
@@ -141,6 +142,8 @@ describe('URL activity serialization', () => {
       { ...shared, expenses: [{ ...expense, shares: { me: Number.POSITIVE_INFINITY } }] },
       { ...shared, expenses: [{ ...expense, shares: { me: -1 } }] },
       { ...shared, expenses: [{ ...expense, createdAt: 1 }] },
+      { ...shared, expenses: [{ ...expense, updatedAt: 1 }] },
+      { ...shared, expenses: [{ ...expense, updatedAt: 'not-a-date' }] },
       { ...shared, expenses: [{ ...expense, kind: 'refund' }] },
       { ...shared, expenses: [{ ...settlementPayment, amount: 0 }] },
       { ...shared, expenses: [{ ...settlementPayment, splitMethod: 'equal' }] },

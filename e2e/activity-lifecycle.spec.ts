@@ -192,6 +192,7 @@ test('persists a selective equal split and deletes its activity safely', async (
   await page.getByRole('button', { name: 'Save expense' }).click()
 
   await expect(page.getByText('Split equally · 2 people')).toBeVisible()
+  await expect(page.getByText(/^Created /)).toBeVisible()
   await expect(page.getByText('Maya owes Alex')).toBeVisible()
   await expect(page.getByText('Jordan owes Alex')).toHaveCount(0)
 
@@ -224,6 +225,7 @@ test('persists a selective equal split and deletes its activity safely', async (
   await expect(page.getByText('3 of 4 selected')).toBeVisible()
   await page.getByRole('button', { name: 'Save changes' }).click()
   await expect(page.getByText('Split equally · 3 people')).toBeVisible()
+  await expect(page.getByText(/^Edited /)).toBeVisible()
 
   await page.setViewportSize({ width: 390, height: 844 })
   await page.getByRole('button', { name: 'Open navigation' }).click()

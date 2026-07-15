@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calculateMemberBalance, calculateSettlements, createEqualShares, createExactShares, createSettlementPayment, getSettlementRecipientId, isSettlementPayment, money, spendingExpenses } from './expenses'
+import { calculateMemberBalance, calculateSettlements, createEqualShares, createExactShares, createExpenseTimestamp, createSettlementPayment, formatExpenseTimestamp, getSettlementRecipientId, isSettlementPayment, money, spendingExpenses } from './expenses'
 import type { Expense, Member } from './models'
 
 const alex: Member = { id: 'alex', name: 'Alex', initials: 'AL', color: '#aaa' }
@@ -24,6 +24,21 @@ describe('expense domain', () => {
   it('formats positive and negative monetary values as absolute dollars', () => {
     expect(money(12)).toBe('$12.00')
     expect(money(-12.5)).toBe('$12.50')
+  })
+
+  it('stores real timestamps and labels the latest create or edit time', () => {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+      timeZone: 'UTC',
+    })
+    const createdAt = createExpenseTimestamp(new Date('2026-07-15T03:04:00.000Z'))
+
+    expect(createdAt).toBe('2026-07-15T03:04:00.000Z')
+    expect(formatExpenseTimestamp(expense({ createdAt }), formatter)).toBe('Created Jul 15, 2026, 3:04 AM')
+    expect(formatExpenseTimestamp(expense({ createdAt, updatedAt: '2026-07-16T17:30:00.000Z' }), formatter)).toBe('Edited Jul 16, 2026, 5:30 PM')
+    expect(formatExpenseTimestamp(expense({ createdAt: 'Just now' }), formatter)).toBe('Time not recorded')
+    expect(formatExpenseTimestamp(expense({ createdAt: 'Friday' }), formatter)).toBe('Friday')
   })
 
   it('returns no settlements when all balances are already even', () => {

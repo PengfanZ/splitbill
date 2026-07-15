@@ -532,7 +532,9 @@ describe('modals', () => {
       amount: 10,
       payerId: 'maya',
       shares: { me: 5, maya: 5 },
+      createdAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
     }))
+    expect(onSave.mock.calls[0][0].updatedAt).toBeUndefined()
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(onClose).toHaveBeenCalledOnce()
   })
@@ -612,6 +614,7 @@ describe('modals', () => {
     expect(onSave).toHaveBeenCalledWith({
       ...existing,
       shares: { me: 10, maya: 20, jordan: 0 },
+      updatedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
     })
   })
 
@@ -751,12 +754,14 @@ describe('complete app workflows', () => {
     await user.type(screen.getByLabelText('Amount'), '30')
     await user.click(screen.getByRole('button', { name: 'Save expense' }))
     expect(screen.getByText('+$20.00')).toBeVisible()
+    expect(screen.getByText(/^Created /)).toBeVisible()
 
     await user.click(screen.getByRole('button', { name: 'Edit Gas' }))
     await user.clear(screen.getByLabelText('Amount'))
     await user.type(screen.getByLabelText('Amount'), '45')
     await user.click(screen.getByRole('button', { name: 'Save changes' }))
     expect(screen.getAllByText('$45.00').some(element => element.matches('.expense-amount b'))).toBe(true)
+    expect(screen.getByText(/^Edited /)).toBeVisible()
 
     await user.click(screen.getByRole('button', { name: 'Share summary' }))
     expect(await screen.findByRole('status')).toHaveTextContent('Summary copied')

@@ -13,7 +13,7 @@ import {
   Users,
 } from 'lucide-react'
 import { Avatar } from '../../components/AppShell'
-import { calculateMemberBalance, calculateSettlements, getSettlementRecipientId, isSettlementPayment, money, spendingExpenses } from '../../domain/expenses'
+import { calculateMemberBalance, calculateSettlements, formatExpenseTimestamp, getSettlementRecipientId, isSettlementPayment, money, spendingExpenses } from '../../domain/expenses'
 import { CURRENT_USER } from '../../domain/members'
 import type { ActivityGroup, Expense, Member, Settlement } from '../../domain/models'
 
@@ -85,7 +85,7 @@ export function ExpenseList({ expenses, members, query, readOnly = false, onEdit
             <div className={`activity-row${settlementPayment ? ' settlement-payment-row' : ''}`} key={expense.id}>
               <span className={`expense-icon${settlementPayment ? ' settlement-icon' : ''}`}>{settlementPayment ? <CircleDollarSign size={18} /> : <ReceiptText size={18} />}</span>
               <span className="row-copy"><b>{settlementPayment ? `${payer.name} paid ${settlementRecipient?.name ?? 'Unknown'}` : expense.title}</b><small>{settlementPayment ? 'Settlement payment' : <>{payer.name} paid<i />{expense.splitMethod === 'equal' ? 'Split equally' : 'Exact split'} · {participantCount} {participantCount === 1 ? 'person' : 'people'}</>}</small></span>
-              <span className="expense-amount"><b>{money(expense.amount)}</b><small>{expense.createdAt}</small></span>
+              <span className="expense-amount"><b>{money(expense.amount)}</b><small>{formatExpenseTimestamp(expense)}</small></span>
               {readOnly ? null : (
                 <span className="expense-actions">
                   {settlementPayment ? null : <button className="expense-edit" type="button" aria-label={`Edit ${expense.title}`} title="Edit expense" onClick={() => onEditExpense?.(expense)}><Pencil size={15} /></button>}

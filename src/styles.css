@@ -382,8 +382,13 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
   .section-heading h2 { font-size: 17px; }
   .filter-control { padding-inline: 8px; }
   .filter-control svg:first-child { display: none; }
-  .expense-amount { min-width: 56px; }
-  .activity-row { gap: 8px; }
+  .activity-row { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 3px 8px; }
+  .activity-row .expense-icon { grid-column: 1; grid-row: 1 / span 2; }
+  .activity-row .row-copy { grid-column: 2; grid-row: 1; }
+  .activity-row .expense-amount { display: contents; }
+  .activity-row .expense-amount b { grid-column: 3; grid-row: 1; text-align: right; }
+  .activity-row .expense-amount small { grid-column: 2; grid-row: 2; white-space: nowrap; }
+  .activity-row .expense-actions { grid-column: 3; grid-row: 2; justify-self: end; }
   .activity-row > svg { display: none; }
   .expense-icon { width: 32px; height: 32px; }
   .settlement-row { flex-wrap: wrap; }

@@ -3,6 +3,19 @@ import type { Expense, Member, Settlement } from './models'
 export const money = (value: number) => `$${Math.abs(value).toFixed(2)}`
 export const isSettlementPayment = (expense: Expense) => expense.kind === 'settlement'
 export const spendingExpenses = (expenses: Expense[]) => expenses.filter(expense => !isSettlementPayment(expense))
+export const createExpenseTimestamp = (date = new Date()) => date.toISOString()
+
+const expenseDateTimeFormatter = new Intl.DateTimeFormat(undefined, {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+})
+
+export function formatExpenseTimestamp(expense: Expense, formatter = expenseDateTimeFormatter) {
+  const storedTimestamp = expense.updatedAt ?? expense.createdAt
+  const date = new Date(storedTimestamp)
+  if (Number.isNaN(date.getTime())) return storedTimestamp === 'Just now' ? 'Time not recorded' : storedTimestamp
+  return `${expense.updatedAt ? 'Edited' : 'Created'} ${formatter.format(date)}`
+}
 
 export function calculateMemberBalance(memberId: string, expenses: Expense[]) {
   return expenses.reduce((balance, expense) => (
@@ -17,7 +30,7 @@ export function getSettlementRecipientId(expense: Expense) {
   return Object.keys(expense.shares).find(memberId => memberId !== expense.payerId) ?? null
 }
 
-export function createSettlementPayment(groupId: string, settlement: Settlement, amount: number, id: string, createdAt = 'Just now'): Expense {
+export function createSettlementPayment(groupId: string, settlement: Settlement, amount: number, id: string, createdAt = createExpenseTimestamp()): Expense {
   const amountCents = Math.round(amount * 100)
   const suggestedCents = Math.round(settlement.amount * 100)
   if (amountCents <= 0 || amountCents > suggestedCents) throw new RangeError('Settlement amount must be within the suggested payment')

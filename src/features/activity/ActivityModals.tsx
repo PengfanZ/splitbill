@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { ArrowRight, CircleDollarSign, Pencil, Users } from 'lucide-react'
 import { Avatar, ModalShell } from '../../components/AppShell'
-import { createEqualShares, createExactShares, createSettlementPayment, money } from '../../domain/expenses'
+import { createEqualShares, createExactShares, createExpenseTimestamp, createSettlementPayment, money } from '../../domain/expenses'
 import { makeId } from '../../domain/members'
 import type { ActivityGroup, Expense, Member, Settlement, SplitMethod } from '../../domain/models'
 
@@ -121,6 +121,7 @@ export function ExpenseModal({ group, members, expense, onClose, onSave }: {
     const shares = method === 'equal'
       ? createEqualShares(equalParticipants, numericAmount)
       : createExactShares(members, exactShares)
+    const savedAt = createExpenseTimestamp()
     onSave({
       id: expense?.id ?? makeId('expense'),
       groupId: group.id,
@@ -129,7 +130,8 @@ export function ExpenseModal({ group, members, expense, onClose, onSave }: {
       payerId,
       splitMethod: method,
       shares,
-      createdAt: expense?.createdAt ?? 'Just now',
+      createdAt: expense?.createdAt ?? savedAt,
+      ...(expense ? { updatedAt: savedAt } : {}),
     })
   }
 

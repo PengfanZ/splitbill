@@ -24,6 +24,7 @@ export type Expense = {
   splitMethod: SplitMethod
   shares: Record<string, number>
   createdAt: string
+  updatedAt?: string
   kind?: ExpenseKind
 }
 

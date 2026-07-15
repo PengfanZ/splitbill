@@ -249,6 +249,7 @@ describe('happy paths', () => {
       expect(savedExpense).toEqual({
         ...originalExpense,
         shares: { me: 13.34, maya: 13.33, jordan: 13.33 },
+        updatedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
       })
       expect(savedState.expenses.find(item => item.id === 'other-expense')?.title).toBe('Unrelated expense')
     })

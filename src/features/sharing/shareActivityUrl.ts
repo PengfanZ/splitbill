@@ -76,6 +76,7 @@ function isExpense(value: unknown): value is Expense {
     && (value.splitMethod === 'equal' || value.splitMethod === 'exact')
     && isShares(value.shares)
     && typeof value.createdAt === 'string'
+    && (value.updatedAt === undefined || (typeof value.updatedAt === 'string' && Number.isFinite(Date.parse(value.updatedAt))))
     && (value.kind === undefined || value.kind === 'expense' || value.kind === 'settlement')
   if (!baseValid) return false
   const expense = value as Expense
