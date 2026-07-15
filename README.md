@@ -16,6 +16,7 @@ Tally supports two deliberately different sharing modes:
 
 - **Share QR** creates a read-only snapshot compressed into the URL fragment. Recipients can inspect it or save an isolated local copy without changing the sender's activity.
 - **Share live** creates a short capability URL for one canonical activity in Supabase. Trusted recipients with the complete link can load and edit the same revision-checked data from different browsers.
+- **Share link** opens the device share sheet, with a separate copy-link fallback. If Safari opens the link outside the installed PWA, **Join activity** safely transfers the copied link into the existing Tally app session.
 
 Opening a snapshot never overwrites browser data, and shared-preview URLs never load third-party analytics because the fragment contains names and expense details. First-party measurement records only the coarse `snapshot` surface. Live links keep their secret edit token in the fragment; Supabase stores only its SHA-256 hash. Every browser that opens a live link keeps a local shortcut, while Supabase remains the source of truth. See [the live sharing architecture](docs/LIVE_SHARING_EXPERIMENT.md) and [production deployment guide](docs/DEPLOYMENT.md).
 
@@ -35,6 +36,7 @@ Opening a snapshot never overwrites browser data, and shared-preview URLs never 
 - Persist data in the browser and synchronize changes across open tabs.
 - Install Tally as a PWA and reopen the local app shell without a network connection.
 - Collaborate across browsers through short, revision-checked live activity links that automatically load newer changes while visible.
+- Continue a Safari-opened shared link in an installed Tally PWA without abandoning the existing app session.
 - Measure anonymous local and live feature usage without sending activity data or secret URLs to analytics.
 - Use the responsive interface on desktop or mobile.
 

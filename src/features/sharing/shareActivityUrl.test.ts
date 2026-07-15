@@ -185,7 +185,7 @@ describe('URL activity sharing and saving', () => {
     expect(await shareActivityUrl(shared)).toBe('cancelled')
   })
 
-  it('prefers the clipboard and reports clipboard, share, or URL failures', async () => {
+  it('falls back to the clipboard and reports clipboard, share, or URL failures', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     const nativeShare = vi.fn().mockRejectedValue(new Error('unsupported'))
     Object.defineProperty(navigator, 'share', { configurable: true, value: nativeShare })
@@ -193,10 +193,10 @@ describe('URL activity sharing and saving', () => {
 
     expect(await shareActivityUrl(shared)).toBe('copied')
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('#share='))
-    expect(nativeShare).not.toHaveBeenCalled()
+    expect(nativeShare).toHaveBeenCalledOnce()
     writeText.mockRejectedValueOnce(new Error('blocked'))
     expect(await shareActivityUrl(shared)).toBe('failed')
-    expect(nativeShare).toHaveBeenCalledOnce()
+    expect(nativeShare).toHaveBeenCalledTimes(2)
 
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined })
     expect(await shareActivityUrl(shared)).toBe('failed')

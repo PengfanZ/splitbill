@@ -1,6 +1,7 @@
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string'
 import { CURRENT_USER, makeId } from '../../domain/members'
 import type { ActivityGroup, Expense, Member, PersistedState } from '../../domain/models'
+import { shareLink } from './shareLink'
 
 export const SHARE_HASH_PREFIX = '#share='
 export const COMPRESSED_SHARE_PREFIX = 'z.'
@@ -170,25 +171,7 @@ export async function shareActivityUrl(activity: SharedActivity, currentUrl = wi
     return error instanceof RangeError ? 'too-large' : 'failed'
   }
 
-  if (typeof navigator.clipboard?.writeText === 'function') {
-    try {
-      await navigator.clipboard.writeText(url)
-      return 'copied'
-    } catch {
-      // Fall back to the native share sheet when clipboard permission is unavailable.
-    }
-  }
-
-  if (typeof navigator.share === 'function') {
-    try {
-      await navigator.share({ title: `${activity.group.name} — Tally`, url })
-      return 'shared'
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') return 'cancelled'
-    }
-  }
-
-  return 'failed'
+  return shareLink(`${activity.group.name} — Tally`, url, `Open ${activity.group.name} in Tally.`)
 }
 
 export function saveSharedActivityCopy(current: PersistedState, activity: SharedActivity, viewerId: string): PersistedState {

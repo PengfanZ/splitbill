@@ -34,7 +34,9 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .brand { font-family: var(--serif); font-size: 38px; line-height: 1; color: var(--coral); letter-spacing: -1.5px; }
 .brand span { color: var(--green); }
 .sidebar-close, .mobile-menu { display: none; }
-.add-button { border: 0; background: var(--coral); color: white; border-radius: 12px; height: 48px; margin: 0 3px 30px; display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: 700; box-shadow: 0 8px 20px rgba(242, 76, 67, .16); transition: .2s ease; }
+.sidebar-actions { display: grid; gap: 8px; margin: 0 3px 30px; }
+.add-button { border: 0; background: var(--coral); color: white; border-radius: 12px; height: 48px; display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: 700; box-shadow: 0 8px 20px rgba(242, 76, 67, .16); transition: .2s ease; }
+.join-button { width: 100%; min-height: 42px; display: flex; align-items: center; justify-content: center; gap: 8px; }
 .add-button:hover, .confirm-button:hover { background: var(--coral-dark); transform: translateY(-1px); }
 .section-label { margin: 0 10px 12px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
 .group-section { overflow: auto; }
@@ -181,6 +183,13 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .qr-instructions small, .qr-privacy small { color: var(--muted); font-size: 10px; line-height: 1.45; }
 .qr-privacy { align-items: flex-start; border-color: #cddfd4; background: #eef6f1; }
 .qr-copy-button { display: flex; align-items: center; justify-content: center; gap: 7px; }
+.pwa-handoff { margin: 14px 36px 0; padding: 12px 14px; border: 1px solid #d8d2ca; border-radius: 12px; background: #f2eee8; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.pwa-handoff > div { display: flex; align-items: flex-start; gap: 10px; }
+.pwa-handoff svg { color: var(--green); flex: 0 0 auto; }
+.pwa-handoff span { display: grid; gap: 3px; }
+.pwa-handoff b { font-size: 12px; }
+.pwa-handoff small { color: var(--muted); font-size: 10px; line-height: 1.45; }
+.pwa-handoff button { min-height: 38px; white-space: nowrap; }
 
 /* Activity-first workspace */
 .group-row:hover, .group-row.is-selected { background: #ece8e2; }
@@ -207,7 +216,8 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .fresh-illustration i:nth-of-type(1) { background: #f4cfb6; left: 6px; }
 .fresh-illustration i:nth-of-type(2) { background: #d3dbe9; right: 6px; }
 .fresh-illustration i:nth-of-type(3) { width: 23px; height: 23px; background: #f0d17e; right: 23px; top: 2px; }
-.fresh-button { margin-top: 24px; min-width: 190px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.fresh-actions { margin-top: 24px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.fresh-button { min-width: 190px; display: flex; align-items: center; justify-content: center; gap: 8px; }
 .fresh-steps { display: flex; align-items: center; gap: 28px; margin-top: 38px; color: var(--muted); font-size: 11px; }
 .fresh-steps span { display: flex; align-items: center; gap: 7px; }
 .fresh-steps b { width: 22px; height: 22px; border: 1px solid var(--line); border-radius: 50%; display: grid; place-items: center; color: var(--ink); background: rgba(255,255,255,.4); }
@@ -360,6 +370,8 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
   .group-actions { width: 100%; }
   .group-actions button { flex: 1; }
   .shared-preview { margin: 14px 18px 0; align-items: stretch; flex-direction: column; }
+  .pwa-handoff { margin: 14px 18px 0; align-items: stretch; flex-direction: column; }
+  .pwa-handoff button { width: 100%; }
   .shared-preview > div:last-child { display: grid; grid-template-columns: 1fr 1fr; }
   .activity-rail { display: block; }
   .rail-guide { margin-top: 25px; }

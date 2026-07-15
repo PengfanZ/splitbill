@@ -13,6 +13,9 @@ import type { LiveActivityClient } from './features/liveSharing/liveActivityConf
 import { buildLiveActivityUrl, parseLiveActivityHash } from './features/liveSharing/liveActivityLink'
 import { useLiveActivitySession } from './features/liveSharing/useLiveActivitySession'
 import { exportActivitySummary, SHARE_MESSAGES } from './features/sharing/shareActivity'
+import { BrowserToPwaHandoff, JoinActivityModal } from './features/sharing/JoinActivityModal'
+import { copyLink, shareLink, type LinkShareResult } from './features/sharing/shareLink'
+import { isStandalonePwa } from './features/sharing/sharedLinkHandoff'
 import { SharedActivityIdentityModal } from './features/sharing/SharedActivityIdentityModal'
 import {
   clearSharedActivityHash,
@@ -21,14 +24,13 @@ import {
   decodeSharedActivityHash,
   getSharedActivitySender,
   saveSharedActivityCopy,
-  shareActivityUrl,
   SHARE_URL_MESSAGES,
   type SharedActivity,
 } from './features/sharing/shareActivityUrl'
 import { usePersistedState } from './hooks/usePersistedState'
 import { useIdentity } from './hooks/useIdentity'
 
-type ModalType = 'group' | 'friend' | 'expense' | 'settlement' | 'identity' | 'shared-identity' | null
+type ModalType = 'group' | 'friend' | 'expense' | 'settlement' | 'identity' | 'join' | 'shared-identity' | null
 type ActivityFeedback = { groupId: string; message: string } | null
 type QrShare = { activity: SharedActivity; url: string; mode: 'snapshot' | 'live'; activityCode?: string } | null
 type AppProps = {
@@ -121,6 +123,12 @@ export default function App({ analyticsClient = null, liveActivityClient }: AppP
   const closeSharedViews = () => {
     if (live.credentials) closeLiveActivity()
     else closeSharedActivity()
+  }
+
+  const joinSharedActivity = (hash: string) => {
+    setModal(null)
+    if (window.location.hash === hash) window.dispatchEvent(new HashChangeEvent('hashchange'))
+    else window.location.hash = hash
   }
 
   const openActivity = (groupId: string) => {
@@ -299,21 +307,35 @@ export default function App({ analyticsClient = null, liveActivityClient }: AppP
     })
   }
 
-  const copyQrLink = async (share: NonNullable<QrShare>) => {
+  const reportQrShareResult = (share: NonNullable<QrShare>, result: LinkShareResult) => {
     if (share.mode === 'live') {
-      try {
-        await navigator.clipboard.writeText(share.url)
-        setQrShare(null)
-        live.notify('Live activity link copied. Anyone with it can edit this activity.')
-      } catch {
-        const message = 'Could not copy the live activity link. Copy it from the browser address bar instead.'
-        live.notify(message)
+      const messages: Record<LinkShareResult, string> = {
+        shared: 'Live activity link shared. Anyone with it can edit this activity.',
+        copied: 'Live activity link copied. Anyone with it can edit this activity.',
+        cancelled: 'Sharing cancelled.',
+        failed: 'Could not share the live activity link. Please try again.',
       }
+      live.notify(messages[result])
+    } else {
+      setActivityFeedback({ groupId: share.activity.group.id, message: SHARE_URL_MESSAGES[result] })
+    }
+    if (result === 'shared' || result === 'copied') setQrShare(null)
+  }
+
+  const shareQrLink = async (share: NonNullable<QrShare>) => {
+    const result = await shareLink(`${share.activity.group.name} — Tally`, share.url, share.mode === 'live'
+      ? `Join ${share.activity.group.name} and edit expenses together in Tally.`
+      : `View ${share.activity.group.name} in Tally.`)
+    reportQrShareResult(share, result)
+  }
+
+  const copyQrLink = async (share: NonNullable<QrShare>) => {
+    const result = await copyLink(share.url)
+    if (result === 'failed' && share.mode === 'live') {
+      live.notify('Could not copy the live activity link. Please try Share link instead.')
       return
     }
-    const result = await shareActivityUrl(share.activity)
-    setQrShare(null)
-    setActivityFeedback({ groupId: share.activity.group.id, message: SHARE_URL_MESSAGES[result] })
+    reportQrShareResult(share, result)
   }
 
   const deleteExpense = async (expense: Expense) => {
@@ -365,11 +387,13 @@ export default function App({ analyticsClient = null, liveActivityClient }: AppP
           closeSharedViews()
           setModal('group')
         }}
+        onJoin={() => setModal('join')}
         onDelete={deleteActivity}
         onReset={resetData}
       />
       <div className="workspace">
         <Topbar query={query} setQuery={setQuery} onSettings={() => setModal('identity')} />
+        {(live.credentials || sharedActivity) && !isStandalonePwa() ? <BrowserToPwaHandoff url={window.location.href} /> : null}
         {live.credentials ? (
           <>
             <section className="shared-preview live-preview" aria-label="Live activity">
@@ -429,7 +453,7 @@ export default function App({ analyticsClient = null, liveActivityClient }: AppP
             onEditExpense={openEditExpense}
             onDeleteExpense={deleteExpense}
           />
-        ) : <FreshStart onCreate={() => setModal('group')} />}
+        ) : <FreshStart onCreate={() => setModal('group')} onJoin={() => setModal('join')} />}
       </div>
       {modal === 'group' ? <CreateGroupModal onClose={() => setModal(null)} onSave={createGroup} /> : null}
       {modal === 'friend' ? <AddFriendModal existingExpenseCount={spendingExpenses(activeExpenses).length} onClose={() => setModal(null)} onSave={addFriends} /> : null}
@@ -444,7 +468,8 @@ export default function App({ analyticsClient = null, liveActivityClient }: AppP
       ) : null}
       {modal === 'settlement' && activeGroup && settlingDirection ? <SettleUpModal group={activeGroup} settlement={settlingDirection} onClose={closeSettleUpModal} onSave={recordSettlement} /> : null}
       {modal === 'shared-identity' && sharedActivity ? <SharedActivityIdentityModal members={sharedMembers} onClose={() => setModal(null)} onSave={viewerId => saveSharedActivity(sharedActivity, viewerId)} /> : null}
-      {qrShare ? <Suspense fallback={null}><ShareActivityQrModal groupName={qrShare.activity.group.name} url={qrShare.url} mode={qrShare.mode} activityCode={qrShare.activityCode} onClose={() => setQrShare(null)} onCopy={() => copyQrLink(qrShare)} /></Suspense> : null}
+      {modal === 'join' ? <JoinActivityModal onClose={() => setModal(null)} onJoin={joinSharedActivity} /> : null}
+      {qrShare ? <Suspense fallback={null}><ShareActivityQrModal groupName={qrShare.activity.group.name} url={qrShare.url} mode={qrShare.mode} activityCode={qrShare.activityCode} onClose={() => setQrShare(null)} onCopy={() => copyQrLink(qrShare)} onShare={() => shareQrLink(qrShare)} /></Suspense> : null}
       {!identity || modal === 'identity' ? <IdentityModal initialName={identity?.name} onClose={identity ? () => setModal(null) : undefined} onSave={name => { setIdentity(createIdentity(name)); setModal(null) }} /> : null}
     </div>
   )

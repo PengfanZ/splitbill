@@ -8,12 +8,14 @@ describe('ShareActivityQrModal', () => {
     const user = userEvent.setup()
     const onClose = vi.fn()
     const onCopy = vi.fn()
+    const onShare = vi.fn()
     render(
       <ShareActivityQrModal
         groupName="Weekend"
         url="https://example.com/splitbill/#share=activity"
         onClose={onClose}
         onCopy={onCopy}
+        onShare={onShare}
       />,
     )
 
@@ -24,8 +26,10 @@ describe('ShareActivityQrModal', () => {
     expect(screen.getByText('It is not encrypted.', { exact: false })).toBeVisible()
 
     await user.click(screen.getByRole('button', { name: 'Copy link' }))
+    await user.click(screen.getByRole('button', { name: 'Share link' }))
     await user.click(screen.getAllByRole('button', { name: 'Close' }).at(-1)!)
     expect(onCopy).toHaveBeenCalledOnce()
+    expect(onShare).toHaveBeenCalledOnce()
     expect(onClose).toHaveBeenCalledOnce()
   })
 
@@ -38,6 +42,7 @@ describe('ShareActivityQrModal', () => {
         activityCode="A1B2C3D4E5"
         onClose={vi.fn()}
         onCopy={vi.fn()}
+        onShare={vi.fn()}
       />,
     )
 
@@ -46,7 +51,7 @@ describe('ShareActivityQrModal', () => {
     expect(screen.getByText('The code opens the same editable activity on Tally.')).toBeVisible()
     expect(screen.getByText('Anyone with the link can edit')).toBeVisible()
 
-    rerender(<ShareActivityQrModal groupName="Weekend" url="https://example.com" mode="live" onClose={vi.fn()} onCopy={vi.fn()} />)
+    rerender(<ShareActivityQrModal groupName="Weekend" url="https://example.com" mode="live" onClose={vi.fn()} onCopy={vi.fn()} onShare={vi.fn()} />)
     expect(screen.getByText('Live activity')).toBeVisible()
   })
 })

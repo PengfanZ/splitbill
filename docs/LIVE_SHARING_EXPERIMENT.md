@@ -73,7 +73,7 @@ The UI immediately loads the latest record, keeps the editor open, and asks the 
 - **Share live** creates a backend activity and immediately moves the creator's tab into that live revision, without removing the existing read-only snapshot option.
 - Every browser that successfully opens a live capability remembers it under **Your activities**. The creator keeps the original local activity entry; recipients receive a lightweight `Live · CODE` shortcut that always reopens the canonical backend copy.
 - A remembered live activity stays selected until another activity is chosen. Returning to the app or clicking its sidebar shortcut reconnects to the latest backend revision without requiring the link again.
-- The QR dialog displays the short `#live=` capability URL and copies it directly to the clipboard.
+- The QR dialog displays the short `#live=` capability URL, opens the device's native share sheet, and retains an explicit copy-link fallback. Installed PWA users can paste a browser-opened capability link into **Join activity** to continue in their existing app session.
 - Opening a live link loads the canonical backend snapshot and enables adding friends plus creating, editing, and deleting expenses.
 - Every mutation sends the last loaded revision. A stale save loads the current activity with a visible conflict message instead of overwriting someone else's work.
 - Newer revisions load automatically while the live activity is visible. Polling pauses for hidden, offline, or actively-saving tabs and backs off to at most one request per minute after failures.

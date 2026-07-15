@@ -13,7 +13,7 @@ import { ActivitySummary, ExpenseList, GroupDashboard, MembersRail, SettlementDi
 import { AddFriendModal, CreateGroupModal, ExpenseModal, SettleUpModal } from './features/activity/ActivityModals'
 import { LiveActivityApiError, type LiveActivityRecord } from './features/liveSharing/liveActivityApi'
 import type { LiveActivityClient } from './features/liveSharing/liveActivityConfig'
-import { LIVE_ACTIVITY_HASH_PREFIX } from './features/liveSharing/liveActivityLink'
+import { buildLiveActivityUrl, LIVE_ACTIVITY_HASH_PREFIX } from './features/liveSharing/liveActivityLink'
 import { LIVE_ACTIVITY_BOOKMARKS_KEY } from './features/liveSharing/useLiveActivityBookmarks'
 import { LIVE_ACTIVITY_POLL_INTERVAL_MS } from './features/liveSharing/useLiveActivityPolling'
 import { buildShareSummary, createSummaryCard, exportActivitySummary, SHARE_MESSAGES, shareActivitySummary } from './features/sharing/shareActivity'
@@ -281,9 +281,10 @@ describe('small UI building blocks', () => {
     const user = userEvent.setup()
     const onSelect = vi.fn()
     const onCreate = vi.fn()
+    const onJoin = vi.fn()
     const onDelete = vi.fn()
     const onReset = vi.fn()
-    const { rerender } = render(<Sidebar groups={[]} selectedId={null} onSelect={onSelect} onCreate={onCreate} onDelete={onDelete} onReset={onReset} />)
+    const { rerender } = render(<Sidebar groups={[]} selectedId={null} onSelect={onSelect} onCreate={onCreate} onJoin={onJoin} onDelete={onDelete} onReset={onReset} />)
     expect(screen.getByText('No activities yet.')).toBeVisible()
     expect(screen.getByRole('link', { name: 'Source & feedback' })).toHaveAttribute('href', 'https://github.com/PengfanZ/splitbill')
     expect(screen.getByRole('link', { name: 'Source & feedback' })).toHaveAttribute('target', '_blank')
@@ -293,12 +294,14 @@ describe('small UI building blocks', () => {
     await user.click(screen.getAllByRole('button', { name: 'Close navigation' })[0])
     await user.click(screen.getByRole('button', { name: 'New activity' }))
     expect(onCreate).toHaveBeenCalledOnce()
+    await user.click(screen.getByRole('button', { name: 'Join activity' }))
+    expect(onJoin).toHaveBeenCalledOnce()
 
     const home: ActivityGroup = { id: 'home', name: 'Home', emoji: '⌂', memberIds: ['me'] }
-    rerender(<Sidebar groups={[home, group]} selectedId="home" onSelect={onSelect} onCreate={onCreate} onDelete={onDelete} onReset={onReset} />)
+    rerender(<Sidebar groups={[home, group]} selectedId="home" onSelect={onSelect} onCreate={onCreate} onJoin={onJoin} onDelete={onDelete} onReset={onReset} />)
     expect(screen.getByText('1 person')).toBeVisible()
     expect(screen.getByText('3 people')).toBeVisible()
-    rerender(<Sidebar groups={[home, group]} selectedId={null} liveActivityCodes={{ trip: 'A1B2C3D4E5' }} onSelect={onSelect} onCreate={onCreate} onDelete={onDelete} onReset={onReset} />)
+    rerender(<Sidebar groups={[home, group]} selectedId={null} liveActivityCodes={{ trip: 'A1B2C3D4E5' }} onSelect={onSelect} onCreate={onCreate} onJoin={onJoin} onDelete={onDelete} onReset={onReset} />)
     expect(screen.getByText('Live · A1B2C3D4E5')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Open Trip activity' }))
     expect(onSelect).toHaveBeenCalledWith('trip')
@@ -325,9 +328,12 @@ describe('small UI building blocks', () => {
   it('renders the fresh start and runs its action', async () => {
     const user = userEvent.setup()
     const onCreate = vi.fn()
-    render(<FreshStart onCreate={onCreate} />)
+    const onJoin = vi.fn()
+    render(<FreshStart onCreate={onCreate} onJoin={onJoin} />)
     await user.click(screen.getByRole('button', { name: 'Create an activity' }))
+    await user.click(screen.getByRole('button', { name: 'Join from a link' }))
     expect(onCreate).toHaveBeenCalledOnce()
+    expect(onJoin).toHaveBeenCalledOnce()
   })
 
   it('renders positive, negative, and settled summaries', () => {
@@ -718,6 +724,10 @@ describe('complete app workflows', () => {
     expect(await screen.findByRole('dialog', { name: 'Scan to open Trip' })).toBeVisible()
     await user.click(screen.getAllByRole('button', { name: 'Close' })[0])
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Join activity' }))
+    expect(screen.getByRole('dialog', { name: 'Join a shared activity' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Close' }))
   })
 
   it('creates an activity, adds people and expenses, searches, deletes, and resets', async () => {
@@ -742,9 +752,15 @@ describe('complete app workflows', () => {
     await user.click(screen.getByRole('button', { name: 'Save expense' }))
     expect(screen.getByText('+$20.00')).toBeVisible()
 
+    await user.click(screen.getByRole('button', { name: 'Edit Gas' }))
+    await user.clear(screen.getByLabelText('Amount'))
+    await user.type(screen.getByLabelText('Amount'), '45')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    expect(screen.getAllByText('$45.00').some(element => element.matches('.expense-amount b'))).toBe(true)
+
     await user.click(screen.getByRole('button', { name: 'Share summary' }))
     expect(await screen.findByRole('status')).toHaveTextContent('Summary copied')
-    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Maya pays You $10.00'))
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Maya pays You $15.00'))
 
     await user.click(screen.getByRole('button', { name: 'Share QR' }))
     expect(await screen.findByRole('dialog', { name: 'Scan to open Road trip' })).toBeVisible()
@@ -752,6 +768,13 @@ describe('complete app workflows', () => {
     await user.click(screen.getByRole('button', { name: 'Copy link' }))
     expect(await screen.findByRole('status')).toHaveTextContent('Activity link copied')
     expect(writeText).toHaveBeenLastCalledWith(expect.stringContaining('#share='))
+
+    const nativeShare = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'share', { configurable: true, value: nativeShare })
+    await user.click(screen.getByRole('button', { name: 'Share QR' }))
+    await user.click(await screen.findByRole('button', { name: 'Share link' }))
+    expect(nativeShare).toHaveBeenCalledWith(expect.objectContaining({ title: 'Road trip — Tally', text: 'View Road trip in Tally.', url: expect.stringContaining('#share=') }))
+    expect(await screen.findByRole('status')).toHaveTextContent('Activity link shared')
 
     await user.type(screen.getByRole('textbox', { name: 'Search expenses' }), 'zzz')
     expect(screen.getByText('No expenses match your search.')).toBeVisible()
@@ -768,6 +791,9 @@ describe('complete app workflows', () => {
     expect(screen.getByRole('heading', { name: 'Road trip' })).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Reset local data' }))
     expect(screen.getByRole('heading', { name: 'Start your first activity' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Join from a link' }))
+    expect(screen.getByRole('dialog', { name: 'Join a shared activity' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Close' }))
   })
 
   it('guides oversized activities to the summary fallback instead of rendering an unreliable QR code', async () => {
@@ -779,6 +805,33 @@ describe('complete app workflows', () => {
     await user.click(screen.getByRole('button', { name: 'Share QR' }))
     expect(await screen.findByRole('status')).toHaveTextContent('too large for a reliable QR code')
     expect(screen.queryByText(/Scan to open/)).not.toBeInTheDocument()
+  })
+
+  it('moves a pasted live link into the current app session and can reopen the same link', async () => {
+    const user = userEvent.setup()
+    const credentials = { code: 'A1B2C3D4E5', editToken: 'a'.repeat(64) }
+    const snapshot = createSharedActivity(group, [CURRENT_USER, maya, jordan], [expense()])
+    const client = {
+      create: vi.fn(),
+      load: vi.fn().mockResolvedValue({ code: credentials.code, revision: 1, snapshot, updatedAt: '2026-07-14T01:00:00.000Z' }),
+      poll: vi.fn(),
+      update: vi.fn(),
+    } satisfies LiveActivityClient
+    render(<App liveActivityClient={client} />)
+    const liveUrl = buildLiveActivityUrl(credentials, 'https://pengfanz.github.io/splitbill/')
+
+    await user.click(screen.getByRole('button', { name: 'Join activity' }))
+    await user.type(screen.getByLabelText('Shared activity link'), liveUrl)
+    await user.click(screen.getByRole('button', { name: 'Open activity' }))
+    expect(await screen.findByText('Live · revision 1')).toBeVisible()
+    expect(window.location.hash).toBe(new URL(liveUrl).hash)
+    expect(client.load).toHaveBeenCalledOnce()
+
+    await user.click(screen.getByRole('button', { name: 'Join activity' }))
+    await user.type(screen.getByLabelText('Shared activity link'), liveUrl)
+    await user.click(screen.getByRole('button', { name: 'Open activity' }))
+    await waitFor(() => expect(client.load).toHaveBeenCalledTimes(2))
+    expect(screen.getByText('Live · revision 1')).toBeVisible()
   })
 
   it('selects another activity and synchronizes matching storage events', async () => {
@@ -958,6 +1011,18 @@ describe('complete app workflows', () => {
     await waitFor(() => expect(analyticsClient.track).toHaveBeenCalledWith('live_activity_opened', 'live'))
     expect(analyticsClient.track).toHaveBeenCalledWith('app_opened', 'local')
     expect(analyticsClient.track).toHaveBeenCalledWith('live_activity_created', 'local')
+
+    const nativeShare = vi.fn().mockRejectedValueOnce(new DOMException('cancelled', 'AbortError')).mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'share', { configurable: true, value: nativeShare })
+    await user.click(screen.getByRole('button', { name: 'Share link' }))
+    expect(screen.getByRole('dialog', { name: 'Scan to join Trip' })).toBeVisible()
+    expect(screen.getByRole('status')).toHaveTextContent('Sharing cancelled')
+    await user.click(screen.getByRole('button', { name: 'Share link' }))
+    expect(nativeShare).toHaveBeenLastCalledWith(expect.objectContaining({ text: 'Join Trip and edit expenses together in Tally.' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('Live activity link shared')
+
+    Object.defineProperty(navigator, 'share', { configurable: true, value: undefined })
+    await user.click(screen.getByRole('button', { name: 'Show QR' }))
     await user.click(screen.getByRole('button', { name: 'Copy link' }))
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining(`${LIVE_ACTIVITY_HASH_PREFIX}A1B2C3D4E5.`))
     expect(await screen.findByRole('status')).toHaveTextContent('Live activity link copied')
@@ -966,6 +1031,8 @@ describe('complete app workflows', () => {
     await user.click(screen.getByRole('button', { name: 'Show QR' }))
     await user.click(await screen.findByRole('button', { name: 'Copy link' }))
     expect(await screen.findByRole('status')).toHaveTextContent('Could not copy the live activity link')
+    await user.click(screen.getByRole('button', { name: 'Share link' }))
+    expect(screen.getByRole('status')).toHaveTextContent('Could not share the live activity link')
     await user.click(screen.getAllByRole('button', { name: 'Close' })[0])
 
     await user.click(screen.getByRole('button', { name: 'Add expense' }))

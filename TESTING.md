@@ -8,7 +8,7 @@ Coverage is necessary, but it is not the definition of correctness. Every produc
 2. **Edge cases** — cent rounding, floating-point totals, empty and corrupted storage, unavailable browser APIs, cancelled sharing, long expense lists, multiple creditors and debtors, and invalid form input.
 3. **Domain unit tests** — direct tests beside pure financial and member modules, independent of React and browser workflows.
 4. **Component and helper tests** — focused tests for persistence, rendering states, and browser fallbacks.
-5. **Rendered browser integration tests** — Playwright runs the production GitHub Pages build in Chromium and verifies interaction, responsive layout, persistence after reload, PWA metadata and offline app-shell loading, destructive confirmations, and console health.
+5. **Rendered browser integration tests** — Playwright runs the production GitHub Pages build in Chromium and verifies interaction, responsive layout, persistence after reload, PWA metadata and offline app-shell loading, Safari-to-PWA link handoff, destructive confirmations, and console health.
 6. **Database security tests** — pgTAP recreates the schema from migrations and verifies capability checks, RLS, least-privilege grants, expiration, rate limiting, analytics data minimization, retention, validation, and optimistic concurrency.
 
 ## CI gate
