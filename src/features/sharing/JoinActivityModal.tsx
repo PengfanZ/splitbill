@@ -1,23 +1,25 @@
 import { useState } from 'react'
 import { ClipboardPaste, Link2, Smartphone } from 'lucide-react'
 import { ModalShell } from '../../components/AppShell'
+import { useLocalization } from '../../i18n/LocalizationContext'
 import { copyLink } from './shareLink'
 import { extractSharedActivityHash } from './sharedLinkHandoff'
 
 export function JoinActivityModal({ onClose, onJoin }: { onClose: () => void; onJoin: (hash: string) => void }) {
   const [link, setLink] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const { t } = useLocalization()
 
   const pasteLink = async () => {
     if (typeof navigator.clipboard?.readText !== 'function') {
-      setError('Paste the shared link into the field manually.')
+      setError(t('join.manualPaste'))
       return
     }
     try {
       setLink(await navigator.clipboard.readText())
       setError(null)
     } catch {
-      setError('Tally could not read the clipboard. Paste the link manually.')
+      setError(t('join.clipboardFailed'))
     }
   }
 
@@ -25,38 +27,37 @@ export function JoinActivityModal({ onClose, onJoin }: { onClose: () => void; on
     event.preventDefault()
     const hash = extractSharedActivityHash(link)
     if (!hash) {
-      setError('Paste a valid Tally live link or snapshot link.')
+      setError(t('join.invalid'))
       return
     }
     onJoin(hash)
   }
 
   return (
-    <ModalShell eyebrow="PWA handoff" title="Join a shared activity" onClose={onClose}>
+    <ModalShell eyebrow={t('join.eyebrow')} title={t('join.title')} onClose={onClose}>
       <form onSubmit={submit}>
-        <div className="split-note identity-note"><Smartphone size={18} /><span><b>Continue in your installed Tally app</b><small>If Safari opened the link in a separate browser session, copy it there, return to Tally, and paste it below.</small></span></div>
-        <label>Shared activity link<textarea aria-label="Shared activity link" value={link} onChange={event => { setLink(event.target.value); setError(null) }} placeholder="https://pengfanz.github.io/splitbill/#live=…" autoFocus /></label>
+        <div className="split-note identity-note"><Smartphone size={18} /><span><b>{t('join.continueTitle')}</b><small>{t('join.continueText')}</small></span></div>
+        <label>{t('join.link')}<textarea aria-label={t('join.link')} value={link} onChange={event => { setLink(event.target.value); setError(null) }} placeholder="https://pengfanz.github.io/splitbill/#live=…" autoFocus /></label>
         {error ? <p className="split-error" role="alert">{error}</p> : null}
-        <div className="modal-actions"><button type="button" className="outline-button qr-copy-button" onClick={pasteLink}><ClipboardPaste size={16} />Paste link</button><button className="confirm-button qr-copy-button" type="submit"><Link2 size={16} />Open activity</button></div>
+        <div className="modal-actions"><button type="button" className="outline-button qr-copy-button" onClick={pasteLink}><ClipboardPaste size={16} />{t('join.paste')}</button><button className="confirm-button qr-copy-button" type="submit"><Link2 size={16} />{t('join.open')}</button></div>
       </form>
     </ModalShell>
   )
 }
 
 export function BrowserToPwaHandoff({ url }: { url: string }) {
-  const [message, setMessage] = useState('Safari cannot automatically switch this link into an installed web app.')
+  const { t } = useLocalization()
+  const [messageKey, setMessageKey] = useState<'handoff.default' | 'handoff.copied' | 'handoff.manual'>('handoff.default')
 
   const copyForApp = async () => {
     const result = await copyLink(url)
-    setMessage(result === 'copied'
-      ? 'Link copied. Open the Tally app, choose Join activity, and paste it.'
-      : 'Copy this page’s URL, then open the Tally app and choose Join activity.')
+    setMessageKey(result === 'copied' ? 'handoff.copied' : 'handoff.manual')
   }
 
   return (
-    <section className="pwa-handoff" aria-label="Continue in installed Tally">
-      <div><Smartphone size={18} /><span><b>Already installed Tally?</b><small aria-live="polite">{message}</small></span></div>
-      <button type="button" className="outline-button" onClick={copyForApp}>Copy for app</button>
+    <section className="pwa-handoff" aria-label={t('handoff.label')}>
+      <div><Smartphone size={18} /><span><b>{t('handoff.title')}</b><small aria-live="polite">{t(messageKey)}</small></span></div>
+      <button type="button" className="outline-button" onClick={copyForApp}>{t('handoff.copy')}</button>
     </section>
   )
 }

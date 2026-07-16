@@ -18,6 +18,41 @@ test.beforeEach(async ({ context }) => {
   }))
 })
 
+test('automatically uses Simplified Chinese in China and keeps the choice across reloads', async ({ browser }) => {
+  const context = await browser.newContext({ locale: 'zh-CN', timezoneId: 'Asia/Shanghai' })
+  const page = await context.newPage()
+
+  try {
+    await page.goto('./')
+    await expect(page).toHaveTitle('Tally — 轻松分账')
+    await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN')
+    await expect(page.getByRole('heading', { name: '怎么称呼你？' })).toBeVisible()
+    await expect(page.getByText('时间将按照 Asia/Shanghai 显示。')).toBeVisible()
+
+    await page.getByLabel('显示名称').fill('鹏帆')
+    await page.getByRole('button', { name: '继续' }).click()
+    await page.getByRole('main').getByRole('button', { name: '创建活动' }).click()
+    await page.getByLabel('活动名称').fill('周末旅行')
+    await page.getByLabel(/添加朋友/).fill('小明')
+    await page.getByRole('dialog').getByRole('button', { name: '创建活动' }).click()
+    await page.getByRole('button', { name: '添加支出' }).click()
+    await page.getByLabel('说明').fill('晚餐')
+    await page.getByRole('spinbutton', { name: '金额' }).fill('80')
+    await page.getByRole('button', { name: '保存支出' }).click()
+    await expect(page.getByText(/^创建于 .*GMT\+8/)).toBeVisible()
+
+    await page.getByRole('button', { name: '设置' }).click()
+    await page.getByLabel('语言').selectOption('en')
+    await expect(page).toHaveTitle('Tally — Shared expenses, settled')
+    await page.getByRole('button', { name: 'Save name' }).click()
+    await page.reload()
+    await expect(page.getByRole('button', { name: 'Settings' })).toBeVisible()
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en')
+  } finally {
+    await context.close()
+  }
+})
+
 test('is installable and reloads the local app shell while offline', async ({ browser }) => {
   const context = await browser.newContext()
   const page = await context.newPage()

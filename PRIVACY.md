@@ -6,6 +6,8 @@ Tally is designed for small trusted groups.
 
 Your display name, local activities, saved live shortcuts, friends, and expenses are stored in browser local storage. A random analytics session token is stored separately in session storage and disappears when the browser session ends. Clearing site data removes that browser's local copy and shortcuts.
 
+The selected language is also stored locally. Automatic language selection reads only the browser's language preferences and device time-zone name. Tally does not request GPS access or send locale or time-zone data to an IP-location service. Expense times are formatted on the device in the browser's current time zone.
+
 When Tally is installed as a PWA, Cache Storage contains only versioned static application files and install icons. The service worker does not cache local activity records, live activity responses, Supabase requests, analytics payloads, shared URL fragments, or the social preview image.
 
 ## Data stored for live activities

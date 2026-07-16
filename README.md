@@ -8,6 +8,8 @@ A local-first, full-stack shared-expense app for trips, dinners, homes, and othe
 
 On first use, Tally asks for a display name and stores that identity only in the current browser. The name replaces the ambiguous generic “You” in participant lists and is included as the sender identity when an activity link is shared.
 
+Tally supports English and Simplified Chinese. It starts in Chinese when the browser language is Chinese or the device time zone is in mainland China; otherwise it starts in English. A manual choice in **Settings** is saved in the browser and always takes priority. Expense timestamps use the browser's IANA time zone, which is shown in Settings.
+
 Production uses privacy-preserving first-party analytics through Supabase for both browser-local and live activity workflows. Only allowlisted event names, a coarse `local`/`live`/`snapshot` surface, and a one-way session hash are stored—never URLs, capability tokens, activity IDs, names, descriptions, amounts, or balances. Frontend-only deployments can retain Cloudflare Web Analytics, but third-party analytics never loads on shared activity URLs. See [the analytics design](docs/ANALYTICS.md).
 
 ## Sharing and live collaboration
@@ -39,6 +41,7 @@ Opening a snapshot never overwrites browser data, and shared-preview URLs never 
 - Continue a Safari-opened shared link in an installed Tally PWA without abandoning the existing app session.
 - Measure anonymous local and live feature usage without sending activity data or secret URLs to analytics.
 - Use the responsive interface on desktop or mobile.
+- Switch between English and Simplified Chinese, with China-aware defaults and local-time expense timestamps.
 
 ## Important data note
 
@@ -116,6 +119,7 @@ src/
 │   ├── liveSharing/           # Capability links and backend synchronization
 │   └── sharing/               # QR snapshots and PNG exports
 ├── hooks/                     # React lifecycle integrations
+├── i18n/                      # Locale selection, translations, and time formatting
 ├── pwa/                       # Testable service-worker cache helpers
 └── sw.ts                      # Offline shell and cache lifecycle
 supabase/

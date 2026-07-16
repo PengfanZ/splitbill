@@ -1,7 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap');
 
 :root {
-  font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  font-family: 'DM Sans', 'PingFang SC', 'Microsoft YaHei', ui-sans-serif, system-ui, sans-serif;
   color: #252320;
   background: #f7f4ee;
   font-synthesis: none;
@@ -17,6 +17,9 @@
   --red: #e24b43;
   --serif: 'DM Serif Display', Georgia, serif;
 }
+
+html[lang='zh-CN'] { --serif: 'PingFang SC', 'Microsoft YaHei', ui-sans-serif, system-ui, sans-serif; }
+html[lang='zh-CN'] h1, html[lang='zh-CN'] h2, html[lang='zh-CN'] .brand { letter-spacing: 0; }
 
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--paper); }

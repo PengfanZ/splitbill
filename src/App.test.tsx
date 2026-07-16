@@ -14,6 +14,7 @@ import { AddFriendModal, CreateGroupModal, ExpenseModal, SettleUpModal } from '.
 import { LiveActivityApiError, type LiveActivityRecord } from './features/liveSharing/liveActivityApi'
 import type { LiveActivityClient } from './features/liveSharing/liveActivityConfig'
 import { buildLiveActivityUrl, LIVE_ACTIVITY_HASH_PREFIX } from './features/liveSharing/liveActivityLink'
+import { liveActivityErrorMessage } from './features/liveSharing/useLiveActivitySession'
 import { LIVE_ACTIVITY_BOOKMARKS_KEY } from './features/liveSharing/useLiveActivityBookmarks'
 import { LIVE_ACTIVITY_POLL_INTERVAL_MS } from './features/liveSharing/useLiveActivityPolling'
 import { buildShareSummary, createSummaryCard, exportActivitySummary, SHARE_MESSAGES, shareActivitySummary } from './features/sharing/shareActivity'
@@ -79,6 +80,10 @@ function mockCanvas(blob: Blob | null = new Blob(['png'], { type: 'image/png' })
 }
 
 describe('state and formatting helpers', () => {
+  it('uses the default English live-activity error translator', () => {
+    expect(liveActivityErrorMessage(new Error('unexpected'))).toBe('The live activity could not be updated. Please try again.')
+  })
+
   it('parses valid state and chooses a selected group fallback', () => {
     expect(parseState(null)).toBe(EMPTY_STATE)
     expect(parseState(JSON.stringify(storedState()))).toEqual(storedState())
@@ -653,6 +658,54 @@ describe('modals', () => {
 })
 
 describe('complete app workflows', () => {
+  it('localizes feedback for adding several friends with and without earlier expenses', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState()))
+    const { unmount } = render(<App />)
+
+    await user.click(screen.getAllByRole('button', { name: 'Add friend' })[0])
+    await user.type(screen.getByLabelText(/Friend names/), 'Sam, Taylor')
+    await user.click(screen.getByRole('button', { name: 'Add friends' }))
+    expect(screen.getByRole('status')).toHaveTextContent('Sam and Taylor were added to the activity.')
+
+    unmount()
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState({
+      expenses: [expense(), expense({ id: 'expense-2', title: 'Taxi' })],
+    })))
+    render(<App />)
+    await user.click(screen.getAllByRole('button', { name: 'Add friend' })[0])
+    await user.type(screen.getByLabelText(/Friend names/), 'Sam, Taylor')
+    await user.click(screen.getByRole('button', { name: 'Add friends' }))
+    expect(screen.getByRole('status')).toHaveTextContent('Sam and Taylor were added for future expenses. 2 earlier expenses were left unchanged.')
+  })
+
+  it('switches the complete app to Simplified Chinese and persists the preference', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState({
+      expenses: [expense({ createdAt: '2026-07-16T12:30:00.000Z' })],
+    })))
+    const { unmount } = render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'Settings' }))
+    expect(screen.getByText(/Times are shown in/)).toBeVisible()
+    await user.selectOptions(screen.getByLabelText('Language'), 'zh-CN')
+
+    expect(document.documentElement.lang).toBe('zh-CN')
+    expect(document.title).toBe('Tally — 轻松分账')
+    expect(screen.getByRole('heading', { name: '设置' })).toBeVisible()
+    expect(screen.getByRole('button', { name: '保存' })).toBeVisible()
+    expect(screen.getByText(/^创建于 /)).toBeVisible()
+    expect(localStorage.getItem('tally:locale:v1')).toBe('zh-CN')
+
+    await user.click(screen.getByRole('button', { name: '保存' }))
+    unmount()
+    render(<App />)
+    expect(screen.getByRole('button', { name: '设置' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: '设置' }))
+    await user.selectOptions(screen.getByLabelText('语言'), 'en')
+    expect(screen.getByRole('heading', { name: 'Settings' })).toBeVisible()
+  })
+
   it('tracks successful local activity, expense, and settlement outcomes without payload data', async () => {
     const user = userEvent.setup()
     const analyticsClient = { track: vi.fn() } satisfies AnalyticsClient

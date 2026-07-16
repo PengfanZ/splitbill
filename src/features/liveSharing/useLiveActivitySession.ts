@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import type { PersistedState } from '../../domain/models'
+import { translate, type Translate } from '../../i18n/localization'
 import { decodeSharedActivityHash, getSharedActivitySender, type SharedActivity } from '../sharing/shareActivityUrl'
 import { LiveActivityApiError, type LiveActivityRecord } from './liveActivityApi'
 import { createConfiguredLiveActivityClient, type LiveActivityClient } from './liveActivityConfig'
@@ -24,16 +25,19 @@ type UseLiveActivitySessionOptions = {
   liveActivityClient?: LiveActivityClient | null
   onSharedActivityChange: (activity: SharedActivity | null) => void
   setPersistedState: Dispatch<SetStateAction<PersistedState>>
+  t?: Translate
 }
 
-export function liveActivityErrorMessage(error: unknown) {
+const englishT: Translate = (key, variables) => translate('en', key, variables)
+
+export function liveActivityErrorMessage(error: unknown, t: Translate = englishT) {
   if (error instanceof LiveActivityApiError) {
-    if (error.kind === 'conflict') return 'Someone saved a newer version. Refresh the activity, then try your change again.'
-    if (error.kind === 'not-found') return 'This live activity link is invalid or no longer available.'
-    if (error.kind === 'rate-limit') return 'Too many live activity requests from this network. Wait a few minutes, then try again.'
-    if (error.kind === 'network') return 'Could not reach the live activity service. Check your connection and try again.'
+    if (error.kind === 'conflict') return t('live.conflict')
+    if (error.kind === 'not-found') return t('live.notFound')
+    if (error.kind === 'rate-limit') return t('live.rateLimit')
+    if (error.kind === 'network') return t('live.network')
   }
-  return 'The live activity could not be updated. Please try again.'
+  return t('live.genericError')
 }
 
 export function useLiveActivitySession({
@@ -41,6 +45,7 @@ export function useLiveActivitySession({
   liveActivityClient,
   onSharedActivityChange,
   setPersistedState,
+  t = englishT,
 }: UseLiveActivitySessionOptions) {
   const [bookmarks, setBookmarks] = useLiveActivityBookmarks()
   const [client] = useState(() => liveActivityClient === undefined ? createConfiguredLiveActivityClient() : liveActivityClient)
@@ -65,7 +70,7 @@ export function useLiveActivitySession({
       const activeSession = session!
       if (record.revision <= activeSession.record.revision) return
       setSession({ credentials: activeSession.credentials, record })
-      setNotice('New shared changes loaded automatically.')
+      setNotice(t('live.newChanges'))
     },
   })
 
@@ -107,12 +112,12 @@ export function useLiveActivitySession({
         }
       })
     }).catch(error => {
-      if (active) setNotice(liveActivityErrorMessage(error))
+      if (active) setNotice(liveActivityErrorMessage(error, t))
     }).finally(() => {
       if (active) setLoading(false)
     })
     return () => { active = false }
-  }, [bookmarks, client, credentials, session, setBookmarks, setPersistedState])
+  }, [bookmarks, client, credentials, session, setBookmarks, setPersistedState, t])
 
   const close = () => {
     clearLiveActivityHash()
@@ -140,9 +145,9 @@ export function useLiveActivitySession({
     try {
       const record = await activeClient.load(activeCredentials)
       setSession({ credentials: activeCredentials, record })
-      setNotice('Latest changes loaded.')
+      setNotice(t('live.latestLoaded'))
     } catch (error) {
-      setNotice(liveActivityErrorMessage(error))
+      setNotice(liveActivityErrorMessage(error, t))
     } finally {
       setLoading(false)
     }
@@ -162,9 +167,9 @@ export function useLiveActivitySession({
     } catch (error) {
       if (error instanceof LiveActivityApiError && error.kind === 'conflict' && error.latestRecord) {
         setSession({ credentials: activeSession.credentials, record: error.latestRecord })
-        setNotice('Someone saved a newer version. The latest changes are loaded—review and save again.')
+        setNotice(t('live.conflictLoaded'))
       } else {
-        setNotice(liveActivityErrorMessage(error))
+        setNotice(liveActivityErrorMessage(error, t))
       }
       return false
     } finally {
@@ -174,7 +179,7 @@ export function useLiveActivitySession({
   }
 
   const create = async (activity: SharedActivity, groupId: string): Promise<CreateLiveActivityResult> => {
-    if (!client) return { ok: false, message: 'Live sharing is not configured in this build.' }
+    if (!client) return { ok: false, message: t('live.notConfigured') }
     try {
       const created = await client.create(activity)
       const nextCredentials = { code: created.code, editToken: created.editToken }
@@ -184,16 +189,16 @@ export function useLiveActivitySession({
       setSession({ credentials: nextCredentials, record: created })
       setBookmarks(current => ({ ...current, [groupId]: nextCredentials }))
       setLoading(false)
-      setNotice(`Live activity ${created.code} is ready. Changes in this tab now sync to the shared activity.`)
+      setNotice(t('live.ready', { code: created.code }))
       return { ok: true, code: created.code, url }
     } catch (error) {
-      return { ok: false, message: liveActivityErrorMessage(error) }
+      return { ok: false, message: liveActivityErrorMessage(error, t) }
     }
   }
 
   const activity = session?.record.snapshot ?? null
   const members = activity ? [getSharedActivitySender(activity), ...activity.friends] : []
-  const displayedNotice = notice ?? (!client && credentials ? 'Live sharing is not configured in this build.' : null)
+  const displayedNotice = notice ?? (!client && credentials ? t('live.notConfigured') : null)
   const activityCodes = Object.fromEntries(Object.entries(bookmarks).map(([groupId, savedCredentials]) => [groupId, savedCredentials.code]))
   const bookmarkedGroupId = credentials ? findLiveActivityBookmarkGroupId(bookmarks, credentials) : null
 
