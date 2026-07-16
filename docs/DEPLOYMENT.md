@@ -75,7 +75,7 @@ The workflow can also be started manually from `main` with **Run workflow**.
 - Create an activity and choose **Share live**.
 - Open the link in a private browser, add an expense, and confirm the first visible browser updates automatically within 15 seconds.
 - Confirm the recipient receives a persistent `Live · CODE` shortcut.
-- Create one local activity and one live activity, then confirm their allowlisted events appear separately in `private.analytics_daily` without URL or activity fields.
+- Create one local activity and one live activity, then confirm their allowlisted events appear separately in `private.analytics_daily` and `private.analytics_hourly` without URL or activity fields.
 - Run Supabase Security Advisor and Performance Advisor after the first migration.
 - Confirm the migration list is synchronized before the next release with `supabase migration list`.
 

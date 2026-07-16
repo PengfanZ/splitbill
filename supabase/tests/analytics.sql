@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(23);
+select plan(29);
 
 select has_table('private', 'analytics_events', 'private analytics storage exists');
 select columns_are(
@@ -32,6 +32,12 @@ select is(
   has_table_privilege('anon', 'private.analytics_daily', 'SELECT'),
   false,
   'anonymous clients cannot read analytics aggregates'
+);
+select has_view('private', 'analytics_hourly', 'a private hourly aggregate view exists');
+select is(
+  has_table_privilege('anon', 'private.analytics_hourly', 'SELECT'),
+  false,
+  'anonymous clients cannot read hourly analytics aggregates'
 );
 select is(
   has_function_privilege('anon', 'private.record_analytics_event(text,text,text)', 'EXECUTE'),
@@ -106,6 +112,57 @@ select is(
   ),
   1::bigint,
   'daily aggregates count anonymous sessions'
+);
+
+insert into private.analytics_events (event_name, surface, session_hash, occurred_at)
+values
+  (
+    'activity_created',
+    'snapshot',
+    extensions.digest('hourly-session-one', 'sha256'),
+    timestamptz '2026-07-16 01:15:00+00'
+  ),
+  (
+    'activity_created',
+    'snapshot',
+    extensions.digest('hourly-session-two', 'sha256'),
+    timestamptz '2026-07-16 02:45:00+00'
+  );
+select is(
+  (
+    select count(*)
+    from private.analytics_hourly
+    where event_name = 'activity_created' and surface = 'snapshot'
+  ),
+  2::bigint,
+  'hourly aggregates keep separate hours from the same UTC day'
+);
+select is(
+  (
+    select min(event_hour)
+    from private.analytics_hourly
+    where event_name = 'activity_created' and surface = 'snapshot'
+  ),
+  timestamptz '2026-07-16 01:00:00+00',
+  'hourly aggregates truncate timestamps to the start of the UTC hour'
+);
+select is(
+  (
+    select max(event_hour)
+    from private.analytics_hourly
+    where event_name = 'activity_created' and surface = 'snapshot'
+  ),
+  timestamptz '2026-07-16 02:00:00+00',
+  'hourly aggregates preserve a later hour on the same UTC day'
+);
+select is(
+  (
+    select sum(events)
+    from private.analytics_hourly
+    where event_name = 'activity_created' and surface = 'snapshot'
+  ),
+  2::numeric,
+  'hourly aggregates count approved events'
 );
 
 insert into private.analytics_events (event_name, surface, session_hash, occurred_at)

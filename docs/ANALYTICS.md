@@ -21,7 +21,7 @@ Do not add arbitrary metadata to this contract. Analytics must never receive URL
 
 `src/analytics.ts` sends events as non-blocking `fetch` requests with `keepalive`, omitted credentials, and no referrer. Failed analytics requests are ignored and never affect local or live workflows.
 
-`public.record_analytics_event` is the only browser-callable database entry point. It validates the event, surface, and session-token shape; applies hashed-IP throttling; hashes the session token; and inserts into `private.analytics_events`. Browser roles cannot read or write that table directly and cannot read `private.analytics_daily`.
+`public.record_analytics_event` is the only browser-callable database entry point. It validates the event, surface, and session-token shape; applies hashed-IP throttling; hashes the session token; and inserts into `private.analytics_events`. Browser roles cannot read or write that table directly and cannot read `private.analytics_daily` or `private.analytics_hourly`.
 
 Opening the app records its initial surface. Successful product actions are measured only after their local state update or live revision save succeeds. A failed expense or settlement save does not produce a success event.
 
@@ -33,6 +33,32 @@ Run reports from **Supabase Dashboard → SQL Editor**. The daily aggregate is t
 select event_day, event_name, surface, events, sessions
 from private.analytics_daily
 order by event_day desc, event_name, surface;
+```
+
+For a chronological hourly usage chart, query the UTC hourly aggregate and convert the label to the reporting timezone. This example uses Eastern Time; replace `America/New_York` with `Asia/Shanghai` for China time:
+
+```sql
+select
+  event_hour at time zone 'America/New_York' as event_hour_local,
+  sum(events)::bigint as events
+from private.analytics_hourly
+where event_hour >= now() - interval '7 days'
+group by event_hour
+order by event_hour;
+```
+
+In the SQL Editor chart, use `event_hour_local` for the X-axis and `events` for the Y-axis. The view retains `event_name` and `surface`, so add either column to the query when you want separate series. Do not sum the view's `sessions` column across event names or surfaces because the same anonymous session may appear in more than one group.
+
+To compare the usual hour of day rather than a chronological timeline:
+
+```sql
+select
+  extract(hour from event_hour at time zone 'America/New_York')::integer as hour_of_day,
+  sum(events)::bigint as events
+from private.analytics_hourly
+where event_hour >= now() - interval '30 days'
+group by hour_of_day
+order by hour_of_day;
 ```
 
 For a seven-day local-versus-live summary:
