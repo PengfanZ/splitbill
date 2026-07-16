@@ -12,6 +12,7 @@ describe('public discoverability metadata', () => {
     expect(html).toContain('name="description" content="Split group expenses')
     expect(html).toContain('rel="canonical" href="https://pengfanz.github.io/splitbill/"')
     expect(html).toContain('name="robots" content="index, follow, max-image-preview:large"')
+    expect(html).toContain('name="google-site-verification" content="UJ0wLrIV1_eEZLCL4R__a6UJqqDRlsludZk5iDojnsg"')
     expect(html).toContain('property="og:title" content="Tally — Free Group Expense Splitter"')
     expect(html).toContain('property="og:image" content="https://pengfanz.github.io/splitbill/og.png"')
     expect(html).toContain('name="twitter:card" content="summary_large_image"')
