@@ -3,6 +3,7 @@ import type { ActivityGroup, Expense, Member } from '../../domain/models'
 import { translate, type AppLocale, type Translate } from '../../i18n/localization'
 
 export type ShareResult = 'shared' | 'copied' | 'downloaded' | 'cancelled' | 'failed'
+export const TALLY_PUBLIC_URL = 'https://pengfanz.github.io/splitbill/'
 
 export const SHARE_MESSAGES: Record<ShareResult, string> = {
   shared: 'PNG summary shared.',
@@ -55,7 +56,7 @@ export function buildShareSummary(group: ActivityGroup, members: Member[], expen
     t('share.suggestedPayments'),
     ...settlementLines,
     '',
-    t('share.sharedFrom'),
+    `${t('share.sharedFrom')} · ${TALLY_PUBLIC_URL}`,
   ].join('\n')
 }
 
@@ -148,7 +149,7 @@ export async function createSummaryCard(group: ActivityGroup, members: Member[],
 
   context.fillStyle = '#746e67'
   context.font = '500 21px Arial, sans-serif'
-  context.fillText(t('share.sharedFrom'), 72, 1290)
+  context.fillText(`${t('share.sharedFrom')} · ${TALLY_PUBLIC_URL}`, 72, 1290)
 
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('PNG generation failed')), 'image/png')

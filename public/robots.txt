@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://pengfanz.github.io/splitbill/sitemap.xml

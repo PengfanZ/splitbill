@@ -4,7 +4,7 @@ export type AppLocale = typeof SUPPORTED_LOCALES[number]
 export type TranslationVariables = Record<string, string | number>
 
 const en = {
-  'app.title': 'Tally — Shared expenses, settled',
+  'app.title': 'Tally — Group Expense Splitter',
   'common.close': 'Close',
   'common.cancel': 'Cancel',
   'common.unknown': 'Unknown',
@@ -268,7 +268,7 @@ export type TranslationKey = keyof typeof en
 export type Translate = (key: TranslationKey, variables?: TranslationVariables) => string
 
 const zhCN: Record<TranslationKey, string> = {
-  'app.title': 'Tally — 轻松分账',
+  'app.title': 'Tally — 多人分账工具',
   'dashboard.summaryLabel': '活动概览',
   'share.linkTitle': '{name} — Tally',
   'share.liveLinkText': '加入 {name}，在 Tally 中一起编辑支出。',

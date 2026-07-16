@@ -2,7 +2,7 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
-const appDescription = 'Tally makes shared expenses simple.'
+const appDescription = 'Split group expenses fairly for free—no account required, with optional live collaboration.'
 
 export default defineConfig({
   plugins: [
@@ -21,7 +21,7 @@ export default defineConfig({
       },
       manifest: {
         id: './',
-        name: 'Tally — Shared expenses, settled',
+        name: 'Tally — Group expense splitter',
         short_name: 'Tally',
         description: appDescription,
         start_url: './',

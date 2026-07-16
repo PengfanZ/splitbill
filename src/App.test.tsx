@@ -124,6 +124,7 @@ describe('state and formatting helpers', () => {
     expect(empty).toContain('• No expenses yet.')
     expect(empty).toContain('• No settlement payments recorded.')
     expect(empty).toContain('• Everyone is settled.')
+    expect(empty).toContain('Shared from Tally · https://pengfanz.github.io/splitbill/')
 
     const populated = buildShareSummary(group, [CURRENT_USER, maya, jordan], [
       expense(),
@@ -152,6 +153,7 @@ describe('state and formatting helpers', () => {
     expect(drawnText).toContain('1 person sharing expenses')
     expect(drawnText).toContain('Everyone is settled')
     expect(drawnText).toContain('No activity yet.')
+    expect(drawnText).toContain('Shared from Tally · https://pengfanz.github.io/splitbill/')
     await createSummaryCard(group, [CURRENT_USER, maya, jordan], [expense()])
 
     vi.restoreAllMocks()
@@ -691,7 +693,7 @@ describe('complete app workflows', () => {
     await user.selectOptions(screen.getByLabelText('Language'), 'zh-CN')
 
     expect(document.documentElement.lang).toBe('zh-CN')
-    expect(document.title).toBe('Tally — 轻松分账')
+    expect(document.title).toBe('Tally — 多人分账工具')
     expect(screen.getByRole('heading', { name: '设置' })).toBeVisible()
     expect(screen.getByRole('button', { name: '保存' })).toBeVisible()
     expect(screen.getByText(/^创建于 /)).toBeVisible()

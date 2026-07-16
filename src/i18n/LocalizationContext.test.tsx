@@ -32,13 +32,13 @@ describe('LocalizationProvider', () => {
     const setItem = vi.spyOn(localStorage, 'setItem')
     render(<LocalizationProvider initialLocale="en"><Harness /></LocalizationProvider>)
     expect(document.documentElement.lang).toBe('en')
-    expect(document.title).toBe('Tally — Shared expenses, settled')
+    expect(document.title).toBe('Tally — Group Expense Splitter')
 
     await user.click(screen.getByRole('button', { name: 'Chinese' }))
     expect(screen.getByLabelText('locale')).toHaveTextContent('zh-CN')
     expect(screen.getByLabelText('translation')).toHaveTextContent('设置')
     expect(document.documentElement.lang).toBe('zh-CN')
-    expect(document.title).toBe('Tally — 轻松分账')
+    expect(document.title).toBe('Tally — 多人分账工具')
     expect(setItem).toHaveBeenCalledWith(LOCALE_STORAGE_KEY, 'zh-CN')
 
     await user.click(screen.getByRole('button', { name: 'English' }))

@@ -4,7 +4,7 @@
 [![Live demo](https://img.shields.io/badge/demo-live-e8584f)](https://pengfanz.github.io/splitbill/)
 [![Coverage](https://img.shields.io/badge/coverage-100%25-16724c)](TESTING.md)
 
-A local-first, full-stack shared-expense app for trips, dinners, homes, and other group activities. Tally tracks who paid, supports equal or exact splits, calculates clear suggested payments, and can synchronize a trusted group through a capability-protected live activity backed by Supabase.
+A free, local-first shared-expense app for trips, dinners, homes, and other group activities—no account required. Tally tracks who paid, supports equal or exact splits, calculates clear suggested payments, and can synchronize a trusted group through a capability-protected live activity backed by Supabase.
 
 On first use, Tally asks for a display name and stores that identity only in the current browser. The name replaces the ambiguous generic “You” in participant lists and is included as the sender identity when an activity link is shared.
 
@@ -23,6 +23,8 @@ Tally supports two deliberately different sharing modes:
 Opening a snapshot never overwrites browser data, and shared-preview URLs never load third-party analytics because the fragment contains names and expense details. First-party measurement records only the coarse `snapshot` surface. Live links keep their secret edit token in the fragment; Supabase stores only its SHA-256 hash. Every browser that opens a live link keeps a local shortcut, while Supabase remains the source of truth. See [the live sharing architecture](docs/LIVE_SHARING_EXPERIMENT.md) and [production deployment guide](docs/DEPLOYMENT.md).
 
 [Try the live demo](https://pengfanz.github.io/splitbill/)
+
+For launch copy, a privacy-safe demo storyboard, and channel guidance, see the [promotion playbook](docs/PROMOTION.md).
 
 ![Friends sharing expenses with Tally](public/og.png)
 

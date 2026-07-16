@@ -24,7 +24,7 @@ test('automatically uses Simplified Chinese in China and keeps the choice across
 
   try {
     await page.goto('./')
-    await expect(page).toHaveTitle('Tally — 轻松分账')
+    await expect(page).toHaveTitle('Tally — 多人分账工具')
     await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN')
     await expect(page.getByRole('heading', { name: '怎么称呼你？' })).toBeVisible()
     await expect(page.getByText('时间将按照 Asia/Shanghai 显示。')).toBeVisible()
@@ -43,7 +43,7 @@ test('automatically uses Simplified Chinese in China and keeps the choice across
 
     await page.getByRole('button', { name: '设置' }).click()
     await page.getByLabel('语言').selectOption('en')
-    await expect(page).toHaveTitle('Tally — Shared expenses, settled')
+    await expect(page).toHaveTitle('Tally — Group Expense Splitter')
     await page.getByRole('button', { name: 'Save name' }).click()
     await page.reload()
     await expect(page.getByRole('button', { name: 'Settings' })).toBeVisible()
@@ -65,11 +65,16 @@ test('is installable and reloads the local app shell while offline', async ({ br
       const icons = [...element.querySelectorAll<HTMLLinkElement>('link[rel~="icon"]')]
       const appleIcon = element.querySelector<HTMLLinkElement>('link[rel="apple-touch-icon"]')
       const registerScript = element.querySelector<HTMLScriptElement>('script[src$="registerSW.js"]')
+      const canonical = element.querySelector<HTMLLinkElement>('link[rel="canonical"]')
+      const structuredData = element.querySelector<HTMLScriptElement>('script[type="application/ld+json"]')
       return {
         manifestHref: manifest?.getAttribute('href'),
         iconHrefs: icons.map(icon => icon.getAttribute('href')),
         appleIconHref: appleIcon?.getAttribute('href'),
         registerScriptSrc: registerScript?.getAttribute('src'),
+        canonicalHref: canonical?.href,
+        openGraphTitle: element.querySelector<HTMLMetaElement>('meta[property="og:title"]')?.content,
+        structuredData: structuredData?.textContent ? JSON.parse(structuredData.textContent) : null,
       }
     })
     expect(metadata).toEqual({
@@ -77,14 +82,26 @@ test('is installable and reloads the local app shell while offline', async ({ br
       iconHrefs: ['/splitbill/favicon.ico', '/splitbill/favicon.svg'],
       appleIconHref: '/splitbill/apple-touch-icon-180x180.png',
       registerScriptSrc: '/splitbill/registerSW.js',
+      canonicalHref: 'https://pengfanz.github.io/splitbill/',
+      openGraphTitle: 'Tally — Free Group Expense Splitter',
+      structuredData: expect.objectContaining({ '@type': 'WebApplication', name: 'Tally' }),
     })
+
+    const [robotsResponse, sitemapResponse] = await Promise.all([
+      page.request.get('/splitbill/robots.txt'),
+      page.request.get('/splitbill/sitemap.xml'),
+    ])
+    expect(robotsResponse.ok()).toBe(true)
+    expect(await robotsResponse.text()).toContain('Sitemap: https://pengfanz.github.io/splitbill/sitemap.xml')
+    expect(sitemapResponse.ok()).toBe(true)
+    expect(await sitemapResponse.text()).toContain('<loc>https://pengfanz.github.io/splitbill/</loc>')
 
     const manifestResponse = await page.request.get('/splitbill/manifest.webmanifest')
     expect(manifestResponse.ok()).toBe(true)
     expect(manifestResponse.headers()['content-type']).toContain('application/manifest+json')
     expect(await manifestResponse.json()).toMatchObject({
       id: './',
-      name: 'Tally — Shared expenses, settled',
+      name: 'Tally — Group expense splitter',
       short_name: 'Tally',
       start_url: './',
       scope: './',
@@ -129,7 +146,7 @@ test('is installable and reloads the local app shell while offline', async ({ br
     })
     const offlineResponse = await page.goto('./')
     expect(offlineResponse?.fromServiceWorker()).toBe(true)
-    await expect(page).toHaveTitle('Tally — Shared expenses, settled')
+    await expect(page).toHaveTitle('Tally — Group Expense Splitter')
     expect(blockedRequests.every(request => (
       !request.ownedByServiceWorker && !request.url.startsWith('http://127.0.0.1:4173/splitbill/')
     ))).toBe(true)
@@ -210,7 +227,7 @@ test('persists a selective equal split and deletes its activity safely', async (
   page.on('pageerror', error => browserErrors.push(error.message))
 
   await page.goto('./')
-  await expect(page).toHaveTitle('Tally — Shared expenses, settled')
+  await expect(page).toHaveTitle('Tally — Group Expense Splitter')
   await page.getByLabel('Display name').fill('Alex')
   await page.getByRole('button', { name: 'Continue' }).click()
   await page.getByRole('button', { name: 'Create an activity' }).click()
