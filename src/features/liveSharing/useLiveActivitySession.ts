@@ -123,6 +123,15 @@ export function useLiveActivitySession({
   }, [onSharedActivityChange, queryClient])
 
   useEffect(() => {
+    if (!credentials) return
+    const refreshOnFocus = () => {
+      void queryClient.refetchQueries({ queryKey: liveActivityQueryKey(credentials), type: 'active' })
+    }
+    window.addEventListener('focus', refreshOnFocus)
+    return () => window.removeEventListener('focus', refreshOnFocus)
+  }, [credentials, queryClient])
+
+  useEffect(() => {
     if (!credentials || !liveQuery.data) return
     const record = liveQuery.data
     const shortcutGroupId = findLiveActivityBookmarkGroupId(bookmarks, credentials) ?? liveActivityShortcutId(record.code)

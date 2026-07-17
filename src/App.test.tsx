@@ -1191,15 +1191,14 @@ describe('complete app workflows', () => {
       expect(screen.getByText('Live · revision 1')).toBeVisible()
       expect(screen.queryByText('Remote taxi')).not.toBeInTheDocument()
 
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(LIVE_ACTIVITY_POLL_INTERVAL_MS + 1)
-      })
+      fireEvent(window, new Event('focus'))
+      await act(async () => { await vi.advanceTimersByTimeAsync(0) })
       expect(screen.getByText('Live · revision 2')).toBeVisible()
       expect(screen.getByText('Remote taxi')).toBeVisible()
       expect(screen.getByRole('status')).toHaveTextContent('New shared changes loaded automatically')
 
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(LIVE_ACTIVITY_POLL_INTERVAL_MS)
+        await vi.advanceTimersByTimeAsync(LIVE_ACTIVITY_POLL_INTERVAL_MS + 1)
       })
       expect(client.poll).toHaveBeenCalledTimes(2)
       expect(client.load).toHaveBeenCalledTimes(2)
