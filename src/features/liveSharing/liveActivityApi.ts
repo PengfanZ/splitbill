@@ -54,6 +54,14 @@ function responseErrorKind(body: unknown, status: number): LiveActivityApiErrorK
   return 'backend'
 }
 
+function throwRejectedResult(value: unknown) {
+  if (!isRecord(value) || value.rejection_code == null) return
+  if (value.rejection_code === 'invalid_activity_snapshot') {
+    throw new LiveActivityApiError('invalid-input', 'The activity contains data outside the supported limits.')
+  }
+  throw new LiveActivityApiError('backend', 'The live activity service rejected the request.')
+}
+
 function parseRevision(value: unknown): LiveActivityRevision {
   if (!isRecord(value)
     || !Number.isInteger(value.revision)
@@ -177,12 +185,13 @@ export function createLiveActivityClient(configuration: ApiConfiguration, fetche
       if (!Number.isInteger(expectedRevision) || expectedRevision < 1) {
         throw new LiveActivityApiError('invalid-input', 'A positive expected revision is required.')
       }
-      const result = await rpc('update_shared_activity_v2', {
+      const result = await rpc('update_shared_activity_v3', {
         p_code: credentials.code,
         p_edit_token: credentials.editToken,
         p_expected_revision: expectedRevision,
         p_snapshot: snapshot,
       })
+      throwRejectedResult(result)
       if (!isRecord(result) || typeof result.conflicted !== 'boolean') {
         throw new LiveActivityApiError('invalid-response', 'The live activity service returned an invalid update result.')
       }

@@ -15,6 +15,8 @@ import {
   LINK_SENDER,
   MAX_SHARE_URL_LENGTH,
   MAX_QR_URL_LENGTH,
+  MAX_ACTIVITY_AMOUNT,
+  MAX_ACTIVITY_FRIENDS,
   saveSharedActivityCopy,
   SHARE_HASH_PREFIX,
   SHARE_URL_MESSAGES,
@@ -154,6 +156,11 @@ describe('URL activity serialization', () => {
       { ...shared, expenses: [{ ...expense, groupId: 'other' }] },
       { ...shared, expenses: [{ ...expense, payerId: 'missing' }] },
       { ...shared, expenses: [{ ...expense, shares: { missing: 30 } }] },
+      { ...shared, group: { ...group, name: 'x'.repeat(121) } },
+      { ...shared, sender: { ...CURRENT_USER, name: 'x'.repeat(121) } },
+      { ...shared, friends: Array.from({ length: MAX_ACTIVITY_FRIENDS + 1 }, (_, index) => ({ ...maya, id: `friend-${index}` })) },
+      { ...shared, expenses: [{ ...expense, amount: MAX_ACTIVITY_AMOUNT + 1 }] },
+      { ...shared, expenses: [{ ...expense, shares: { me: MAX_ACTIVITY_AMOUNT + 1 } }] },
     ]
 
     invalid.forEach(value => expect(decodeSharedActivityHash(encoded(value))).toBeNull())

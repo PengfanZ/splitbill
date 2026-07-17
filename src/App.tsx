@@ -188,7 +188,7 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
         ...liveActivity,
         friends: [...liveActivity.friends, ...newFriends],
         group: { ...liveActivity.group, memberIds: [...liveActivity.group.memberIds, ...newFriends.map(friend => friend.id)] },
-      }, addedFriendsFeedback)
+      }, addedFriendsFeedback, JSON.stringify(['add-friends', names]))
       if (saved) setModal(null)
       return
     }
@@ -208,7 +208,11 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
 
   const addExpense = async (expense: Expense) => {
     if (liveActivity) {
-      const saved = await live.save({ ...liveActivity, expenses: [expense, ...liveActivity.expenses] }, t('live.addedExpense', { title: expense.title }))
+      const saved = await live.save(
+        { ...liveActivity, expenses: [expense, ...liveActivity.expenses] },
+        t('live.addedExpense', { title: expense.title }),
+        JSON.stringify(['add-expense', expense.title, expense.amount, expense.payerId, expense.splitMethod, expense.shares]),
+      )
       if (saved) {
         analyticsClient?.track('expense_added', 'live')
         closeExpenseModal()
@@ -226,7 +230,7 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
       const saved = await live.save({
         ...liveActivity,
         expenses: liveActivity.expenses.map(item => item.id === expense.id ? expense : item),
-      }, t('live.updatedExpense', { title: expense.title }))
+      }, t('live.updatedExpense', { title: expense.title }), JSON.stringify(['update-expense', expense.id, expense.title, expense.amount, expense.payerId, expense.splitMethod, expense.shares]))
       if (saved) closeExpenseModal()
       return
     }
@@ -267,7 +271,11 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
   const recordSettlement = async (payment: Expense, settlement: Settlement) => {
     const message = t('feedback.settlement', { from: settlement.from.name, to: settlement.to.name, amount: money(payment.amount) })
     if (liveActivity) {
-      const saved = await live.save({ ...liveActivity, expenses: [payment, ...liveActivity.expenses] }, message)
+      const saved = await live.save(
+        { ...liveActivity, expenses: [payment, ...liveActivity.expenses] },
+        message,
+        JSON.stringify(['settlement', payment.amount, payment.payerId, payment.shares]),
+      )
       if (saved) {
         analyticsClient?.track('settlement_recorded', 'live')
         closeSettleUpModal()
@@ -366,7 +374,11 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
     const label = isSettlementPayment(expense) ? t('confirm.deleteSettlementLabel') : t('confirm.deleteExpenseLabel', { title: expense.title })
     if (!window.confirm(t('confirm.deleteExpense', { label }))) return
     if (liveActivity) {
-      await live.save({ ...liveActivity, expenses: liveActivity.expenses.filter(item => item.id !== expense.id) }, t('live.deletedExpense', { title: expense.title }))
+      await live.save(
+        { ...liveActivity, expenses: liveActivity.expenses.filter(item => item.id !== expense.id) },
+        t('live.deletedExpense', { title: expense.title }),
+        JSON.stringify(['delete-expense', expense.id]),
+      )
       return
     }
     setState(current => ({ ...current, expenses: current.expenses.filter(item => item.id !== expense.id) }))
@@ -481,7 +493,7 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
         ) : <FreshStart onCreate={() => setModal('group')} onJoin={() => setModal('join')} />}
       </div>
       {modal === 'group' ? <CreateGroupModal onClose={() => setModal(null)} onSave={createGroup} /> : null}
-      {modal === 'friend' ? <AddFriendModal existingExpenseCount={spendingExpenses(activeExpenses).length} onClose={() => setModal(null)} onSave={addFriends} /> : null}
+      {modal === 'friend' ? <AddFriendModal existingExpenseCount={spendingExpenses(activeExpenses).length} onClose={() => setModal(null)} onSave={addFriends} saving={live.saving} /> : null}
       {modal === 'expense' && activeGroup ? (
         <ExpenseModal
           group={activeGroup}
@@ -489,9 +501,10 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
           expense={editingExpense ?? undefined}
           onClose={closeExpenseModal}
           onSave={editingExpense ? updateExpense : addExpense}
+          saving={live.saving}
         />
       ) : null}
-      {modal === 'settlement' && activeGroup && settlingDirection ? <SettleUpModal group={activeGroup} settlement={settlingDirection} onClose={closeSettleUpModal} onSave={recordSettlement} /> : null}
+      {modal === 'settlement' && activeGroup && settlingDirection ? <SettleUpModal group={activeGroup} settlement={settlingDirection} onClose={closeSettleUpModal} onSave={recordSettlement} saving={live.saving} /> : null}
       {modal === 'shared-identity' && sharedActivity ? <SharedActivityIdentityModal members={sharedMembers} onClose={() => setModal(null)} onSave={viewerId => saveSharedActivity(sharedActivity, viewerId)} /> : null}
       {modal === 'join' ? <JoinActivityModal onClose={() => setModal(null)} onJoin={joinSharedActivity} /> : null}
       {qrShare ? <Suspense fallback={null}><ShareActivityQrModal groupName={qrShare.activity.group.name} url={qrShare.url} mode={qrShare.mode} activityCode={qrShare.activityCode} onClose={() => setQrShare(null)} onCopy={() => copyQrLink(qrShare)} onShare={() => shareQrLink(qrShare)} /></Suspense> : null}

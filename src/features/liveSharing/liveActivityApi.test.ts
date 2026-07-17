@@ -65,7 +65,7 @@ describe('live activity API client', () => {
     expect(JSON.parse(fetcher.mock.calls[1][1]?.body as string)).toEqual({ p_code: credentials.code, p_edit_token: credentials.editToken })
     expect(fetcher.mock.calls[2][0]).toBe('https://project.supabase.co/rest/v1/rpc/poll_shared_activity')
     expect(JSON.parse(fetcher.mock.calls[2][1]?.body as string)).toEqual({ p_code: credentials.code, p_edit_token: credentials.editToken })
-    expect(fetcher.mock.calls[3][0]).toBe('https://project.supabase.co/rest/v1/rpc/update_shared_activity_v2')
+    expect(fetcher.mock.calls[3][0]).toBe('https://project.supabase.co/rest/v1/rpc/update_shared_activity_v3')
     expect(JSON.parse(fetcher.mock.calls[3][1]?.body as string)).toMatchObject({ p_expected_revision: 1, p_snapshot: snapshot })
   })
 
@@ -119,6 +119,28 @@ describe('live activity API client', () => {
       kind: 'conflict',
       latestRecord: { code: credentials.code, revision: 4, snapshot, updatedAt },
     })
+  })
+
+  it('maps a normal snapshot rejection result to invalid input', async () => {
+    fetcher.mockResolvedValue(response([row({
+      edit_token: undefined,
+      conflicted: true,
+      rejection_code: 'invalid_activity_snapshot',
+    })]))
+    const client = createLiveActivityClient({ supabaseUrl: 'https://project.supabase.co', publishableKey: 'key' }, fetcher)
+
+    await expectApiError(client.update(credentials, snapshot, 1), 'invalid-input')
+  })
+
+  it('maps an unknown normal rejection result to a backend error', async () => {
+    fetcher.mockResolvedValue(response([row({
+      edit_token: undefined,
+      conflicted: true,
+      rejection_code: 'unsupported_snapshot_version',
+    })]))
+    const client = createLiveActivityClient({ supabaseUrl: 'https://project.supabase.co', publishableKey: 'key' }, fetcher)
+
+    await expectApiError(client.update(credentials, snapshot, 1), 'backend')
   })
 
   it.each([

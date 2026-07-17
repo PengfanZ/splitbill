@@ -1450,8 +1450,9 @@ describe('complete app workflows', () => {
     await user.click(screen.getAllByRole('button', { name: 'Add friend' })[0])
     await user.type(screen.getByLabelText(/Friend names/), 'Sam')
     const saveButton = screen.getByRole('button', { name: 'Add friends' })
-    await user.click(saveButton)
-    await user.click(saveButton)
+    const form = saveButton.closest('form')!
+    fireEvent.submit(form)
+    fireEvent.submit(form)
     expect(client.update).toHaveBeenCalledTimes(1)
 
     resolveUpdate({
@@ -1463,6 +1464,37 @@ describe('complete app workflows', () => {
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Who’s joining?' })).not.toBeInTheDocument())
     expect(screen.getByText('Sam', { selector: '.member-row b' })).toBeVisible()
     expect(screen.getByText('Live · revision 2')).toBeVisible()
+  })
+
+  it('does not resend an identical snapshot after the backend rejects it', async () => {
+    const user = userEvent.setup()
+    const credentials = { code: 'A1B2C3D4E5', editToken: 'a'.repeat(64) }
+    const snapshot = createSharedActivity(group, [CURRENT_USER, maya, jordan], [expense()])
+    const client = {
+      create: vi.fn(),
+      load: vi.fn().mockResolvedValue({
+        code: credentials.code,
+        revision: 1,
+        snapshot,
+        updatedAt: '2026-07-14T01:00:00.000Z',
+      }),
+      poll: vi.fn(),
+      update: vi.fn().mockRejectedValue(new LiveActivityApiError('invalid-input', 'invalid snapshot')),
+    } satisfies LiveActivityClient
+
+    window.history.replaceState(null, '', `/${LIVE_ACTIVITY_HASH_PREFIX}${credentials.code}.${credentials.editToken}`)
+    render(<App liveActivityClient={client} />)
+    expect(await screen.findByText('Live · revision 1')).toBeVisible()
+
+    await user.click(screen.getAllByRole('button', { name: 'Add friend' })[0])
+    await user.type(screen.getByLabelText(/Friend names/), 'Sam')
+    const saveButton = screen.getByRole('button', { name: 'Add friends' })
+    await user.click(saveButton)
+    await user.click(saveButton)
+
+    expect(client.update).toHaveBeenCalledOnce()
+    expect(screen.getByRole('dialog', { name: 'Who’s joining?' })).toBeVisible()
+    expect(screen.getByRole('status')).toHaveTextContent('supported limit')
   })
 
   it('ignores an obsolete live response after the URL changes', async () => {

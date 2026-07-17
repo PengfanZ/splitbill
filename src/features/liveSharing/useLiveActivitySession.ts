@@ -36,6 +36,7 @@ export function liveActivityErrorMessage(error: unknown, t: Translate = englishT
     if (error.kind === 'not-found') return t('live.notFound')
     if (error.kind === 'rate-limit') return t('live.rateLimit')
     if (error.kind === 'network') return t('live.network')
+    if (error.kind === 'invalid-input') return t('live.invalidInput')
   }
   return t('live.genericError')
 }
@@ -55,6 +56,7 @@ export function useLiveActivitySession({
   const [loading, setLoading] = useState(() => Boolean((parseLiveActivityHash(window.location.hash) ?? bookmarkedCredentialsAtLoad) && client))
   const [saving, setSaving] = useState(false)
   const saveInFlight = useRef(false)
+  const rejectedSaveFingerprint = useRef<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
   useLiveActivityPolling({
@@ -153,22 +155,29 @@ export function useLiveActivitySession({
     }
   }
 
-  const save = async (snapshot: SharedActivity, successMessage: string) => {
+  const save = async (snapshot: SharedActivity, successMessage: string, mutationKey: string) => {
     if (saveInFlight.current) return false
     const activeClient = client!
     const activeSession = session!
+    const fingerprint = `${activeSession.credentials.code}:${activeSession.record.revision}:${mutationKey}`
+    if (rejectedSaveFingerprint.current === fingerprint) return false
     saveInFlight.current = true
     setSaving(true)
     try {
       const record = await activeClient.update(activeSession.credentials, snapshot, activeSession.record.revision)
+      rejectedSaveFingerprint.current = null
       setSession({ credentials: activeSession.credentials, record })
       setNotice(successMessage)
       return true
     } catch (error) {
       if (error instanceof LiveActivityApiError && error.kind === 'conflict' && error.latestRecord) {
+        rejectedSaveFingerprint.current = null
         setSession({ credentials: activeSession.credentials, record: error.latestRecord })
         setNotice(t('live.conflictLoaded'))
       } else {
+        if (error instanceof LiveActivityApiError && error.kind === 'invalid-input') {
+          rejectedSaveFingerprint.current = fingerprint
+        }
         setNotice(liveActivityErrorMessage(error, t))
       }
       return false

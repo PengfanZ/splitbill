@@ -7,6 +7,10 @@ export const SHARE_HASH_PREFIX = '#share='
 export const COMPRESSED_SHARE_PREFIX = 'z.'
 export const MAX_SHARE_URL_LENGTH = 12_000
 export const MAX_QR_URL_LENGTH = 2_000
+export const MAX_ACTIVITY_SNAPSHOT_BYTES = 128 * 1024
+export const MAX_ACTIVITY_FRIENDS = 100
+export const MAX_ACTIVITY_EXPENSES = 1_000
+export const MAX_ACTIVITY_AMOUNT = 1_000_000_000
 export const LINK_SENDER: Member = {
   ...CURRENT_USER,
   name: 'Link sender',
@@ -43,36 +47,48 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every(item => typeof item === 'string')
 }
 
+function hasLength(value: unknown, minimum: number, maximum: number): value is string {
+  return typeof value === 'string' && value.length >= minimum && value.length <= maximum
+}
+
 function isMember(value: unknown): value is Member {
   return isRecord(value)
-    && typeof value.id === 'string'
-    && typeof value.name === 'string'
-    && typeof value.initials === 'string'
-    && typeof value.color === 'string'
+    && hasLength(value.id, 1, 120)
+    && hasLength(value.name, 1, 120)
+    && hasLength(value.initials, 1, 12)
+    && hasLength(value.color, 1, 32)
 }
 
 function isGroup(value: unknown): value is ActivityGroup {
   return isRecord(value)
-    && typeof value.id === 'string'
-    && typeof value.name === 'string'
-    && typeof value.emoji === 'string'
+    && hasLength(value.id, 1, 120)
+    && hasLength(value.name, 1, 120)
+    && hasLength(value.emoji, 1, 16)
     && isStringArray(value.memberIds)
+    && value.memberIds.length >= 1
+    && value.memberIds.length <= MAX_ACTIVITY_FRIENDS + 1
+    && value.memberIds.every(memberId => hasLength(memberId, 1, 120))
 }
 
 function isShares(value: unknown): value is Record<string, number> {
   return isRecord(value)
-    && Object.values(value).every(share => typeof share === 'number' && Number.isFinite(share) && share >= 0)
+    && Object.entries(value).every(([memberId, share]) => hasLength(memberId, 1, 120)
+      && typeof share === 'number'
+      && Number.isFinite(share)
+      && share >= 0
+      && share <= MAX_ACTIVITY_AMOUNT)
 }
 
 function isExpense(value: unknown): value is Expense {
   if (!isRecord(value)) return false
-  const baseValid = typeof value.id === 'string'
-    && typeof value.groupId === 'string'
-    && typeof value.title === 'string'
+  const baseValid = hasLength(value.id, 1, 120)
+    && hasLength(value.groupId, 1, 120)
+    && hasLength(value.title, 1, 200)
     && typeof value.amount === 'number'
     && Number.isFinite(value.amount)
     && value.amount >= 0
-    && typeof value.payerId === 'string'
+    && value.amount <= MAX_ACTIVITY_AMOUNT
+    && hasLength(value.payerId, 1, 120)
     && (value.splitMethod === 'equal' || value.splitMethod === 'exact')
     && isShares(value.shares)
     && typeof value.createdAt === 'string'
@@ -92,8 +108,8 @@ function isExpense(value: unknown): value is Expense {
 function hasValidActivityData(value: Record<string, unknown>) {
   const group = value.group
   if (!isGroup(group)) return false
-  if (!Array.isArray(value.friends) || !value.friends.every(isMember)) return false
-  if (!Array.isArray(value.expenses) || !value.expenses.every(isExpense)) return false
+  if (!Array.isArray(value.friends) || value.friends.length > MAX_ACTIVITY_FRIENDS || !value.friends.every(isMember)) return false
+  if (!Array.isArray(value.expenses) || value.expenses.length > MAX_ACTIVITY_EXPENSES || !value.expenses.every(isExpense)) return false
 
   const memberIds = new Set(['me', ...value.friends.map(friend => friend.id)])
   return group.memberIds.every(memberId => memberIds.has(memberId))
@@ -127,6 +143,7 @@ export function isSharedActivity(value: unknown): value is SharedActivity {
     && isMember(value.sender)
     && value.sender.id === 'me'
     && hasValidActivityData(value)
+    && new TextEncoder().encode(JSON.stringify(value)).byteLength <= MAX_ACTIVITY_SNAPSHOT_BYTES
 }
 
 export function encodeSharedActivity(activity: SharedActivity) {
