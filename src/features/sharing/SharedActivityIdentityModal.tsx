@@ -19,7 +19,7 @@ export function SharedActivityIdentityModal({ members, onClose, onSave }: {
   }
 
   return (
-    <ModalShell eyebrow={t('sharedIdentity.eyebrow')} title={t('sharedIdentity.title')} onClose={onClose}>
+    <ModalShell eyebrow={t('sharedIdentity.eyebrow')} title={t('sharedIdentity.title')} onClose={onClose} mobilePlacement="center">
       <form onSubmit={submit}>
         <label>{t('sharedIdentity.participant')}<select aria-label={t('sharedIdentity.participant')} autoFocus value={memberId} onChange={event => setMemberId(event.target.value)}>{members.map(member => <option value={member.id} key={member.id}>{member.name}</option>)}</select></label>
         <div className="split-note identity-note"><UserRoundCheck size={18} /><span><b>{t('sharedIdentity.becomesYou')}</b><small>{t('sharedIdentity.explanation')}</small></span></div>

@@ -41,7 +41,7 @@ export function AddFriendModal({ existingExpenseCount, onClose, onSave }: { exis
   }
 
   return (
-    <ModalShell eyebrow={t('friend.eyebrow')} title={t('friend.title')} onClose={onClose}>
+    <ModalShell eyebrow={t('friend.eyebrow')} title={t('friend.title')} onClose={onClose} mobilePlacement="center">
       <form onSubmit={submit}>
         <label>{t('friend.names')} <small>{t('friend.namesHelp')}</small><textarea autoFocus value={names} onChange={event => setNames(event.target.value)} placeholder={t('friend.namesPlaceholder')} rows={3} required /></label>
         {existingExpenseCount ? <div className="split-note future-note"><Users size={18} /><span><b>{t('friend.futureOnly')}</b><small>{t(existingExpenseCount === 1 ? 'friend.existingOne' : 'friend.existingMany', { count: existingExpenseCount })}</small></span></div> : null}
@@ -71,7 +71,7 @@ export function SettleUpModal({ group, settlement, onClose, onSave }: {
   }
 
   return (
-    <ModalShell eyebrow={group.name} title={t('settlement.title')} onClose={onClose}>
+    <ModalShell eyebrow={group.name} title={t('settlement.title')} onClose={onClose} mobilePlacement="center">
       <form onSubmit={submit}>
         <div className="settlement-parties" aria-label={t('settlement.parties', { from: settlement.from.name, to: settlement.to.name })}>
           <span><Avatar member={settlement.from} /><b>{settlement.from.name}</b><small>{t('settlement.pays')}</small></span>

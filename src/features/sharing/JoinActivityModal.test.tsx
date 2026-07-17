@@ -14,8 +14,9 @@ describe('JoinActivityModal', () => {
   it('validates a manually entered link and hands its private fragment to the app', async () => {
     const user = userEvent.setup()
     const onJoin = vi.fn()
-    render(<JoinActivityModal onClose={vi.fn()} onJoin={onJoin} />)
+    const { container } = render(<JoinActivityModal onClose={vi.fn()} onJoin={onJoin} />)
 
+    expect(container.querySelector('.modal-backdrop')).toHaveClass('modal-backdrop--center')
     await user.click(screen.getByRole('button', { name: 'Open activity' }))
     expect(screen.getByRole('alert')).toHaveTextContent('valid Tally')
     await user.type(screen.getByLabelText('Shared activity link'), liveUrl)

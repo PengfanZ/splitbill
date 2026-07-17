@@ -506,6 +506,7 @@ describe('modals', () => {
     const onClose = vi.fn()
     const onSave = vi.fn()
     const { container, rerender } = render(<AddFriendModal existingExpenseCount={0} onClose={onClose} onSave={onSave} />)
+    expect(container.querySelector('.modal-backdrop')).toHaveClass('modal-backdrop--center')
     expect(screen.queryByText('Future expenses only')).not.toBeInTheDocument()
     fireEvent.submit(container.querySelector('form')!)
     expect(onSave).not.toHaveBeenCalled()
@@ -525,6 +526,7 @@ describe('modals', () => {
     const onSave = vi.fn()
     const onClose = vi.fn()
     const { container } = render(<ExpenseModal group={group} members={[CURRENT_USER, maya, jordan]} onClose={onClose} onSave={onSave} />)
+    expect(container.querySelector('.modal-backdrop')).toHaveClass('modal-backdrop--sheet')
     fireEvent.submit(container.querySelector('form')!)
     expect(onSave).not.toHaveBeenCalled()
     await user.type(screen.getByLabelText('Description'), 'Lunch')
@@ -554,6 +556,7 @@ describe('modals', () => {
     const onClose = vi.fn()
     const settlement = { from: maya, to: CURRENT_USER, amount: 10 }
     const { container } = render(<SettleUpModal group={group} settlement={settlement} onClose={onClose} onSave={onSave} />)
+    expect(container.querySelector('.modal-backdrop')).toHaveClass('modal-backdrop--center')
 
     expect(screen.getByLabelText('Maya Chen pays You')).toBeVisible()
     expect(screen.getByLabelText('Payment amount')).toHaveValue(10)
@@ -644,8 +647,9 @@ describe('modals', () => {
     const user = userEvent.setup()
     const onClose = vi.fn()
     const onSave = vi.fn()
-    const { unmount } = render(<SharedActivityIdentityModal members={[LINK_SENDER, maya]} onClose={onClose} onSave={onSave} />)
+    const { container: sharedIdentityContainer, unmount } = render(<SharedActivityIdentityModal members={[LINK_SENDER, maya]} onClose={onClose} onSave={onSave} />)
 
+    expect(sharedIdentityContainer.querySelector('.modal-backdrop')).toHaveClass('modal-backdrop--center')
     expect(screen.getByLabelText('Your participant')).toHaveValue('me')
     await user.selectOptions(screen.getByLabelText('Your participant'), maya.id)
     await user.click(screen.getByRole('button', { name: 'Save my copy' }))
@@ -744,6 +748,7 @@ describe('complete app workflows', () => {
 
     const onboarding = screen.getByRole('dialog', { name: 'What should we call you?' })
     expect(onboarding).toBeVisible()
+    expect(onboarding.parentElement).toHaveClass('modal-backdrop--center')
     expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
     fireEvent.submit(onboarding.querySelector('form')!)
     expect(onboarding).toBeVisible()

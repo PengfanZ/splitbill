@@ -20,7 +20,7 @@ export function IdentityModal({ initialName = '', onClose, onSave }: {
   }
 
   return (
-    <ModalShell eyebrow={t(settingsMode ? 'identity.settingsEyebrow' : 'identity.eyebrow')} title={t(settingsMode ? 'identity.settingsTitle' : 'identity.title')} onClose={onClose}>
+    <ModalShell eyebrow={t(settingsMode ? 'identity.settingsEyebrow' : 'identity.eyebrow')} title={t(settingsMode ? 'identity.settingsTitle' : 'identity.title')} onClose={onClose} mobilePlacement="center">
       <form onSubmit={submit}>
         <label>{t('identity.displayName')}<input aria-label={t('identity.displayName')} autoFocus value={name} onChange={event => setName(event.target.value)} placeholder={t('identity.namePlaceholder')} required /></label>
         <label>{t('settings.language')}<select aria-label={t('settings.language')} value={locale} onChange={event => setLocale(event.target.value as AppLocale)}><option value="en">{t('settings.english')}</option><option value="zh-CN">{t('settings.chinese')}</option></select></label>

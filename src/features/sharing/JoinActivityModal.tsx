@@ -34,7 +34,7 @@ export function JoinActivityModal({ onClose, onJoin }: { onClose: () => void; on
   }
 
   return (
-    <ModalShell eyebrow={t('join.eyebrow')} title={t('join.title')} onClose={onClose}>
+    <ModalShell eyebrow={t('join.eyebrow')} title={t('join.title')} onClose={onClose} mobilePlacement="center">
       <form onSubmit={submit}>
         <div className="split-note identity-note"><Smartphone size={18} /><span><b>{t('join.continueTitle')}</b><small>{t('join.continueText')}</small></span></div>
         <label>{t('join.link')}<textarea aria-label={t('join.link')} value={link} onChange={event => { setLink(event.target.value); setError(null) }} placeholder="https://pengfanz.github.io/splitbill/#live=…" autoFocus /></label>

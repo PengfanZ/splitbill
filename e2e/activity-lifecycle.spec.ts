@@ -216,6 +216,37 @@ test('centers the create activity dialog on mobile and completes the flow', asyn
   await expect(page.getByRole('heading', { name: 'Centered weekend' })).toBeVisible()
 })
 
+test('centers compact mobile dialogs and keeps long forms as sheets', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 667 })
+  await page.goto('./')
+
+  await expect(page.locator('.modal-backdrop')).toHaveClass(/modal-backdrop--center/)
+  await page.getByLabel('Display name').fill('Modal Tester')
+  await page.getByRole('button', { name: 'Continue' }).click()
+
+  await page.getByRole('button', { name: 'Create an activity' }).click()
+  await expect(page.locator('.modal-backdrop')).toHaveClass(/modal-backdrop--center/)
+  await page.getByLabel('Activity name').fill('Modal weekend')
+  await page.getByLabel(/Add friends/).fill('Maya')
+  await page.getByRole('button', { name: 'Create activity' }).click()
+
+  await page.getByRole('button', { name: 'Settings' }).click()
+  await expect(page.locator('.modal-backdrop')).toHaveClass(/modal-backdrop--center/)
+  await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click()
+
+  await page.locator('.group-actions').getByRole('button', { name: 'Add friend' }).click()
+  await expect(page.locator('.modal-backdrop')).toHaveClass(/modal-backdrop--center/)
+  await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click()
+
+  await page.getByRole('button', { name: 'Add expense' }).click()
+  await expect(page.locator('.modal-backdrop')).toHaveClass(/modal-backdrop--sheet/)
+  await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click()
+
+  await page.getByRole('button', { name: 'Open navigation' }).click()
+  await page.getByRole('button', { name: 'Join activity' }).click()
+  await expect(page.locator('.modal-backdrop')).toHaveClass(/modal-backdrop--center/)
+})
+
 test('tracks local outcomes without sending local activity data or loading third-party analytics', async ({ page, context }) => {
   const events: AnalyticsPayload[] = []
   const thirdPartyRequests: string[] = []
