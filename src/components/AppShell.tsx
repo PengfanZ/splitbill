@@ -94,10 +94,16 @@ export function FreshStart({ onCreate, onJoin }: { onCreate: () => void; onJoin:
   )
 }
 
-export function ModalShell({ eyebrow, title, onClose, children }: { eyebrow: string; title: string; onClose?: () => void; children: ReactNode }) {
+export function ModalShell({ eyebrow, title, onClose, children, mobilePlacement = 'sheet' }: {
+  eyebrow: string
+  title: string
+  onClose?: () => void
+  children: ReactNode
+  mobilePlacement?: 'sheet' | 'center'
+}) {
   const { t } = useLocalization()
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (onClose && event.currentTarget === event.target) onClose() }}>
+    <div className={`modal-backdrop modal-backdrop--${mobilePlacement}`} role="presentation" onMouseDown={event => { if (onClose && event.currentTarget === event.target) onClose() }}>
       <section className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <div className="modal-header"><div><span>{eyebrow}</span><h2 id="modal-title">{title}</h2></div>{onClose ? <button aria-label={t('common.close')} onClick={onClose}><X size={20} /></button> : null}</div>
         <div className="modal-body">{children}</div>

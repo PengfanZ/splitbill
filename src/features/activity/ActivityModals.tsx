@@ -18,7 +18,7 @@ export function CreateGroupModal({ onClose, onSave }: { onClose: () => void; onS
   }
 
   return (
-    <ModalShell eyebrow={t('group.newEyebrow')} title={t('group.newTitle')} onClose={onClose}>
+    <ModalShell eyebrow={t('group.newEyebrow')} title={t('group.newTitle')} onClose={onClose} mobilePlacement="center">
       <form onSubmit={submit}>
         <label>{t('group.name')}<input autoFocus value={name} onChange={event => setName(event.target.value)} placeholder={t('group.namePlaceholder')} required /></label>
         <label>{t('group.addFriends')} <small>{t('group.addFriendsHelp')}</small><textarea value={friends} onChange={event => setFriends(event.target.value)} placeholder={t('group.addFriendsPlaceholder')} rows={3} /></label>

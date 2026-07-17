@@ -183,6 +183,39 @@ test('keeps the expense action reachable on a short mobile viewport', async ({ p
   await expect(page.getByText('Mobile dinner')).toBeVisible()
 })
 
+test('centers the create activity dialog on mobile and completes the flow', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('./')
+  await page.getByLabel('Display name').fill('Mobile Creator')
+  await page.getByRole('button', { name: 'Continue' }).click()
+  await page.getByRole('button', { name: 'Create an activity' }).click()
+
+  const dialog = page.getByRole('dialog', { name: 'What are you sharing?' })
+  await expect(dialog).toBeVisible()
+  await expect.poll(async () => dialog.evaluate(element => {
+    const bounds = element.getBoundingClientRect()
+    return Math.abs(bounds.top + bounds.height / 2 - window.innerHeight / 2)
+  })).toBeLessThanOrEqual(1)
+  const dialogBounds = await dialog.evaluate(element => {
+    const bounds = element.getBoundingClientRect()
+    return {
+      centerX: bounds.left + bounds.width / 2,
+      centerY: bounds.top + bounds.height / 2,
+      left: bounds.left,
+      right: bounds.right,
+    }
+  })
+  expect(dialogBounds.centerX).toBeCloseTo(195, 0)
+  expect(dialogBounds.centerY).toBeCloseTo(422, 0)
+  expect(dialogBounds.left).toBeGreaterThanOrEqual(12)
+  expect(dialogBounds.right).toBeLessThanOrEqual(378)
+
+  await page.getByLabel('Activity name').fill('Centered weekend')
+  await page.getByLabel(/Add friends/).fill('Maya')
+  await page.getByRole('button', { name: 'Create activity' }).click()
+  await expect(page.getByRole('heading', { name: 'Centered weekend' })).toBeVisible()
+})
+
 test('tracks local outcomes without sending local activity data or loading third-party analytics', async ({ page, context }) => {
   const events: AnalyticsPayload[] = []
   const thirdPartyRequests: string[] = []

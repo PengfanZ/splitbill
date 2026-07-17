@@ -340,6 +340,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 
 @media (max-width: 720px) {
   .modal-backdrop { place-items: end center; padding: 12px; }
+  .modal-backdrop--center { place-items: center; }
   .modal { max-height: calc(100dvh - 24px); padding: 20px; }
   .modal-header { margin-bottom: 18px; }
   .modal-header h2 { font-size: 25px; line-height: 1.08; }
