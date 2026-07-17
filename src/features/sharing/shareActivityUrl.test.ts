@@ -81,6 +81,7 @@ describe('URL activity serialization', () => {
   it('creates a portable snapshot without duplicating the current user', () => {
     expect(shared).toEqual({ version: 2, sender: CURRENT_USER, group, friends: [maya], expenses: [expense] })
     expect(isSharedActivity(shared)).toBe(true)
+    expect(isSharedActivity({ ...shared, futureMetadata: 'supported' })).toBe(true)
     expect(isSharedActivity({ ...shared, version: 3 })).toBe(false)
     expect(createSharedActivity(group, [maya], [expense]).sender).toBe(CURRENT_USER)
     expect(getSharedActivitySender(shared)).toBe(CURRENT_USER)

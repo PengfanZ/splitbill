@@ -16,7 +16,7 @@ import type { LiveActivityClient } from './features/liveSharing/liveActivityConf
 import { buildLiveActivityUrl, LIVE_ACTIVITY_HASH_PREFIX } from './features/liveSharing/liveActivityLink'
 import { liveActivityErrorMessage } from './features/liveSharing/useLiveActivitySession'
 import { LIVE_ACTIVITY_BOOKMARKS_KEY } from './features/liveSharing/useLiveActivityBookmarks'
-import { LIVE_ACTIVITY_POLL_INTERVAL_MS } from './features/liveSharing/useLiveActivityPolling'
+import { LIVE_ACTIVITY_POLL_INTERVAL_MS } from './features/liveSharing/liveActivityQuery'
 import { buildShareSummary, createSummaryCard, exportActivitySummary, SHARE_MESSAGES, shareActivitySummary } from './features/sharing/shareActivity'
 import { SharedActivityIdentityModal } from './features/sharing/SharedActivityIdentityModal'
 import { createSharedActivity, encodeSharedActivity, LINK_SENDER, SHARE_HASH_PREFIX, type SharedActivity } from './features/sharing/shareActivityUrl'
@@ -1187,12 +1187,12 @@ describe('complete app workflows', () => {
     const view = render(<App liveActivityClient={client} />)
 
     try {
-      await act(async () => { await Promise.resolve() })
+      await act(async () => { await vi.advanceTimersByTimeAsync(0) })
       expect(screen.getByText('Live · revision 1')).toBeVisible()
       expect(screen.queryByText('Remote taxi')).not.toBeInTheDocument()
 
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(LIVE_ACTIVITY_POLL_INTERVAL_MS)
+        await vi.advanceTimersByTimeAsync(LIVE_ACTIVITY_POLL_INTERVAL_MS + 1)
       })
       expect(screen.getByText('Live · revision 2')).toBeVisible()
       expect(screen.getByText('Remote taxi')).toBeVisible()
@@ -1453,7 +1453,7 @@ describe('complete app workflows', () => {
     const form = saveButton.closest('form')!
     fireEvent.submit(form)
     fireEvent.submit(form)
-    expect(client.update).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(client.update).toHaveBeenCalledTimes(1))
 
     resolveUpdate({
       code: credentials.code,

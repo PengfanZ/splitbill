@@ -1,3 +1,4 @@
+import { QueryClientProvider } from '@tanstack/react-query'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import type { AnalyticsClient, AnalyticsSurface } from './analytics'
 import { FreshStart, Sidebar, Topbar } from './components/AppShell'
@@ -30,6 +31,7 @@ import { usePersistedState } from './hooks/usePersistedState'
 import { useIdentity } from './hooks/useIdentity'
 import { LocalizationProvider, useLocalization } from './i18n/LocalizationContext'
 import { formatLocalizedList } from './i18n/localization'
+import { createAppQueryClient } from './queryClient'
 
 type ModalType = 'group' | 'friend' | 'expense' | 'settlement' | 'identity' | 'join' | 'shared-identity' | null
 type ActivityFeedback = { groupId: string; message: string } | null
@@ -514,5 +516,10 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
 }
 
 export default function App(props: AppProps = {}) {
-  return <LocalizationProvider><LocalizedApp {...props} /></LocalizationProvider>
+  const [queryClient] = useState(createAppQueryClient)
+  return (
+    <QueryClientProvider client={queryClient}>
+      <LocalizationProvider><LocalizedApp {...props} /></LocalizationProvider>
+    </QueryClientProvider>
+  )
 }

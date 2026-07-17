@@ -53,6 +53,8 @@ Local activities remain in browser `localStorage` and can be viewed after the in
 
 - React 19 and TypeScript
 - Vite
+- TanStack Query for live-activity server state, polling, and mutations
+- Zod for versioned activity-snapshot validation
 - Vite PWA and Workbox for installation and offline app-shell caching
 - Lucide icons
 - Vitest and Testing Library
@@ -123,6 +125,7 @@ src/
 ├── hooks/                     # React lifecycle integrations
 ├── i18n/                      # Locale selection, translations, and time formatting
 ├── pwa/                       # Testable service-worker cache helpers
+├── queryClient.ts             # Shared server-state defaults
 └── sw.ts                      # Offline shell and cache lifecycle
 supabase/
 ├── migrations/                # Versioned schema and RPC releases

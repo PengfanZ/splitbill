@@ -29,7 +29,8 @@ The link is intentionally a bearer capability: anyone who has the full link can 
 - The storage table and privileged functions live in the non-exposed `private` schema.
 - Narrow security-definer `public` wrappers are callable with the project's publishable key. Browser roles cannot query private tables or execute private functions directly.
 - RLS, validated JSON constraints, hashed-IP request throttling, statement timeouts, and 90-day sliding expiration provide defense in depth.
-- The TypeScript client in `src/features/liveSharing/` validates credentials and every returned activity snapshot.
+- TanStack Query owns the in-memory live record, visibility-aware polling, reconnect/focus refreshes, and revision-checked mutations.
+- Zod schemas validate versioned snapshots, references, settlements, and size limits before data enters or leaves the client.
 
 The first schema deliberately stores an activity as one JSON document. That makes each activity update atomic and lets us reuse the existing versioned `SharedActivity` contract. If activity histories or high-frequency concurrent edits become important, we can later normalize members and expenses into separate tables without changing the share-link contract.
 

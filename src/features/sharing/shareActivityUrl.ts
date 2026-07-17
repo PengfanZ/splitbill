@@ -2,15 +2,24 @@ import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from
 import { CURRENT_USER, makeId } from '../../domain/members'
 import type { ActivityGroup, Expense, Member, PersistedState } from '../../domain/models'
 import { shareLink } from './shareLink'
+import {
+  legacySharedActivitySchema,
+  sharedActivitySchema,
+  type SharedActivity,
+} from './sharedActivitySchema'
+
+export {
+  MAX_ACTIVITY_AMOUNT,
+  MAX_ACTIVITY_EXPENSES,
+  MAX_ACTIVITY_FRIENDS,
+  MAX_ACTIVITY_SNAPSHOT_BYTES,
+  type SharedActivity,
+} from './sharedActivitySchema'
 
 export const SHARE_HASH_PREFIX = '#share='
 export const COMPRESSED_SHARE_PREFIX = 'z.'
 export const MAX_SHARE_URL_LENGTH = 12_000
 export const MAX_QR_URL_LENGTH = 2_000
-export const MAX_ACTIVITY_SNAPSHOT_BYTES = 128 * 1024
-export const MAX_ACTIVITY_FRIENDS = 100
-export const MAX_ACTIVITY_EXPENSES = 1_000
-export const MAX_ACTIVITY_AMOUNT = 1_000_000_000
 export const LINK_SENDER: Member = {
   ...CURRENT_USER,
   name: 'Link sender',
@@ -19,14 +28,6 @@ export const LINK_SENDER: Member = {
 
 export function getSharedActivitySender(activity: SharedActivity) {
   return activity.sender ?? LINK_SENDER
-}
-
-export type SharedActivity = {
-  version: 2
-  sender: Member
-  group: ActivityGroup
-  friends: Member[]
-  expenses: Expense[]
 }
 
 export type ShareUrlResult = 'shared' | 'copied' | 'cancelled' | 'too-large' | 'failed'
@@ -41,83 +42,6 @@ export const SHARE_URL_MESSAGES: Record<ShareUrlResult, string> = {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every(item => typeof item === 'string')
-}
-
-function hasLength(value: unknown, minimum: number, maximum: number): value is string {
-  return typeof value === 'string' && value.length >= minimum && value.length <= maximum
-}
-
-function isMember(value: unknown): value is Member {
-  return isRecord(value)
-    && hasLength(value.id, 1, 120)
-    && hasLength(value.name, 1, 120)
-    && hasLength(value.initials, 1, 12)
-    && hasLength(value.color, 1, 32)
-}
-
-function isGroup(value: unknown): value is ActivityGroup {
-  return isRecord(value)
-    && hasLength(value.id, 1, 120)
-    && hasLength(value.name, 1, 120)
-    && hasLength(value.emoji, 1, 16)
-    && isStringArray(value.memberIds)
-    && value.memberIds.length >= 1
-    && value.memberIds.length <= MAX_ACTIVITY_FRIENDS + 1
-    && value.memberIds.every(memberId => hasLength(memberId, 1, 120))
-}
-
-function isShares(value: unknown): value is Record<string, number> {
-  return isRecord(value)
-    && Object.entries(value).every(([memberId, share]) => hasLength(memberId, 1, 120)
-      && typeof share === 'number'
-      && Number.isFinite(share)
-      && share >= 0
-      && share <= MAX_ACTIVITY_AMOUNT)
-}
-
-function isExpense(value: unknown): value is Expense {
-  if (!isRecord(value)) return false
-  const baseValid = hasLength(value.id, 1, 120)
-    && hasLength(value.groupId, 1, 120)
-    && hasLength(value.title, 1, 200)
-    && typeof value.amount === 'number'
-    && Number.isFinite(value.amount)
-    && value.amount >= 0
-    && value.amount <= MAX_ACTIVITY_AMOUNT
-    && hasLength(value.payerId, 1, 120)
-    && (value.splitMethod === 'equal' || value.splitMethod === 'exact')
-    && isShares(value.shares)
-    && typeof value.createdAt === 'string'
-    && (value.updatedAt === undefined || (typeof value.updatedAt === 'string' && Number.isFinite(Date.parse(value.updatedAt))))
-    && (value.kind === undefined || value.kind === 'expense' || value.kind === 'settlement')
-  if (!baseValid) return false
-  const expense = value as Expense
-  if (expense.kind !== 'settlement') return true
-  const recipients = Object.entries(expense.shares)
-  return expense.amount > 0
-    && expense.splitMethod === 'exact'
-    && recipients.length === 1
-    && recipients[0][0] !== expense.payerId
-    && Math.abs(recipients[0][1] - expense.amount) < 0.005
-}
-
-function hasValidActivityData(value: Record<string, unknown>) {
-  const group = value.group
-  if (!isGroup(group)) return false
-  if (!Array.isArray(value.friends) || value.friends.length > MAX_ACTIVITY_FRIENDS || !value.friends.every(isMember)) return false
-  if (!Array.isArray(value.expenses) || value.expenses.length > MAX_ACTIVITY_EXPENSES || !value.expenses.every(isExpense)) return false
-
-  const memberIds = new Set(['me', ...value.friends.map(friend => friend.id)])
-  return group.memberIds.every(memberId => memberIds.has(memberId))
-    && value.expenses.every(expense => (
-      expense.groupId === group.id
-      && memberIds.has(expense.payerId)
-      && Object.keys(expense.shares).every(memberId => memberIds.has(memberId))
-    ))
 }
 
 function fromBase64Url(value: string) {
@@ -138,12 +62,7 @@ export function createSharedActivity(group: ActivityGroup, members: Member[], ex
 }
 
 export function isSharedActivity(value: unknown): value is SharedActivity {
-  return isRecord(value)
-    && value.version === 2
-    && isMember(value.sender)
-    && value.sender.id === 'me'
-    && hasValidActivityData(value)
-    && new TextEncoder().encode(JSON.stringify(value)).byteLength <= MAX_ACTIVITY_SNAPSHOT_BYTES
+  return sharedActivitySchema.safeParse(value).success
 }
 
 export function encodeSharedActivity(activity: SharedActivity) {
@@ -159,8 +78,10 @@ export function decodeSharedActivityHash(hash: string): SharedActivity | null {
       : fromBase64Url(token)
     if (!serialized) return null
     const parsed: unknown = JSON.parse(serialized)
-    if (!isRecord(parsed) || !hasValidActivityData(parsed)) return null
-    if (parsed.version === 1) return { ...parsed, version: 2, sender: LINK_SENDER } as SharedActivity
+    if (!isRecord(parsed)) return null
+    if (legacySharedActivitySchema.safeParse(parsed).success) {
+      return { ...parsed, version: 2, sender: LINK_SENDER } as SharedActivity
+    }
     if (!isSharedActivity(parsed)) return null
     return parsed as SharedActivity
   } catch {
