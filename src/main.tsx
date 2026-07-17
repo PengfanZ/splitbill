@@ -6,8 +6,11 @@ import { reloadOnServiceWorkerUpdate } from './pwa/serviceWorkerUpdates'
 import './styles.css'
 
 const analyticsClient = createConfiguredAnalyticsClient()
+const rootElement = document.getElementById('root')
 
-createRoot(document.getElementById('root')!).render(
+if (!rootElement) throw new Error('Tally requires a root element')
+
+createRoot(rootElement).render(
   <StrictMode>
     <App analyticsClient={analyticsClient} />
   </StrictMode>,

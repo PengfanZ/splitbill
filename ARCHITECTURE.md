@@ -4,12 +4,13 @@ Tally is local-first rather than frontend-only. Browser persistence powers priva
 
 ## Module boundaries
 
-- `src/App.tsx` composes local activity actions, sharing surfaces, and the application shell.
+- `src/App.tsx` composes the application workflows and shell without owning persistence algorithms.
 - `src/domain/` contains data models and pure member, money, settlement, and split helpers.
 - `src/data/` owns the versioned local-storage schema and defensive serialization.
-- `src/hooks/` connects React lifecycle behavior to the persistence layer.
+- `src/hooks/` connects focused React lifecycle behavior, such as analytics reporting, to application services.
 - `src/components/` contains reusable application-shell components with no expense rules.
-- `src/features/activity/` contains the activity dashboard and activity form workflows.
+- `src/features/activity/` contains the activity dashboard, form workflows, and immutable local-state transitions.
+- `src/features/liveSharing/liveActivityQuery.ts` decides whether a live refresh needs a full record or only a lightweight revision check.
 - `src/features/liveSharing/useLiveActivitySession.ts` owns capability-URL synchronization, backend loading and saving, optimistic-conflict recovery, and local live shortcuts.
 - `src/features/sharing/` owns text summaries, PNG generation, and browser sharing fallbacks.
 - `src/pwa/` contains pure service-worker cache-manifest helpers, while `src/sw.ts` owns install, activation, and fetch lifecycle events.

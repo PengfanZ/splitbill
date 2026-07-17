@@ -31,3 +31,10 @@ it('reloads the mounted app when an active service worker is replaced', async ()
 
   expect(reloadOnServiceWorkerUpdate).toHaveBeenCalledWith(serviceWorker, expect.any(Function))
 })
+
+it('fails clearly when the root element is missing', async () => {
+  document.body.innerHTML = ''
+
+  await expect(import('./main')).rejects.toThrow('Tally requires a root element')
+  expect(createRoot).not.toHaveBeenCalled()
+})

@@ -1,14 +1,23 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import type { AnalyticsClient, AnalyticsSurface } from './analytics'
 import { FreshStart, Sidebar, Topbar } from './components/AppShell'
 import { createIdentity } from './data/identity'
 import { EMPTY_STATE } from './data/storage'
 import { isSettlementPayment, money, spendingExpenses } from './domain/expenses'
-import { ACTIVITY_EMOJIS, CURRENT_USER, FRIEND_COLORS, initialsFor, makeId } from './domain/members'
+import { CURRENT_USER } from './domain/members'
 import type { ActivityGroup, Expense, Member, Settlement } from './domain/models'
 import { GroupDashboard } from './features/activity/ActivityDashboard'
 import { AddFriendModal, CreateGroupModal, ExpenseModal, SettleUpModal } from './features/activity/ActivityModals'
+import {
+  addLocalExpense,
+  addLocalFriends,
+  createActivityFriends,
+  createLocalActivity,
+  deleteLocalActivity,
+  deleteLocalExpense,
+  updateLocalExpense,
+} from './features/activity/activityState'
 import { IdentityModal } from './features/identity/IdentityModal'
 import type { LiveActivityClient } from './features/liveSharing/liveActivityConfig'
 import { buildLiveActivityUrl, parseLiveActivityHash } from './features/liveSharing/liveActivityLink'
@@ -29,6 +38,7 @@ import {
 } from './features/sharing/shareActivityUrl'
 import { usePersistedState } from './hooks/usePersistedState'
 import { useIdentity } from './hooks/useIdentity'
+import { useAppAnalytics } from './hooks/useAppAnalytics'
 import { LocalizationProvider, useLocalization } from './i18n/LocalizationContext'
 import { formatLocalizedList } from './i18n/localization'
 import { createAppQueryClient } from './queryClient'
@@ -42,15 +52,6 @@ type AppProps = {
 }
 
 const ShareActivityQrModal = lazy(() => import('./features/sharing/ShareActivityQrModal').then(module => ({ default: module.ShareActivityQrModal })))
-
-function createFriends(names: string[], colorOffset: number): Member[] {
-  return names.map((name, index) => ({
-    id: makeId('friend'),
-    name,
-    initials: initialsFor(name),
-    color: FRIEND_COLORS[(colorOffset + index) % FRIEND_COLORS.length],
-  }))
-}
 
 function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps = {}) {
   const [state, setState] = usePersistedState()
@@ -82,6 +83,7 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
     : []
   const sharedMembers = sharedActivity ? [getSharedActivitySender(sharedActivity), ...sharedActivity.friends] : []
   const liveActivity = live.activity
+  const liveSession = live.session
   const liveMembers = live.members
   const activeGroup = liveActivity?.group ?? selectedGroup
   const activeMembers = liveActivity ? liveMembers : selectedMembers
@@ -89,30 +91,13 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
   const displayedLiveNotice = live.displayedNotice
   const liveActivityCodes = live.activityCodes
   const bookmarkedLiveGroupId = live.bookmarkedGroupId
-  const initialOpenTracked = useRef(false)
-  const trackedLiveActivityCode = useRef<string | null>(null)
   const analyticsSurface: AnalyticsSurface = live.credentials
     ? 'live'
     : sharedActivity
       ? 'snapshot'
       : 'local'
 
-  useEffect(() => {
-    if (initialOpenTracked.current) return
-    initialOpenTracked.current = true
-    analyticsClient?.track('app_opened', analyticsSurface)
-  }, [analyticsClient, analyticsSurface])
-
-  useEffect(() => {
-    const code = live.session?.record.code ?? null
-    if (!code) {
-      trackedLiveActivityCode.current = null
-      return
-    }
-    if (trackedLiveActivityCode.current === code) return
-    trackedLiveActivityCode.current = code
-    analyticsClient?.track('live_activity_opened', 'live')
-  }, [analyticsClient, live.session?.record.code])
+  useAppAnalytics(analyticsClient, analyticsSurface, liveSession?.record.code ?? null)
 
   const closeSharedActivity = () => {
     clearSharedActivityHash()
@@ -153,22 +138,7 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
   }
 
   const createGroup = (name: string, friendNames: string[]) => {
-    const groupId = makeId('group')
-    setState(current => {
-      const newFriends = createFriends(friendNames, current.friends.length)
-      const group: ActivityGroup = {
-        id: groupId,
-        name,
-        emoji: ACTIVITY_EMOJIS[current.groups.length % ACTIVITY_EMOJIS.length],
-        memberIds: ['me', ...newFriends.map(friend => friend.id)],
-      }
-      return {
-        ...current,
-        groups: [...current.groups, group],
-        friends: [...current.friends, ...newFriends],
-        selectedGroupId: group.id,
-      }
-    })
+    setState(current => createLocalActivity(current, name, friendNames))
     analyticsClient?.track('activity_created', 'local')
     setModal(null)
   }
@@ -185,7 +155,7 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
         })
       : t(names.length === 1 ? 'friends.addedOne' : 'friends.addedMany', { people })
     if (liveActivity) {
-      const newFriends = createFriends(names, liveActivity.friends.length)
+      const newFriends = createActivityFriends(names, liveActivity.friends.length)
       const saved = await live.save({
         ...liveActivity,
         friends: [...liveActivity.friends, ...newFriends],
@@ -194,16 +164,7 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
       if (saved) setModal(null)
       return
     }
-    setState(current => {
-      const newFriends = createFriends(names, current.friends.length)
-      return {
-        ...current,
-        friends: [...current.friends, ...newFriends],
-        groups: current.groups.map(group => group.id === activeGroup.id
-          ? { ...group, memberIds: [...group.memberIds, ...newFriends.map(friend => friend.id)] }
-          : group),
-      }
-    })
+    setState(current => addLocalFriends(current, activeGroup.id, names))
     setActivityFeedback({ groupId: activeGroup.id, message: addedFriendsFeedback })
     setModal(null)
   }
@@ -221,7 +182,7 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
       }
       return
     }
-    setState(current => ({ ...current, expenses: [expense, ...current.expenses] }))
+    setState(current => addLocalExpense(current, expense))
     analyticsClient?.track('expense_added', 'local')
     setEditingExpense(null)
     setModal(null)
@@ -236,10 +197,7 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
       if (saved) closeExpenseModal()
       return
     }
-    setState(current => ({
-      ...current,
-      expenses: current.expenses.map(item => item.id === expense.id ? expense : item),
-    }))
+    setState(current => updateLocalExpense(current, expense))
     setActivityFeedback({ groupId: expense.groupId, message: t('feedback.updatedExpense', { title: expense.title }) })
     setEditingExpense(null)
     setModal(null)
@@ -284,7 +242,7 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
       }
       return
     }
-    setState(current => ({ ...current, expenses: [payment, ...current.expenses] }))
+    setState(current => addLocalExpense(current, payment))
     analyticsClient?.track('settlement_recorded', 'local')
     setActivityFeedback({ groupId: payment.groupId, message })
     closeSettleUpModal()
@@ -325,8 +283,7 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
     setQrShare({ activity, url: result.url, mode: 'live', activityCode: result.code })
   }
 
-  const openCurrentLiveQr = () => {
-    const session = live.session!
+  const openCurrentLiveQr = (session: NonNullable<typeof live.session>) => {
     setQrShare({
       activity: session.record.snapshot,
       url: buildLiveActivityUrl(session.credentials),
@@ -383,24 +340,14 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
       )
       return
     }
-    setState(current => ({ ...current, expenses: current.expenses.filter(item => item.id !== expense.id) }))
+    setState(current => deleteLocalExpense(current, expense.id))
   }
 
   const deleteActivity = (group: ActivityGroup) => {
     if (!window.confirm(t('confirm.deleteActivity', { name: group.name }))) return
     const deletingSelectedActivity = selectedGroup?.id === group.id
     const deletingOpenLiveActivity = bookmarkedLiveGroupId === group.id
-    setState(current => {
-      const groups = current.groups.filter(item => item.id !== group.id)
-      const remainingMemberIds = new Set(groups.flatMap(item => item.memberIds))
-      return {
-        ...current,
-        groups,
-        friends: current.friends.filter(friend => remainingMemberIds.has(friend.id)),
-        expenses: current.expenses.filter(expense => expense.groupId !== group.id),
-        selectedGroupId: deletingSelectedActivity ? groups[0]?.id ?? null : current.selectedGroupId,
-      }
-    })
+    setState(current => deleteLocalActivity(current, group.id))
     setActivityFeedback(null)
     live.removeBookmark(group.id)
     if (deletingOpenLiveActivity) closeLiveActivity()
@@ -436,9 +383,9 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
           <>
             <section className="shared-preview live-preview" aria-label={t('live.label')}>
               <div><strong className={displayedLiveNotice && !live.session ? 'live-error' : undefined}>{live.session ? t('live.title', { code: live.session.record.code }) : t('live.opening')}</strong><span role={displayedLiveNotice ? 'status' : undefined}>{live.saving ? t('live.saving') : displayedLiveNotice ?? (live.loading ? t('live.loadingLatest') : t('live.everyoneCanEdit'))}</span></div>
-              <div>{bookmarkedLiveGroupId ? null : <button className="outline-button" onClick={closeLiveActivity}>{t('shared.back')}</button>}{live.client ? <button className="confirm-button" onClick={live.refresh} disabled={live.loading}>{live.loading ? t('common.loading') : t('live.refresh')}</button> : null}</div>
+              <div>{bookmarkedLiveGroupId ? null : <button className="outline-button" onClick={closeLiveActivity}>{t('shared.back')}</button>}{live.refresh ? <button className="confirm-button" onClick={live.refresh} disabled={live.loading}>{live.loading ? t('common.loading') : t('live.refresh')}</button> : null}</div>
             </section>
-            {liveActivity ? (
+            {liveActivity && liveSession ? (
               <GroupDashboard
                 group={liveActivity.group}
                 members={liveMembers}
@@ -447,9 +394,9 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
                 activityFeedback={null}
                 currentUserLabel={getSharedActivitySender(liveActivity).name}
                 currentUserRole={t('dashboard.creator')}
-                statusLabel={t('dashboard.liveRevision', { revision: live.session!.record.revision })}
+                statusLabel={t('dashboard.liveRevision', { revision: liveSession.record.revision })}
                 shareQrLabel={t('dashboard.showQr')}
-                onShareQr={openCurrentLiveQr}
+                onShareQr={() => openCurrentLiveQr(liveSession)}
                 onShare={() => shareGroup(liveActivity.group, liveMembers, liveActivity.expenses)}
                 onAddFriend={() => setModal('friend')}
                 onAddExpense={openNewExpense}

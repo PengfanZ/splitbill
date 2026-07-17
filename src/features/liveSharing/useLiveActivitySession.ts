@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import type { PersistedState } from '../../domain/models'
 import { translate, type Translate } from '../../i18n/localization'
@@ -7,6 +7,7 @@ import { LiveActivityApiError, type LiveActivityRecord } from './liveActivityApi
 import { createConfiguredLiveActivityClient, type LiveActivityClient } from './liveActivityConfig'
 import {
   LIVE_ACTIVITY_POLL_INTERVAL_MS,
+  fetchLiveActivityRecord,
   liveActivityPollInterval,
   liveActivityQueryKey,
 } from './liveActivityQuery'
@@ -64,15 +65,16 @@ export function useLiveActivitySession({
   const [notice, setNotice] = useState<string | null>(null)
 
   const updateMutation = useMutation({
-    mutationFn: ({ activeCredentials, expectedRevision, snapshot }: {
+    mutationFn: ({ activeClient, activeCredentials, expectedRevision, snapshot }: {
+      activeClient: LiveActivityClient
       activeCredentials: LiveActivityCredentials
       expectedRevision: number
       snapshot: SharedActivity
-    }) => client!.update(activeCredentials, snapshot, expectedRevision),
+    }) => activeClient.update(activeCredentials, snapshot, expectedRevision),
   })
 
   const createMutation = useMutation({
-    mutationFn: (activity: SharedActivity) => client!.create(activity),
+    mutationFn: ({ activeClient, activity }: { activeClient: LiveActivityClient; activity: SharedActivity }) => activeClient.create(activity),
   })
 
   const refreshMutation = useMutation({
@@ -86,16 +88,14 @@ export function useLiveActivitySession({
   const liveQuery = useQuery({
     queryKey,
     enabled: Boolean(client && credentials && !updateMutation.isPending),
-    queryFn: async () => {
-      const activeCredentials = credentials!
-      const cached = queryClient.getQueryData<LiveActivityRecord>(liveActivityQueryKey(activeCredentials))
-      if (!cached) return client!.load(activeCredentials)
-      const latest = await client!.poll(activeCredentials)
-      if (latest.revision <= cached.revision) return cached
-      const record = await client!.load(activeCredentials)
-      if (record.revision > cached.revision) polledRevision.current = record.revision
-      return record.revision > cached.revision ? record : cached
-    },
+    queryFn: client && credentials
+      ? async () => {
+          const cachedRecord = queryClient.getQueryData<LiveActivityRecord>(liveActivityQueryKey(credentials))
+          const result = await fetchLiveActivityRecord(client, credentials, cachedRecord)
+          if (result.changed) polledRevision.current = result.record.revision
+          return result.record
+        }
+      : skipToken,
     refetchInterval: liveActivityPollInterval,
     refetchIntervalInBackground: false,
     refetchOnReconnect: 'always',
@@ -173,21 +173,21 @@ export function useLiveActivitySession({
     return true
   }
 
-  const refresh = async () => {
-    const activeClient = client!
-    const activeCredentials = credentials!
-    try {
-      const record = await refreshMutation.mutateAsync({ activeClient, activeCredentials })
-      queryClient.setQueryData(liveActivityQueryKey(activeCredentials), record)
-      setNotice(t('live.latestLoaded'))
-    } catch (error) {
-      setNotice(liveActivityErrorMessage(error, t))
-    }
-  }
+  const refresh = client && credentials
+    ? async () => {
+        try {
+          const record = await refreshMutation.mutateAsync({ activeClient: client, activeCredentials: credentials })
+          queryClient.setQueryData(liveActivityQueryKey(credentials), record)
+          setNotice(t('live.latestLoaded'))
+        } catch (error) {
+          setNotice(liveActivityErrorMessage(error, t))
+        }
+      }
+    : undefined
 
   const save = async (snapshot: SharedActivity, successMessage: string, mutationKey: string) => {
-    if (saveInFlight.current) return false
-    const activeSession = session!
+    if (saveInFlight.current || !client || !session) return false
+    const activeSession = session
     const fingerprint = `${activeSession.credentials.code}:${activeSession.record.revision}:${mutationKey}`
     if (rejectedSaveFingerprint.current === fingerprint) return false
     saveInFlight.current = true
@@ -195,6 +195,7 @@ export function useLiveActivitySession({
       await queryClient.cancelQueries({ queryKey: liveActivityQueryKey(activeSession.credentials) })
       polledRevision.current = null
       const record = await updateMutation.mutateAsync({
+        activeClient: client,
         activeCredentials: activeSession.credentials,
         expectedRevision: activeSession.record.revision,
         snapshot,
@@ -223,7 +224,7 @@ export function useLiveActivitySession({
   const create = async (activity: SharedActivity, groupId: string): Promise<CreateLiveActivityResult> => {
     if (!client) return { ok: false, message: t('live.notConfigured') }
     try {
-      const created = await createMutation.mutateAsync(activity)
+      const created = await createMutation.mutateAsync({ activeClient: client, activity })
       const nextCredentials = { code: created.code, editToken: created.editToken }
       const url = buildLiveActivityUrl(nextCredentials)
       window.history.replaceState(null, '', url)

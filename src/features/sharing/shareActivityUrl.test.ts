@@ -255,6 +255,16 @@ describe('URL activity sharing and saving', () => {
     expect(() => saveSharedActivityCopy(EMPTY_STATE, shared, 'missing')).toThrow(RangeError)
   })
 
+  it('rejects inconsistent participant references instead of creating a corrupt copy', () => {
+    const unknownMember = { ...shared, group: { ...group, memberIds: ['me', 'unknown'] } }
+    const unknownPayer = { ...shared, expenses: [{ ...expense, payerId: 'unknown' }] }
+    const unknownShare = { ...shared, expenses: [{ ...expense, shares: { me: 15, unknown: 15 } }] }
+
+    expect(() => saveSharedActivityCopy(EMPTY_STATE, unknownMember, 'me')).toThrow('unknown participant')
+    expect(() => saveSharedActivityCopy(EMPTY_STATE, unknownPayer, 'me')).toThrow('unknown participant')
+    expect(() => saveSharedActivityCopy(EMPTY_STATE, unknownShare, 'me')).toThrow('unknown participant')
+  })
+
   it('clears only the shared fragment from the current URL', () => {
     window.history.replaceState(null, '', '/splitbill/?mode=test#share=payload')
     clearSharedActivityHash()

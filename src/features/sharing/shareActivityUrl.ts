@@ -30,6 +30,12 @@ export function getSharedActivitySender(activity: SharedActivity) {
   return activity.sender ?? LINK_SENDER
 }
 
+function getRemappedMemberId(memberIdMap: Map<string, string>, memberId: string) {
+  const remappedMemberId = memberIdMap.get(memberId)
+  if (!remappedMemberId) throw new RangeError('Activity references an unknown participant')
+  return remappedMemberId
+}
+
 export type ShareUrlResult = 'shared' | 'copied' | 'cancelled' | 'too-large' | 'failed'
 
 export const SHARE_URL_MESSAGES: Record<ShareUrlResult, string> = {
@@ -125,14 +131,16 @@ export function saveSharedActivityCopy(current: PersistedState, activity: Shared
   const group: ActivityGroup = {
     ...activity.group,
     id: groupId,
-    memberIds: activity.group.memberIds.map(memberId => memberIdMap.get(memberId)!),
+    memberIds: activity.group.memberIds.map(memberId => getRemappedMemberId(memberIdMap, memberId)),
   }
   const expenses = activity.expenses.map(expense => ({
     ...expense,
     id: makeId('expense'),
     groupId,
-    payerId: memberIdMap.get(expense.payerId)!,
-    shares: Object.fromEntries(Object.entries(expense.shares).map(([memberId, share]) => [memberIdMap.get(memberId)!, share])),
+    payerId: getRemappedMemberId(memberIdMap, expense.payerId),
+    shares: Object.fromEntries(
+      Object.entries(expense.shares).map(([memberId, share]) => [getRemappedMemberId(memberIdMap, memberId), share]),
+    ),
   }))
 
   return {
