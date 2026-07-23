@@ -97,7 +97,7 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
       ? 'snapshot'
       : 'local'
 
-  useAppAnalytics(analyticsClient, analyticsSurface, liveSession?.record.code ?? null)
+  useAppAnalytics(analyticsClient, analyticsSurface, locale, liveSession?.record.code ?? null)
 
   const closeSharedActivity = () => {
     clearSharedActivityHash()
@@ -133,13 +133,13 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
 
   const saveSharedActivity = (activity: NonNullable<typeof sharedActivity>, viewerId: string) => {
     setState(current => saveSharedActivityCopy(current, activity, viewerId))
-    analyticsClient?.track('activity_created', 'snapshot')
+    analyticsClient?.track('activity_created', 'snapshot', locale)
     closeSharedActivity()
   }
 
   const createGroup = (name: string, friendNames: string[]) => {
     setState(current => createLocalActivity(current, name, friendNames))
-    analyticsClient?.track('activity_created', 'local')
+    analyticsClient?.track('activity_created', 'local', locale)
     setModal(null)
   }
 
@@ -177,13 +177,13 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
         JSON.stringify(['add-expense', expense.title, expense.amount, expense.payerId, expense.splitMethod, expense.shares]),
       )
       if (saved) {
-        analyticsClient?.track('expense_added', 'live')
+        analyticsClient?.track('expense_added', 'live', locale)
         closeExpenseModal()
       }
       return
     }
     setState(current => addLocalExpense(current, expense))
-    analyticsClient?.track('expense_added', 'local')
+    analyticsClient?.track('expense_added', 'local', locale)
     setEditingExpense(null)
     setModal(null)
   }
@@ -237,13 +237,13 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
         JSON.stringify(['settlement', payment.amount, payment.payerId, payment.shares]),
       )
       if (saved) {
-        analyticsClient?.track('settlement_recorded', 'live')
+        analyticsClient?.track('settlement_recorded', 'live', locale)
         closeSettleUpModal()
       }
       return
     }
     setState(current => addLocalExpense(current, payment))
-    analyticsClient?.track('settlement_recorded', 'local')
+    analyticsClient?.track('settlement_recorded', 'local', locale)
     setActivityFeedback({ groupId: payment.groupId, message })
     closeSettleUpModal()
   }
@@ -279,7 +279,7 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
     }
     setSharedActivity(null)
     setActivityFeedback(null)
-    analyticsClient?.track('live_activity_created', 'local')
+    analyticsClient?.track('live_activity_created', 'local', locale)
     setQrShare({ activity, url: result.url, mode: 'live', activityCode: result.code })
   }
 

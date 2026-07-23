@@ -719,7 +719,7 @@ describe('complete app workflows', () => {
     const analyticsClient = { track: vi.fn() } satisfies AnalyticsClient
     render(<StrictMode><App analyticsClient={analyticsClient} /></StrictMode>)
 
-    await waitFor(() => expect(analyticsClient.track).toHaveBeenCalledWith('app_opened', 'local'))
+    await waitFor(() => expect(analyticsClient.track).toHaveBeenCalledWith('app_opened', 'local', 'en'))
     await user.click(screen.getByRole('button', { name: 'Create an activity' }))
     await user.type(screen.getByLabelText('Activity name'), 'Analytics trip')
     await user.type(screen.getByLabelText(/Add friends/), 'Maya')
@@ -734,10 +734,10 @@ describe('complete app workflows', () => {
     await user.click(screen.getByRole('button', { name: 'Record payment' }))
 
     expect(analyticsClient.track.mock.calls).toEqual([
-      ['app_opened', 'local'],
-      ['activity_created', 'local'],
-      ['expense_added', 'local'],
-      ['settlement_recorded', 'local'],
+      ['app_opened', 'local', 'en'],
+      ['activity_created', 'local', 'en'],
+      ['expense_added', 'local', 'en'],
+      ['settlement_recorded', 'local', 'en'],
     ])
   })
 
@@ -1019,8 +1019,8 @@ describe('complete app workflows', () => {
     expect(screen.getByText((_, node) => node?.textContent === 'Alex paidSplit equally · 3 people')).toBeVisible()
     expect(screen.getByText('You owe Alex')).toBeVisible()
     await waitFor(() => expect(parseState(localStorage.getItem(STORAGE_KEY)).groups).toHaveLength(1))
-    expect(analyticsClient.track).toHaveBeenCalledWith('app_opened', 'snapshot')
-    expect(analyticsClient.track).toHaveBeenCalledWith('activity_created', 'snapshot')
+    expect(analyticsClient.track).toHaveBeenCalledWith('app_opened', 'snapshot', 'en')
+    expect(analyticsClient.track).toHaveBeenCalledWith('activity_created', 'snapshot', 'en')
 
     unmount()
     localStorage.clear()
@@ -1075,9 +1075,9 @@ describe('complete app workflows', () => {
     expect(window.location.hash).toContain(`${LIVE_ACTIVITY_HASH_PREFIX}A1B2C3D4E5.`)
     expect(client.create).toHaveBeenCalledWith(expect.objectContaining({ group: expect.objectContaining({ name: 'Trip' }) }))
     expect(client.load).not.toHaveBeenCalled()
-    await waitFor(() => expect(analyticsClient.track).toHaveBeenCalledWith('live_activity_opened', 'live'))
-    expect(analyticsClient.track).toHaveBeenCalledWith('app_opened', 'local')
-    expect(analyticsClient.track).toHaveBeenCalledWith('live_activity_created', 'local')
+    await waitFor(() => expect(analyticsClient.track).toHaveBeenCalledWith('live_activity_opened', 'live', 'en'))
+    expect(analyticsClient.track).toHaveBeenCalledWith('app_opened', 'local', 'en')
+    expect(analyticsClient.track).toHaveBeenCalledWith('live_activity_created', 'local', 'en')
 
     const nativeShare = vi.fn().mockRejectedValueOnce(new DOMException('cancelled', 'AbortError')).mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'share', { configurable: true, value: nativeShare })
@@ -1109,7 +1109,7 @@ describe('complete app workflows', () => {
     expect(await screen.findByText('Creator expense', { exact: true })).toBeVisible()
     expect(screen.getByText('Live · revision 2')).toBeVisible()
     expect(client.update).toHaveBeenCalledWith(expect.objectContaining({ code: 'A1B2C3D4E5' }), expect.objectContaining({ expenses: expect.arrayContaining([expect.objectContaining({ title: 'Creator expense' })]) }), 1)
-    expect(analyticsClient.track).toHaveBeenCalledWith('expense_added', 'live')
+    expect(analyticsClient.track).toHaveBeenCalledWith('expense_added', 'live', 'en')
     await waitFor(() => expect(JSON.parse(localStorage.getItem(LIVE_ACTIVITY_BOOKMARKS_KEY)!)).toEqual({ trip: { code: 'A1B2C3D4E5', editToken: 'a'.repeat(64) } }))
 
     expect(screen.queryByRole('button', { name: 'Back to my activities' })).not.toBeInTheDocument()
@@ -1160,8 +1160,8 @@ describe('complete app workflows', () => {
     }), 1)
     expect(screen.getByText('Maya Chen paid You')).toBeVisible()
     expect(screen.queryByText('Maya Chen owes You')).not.toBeInTheDocument()
-    expect(replacementAnalyticsClient.track).not.toHaveBeenCalledWith('live_activity_opened', 'live')
-    expect(replacementAnalyticsClient.track).toHaveBeenCalledWith('settlement_recorded', 'live')
+    expect(replacementAnalyticsClient.track).not.toHaveBeenCalledWith('live_activity_opened', 'live', 'en')
+    expect(replacementAnalyticsClient.track).toHaveBeenCalledWith('settlement_recorded', 'live', 'en')
   })
 
   it('automatically loads newer live revisions while the tab is visible', async () => {

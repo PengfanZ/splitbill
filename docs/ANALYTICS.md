@@ -13,7 +13,9 @@ The browser may send only these event names:
 - `live_activity_opened`
 - `settlement_recorded`
 
-Each event also has exactly one surface: `local`, `live`, or `snapshot`. The request contains a random 128-bit session token stored in browser session storage. The database stores only its SHA-256 hash, which supports within-session funnels without creating a persistent visitor profile.
+Each event also has exactly one surface (`local`, `live`, or `snapshot`) and one resolved app locale (`en` or `zh-CN`). The locale is the language Tally is currently displaying, including a saved manual choice; it is not a country, GPS coordinate, IP-derived location, or full browser-language fingerprint. The request contains a random 128-bit session token stored in browser session storage. The database stores only its SHA-256 hash, which supports within-session funnels without creating a persistent visitor profile.
+
+Historical events and requests from older installed PWAs are stored as `unknown`. This avoids misclassifying legacy traffic as English while the new frontend version rolls out.
 
 Do not add arbitrary metadata to this contract. Analytics must never receive URLs or fragments, activity codes, edit tokens, participant names or IDs, activity names, expense descriptions, amounts, balances, or snapshots.
 
@@ -21,7 +23,7 @@ Do not add arbitrary metadata to this contract. Analytics must never receive URL
 
 `src/analytics.ts` sends events as non-blocking `fetch` requests with `keepalive`, omitted credentials, and no referrer. Failed analytics requests are ignored and never affect local or live workflows.
 
-`public.record_analytics_event` is the only browser-callable database entry point. It validates the event, surface, and session-token shape; applies hashed-IP throttling; hashes the session token; and inserts into `private.analytics_events`. Browser roles cannot read or write that table directly and cannot read `private.analytics_daily` or `private.analytics_hourly`.
+`public.record_analytics_event` is the only browser-callable database entry point. It validates the event, surface, locale, and session-token shape; applies hashed-IP throttling; hashes the session token; and inserts into `private.analytics_events`. Browser roles cannot read or write that table directly and cannot read `private.analytics_daily`, `private.analytics_hourly`, or `private.analytics_locale_daily`.
 
 Opening the app records its initial surface. Successful product actions are measured only after their local state update or live revision save succeeds. A failed expense or settlement save does not produce a success event.
 
@@ -49,6 +51,22 @@ order by event_hour;
 
 In the SQL Editor chart, use `event_hour_local` for the X-axis and `events` for the Y-axis. The view retains `event_name` and `surface`, so add either column to the query when you want separate series. Do not sum the view's `sessions` column across event names or surfaces because the same anonymous session may appear in more than one group.
 
+For a 30-day locale breakdown, use app-open events because each anonymous browser session records one initial app open:
+
+```sql
+select
+  locale,
+  sum(events)::bigint as app_opens,
+  sum(sessions)::bigint as sessions
+from private.analytics_locale_daily
+where event_day >= current_date - 29
+  and event_name = 'app_opened'
+group by locale
+order by sessions desc, locale;
+```
+
+In the SQL Editor chart, use `locale` for the X-axis and `sessions` for the Y-axis. `unknown` represents historical events and older installed clients, not an additional detected language.
+
 To compare the usual hour of day rather than a chronological timeline:
 
 ```sql
@@ -75,7 +93,7 @@ group by surface, event_name
 order by surface, event_name;
 ```
 
-These are anonymous sessions, not authenticated users. One person can create multiple sessions, and offline or self-hosted development use is not measured.
+These are anonymous sessions, not authenticated users. One person can create multiple sessions, a selected UI language is not proof of physical location, and offline or self-hosted development use is not measured.
 
 ## Retention and fallback
 

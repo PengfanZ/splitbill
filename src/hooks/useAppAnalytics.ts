@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react'
 import type { AnalyticsClient, AnalyticsSurface } from '../analytics'
+import type { AppLocale } from '../i18n/localization'
 
 export function useAppAnalytics(
   client: AnalyticsClient | null,
   initialSurface: AnalyticsSurface,
+  locale: AppLocale,
   liveActivityCode: string | null,
 ) {
   const appOpenTracked = useRef(false)
@@ -12,8 +14,8 @@ export function useAppAnalytics(
   useEffect(() => {
     if (appOpenTracked.current) return
     appOpenTracked.current = true
-    client?.track('app_opened', initialSurface)
-  }, [client, initialSurface])
+    client?.track('app_opened', initialSurface, locale)
+  }, [client, initialSurface, locale])
 
   useEffect(() => {
     if (!liveActivityCode) {
@@ -22,6 +24,6 @@ export function useAppAnalytics(
     }
     if (trackedLiveActivityCode.current === liveActivityCode) return
     trackedLiveActivityCode.current = liveActivityCode
-    client?.track('live_activity_opened', 'live')
-  }, [client, liveActivityCode])
+    client?.track('live_activity_opened', 'live', locale)
+  }, [client, liveActivityCode, locale])
 }

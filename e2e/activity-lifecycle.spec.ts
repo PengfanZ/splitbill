@@ -4,6 +4,7 @@ type AnalyticsPayload = {
   p_event_name: string
   p_surface: string
   p_session_token: string
+  p_locale: 'en' | 'zh-CN'
 }
 
 test.beforeEach(async ({ context }) => {
@@ -21,6 +22,11 @@ test.beforeEach(async ({ context }) => {
 test('automatically uses Simplified Chinese in China and keeps the choice across reloads', async ({ browser }) => {
   const context = await browser.newContext({ locale: 'zh-CN', timezoneId: 'Asia/Shanghai' })
   const page = await context.newPage()
+  const events: AnalyticsPayload[] = []
+  await context.route('https://live-sharing.test/rest/v1/rpc/record_analytics_event', async route => {
+    events.push(route.request().postDataJSON() as AnalyticsPayload)
+    await route.fulfill({ status: 204, body: '' })
+  })
 
   try {
     await page.goto('./')
@@ -48,6 +54,17 @@ test('automatically uses Simplified Chinese in China and keeps the choice across
     await page.reload()
     await expect(page.getByRole('button', { name: 'Settings' })).toBeVisible()
     await expect(page.locator('html')).toHaveAttribute('lang', 'en')
+    await expect.poll(() => events.length).toBeGreaterThanOrEqual(4)
+    expect(events[0]).toMatchObject({
+      p_event_name: 'app_opened',
+      p_surface: 'local',
+      p_locale: 'zh-CN',
+    })
+    expect(events.at(-1)).toMatchObject({
+      p_event_name: 'app_opened',
+      p_surface: 'local',
+      p_locale: 'en',
+    })
   } finally {
     await context.close()
   }
@@ -272,10 +289,10 @@ test('tracks local outcomes without sending local activity data or loading third
 
   await expect.poll(() => events.length).toBe(3)
   const sessionTokens = new Set(events.map(event => event.p_session_token))
-  expect(events.map(({ p_event_name, p_surface }) => ({ p_event_name, p_surface }))).toEqual([
-    { p_event_name: 'app_opened', p_surface: 'local' },
-    { p_event_name: 'activity_created', p_surface: 'local' },
-    { p_event_name: 'expense_added', p_surface: 'local' },
+  expect(events.map(({ p_event_name, p_surface, p_locale }) => ({ p_event_name, p_surface, p_locale }))).toEqual([
+    { p_event_name: 'app_opened', p_surface: 'local', p_locale: 'en' },
+    { p_event_name: 'activity_created', p_surface: 'local', p_locale: 'en' },
+    { p_event_name: 'expense_added', p_surface: 'local', p_locale: 'en' },
   ])
   expect(sessionTokens.size).toBe(1)
   expect([...sessionTokens][0]).toMatch(/^[a-f0-9]{32}$/)

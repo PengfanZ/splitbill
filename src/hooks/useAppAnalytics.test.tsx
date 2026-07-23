@@ -3,12 +3,13 @@ import { describe, expect, it, vi } from 'vitest'
 import type { AnalyticsClient, AnalyticsSurface } from '../analytics'
 import { useAppAnalytics } from './useAppAnalytics'
 
-function Harness({ client, surface, code }: {
+function Harness({ client, surface, locale = 'en', code }: {
   client: AnalyticsClient | null
   surface: AnalyticsSurface
+  locale?: 'en' | 'zh-CN'
   code: string | null
 }) {
-  useAppAnalytics(client, surface, code)
+  useAppAnalytics(client, surface, locale, code)
   return null
 }
 
@@ -17,9 +18,9 @@ describe('app analytics lifecycle', () => {
     const client = { track: vi.fn() }
     const view = render(<Harness client={client} surface="local" code={null} />)
 
-    expect(client.track).toHaveBeenCalledWith('app_opened', 'local')
-    view.rerender(<Harness client={client} surface="snapshot" code="A1B2C3D4E5" />)
-    expect(client.track).toHaveBeenCalledWith('live_activity_opened', 'live')
+    expect(client.track).toHaveBeenCalledWith('app_opened', 'local', 'en')
+    view.rerender(<Harness client={client} surface="snapshot" locale="zh-CN" code="A1B2C3D4E5" />)
+    expect(client.track).toHaveBeenCalledWith('live_activity_opened', 'live', 'zh-CN')
 
     view.rerender(<Harness client={client} surface="live" code="A1B2C3D4E5" />)
     view.rerender(<Harness client={client} surface="live" code={null} />)

@@ -50,9 +50,9 @@ The frontend treats Supabase as canonical whenever a live capability is active. 
 
 ## Analytics boundary
 
-The configured production build sends a fixed event enum through `public.record_analytics_event`. Local activities remain entirely in browser storage; recording a local event never uploads the activity itself. The browser sends only the event name, coarse surface, and a random session-scoped token. The database stores a SHA-256 hash of that token in `private.analytics_events`, and browser roles have no table or aggregate-view access.
+The configured production build sends a fixed event enum through `public.record_analytics_event`. Local activities remain entirely in browser storage; recording a local event never uploads the activity itself. The browser sends only the event name, coarse surface, resolved `en`/`zh-CN` UI locale, and a random session-scoped token. Locale represents the app language rather than physical location. The database stores a SHA-256 hash of that token in `private.analytics_events`, and browser roles have no table or aggregate-view access.
 
-The RPC validates every value, applies the existing hashed-IP throttle, and incrementally deletes events older than 90 days. Private daily and hourly aggregates support event counts and anonymous session funnels. Third-party Cloudflare analytics is a fallback only for frontend-only production builds and never executes on `#share=` or `#live=` URLs. See `docs/ANALYTICS.md` before adding events or properties.
+The RPC validates every value, applies the existing hashed-IP throttle, and incrementally deletes events older than 90 days. Private daily, hourly, and locale aggregates support event counts and anonymous session funnels. A three-argument RPC overload classifies older clients as `unknown`, preserving compatibility without guessing their locale. Third-party Cloudflare analytics is a fallback only for frontend-only production builds and never executes on `#share=` or `#live=` URLs. See `docs/ANALYTICS.md` before adding events or properties.
 
 ## Change contract
 

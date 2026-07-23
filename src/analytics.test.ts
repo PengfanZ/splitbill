@@ -93,7 +93,7 @@ describe('first-party analytics', () => {
       crypto: deterministicCrypto(4),
     })!
 
-    client.track('expense_added', 'local')
+    client.track('expense_added', 'local', 'zh-CN')
 
     expect(fetcher).toHaveBeenCalledWith(
       'https://project.supabase.co/rest/v1/rpc/record_analytics_event',
@@ -112,6 +112,7 @@ describe('first-party analytics', () => {
           p_event_name: 'expense_added',
           p_surface: 'local',
           p_session_token: '04'.repeat(16),
+          p_locale: 'zh-CN',
         }),
       }),
     )
@@ -126,7 +127,7 @@ describe('first-party analytics', () => {
       VITE_SUPABASE_PUBLISHABLE_KEY: 'key',
     }, { enabled: true })!
 
-    client.track('app_opened', 'snapshot')
+    client.track('app_opened', 'snapshot', 'en')
 
     expect(fetcher).toHaveBeenCalledOnce()
     expect(sessionStorage.getItem(ANALYTICS_SESSION_KEY)).toMatch(/^[a-f0-9]{32}$/)
@@ -152,8 +153,8 @@ describe('first-party analytics', () => {
       crypto: deterministicCrypto(),
     })!
 
-    expect(() => rejectedClient.track('app_opened', 'local')).not.toThrow()
-    expect(() => throwingClient.track('app_opened', 'local')).not.toThrow()
+    expect(() => rejectedClient.track('app_opened', 'local', 'en')).not.toThrow()
+    expect(() => throwingClient.track('app_opened', 'local', 'en')).not.toThrow()
   })
 
   it('fails closed when browser dependencies cannot create a session', () => {
