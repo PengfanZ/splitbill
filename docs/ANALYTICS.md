@@ -73,10 +73,11 @@ For a 30-day currency-selection chart:
 ```sql
 select
   currency,
-  sum(events)::bigint as selections,
-  sum(sessions)::bigint as sessions
-from private.analytics_currency_daily
-where event_day >= current_date - 29
+  count(*)::bigint as selections,
+  count(distinct session_hash)::bigint as sessions
+from private.analytics_events
+where occurred_at >= current_date - 29
+  and event_name = 'currency_selected'
 group by currency
 order by selections desc, currency;
 ```
