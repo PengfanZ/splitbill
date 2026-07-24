@@ -873,7 +873,7 @@ describe('complete app workflows', () => {
     await user.type(screen.getByLabelText('Activity name'), 'Shanghai trip')
     await user.selectOptions(screen.getByLabelText(/Activity currency/), 'CNY')
     await user.click(screen.getByRole('button', { name: 'Create activity' }))
-    expect(screen.getByLabelText('Currency')).toHaveValue('CNY')
+    expect(screen.getByLabelText('Activity currency')).toHaveValue('CNY')
     expect(screen.getAllByText('¥0.00').length).toBeGreaterThan(0)
 
     await user.click(screen.getByRole('button', { name: 'Add expense' }))
@@ -882,15 +882,15 @@ describe('complete app workflows', () => {
     await user.click(screen.getByRole('button', { name: 'Save expense' }))
     expect(screen.getAllByText('¥24.00').length).toBeGreaterThan(0)
 
-    await user.selectOptions(screen.getByLabelText('Currency'), 'EUR')
+    await user.selectOptions(screen.getByLabelText('Activity currency'), 'EUR')
     expect(await screen.findByRole('status')).toHaveTextContent('Activity currency changed to EUR')
     expect(screen.getAllByText('€24.00').length).toBeGreaterThan(0)
-    fireEvent.change(screen.getByLabelText('Currency'), { target: { value: 'EUR' } })
+    fireEvent.change(screen.getByLabelText('Activity currency'), { target: { value: 'EUR' } })
     await waitFor(() => expect(parseState(localStorage.getItem(STORAGE_KEY)).groups[0].currency).toBe('EUR'))
 
     unmount()
     render(<App />)
-    expect(screen.getByLabelText('Currency')).toHaveValue('EUR')
+    expect(screen.getByLabelText('Activity currency')).toHaveValue('EUR')
     expect(screen.getAllByText('€24.00').length).toBeGreaterThan(0)
   })
 
@@ -1214,7 +1214,7 @@ describe('complete app workflows', () => {
     render(<App liveActivityClient={client} />)
 
     expect(await screen.findByText('Live · revision 1')).toBeVisible()
-    await user.selectOptions(screen.getByLabelText('Currency'), 'CNY')
+    await user.selectOptions(screen.getByLabelText('Activity currency'), 'CNY')
 
     expect(await screen.findByText('Live · revision 2')).toBeVisible()
     expect(client.update).toHaveBeenCalledWith(

@@ -141,6 +141,33 @@ export function MembersRail({ members, expenses, currency = 'USD', readOnly = fa
   )
 }
 
+function ActivityCurrencyControl({ currency, locale, readOnly, onChange }: {
+  currency: CurrencyCode
+  locale: string
+  readOnly: boolean
+  onChange?: (currency: CurrencyCode) => void
+}) {
+  const { t } = useLocalization()
+  const value = `${currency} · ${currencySymbol(currency, locale)}`
+  const content = (
+    <>
+      <span className="activity-currency-icon"><CircleDollarSign size={18} /></span>
+      <span className="activity-currency-copy">
+        <span>{t('group.currency')}</span>
+        {onChange && !readOnly ? (
+          <select aria-label={t('group.currency')} value={currency} onChange={event => onChange(event.target.value as CurrencyCode)}>
+            {SUPPORTED_CURRENCIES.map(code => <option key={code} value={code}>{code} · {currencySymbol(code, locale)}</option>)}
+          </select>
+        ) : <b>{value}</b>}
+      </span>
+    </>
+  )
+
+  return onChange && !readOnly
+    ? <label className="activity-currency">{content}</label>
+    : <div className="activity-currency activity-currency--read-only">{content}</div>
+}
+
 export function GroupDashboard({ group, members, expenses, query, activityFeedback, readOnly = false, currentUserLabel = 'You', currentUserRole, statusLabel, shareQrLabel = 'Share QR', onCurrencyChange, onShare, onShareQr, onShareLive, onAddFriend, onAddExpense, onSettleUp, onEditExpense, onDeleteExpense }: {
   group: ActivityGroup
   members: Member[]
@@ -168,7 +195,7 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
     <main className="dashboard">
       <div className="main-column">
         <header className="group-welcome">
-          <div><span className="date">{group.emoji} {t('dashboard.activityGroup')}</span><h1>{group.name}</h1><div className="activity-meta"><p>{t('dashboard.sharing', { count: members.length, unit: t(members.length === 1 ? 'common.person' : 'common.people') })}</p><label className="activity-currency"><span>{t('dashboard.currency')}</span>{onCurrencyChange && !readOnly ? <select aria-label={t('dashboard.currency')} value={currency} onChange={event => onCurrencyChange(event.target.value as CurrencyCode)}>{SUPPORTED_CURRENCIES.map(code => <option key={code} value={code}>{code} ({currencySymbol(code, locale)})</option>)}</select> : <b>{currency} ({currencySymbol(currency, locale)})</b>}</label></div></div>
+          <div><span className="date">{group.emoji} {t('dashboard.activityGroup')}</span><h1>{group.name}</h1><div className="activity-meta"><p>{t('dashboard.sharing', { count: members.length, unit: t(members.length === 1 ? 'common.person' : 'common.people') })}</p><ActivityCurrencyControl currency={currency} locale={locale} readOnly={readOnly} onChange={onCurrencyChange} /></div></div>
           <div className="group-share">{readOnly ? <span className="read-only-badge">{t('dashboard.readOnly')}</span> : <div className="group-actions">{statusLabel ? <span className="read-only-badge live-badge"><Radio size={14} />{statusLabel}</span> : null}{onShareQr ? <button className="outline-button" onClick={onShareQr}><QrCode size={16} />{shareQrLabel === 'Share QR' ? t('dashboard.shareQr') : shareQrLabel}</button> : null}{onShareLive ? <button className="outline-button" onClick={onShareLive}><Radio size={16} />{t('dashboard.shareLive')}</button> : null}{onShare ? <button className="outline-button" onClick={onShare}><Share2 size={16} />{t('dashboard.shareSummary')}</button> : null}{onAddFriend ? <button className="outline-button" onClick={onAddFriend}><Users size={16} />{t('dashboard.addFriend')}</button> : null}{onAddExpense ? <button className="confirm-button" onClick={onAddExpense}><Plus size={17} />{t('dashboard.addExpense')}</button> : null}</div>}{activityFeedback ? <span className="activity-feedback" role="status">{activityFeedback}</span> : null}</div>
         </header>
         <ActivitySummary expenses={expenses} currency={currency} currentUserLabel={currentUserLabel} />

@@ -210,18 +210,18 @@ test('keeps an activity currency across expenses, changes, and reloads', async (
   await page.getByLabel(/Add friends/).fill('Maya')
   await page.getByRole('button', { name: 'Create activity' }).click()
 
-  await expect(page.getByLabel('Currency', { exact: true })).toHaveValue('EUR')
+  await expect(page.getByLabel('Activity currency', { exact: true })).toHaveValue('EUR')
   await page.getByRole('button', { name: 'Add expense' }).click()
   await page.getByLabel('Description').fill('Train')
   await page.getByRole('spinbutton', { name: 'Amount' }).fill('18')
   await page.getByRole('button', { name: 'Save expense' }).click()
   await expect(page.locator('.expense-amount b')).toHaveText('€18.00')
 
-  await page.getByLabel('Currency', { exact: true }).selectOption('CNY')
+  await page.getByLabel('Activity currency', { exact: true }).selectOption('CNY')
   await expect(page.getByRole('status')).toContainText('Activity currency changed to CNY')
   await expect(page.locator('.expense-amount b')).toHaveText('¥18.00')
   await page.reload()
-  await expect(page.getByLabel('Currency', { exact: true })).toHaveValue('CNY')
+  await expect(page.getByLabel('Activity currency', { exact: true })).toHaveValue('CNY')
   await expect(page.locator('.expense-amount b')).toHaveText('¥18.00')
 })
 
