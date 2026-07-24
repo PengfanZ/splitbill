@@ -137,6 +137,8 @@ describe('state and formatting helpers', () => {
     expect(populated).toContain('Maya Chen paid You $5.00')
     expect(populated).toContain('Maya Chen pays You $5.00')
     expect(populated).toContain('Jordan pays You $10.00')
+    expect(buildShareSummary({ ...group, currency: 'CNY' }, [CURRENT_USER, maya, jordan], [expense()]))
+      .toContain('Dinner — ¥30.00')
 
     const malformedPayments = buildShareSummary(group, [CURRENT_USER], [
       expense({ id: 'missing-payer', kind: 'settlement', title: 'Settlement payment', amount: 5, payerId: 'missing', splitMethod: 'exact', shares: {} }),
@@ -496,7 +498,7 @@ describe('modals', () => {
     await user.type(screen.getByLabelText('Activity name'), '  Beach trip  ')
     await user.type(screen.getByLabelText(/Add friends/), ' Maya, , Jordan ')
     await user.click(screen.getByRole('button', { name: 'Create activity' }))
-    expect(onSave).toHaveBeenCalledWith('Beach trip', ['Maya', 'Jordan'])
+    expect(onSave).toHaveBeenCalledWith('Beach trip', ['Maya', 'Jordan'], 'USD')
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(onClose).toHaveBeenCalledOnce()
   })
@@ -863,6 +865,35 @@ describe('complete app workflows', () => {
     await user.click(screen.getByRole('button', { name: 'Close' }))
   })
 
+  it('persists one customizable currency per local activity', async () => {
+    const user = userEvent.setup()
+    const { unmount } = render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'Create an activity' }))
+    await user.type(screen.getByLabelText('Activity name'), 'Shanghai trip')
+    await user.selectOptions(screen.getByLabelText(/Activity currency/), 'CNY')
+    await user.click(screen.getByRole('button', { name: 'Create activity' }))
+    expect(screen.getByLabelText('Currency')).toHaveValue('CNY')
+    expect(screen.getAllByText('¥0.00').length).toBeGreaterThan(0)
+
+    await user.click(screen.getByRole('button', { name: 'Add expense' }))
+    await user.type(screen.getByLabelText('Description'), 'Noodles')
+    await user.type(screen.getByLabelText('Amount'), '24')
+    await user.click(screen.getByRole('button', { name: 'Save expense' }))
+    expect(screen.getAllByText('¥24.00').length).toBeGreaterThan(0)
+
+    await user.selectOptions(screen.getByLabelText('Currency'), 'EUR')
+    expect(await screen.findByRole('status')).toHaveTextContent('Activity currency changed to EUR')
+    expect(screen.getAllByText('€24.00').length).toBeGreaterThan(0)
+    fireEvent.change(screen.getByLabelText('Currency'), { target: { value: 'EUR' } })
+    await waitFor(() => expect(parseState(localStorage.getItem(STORAGE_KEY)).groups[0].currency).toBe('EUR'))
+
+    unmount()
+    render(<App />)
+    expect(screen.getByLabelText('Currency')).toHaveValue('EUR')
+    expect(screen.getAllByText('€24.00').length).toBeGreaterThan(0)
+  })
+
   it('guides oversized activities to the summary fallback instead of rendering an unreliable QR code', async () => {
     const user = userEvent.setup()
     const oversizedGroup = { ...group, name: incompressibleText(4_000) }
@@ -1162,6 +1193,37 @@ describe('complete app workflows', () => {
     expect(screen.queryByText('Maya Chen owes You')).not.toBeInTheDocument()
     expect(replacementAnalyticsClient.track).not.toHaveBeenCalledWith('live_activity_opened', 'live', 'en')
     expect(replacementAnalyticsClient.track).toHaveBeenCalledWith('settlement_recorded', 'live', 'en')
+  })
+
+  it('synchronizes activity currency changes through a live session', async () => {
+    const user = userEvent.setup()
+    const credentials = { code: 'A1B2C3D4E5', editToken: 'a'.repeat(64) }
+    const snapshot = createSharedActivity({ ...group, currency: 'USD' }, [CURRENT_USER, maya, jordan], [expense()])
+    const client = {
+      create: vi.fn(),
+      load: vi.fn().mockResolvedValue({ code: credentials.code, revision: 1, snapshot, updatedAt: '2026-07-14T01:00:00.000Z' }),
+      poll: vi.fn(),
+      update: vi.fn().mockImplementation(async (_credentials, nextSnapshot) => ({
+        code: credentials.code,
+        revision: 2,
+        snapshot: nextSnapshot,
+        updatedAt: '2026-07-14T01:01:00.000Z',
+      })),
+    } satisfies LiveActivityClient
+    window.history.replaceState(null, '', `/${LIVE_ACTIVITY_HASH_PREFIX}${credentials.code}.${credentials.editToken}`)
+    render(<App liveActivityClient={client} />)
+
+    expect(await screen.findByText('Live · revision 1')).toBeVisible()
+    await user.selectOptions(screen.getByLabelText('Currency'), 'CNY')
+
+    expect(await screen.findByText('Live · revision 2')).toBeVisible()
+    expect(client.update).toHaveBeenCalledWith(
+      credentials,
+      expect.objectContaining({ group: expect.objectContaining({ currency: 'CNY' }) }),
+      1,
+    )
+    expect(screen.getByRole('status')).toHaveTextContent('Activity currency changed to CNY')
+    expect(screen.getAllByText('¥30.00').length).toBeGreaterThan(0)
   })
 
   it('automatically loads newer live revisions while the tab is visible', async () => {

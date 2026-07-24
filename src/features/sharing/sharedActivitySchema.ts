@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { SUPPORTED_CURRENCIES } from '../../domain/currency'
 import type { ActivityGroup, Expense, Member } from '../../domain/models'
 
 export const MAX_ACTIVITY_SNAPSHOT_BYTES = 128 * 1024
@@ -18,6 +19,7 @@ const groupSchema = z.object({
   name: z.string().min(1).max(120),
   emoji: z.string().min(1).max(16),
   memberIds: z.array(memberIdSchema).min(1).max(MAX_ACTIVITY_FRIENDS + 1),
+  currency: z.enum(SUPPORTED_CURRENCIES).optional(),
 }).passthrough()
 const amountSchema = z.number().min(0).max(MAX_ACTIVITY_AMOUNT)
 const expenseSchema = z.object({

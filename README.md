@@ -31,6 +31,7 @@ For launch copy, a privacy-safe demo storyboard, and channel guidance, see the [
 ## Highlights
 
 - Create activity groups and add friends without requiring profiles or accounts.
+- Choose one currency per activity and change it later; every expense, balance, settlement, live session, and export stays consistent.
 - Record who paid and split expenses equally among everyone or only selected people, or enter exact amounts.
 - Keep historical splits stable when friends join later, then explicitly edit an expense when it should include them.
 - See clear person-to-person settlement directions instead of an ambiguous group balance.
@@ -48,6 +49,8 @@ For launch copy, a privacy-safe demo storyboard, and channel guidance, see the [
 ## Important data note
 
 Local activities remain in browser `localStorage` and can be viewed after the installed app shell has been cached for offline use. Live activities are stored in Supabase, require a network connection to synchronize, and are editable by anyone with the full capability link. There are no user accounts or participant-level permissions. Read [PRIVACY.md](PRIVACY.md) before deploying or sharing real activity data.
+
+Currency selection controls display only. Tally does not convert amounts or support mixed currencies inside one activity.
 
 ## Tech stack
 

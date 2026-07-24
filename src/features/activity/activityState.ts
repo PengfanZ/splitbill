@@ -1,4 +1,5 @@
 import type { PersistedState, Expense, Member } from '../../domain/models'
+import type { CurrencyCode } from '../../domain/currency'
 import { ACTIVITY_EMOJIS, FRIEND_COLORS, initialsFor, makeId } from '../../domain/members'
 
 export function createActivityFriends(names: string[], colorOffset: number): Member[] {
@@ -10,13 +11,14 @@ export function createActivityFriends(names: string[], colorOffset: number): Mem
   }))
 }
 
-export function createLocalActivity(state: PersistedState, name: string, friendNames: string[]): PersistedState {
+export function createLocalActivity(state: PersistedState, name: string, friendNames: string[], currency: CurrencyCode = 'USD'): PersistedState {
   const friends = createActivityFriends(friendNames, state.friends.length)
   const group = {
     id: makeId('group'),
     name,
     emoji: ACTIVITY_EMOJIS[state.groups.length % ACTIVITY_EMOJIS.length],
     memberIds: ['me', ...friends.map(friend => friend.id)],
+    currency,
   }
 
   return {
@@ -24,6 +26,14 @@ export function createLocalActivity(state: PersistedState, name: string, friendN
     groups: [...state.groups, group],
     friends: [...state.friends, ...friends],
     selectedGroupId: group.id,
+  }
+}
+
+export function updateLocalActivityCurrency(state: PersistedState, groupId: string, currency: CurrencyCode): PersistedState {
+  if (!state.groups.some(group => group.id === groupId)) return state
+  return {
+    ...state,
+    groups: state.groups.map(group => group.id === groupId ? { ...group, currency } : group),
   }
 }
 

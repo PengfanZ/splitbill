@@ -1,6 +1,7 @@
 import type { Expense, Member, Settlement } from './models'
+import { formatMoney, type CurrencyCode } from './currency'
 
-export const money = (value: number) => `$${Math.abs(value).toFixed(2)}`
+export const money = (value: number, currency: CurrencyCode = 'USD', locale = 'en-US') => formatMoney(value, currency, locale)
 export const isSettlementPayment = (expense: Expense) => expense.kind === 'settlement'
 export const spendingExpenses = (expenses: Expense[]) => expenses.filter(expense => !isSettlementPayment(expense))
 export const createExpenseTimestamp = (date = new Date()) => date.toISOString()

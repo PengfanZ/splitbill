@@ -200,6 +200,31 @@ test('keeps the expense action reachable on a short mobile viewport', async ({ p
   await expect(page.getByText('Mobile dinner')).toBeVisible()
 })
 
+test('keeps an activity currency across expenses, changes, and reloads', async ({ page }) => {
+  await page.goto('./')
+  await page.getByLabel('Display name').fill('Currency Tester')
+  await page.getByRole('button', { name: 'Continue' }).click()
+  await page.getByRole('button', { name: 'Create an activity' }).click()
+  await page.getByLabel('Activity name').fill('Europe trip')
+  await page.getByLabel(/Activity currency/).selectOption('EUR')
+  await page.getByLabel(/Add friends/).fill('Maya')
+  await page.getByRole('button', { name: 'Create activity' }).click()
+
+  await expect(page.getByLabel('Currency', { exact: true })).toHaveValue('EUR')
+  await page.getByRole('button', { name: 'Add expense' }).click()
+  await page.getByLabel('Description').fill('Train')
+  await page.getByRole('spinbutton', { name: 'Amount' }).fill('18')
+  await page.getByRole('button', { name: 'Save expense' }).click()
+  await expect(page.locator('.expense-amount b')).toHaveText('€18.00')
+
+  await page.getByLabel('Currency', { exact: true }).selectOption('CNY')
+  await expect(page.getByRole('status')).toContainText('Activity currency changed to CNY')
+  await expect(page.locator('.expense-amount b')).toHaveText('¥18.00')
+  await page.reload()
+  await expect(page.getByLabel('Currency', { exact: true })).toHaveValue('CNY')
+  await expect(page.locator('.expense-amount b')).toHaveText('¥18.00')
+})
+
 test('centers the create activity dialog on mobile and completes the flow', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('./')

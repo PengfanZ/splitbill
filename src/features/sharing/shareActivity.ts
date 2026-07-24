@@ -1,4 +1,5 @@
 import { calculateSettlements, getSettlementRecipientId, isSettlementPayment, money, spendingExpenses } from '../../domain/expenses'
+import { activityCurrency } from '../../domain/currency'
 import type { ActivityGroup, Expense, Member } from '../../domain/models'
 import { translate, type AppLocale, type Translate } from '../../i18n/localization'
 
@@ -20,6 +21,7 @@ function memberName(memberMap: Map<string, Member>, memberId: string | null, t: 
 
 export function buildShareSummary(group: ActivityGroup, members: Member[], expenses: Expense[], locale: AppLocale = 'en') {
   const t: Translate = (key, variables) => translate(locale, key, variables)
+  const currency = activityCurrency(group)
   const memberMap = new Map(members.map(member => [member.id, member]))
   const spending = spendingExpenses(expenses)
   const payments = expenses.filter(isSettlementPayment)
@@ -27,7 +29,7 @@ export function buildShareSummary(group: ActivityGroup, members: Member[], expen
   const expenseLines = spending.length
     ? spending.map(item => t('share.expenseLine', {
         title: item.title,
-        amount: money(item.amount),
+        amount: money(item.amount, currency, locale),
         payer: memberMap.get(item.payerId)?.name ?? t('common.unknown'),
         split: t(item.splitMethod === 'equal' ? 'share.equalSplit' : 'share.exactSplit'),
       }))
@@ -35,17 +37,17 @@ export function buildShareSummary(group: ActivityGroup, members: Member[], expen
   const paymentLines = payments.length
     ? payments.map(item => {
       const recipientId = getSettlementRecipientId(item)
-      return t('share.paymentLine', { payer: memberName(memberMap, item.payerId, t), recipient: memberName(memberMap, recipientId, t), amount: money(item.amount) })
+      return t('share.paymentLine', { payer: memberName(memberMap, item.payerId, t), recipient: memberName(memberMap, recipientId, t), amount: money(item.amount, currency, locale) })
     })
     : [t('share.noPayments')]
   const settlements = calculateSettlements(members, expenses)
   const settlementLines = settlements.length
-    ? settlements.map(item => t('share.settlementLine', { from: item.from.name, to: item.to.name, amount: money(item.amount) }))
+    ? settlements.map(item => t('share.settlementLine', { from: item.from.name, to: item.to.name, amount: money(item.amount, currency, locale) }))
     : [t('share.everyoneSettled')]
 
   return [
     t('share.summaryTitle', { name: group.name }),
-    t('share.totalSpent', { amount: money(total) }),
+    t('share.totalSpent', { amount: money(total, currency, locale) }),
     '',
     t('share.expenses'),
     ...expenseLines,
@@ -62,6 +64,7 @@ export function buildShareSummary(group: ActivityGroup, members: Member[], expen
 
 export async function createSummaryCard(group: ActivityGroup, members: Member[], expenses: Expense[], locale: AppLocale = 'en') {
   const t: Translate = (key, variables) => translate(locale, key, variables)
+  const currency = activityCurrency(group)
   const canvas = document.createElement('canvas')
   canvas.width = 1080
   canvas.height = 1350
@@ -92,7 +95,7 @@ export async function createSummaryCard(group: ActivityGroup, members: Member[],
   context.fillText(t('dashboard.totalSpent').toUpperCase(), 112, 330)
   context.fillStyle = '#26231f'
   context.font = '400 74px Georgia, serif'
-  context.fillText(money(total), 112, 420)
+  context.fillText(money(total, currency, locale), 112, 420)
 
   context.fillStyle = '#26231f'
   context.font = '700 30px Arial, sans-serif'
@@ -107,7 +110,7 @@ export async function createSummaryCard(group: ActivityGroup, members: Member[],
       context.fillText(t('settlement.parties', { from: item.from.name, to: item.to.name }), 82, y, 710)
       context.fillStyle = '#e8584f'
       context.textAlign = 'right'
-      context.fillText(money(item.amount), 998, y)
+      context.fillText(money(item.amount, currency, locale), 998, y)
       context.textAlign = 'left'
     })
   } else {
@@ -135,7 +138,7 @@ export async function createSummaryCard(group: ActivityGroup, members: Member[],
       context.fillText(settlementPayment ? t('dashboard.settlementPayment') : t('share.cardPayerSplit', { payer, split: t(item.splitMethod === 'equal' ? 'dashboard.splitEqually' : 'dashboard.exactSplit') }), 390, y, 410)
       context.fillStyle = '#26231f'
       context.textAlign = 'right'
-      context.fillText(money(item.amount), 998, y)
+      context.fillText(money(item.amount, currency, locale), 998, y)
       context.textAlign = 'left'
     })
     if (expenses.length > visibleEntries.length) {

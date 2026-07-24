@@ -1,27 +1,30 @@
 import { useState, type FormEvent } from 'react'
 import { ArrowRight, CircleDollarSign, Pencil, Users } from 'lucide-react'
 import { Avatar, ModalShell } from '../../components/AppShell'
+import { activityCurrency, currencySymbol, defaultCurrencyForLocale, SUPPORTED_CURRENCIES, type CurrencyCode } from '../../domain/currency'
 import { createEqualShares, createExactShares, createExpenseTimestamp, createSettlementPayment, money } from '../../domain/expenses'
 import { makeId } from '../../domain/members'
 import type { ActivityGroup, Expense, Member, Settlement, SplitMethod } from '../../domain/models'
 import { useLocalization } from '../../i18n/LocalizationContext'
 import { MAX_ACTIVITY_AMOUNT } from '../sharing/shareActivityUrl'
 
-export function CreateGroupModal({ onClose, onSave }: { onClose: () => void; onSave: (name: string, friendNames: string[]) => void }) {
+export function CreateGroupModal({ onClose, onSave }: { onClose: () => void; onSave: (name: string, friendNames: string[], currency: CurrencyCode) => void }) {
   const [name, setName] = useState('')
   const [friends, setFriends] = useState('')
-  const { t } = useLocalization()
+  const { locale, t } = useLocalization()
+  const [currency, setCurrency] = useState<CurrencyCode>(() => defaultCurrencyForLocale(locale))
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
     if (!name.trim()) return
-    onSave(name.trim(), friends.split(',').map(friend => friend.trim()).filter(Boolean))
+    onSave(name.trim(), friends.split(',').map(friend => friend.trim()).filter(Boolean), currency)
   }
 
   return (
     <ModalShell eyebrow={t('group.newEyebrow')} title={t('group.newTitle')} onClose={onClose} mobilePlacement="center">
       <form onSubmit={submit}>
         <label>{t('group.name')}<input autoFocus value={name} onChange={event => setName(event.target.value)} placeholder={t('group.namePlaceholder')} required /></label>
+        <label>{t('group.currency')} <small>{t('group.currencyHelp')}</small><select value={currency} onChange={event => setCurrency(event.target.value as CurrencyCode)}>{SUPPORTED_CURRENCIES.map(code => <option key={code} value={code}>{code} ({currencySymbol(code, locale)})</option>)}</select></label>
         <label>{t('group.addFriends')} <small>{t('group.addFriendsHelp')}</small><textarea value={friends} onChange={event => setFriends(event.target.value)} placeholder={t('group.addFriendsPlaceholder')} rows={3} /></label>
         <div className="split-note"><Users size={18} /><span>{t('group.included')}</span></div>
         <div className="modal-actions"><button type="button" className="outline-button" onClick={onClose}>{t('common.cancel')}</button><button className="confirm-button" type="submit">{t('group.create')}</button></div>
@@ -60,7 +63,8 @@ export function SettleUpModal({ group, settlement, onClose, onSave, saving = fal
   saving?: boolean
 }) {
   const [amount, setAmount] = useState(settlement.amount.toFixed(2))
-  const { t } = useLocalization()
+  const { locale, t } = useLocalization()
+  const currency = activityCurrency(group)
   const numericAmount = Number(amount) || 0
   const amountCents = Math.round(numericAmount * 100)
   const suggestedCents = Math.round(settlement.amount * 100)
@@ -80,8 +84,8 @@ export function SettleUpModal({ group, settlement, onClose, onSave, saving = fal
           <ArrowRight size={20} />
           <span><Avatar member={settlement.to} /><b>{settlement.to.name}</b><small>{t('settlement.receives')}</small></span>
         </div>
-        <label>{t('settlement.amount')} <small>{t('settlement.suggestedAmount', { amount: money(settlement.amount) })}</small><span className="modal-amount"><i>$</i><input autoFocus aria-label={t('settlement.amount')} value={amount} onChange={event => setAmount(event.target.value)} type="number" min="0.01" max={settlement.amount.toFixed(2)} step="0.01" required /></span></label>
-        {valid ? null : <small className="split-error" role="alert">{t('settlement.invalid', { amount: money(settlement.amount) })}</small>}
+        <label>{t('settlement.amount')} <small>{t('settlement.suggestedAmount', { amount: money(settlement.amount, currency, locale) })}</small><span className="modal-amount"><i>{currencySymbol(currency, locale)}</i><input autoFocus aria-label={t('settlement.amount')} value={amount} onChange={event => setAmount(event.target.value)} type="number" min="0.01" max={settlement.amount.toFixed(2)} step="0.01" required /></span></label>
+        {valid ? null : <small className="split-error" role="alert">{t('settlement.invalid', { minimum: money(0.01, currency, locale), amount: money(settlement.amount, currency, locale) })}</small>}
         <div className="split-note settlement-note"><CircleDollarSign size={18} /><span>{t('settlement.note')}</span></div>
         <div className="modal-actions"><button type="button" className="outline-button" onClick={onClose}>{t('common.cancel')}</button><button className="confirm-button" type="submit" disabled={!valid || saving}>{t('settlement.record')}</button></div>
       </form>
@@ -97,7 +101,8 @@ export function ExpenseModal({ group, members, expense, onClose, onSave, saving 
   onSave: (expense: Expense) => void
   saving?: boolean
 }) {
-  const { t } = useLocalization()
+  const { locale, t } = useLocalization()
+  const currency = activityCurrency(group)
   const [title, setTitle] = useState(expense?.title ?? '')
   const [amount, setAmount] = useState(expense ? expense.amount.toString() : '')
   const [payerId, setPayerId] = useState(expense?.payerId ?? 'me')
@@ -147,7 +152,7 @@ export function ExpenseModal({ group, members, expense, onClose, onSave, saving 
     <ModalShell eyebrow={group.name} title={t(expense ? 'expense.editTitle' : 'expense.addTitle')} onClose={onClose}>
       <form onSubmit={submit}>
         <label>{t('expense.description')}<input autoFocus value={title} onChange={event => setTitle(event.target.value)} placeholder={t('expense.descriptionPlaceholder')} maxLength={200} required /></label>
-        <label>{t('expense.amount')}<span className="modal-amount"><i>$</i><input aria-label={t('expense.amount')} value={amount} onChange={event => setAmount(event.target.value)} type="number" min="0.01" max={MAX_ACTIVITY_AMOUNT} step="0.01" placeholder="0.00" required /></span></label>
+        <label>{t('expense.amount')}<span className="modal-amount"><i>{currencySymbol(currency, locale)}</i><input aria-label={t('expense.amount')} value={amount} onChange={event => setAmount(event.target.value)} type="number" min="0.01" max={MAX_ACTIVITY_AMOUNT} step="0.01" placeholder="0.00" required /></span></label>
         <div className="form-grid">
           <label>{t('expense.paidBy')}<select value={payerId} onChange={event => setPayerId(event.target.value)}>{members.map(member => <option value={member.id} key={member.id}>{member.name}</option>)}</select></label>
           <label>{t('expense.splitMethod')}<select value={method} onChange={event => setMethod(event.target.value as SplitMethod)}><option value="equal">{t('expense.equally')}</option><option value="exact">{t('expense.exactAmounts')}</option></select></label>
@@ -170,14 +175,14 @@ export function ExpenseModal({ group, members, expense, onClose, onSave, saving 
             </div>
             <div className="split-preview">
               <span><Users size={18} />{t('expense.eachShare')}</span>
-              <strong>{equalParticipants.length ? money(numericAmount / equalParticipants.length) : '$0.00'}</strong>
+              <strong>{money(equalParticipants.length ? numericAmount / equalParticipants.length : 0, currency, locale)}</strong>
             </div>
             {equalParticipants.length ? null : <small className="split-error" role="alert">{t('expense.selectOne')}</small>}
           </div>
         ) : (
           <div className="exact-splits">
-            <div className="exact-heading"><span>{t('expense.enterShares')}</span><b className={exactValid ? 'positive' : remaining < 0 ? 'negative' : ''}>{t(remaining >= 0 ? 'expense.left' : 'expense.over', { amount: money(remaining) })}</b></div>
-            {members.map(member => <label className="share-row" key={member.id}><span><Avatar member={member} size="sm" />{member.name}</span><span className="share-input"><i>$</i><input aria-label={t('expense.memberShare', { name: member.name })} type="number" min="0" max={MAX_ACTIVITY_AMOUNT} step="0.01" value={exactShares[member.id] ?? ''} onChange={event => setExactShares(current => ({ ...current, [member.id]: event.target.value }))} placeholder="0.00" /></span></label>)}
+            <div className="exact-heading"><span>{t('expense.enterShares')}</span><b className={exactValid ? 'positive' : remaining < 0 ? 'negative' : ''}>{t(remaining >= 0 ? 'expense.left' : 'expense.over', { amount: money(remaining, currency, locale) })}</b></div>
+            {members.map(member => <label className="share-row" key={member.id}><span><Avatar member={member} size="sm" />{member.name}</span><span className="share-input"><i>{currencySymbol(currency, locale)}</i><input aria-label={t('expense.memberShare', { name: member.name })} type="number" min="0" max={MAX_ACTIVITY_AMOUNT} step="0.01" value={exactShares[member.id] ?? ''} onChange={event => setExactShares(current => ({ ...current, [member.id]: event.target.value }))} placeholder="0.00" /></span></label>)}
           </div>
         )}
         {expense ? <div className="split-note edit-note"><Pencil size={17} /><span>{method === 'equal' ? t('expense.editEqualNote') : t('expense.editExactNote', { count: members.length })}</span></div> : null}

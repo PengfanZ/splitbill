@@ -23,4 +23,20 @@ describe('shared activity schema', () => {
 
     expect(sharedActivitySchema.safeParse(activity).success).toBe(false)
   })
+
+  it('accepts supported activity currencies and rejects unknown codes', () => {
+    const activity = {
+      version: 2,
+      sender: CURRENT_USER,
+      group: { id: 'trip', name: 'Trip', emoji: '✦', memberIds: ['me'], currency: 'CNY' },
+      friends: [],
+      expenses: [],
+    }
+
+    expect(sharedActivitySchema.safeParse(activity).success).toBe(true)
+    expect(sharedActivitySchema.safeParse({
+      ...activity,
+      group: { ...activity.group, currency: 'BTC' },
+    }).success).toBe(false)
+  })
 })

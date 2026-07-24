@@ -4,6 +4,7 @@ import type { AnalyticsClient, AnalyticsSurface } from './analytics'
 import { FreshStart, Sidebar, Topbar } from './components/AppShell'
 import { createIdentity } from './data/identity'
 import { EMPTY_STATE } from './data/storage'
+import { activityCurrency, type CurrencyCode } from './domain/currency'
 import { isSettlementPayment, money, spendingExpenses } from './domain/expenses'
 import { CURRENT_USER } from './domain/members'
 import type { ActivityGroup, Expense, Member, Settlement } from './domain/models'
@@ -16,6 +17,7 @@ import {
   createLocalActivity,
   deleteLocalActivity,
   deleteLocalExpense,
+  updateLocalActivityCurrency,
   updateLocalExpense,
 } from './features/activity/activityState'
 import { IdentityModal } from './features/identity/IdentityModal'
@@ -137,10 +139,25 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
     closeSharedActivity()
   }
 
-  const createGroup = (name: string, friendNames: string[]) => {
-    setState(current => createLocalActivity(current, name, friendNames))
+  const createGroup = (name: string, friendNames: string[], currency: CurrencyCode) => {
+    setState(current => createLocalActivity(current, name, friendNames, currency))
     analyticsClient?.track('activity_created', 'local', locale)
     setModal(null)
+  }
+
+  const changeActivityCurrency = async (currency: CurrencyCode) => {
+    if (!activeGroup || currency === activityCurrency(activeGroup)) return
+    const message = t('feedback.currencyChanged', { currency })
+    if (liveActivity) {
+      await live.save(
+        { ...liveActivity, group: { ...liveActivity.group, currency } },
+        message,
+        JSON.stringify(['change-currency', currency]),
+      )
+      return
+    }
+    setState(current => updateLocalActivityCurrency(current, activeGroup.id, currency))
+    setActivityFeedback({ groupId: activeGroup.id, message })
   }
 
   const addFriends = async (names: string[]) => {
@@ -229,7 +246,7 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
   }
 
   const recordSettlement = async (payment: Expense, settlement: Settlement) => {
-    const message = t('feedback.settlement', { from: settlement.from.name, to: settlement.to.name, amount: money(payment.amount) })
+    const message = t('feedback.settlement', { from: settlement.from.name, to: settlement.to.name, amount: money(payment.amount, activityCurrency(activeGroup!), locale) })
     if (liveActivity) {
       const saved = await live.save(
         { ...liveActivity, expenses: [payment, ...liveActivity.expenses] },
@@ -396,6 +413,7 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
                 currentUserRole={t('dashboard.creator')}
                 statusLabel={t('dashboard.liveRevision', { revision: liveSession.record.revision })}
                 shareQrLabel={t('dashboard.showQr')}
+                onCurrencyChange={changeActivityCurrency}
                 onShareQr={() => openCurrentLiveQr(liveSession)}
                 onShare={() => shareGroup(liveActivity.group, liveMembers, liveActivity.expenses)}
                 onAddFriend={() => setModal('friend')}
@@ -430,6 +448,7 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
             query={query}
             activityFeedback={activityFeedback?.groupId === selectedGroup.id ? activityFeedback.message : null}
             currentUserLabel={currentUser.name}
+            onCurrencyChange={changeActivityCurrency}
             onShare={() => shareGroup(selectedGroup, selectedMembers, selectedExpenses)}
             onShareQr={() => openShareQr(selectedGroup, selectedMembers, selectedExpenses)}
             onShareLive={() => openLiveShare(selectedGroup, selectedMembers, selectedExpenses)}

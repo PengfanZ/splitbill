@@ -7,6 +7,7 @@ import {
   createLocalActivity,
   deleteLocalActivity,
   deleteLocalExpense,
+  updateLocalActivityCurrency,
   updateLocalExpense,
 } from './activityState'
 
@@ -38,8 +39,19 @@ describe('local activity state operations', () => {
 
     const created = createLocalActivity(state, 'Cabin', ['Jordan Lee'])
     expect(created.groups).toHaveLength(3)
-    expect(created.groups[2]).toMatchObject({ name: 'Cabin', memberIds: ['me', created.friends[2].id] })
+    expect(created.groups[2]).toMatchObject({ name: 'Cabin', memberIds: ['me', created.friends[2].id], currency: 'USD' })
     expect(created.selectedGroupId).toBe(created.groups[2].id)
+
+    const yuanActivity = createLocalActivity(state, 'Shanghai', [], 'CNY')
+    expect(yuanActivity.groups[2].currency).toBe('CNY')
+  })
+
+  it('updates currency only for an existing activity', () => {
+    expect(updateLocalActivityCurrency(state, trip.id, 'EUR').groups).toEqual([
+      { ...trip, currency: 'EUR' },
+      home,
+    ])
+    expect(updateLocalActivityCurrency(state, 'missing', 'EUR')).toBe(state)
   })
 
   it('adds friends only to an existing activity', () => {

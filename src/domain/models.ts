@@ -10,6 +10,7 @@ export type ActivityGroup = {
   name: string
   emoji: string
   memberIds: string[]
+  currency?: import('./currency').CurrencyCode
 }
 
 export type SplitMethod = 'equal' | 'exact'

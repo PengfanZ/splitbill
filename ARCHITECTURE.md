@@ -26,6 +26,8 @@ The current participant identity is stored separately under `tally:identity:v1`.
 
 Local activities continue to work when no Supabase environment variables are configured. A live activity is not duplicated into the local activity store: the browser saves only a shortcut and its capability, then loads the canonical state from Supabase.
 
+Each activity stores one optional ISO currency code. Older local and shared activities without that field render as USD, while newly created activities persist an explicit selection. The code controls formatting only: expense values remain ordinary decimal amounts, and Tally never mixes or converts currencies within one activity.
+
 ## PWA and offline boundary
 
 The production build generates an installable manifest, standard and maskable icons, and a versioned service worker under the configured Vite base path. The worker precaches only the static application shell and install assets. The large social preview image, cross-origin fonts, analytics requests, Supabase RPC responses, live activity data, and URL fragments are not stored in Cache Storage.
