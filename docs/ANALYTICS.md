@@ -12,8 +12,9 @@ The browser may send only these event names:
 - `live_activity_created`
 - `live_activity_opened`
 - `settlement_recorded`
+- `currency_selected`
 
-Each event also has exactly one surface (`local`, `live`, or `snapshot`) and one resolved app locale (`en` or `zh-CN`). The locale is the language Tally is currently displaying, including a saved manual choice; it is not a country, GPS coordinate, IP-derived location, or full browser-language fingerprint. The request contains a random 128-bit session token stored in browser session storage. The database stores only its SHA-256 hash, which supports within-session funnels without creating a persistent visitor profile.
+Each event also has exactly one surface (`local`, `live`, or `snapshot`) and one resolved app locale (`en` or `zh-CN`). `currency_selected` additionally includes one constrained ISO currency code from Tally’s supported list; every other event must omit it. The locale is the language Tally is currently displaying, including a saved manual choice; it is not a country, GPS coordinate, IP-derived location, or full browser-language fingerprint. The request contains a random 128-bit session token stored in browser session storage. The database stores only its SHA-256 hash, which supports within-session funnels without creating a persistent visitor profile.
 
 Historical events and requests from older installed PWAs are stored as `unknown`. This avoids misclassifying legacy traffic as English while the new frontend version rolls out.
 
@@ -25,7 +26,7 @@ Do not add arbitrary metadata to this contract. Analytics must never receive URL
 
 `public.record_analytics_event` is the only browser-callable database entry point. It validates the event, surface, locale, and session-token shape; applies hashed-IP throttling; hashes the session token; and inserts into `private.analytics_events`. Browser roles cannot read or write that table directly and cannot read `private.analytics_daily`, `private.analytics_hourly`, or `private.analytics_locale_daily`.
 
-Opening the app records its initial surface. Successful product actions are measured only after their local state update or live revision save succeeds. A failed expense or settlement save does not produce a success event.
+Opening the app records its initial surface. Successful product actions are measured only after their local state update or live revision save succeeds. A failed expense or settlement save does not produce a success event. Currency selection is intentionally an interaction event: it records a deliberate change in either currency selector, even if the person later cancels activity creation or a live update cannot be saved.
 
 ## Reports in Supabase
 
@@ -66,6 +67,21 @@ order by sessions desc, locale;
 ```
 
 In the SQL Editor chart, use `locale` for the X-axis and `sessions` for the Y-axis. `unknown` represents historical events and older installed clients, not an additional detected language.
+
+For a 30-day currency-selection chart:
+
+```sql
+select
+  currency,
+  sum(events)::bigint as selections,
+  sum(sessions)::bigint as sessions
+from private.analytics_currency_daily
+where event_day >= current_date - 29
+group by currency
+order by selections desc, currency;
+```
+
+In the SQL Editor chart, use `currency` for the X-axis and `selections` for the Y-axis. This measures deliberate selector changes, not the currencies of every activity: someone who keeps the preselected default does not generate a selection event.
 
 To compare the usual hour of day rather than a chronological timeline:
 

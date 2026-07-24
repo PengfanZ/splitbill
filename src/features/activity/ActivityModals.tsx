@@ -8,7 +8,11 @@ import type { ActivityGroup, Expense, Member, Settlement, SplitMethod } from '..
 import { useLocalization } from '../../i18n/LocalizationContext'
 import { MAX_ACTIVITY_AMOUNT } from '../sharing/shareActivityUrl'
 
-export function CreateGroupModal({ onClose, onSave }: { onClose: () => void; onSave: (name: string, friendNames: string[], currency: CurrencyCode) => void }) {
+export function CreateGroupModal({ onClose, onCurrencySelect, onSave }: {
+  onClose: () => void
+  onCurrencySelect?: (currency: CurrencyCode) => void
+  onSave: (name: string, friendNames: string[], currency: CurrencyCode) => void
+}) {
   const [name, setName] = useState('')
   const [friends, setFriends] = useState('')
   const { locale, t } = useLocalization()
@@ -20,11 +24,17 @@ export function CreateGroupModal({ onClose, onSave }: { onClose: () => void; onS
     onSave(name.trim(), friends.split(',').map(friend => friend.trim()).filter(Boolean), currency)
   }
 
+  const selectCurrency = (nextCurrency: CurrencyCode) => {
+    if (nextCurrency === currency) return
+    setCurrency(nextCurrency)
+    onCurrencySelect?.(nextCurrency)
+  }
+
   return (
     <ModalShell eyebrow={t('group.newEyebrow')} title={t('group.newTitle')} onClose={onClose} mobilePlacement="center">
       <form onSubmit={submit}>
         <label>{t('group.name')}<input autoFocus value={name} onChange={event => setName(event.target.value)} placeholder={t('group.namePlaceholder')} required /></label>
-        <label>{t('group.currency')} <small>{t('group.currencyHelp')}</small><select value={currency} onChange={event => setCurrency(event.target.value as CurrencyCode)}>{SUPPORTED_CURRENCIES.map(code => <option key={code} value={code}>{code} ({currencySymbol(code, locale)})</option>)}</select></label>
+        <label>{t('group.currency')} <small>{t('group.currencyHelp')}</small><select value={currency} onChange={event => selectCurrency(event.target.value as CurrencyCode)}>{SUPPORTED_CURRENCIES.map(code => <option key={code} value={code}>{code} ({currencySymbol(code, locale)})</option>)}</select></label>
         <label>{t('group.addFriends')} <small>{t('group.addFriendsHelp')}</small><textarea value={friends} onChange={event => setFriends(event.target.value)} placeholder={t('group.addFriendsPlaceholder')} rows={3} /></label>
         <div className="split-note"><Users size={18} /><span>{t('group.included')}</span></div>
         <div className="modal-actions"><button type="button" className="outline-button" onClick={onClose}>{t('common.cancel')}</button><button className="confirm-button" type="submit">{t('group.create')}</button></div>

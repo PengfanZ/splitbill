@@ -147,6 +147,7 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
 
   const changeActivityCurrency = async (currency: CurrencyCode) => {
     if (!activeGroup || currency === activityCurrency(activeGroup)) return
+    analyticsClient?.track('currency_selected', liveActivity ? 'live' : 'local', locale, currency)
     const message = t('feedback.currencyChanged', { currency })
     if (liveActivity) {
       await live.save(
@@ -460,7 +461,11 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
           />
         ) : <FreshStart onCreate={() => setModal('group')} onJoin={() => setModal('join')} />}
       </div>
-      {modal === 'group' ? <CreateGroupModal onClose={() => setModal(null)} onSave={createGroup} /> : null}
+      {modal === 'group' ? <CreateGroupModal
+        onClose={() => setModal(null)}
+        onCurrencySelect={currency => analyticsClient?.track('currency_selected', 'local', locale, currency)}
+        onSave={createGroup}
+      /> : null}
       {modal === 'friend' ? <AddFriendModal existingExpenseCount={spendingExpenses(activeExpenses).length} onClose={() => setModal(null)} onSave={addFriends} saving={live.saving} /> : null}
       {modal === 'expense' && activeGroup ? (
         <ExpenseModal

@@ -10,7 +10,7 @@ On first use, Tally asks for a display name and stores that identity only in the
 
 Tally supports English and Simplified Chinese. It starts in Chinese when the browser language is Chinese or the device time zone is in mainland China; otherwise it starts in English. A manual choice in **Settings** is saved in the browser and always takes priority. Expense timestamps use the browser's IANA time zone, which is shown in Settings.
 
-Production uses privacy-preserving first-party analytics through Supabase for both browser-local and live activity workflows. Only allowlisted event names, a coarse `local`/`live`/`snapshot` surface, the resolved `en`/`zh-CN` UI locale, and a one-way session hash are stored—never precise location, URLs, capability tokens, activity IDs, names, descriptions, amounts, or balances. Frontend-only deployments can retain Cloudflare Web Analytics, but third-party analytics never loads on shared activity URLs. See [the analytics design](docs/ANALYTICS.md).
+Production uses privacy-preserving first-party analytics through Supabase for both browser-local and live activity workflows. Only allowlisted event names, a coarse `local`/`live`/`snapshot` surface, the resolved `en`/`zh-CN` UI locale, an allowlisted currency code for currency-selection events, and a one-way session hash are stored—never precise location, URLs, capability tokens, activity IDs, names, descriptions, amounts, or balances. Frontend-only deployments can retain Cloudflare Web Analytics, but third-party analytics never loads on shared activity URLs. See [the analytics design](docs/ANALYTICS.md).
 
 ## Sharing and live collaboration
 

@@ -5,6 +5,7 @@ type AnalyticsPayload = {
   p_surface: string
   p_session_token: string
   p_locale: 'en' | 'zh-CN'
+  p_currency: string | null
 }
 
 test.beforeEach(async ({ context }) => {
@@ -305,19 +306,23 @@ test('tracks local outcomes without sending local activity data or loading third
   await page.getByRole('button', { name: 'Continue' }).click()
   await page.getByRole('button', { name: 'Create an activity' }).click()
   await page.getByLabel('Activity name').fill('Secret local weekend')
+  await page.getByLabel(/Activity currency/).selectOption('CNY')
   await page.getByLabel(/Add friends/).fill('Private Friend')
   await page.getByRole('button', { name: 'Create activity' }).click()
+  await page.getByLabel('Activity currency', { exact: true }).selectOption('EUR')
   await page.getByRole('button', { name: 'Add expense' }).click()
   await page.getByLabel('Description').fill('Private dinner description')
   await page.getByRole('spinbutton', { name: 'Amount' }).fill('42.37')
   await page.getByRole('button', { name: 'Save expense' }).click()
 
-  await expect.poll(() => events.length).toBe(3)
+  await expect.poll(() => events.length).toBe(5)
   const sessionTokens = new Set(events.map(event => event.p_session_token))
-  expect(events.map(({ p_event_name, p_surface, p_locale }) => ({ p_event_name, p_surface, p_locale }))).toEqual([
-    { p_event_name: 'app_opened', p_surface: 'local', p_locale: 'en' },
-    { p_event_name: 'activity_created', p_surface: 'local', p_locale: 'en' },
-    { p_event_name: 'expense_added', p_surface: 'local', p_locale: 'en' },
+  expect(events.map(({ p_event_name, p_surface, p_locale, p_currency }) => ({ p_event_name, p_surface, p_locale, p_currency }))).toEqual([
+    { p_event_name: 'app_opened', p_surface: 'local', p_locale: 'en', p_currency: null },
+    { p_event_name: 'currency_selected', p_surface: 'local', p_locale: 'en', p_currency: 'CNY' },
+    { p_event_name: 'activity_created', p_surface: 'local', p_locale: 'en', p_currency: null },
+    { p_event_name: 'currency_selected', p_surface: 'local', p_locale: 'en', p_currency: 'EUR' },
+    { p_event_name: 'expense_added', p_surface: 'local', p_locale: 'en', p_currency: null },
   ])
   expect(sessionTokens.size).toBe(1)
   expect([...sessionTokens][0]).toMatch(/^[a-f0-9]{32}$/)

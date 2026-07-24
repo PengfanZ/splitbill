@@ -113,10 +113,34 @@ describe('first-party analytics', () => {
           p_surface: 'local',
           p_session_token: '04'.repeat(16),
           p_locale: 'zh-CN',
+          p_currency: null,
         }),
       }),
     )
     expect(sessionStorage.getItem(ANALYTICS_SESSION_KEY)).toBe('04'.repeat(16))
+  })
+
+  it('sends only the allowlisted currency code for a currency selection', () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
+    const client = createConfiguredAnalyticsClient({
+      VITE_SUPABASE_URL: 'https://project.supabase.co',
+      VITE_SUPABASE_PUBLISHABLE_KEY: 'publishable-key',
+    }, {
+      enabled: true,
+      fetcher,
+      storage: null,
+      crypto: deterministicCrypto(5),
+    })!
+
+    client.track('currency_selected', 'live', 'en', 'CNY')
+
+    expect(JSON.parse(fetcher.mock.calls[0][1].body as string)).toEqual({
+      p_event_name: 'currency_selected',
+      p_surface: 'live',
+      p_session_token: '05'.repeat(16),
+      p_locale: 'en',
+      p_currency: 'CNY',
+    })
   })
 
   it('uses browser fetch, crypto, and session storage by default', () => {

@@ -867,11 +867,13 @@ describe('complete app workflows', () => {
 
   it('persists one customizable currency per local activity', async () => {
     const user = userEvent.setup()
-    const { unmount } = render(<App />)
+    const analyticsClient = { track: vi.fn() } satisfies AnalyticsClient
+    const { unmount } = render(<App analyticsClient={analyticsClient} />)
 
     await user.click(screen.getByRole('button', { name: 'Create an activity' }))
     await user.type(screen.getByLabelText('Activity name'), 'Shanghai trip')
     await user.selectOptions(screen.getByLabelText(/Activity currency/), 'CNY')
+    fireEvent.change(screen.getByLabelText(/Activity currency/), { target: { value: 'CNY' } })
     await user.click(screen.getByRole('button', { name: 'Create activity' }))
     expect(screen.getByLabelText('Activity currency')).toHaveValue('CNY')
     expect(screen.getAllByText('¥0.00').length).toBeGreaterThan(0)
@@ -887,6 +889,10 @@ describe('complete app workflows', () => {
     expect(screen.getAllByText('€24.00').length).toBeGreaterThan(0)
     fireEvent.change(screen.getByLabelText('Activity currency'), { target: { value: 'EUR' } })
     await waitFor(() => expect(parseState(localStorage.getItem(STORAGE_KEY)).groups[0].currency).toBe('EUR'))
+    expect(analyticsClient.track.mock.calls.filter(([event]) => event === 'currency_selected')).toEqual([
+      ['currency_selected', 'local', 'en', 'CNY'],
+      ['currency_selected', 'local', 'en', 'EUR'],
+    ])
 
     unmount()
     render(<App />)
@@ -1197,6 +1203,7 @@ describe('complete app workflows', () => {
 
   it('synchronizes activity currency changes through a live session', async () => {
     const user = userEvent.setup()
+    const analyticsClient = { track: vi.fn() } satisfies AnalyticsClient
     const credentials = { code: 'A1B2C3D4E5', editToken: 'a'.repeat(64) }
     const snapshot = createSharedActivity({ ...group, currency: 'USD' }, [CURRENT_USER, maya, jordan], [expense()])
     const client = {
@@ -1211,7 +1218,7 @@ describe('complete app workflows', () => {
       })),
     } satisfies LiveActivityClient
     window.history.replaceState(null, '', `/${LIVE_ACTIVITY_HASH_PREFIX}${credentials.code}.${credentials.editToken}`)
-    render(<App liveActivityClient={client} />)
+    render(<App analyticsClient={analyticsClient} liveActivityClient={client} />)
 
     expect(await screen.findByText('Live · revision 1')).toBeVisible()
     await user.selectOptions(screen.getByLabelText('Activity currency'), 'CNY')
@@ -1224,6 +1231,7 @@ describe('complete app workflows', () => {
     )
     expect(screen.getByRole('status')).toHaveTextContent('Activity currency changed to CNY')
     expect(screen.getAllByText('¥30.00').length).toBeGreaterThan(0)
+    expect(analyticsClient.track).toHaveBeenCalledWith('currency_selected', 'live', 'en', 'CNY')
   })
 
   it('automatically loads newer live revisions while the tab is visible', async () => {

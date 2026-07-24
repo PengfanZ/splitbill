@@ -1,4 +1,5 @@
 import type { AppLocale } from './i18n/localization'
+import type { CurrencyCode } from './domain/currency'
 
 const CLOUDFLARE_BEACON_URL =
   'https://static.cloudflareinsights.com/beacon.min.js'
@@ -13,13 +14,19 @@ export const ANALYTICS_EVENTS = [
   'live_activity_created',
   'live_activity_opened',
   'settlement_recorded',
+  'currency_selected',
 ] as const
 
 export type AnalyticsEvent = typeof ANALYTICS_EVENTS[number]
 export type AnalyticsSurface = 'local' | 'live' | 'snapshot'
 
 export type AnalyticsClient = {
-  track: (event: AnalyticsEvent, surface: AnalyticsSurface, locale: AppLocale) => void
+  track: (
+    event: AnalyticsEvent,
+    surface: AnalyticsSurface,
+    locale: AppLocale,
+    currency?: CurrencyCode,
+  ) => void
 }
 
 type AnalyticsEnvironment = {
@@ -89,7 +96,7 @@ export function createConfiguredAnalyticsClient(
     const sessionToken = getOrCreateAnalyticsSessionToken(storage, cryptoProvider)
 
     return {
-      track(event, surface, locale) {
+      track(event, surface, locale, currency) {
         try {
           const request = fetcher(`${supabaseUrl}/rest/v1/rpc/record_analytics_event`, {
             method: 'POST',
@@ -107,6 +114,7 @@ export function createConfiguredAnalyticsClient(
               p_surface: surface,
               p_session_token: sessionToken,
               p_locale: locale,
+              p_currency: currency ?? null,
             }),
           })
           void request.catch(() => undefined)

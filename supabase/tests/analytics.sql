@@ -1,12 +1,12 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(40);
+select plan(51);
 
 select has_table('private', 'analytics_events', 'private analytics storage exists');
 select columns_are(
   'private',
   'analytics_events',
-  array['id', 'event_name', 'surface', 'session_hash', 'occurred_at', 'locale'],
+  array['id', 'event_name', 'surface', 'session_hash', 'occurred_at', 'locale', 'currency'],
   'analytics storage contains only the approved fields'
 );
 select has_index('private', 'analytics_events', 'analytics_events_event_occurred_at_idx', 'event reports are indexed');
@@ -45,6 +45,12 @@ select is(
   false,
   'anonymous clients cannot read locale analytics aggregates'
 );
+select has_view('private', 'analytics_currency_daily', 'a private currency aggregate view exists');
+select is(
+  has_table_privilege('anon', 'private.analytics_currency_daily', 'SELECT'),
+  false,
+  'anonymous clients cannot read currency analytics aggregates'
+);
 select is(
   has_function_privilege('anon', 'private.record_analytics_event(text,text,text)', 'EXECUTE'),
   false,
@@ -56,6 +62,11 @@ select is(
   'anonymous clients cannot execute the locale-aware private recorder'
 );
 select is(
+  has_function_privilege('anon', 'private.record_analytics_event(text,text,text,text,text)', 'EXECUTE'),
+  false,
+  'anonymous clients cannot execute the currency-aware private recorder'
+);
+select is(
   has_function_privilege('anon', 'public.record_analytics_event(text,text,text)', 'EXECUTE'),
   true,
   'legacy anonymous clients can execute only the public recorder'
@@ -64,6 +75,11 @@ select is(
   has_function_privilege('anon', 'public.record_analytics_event(text,text,text,text)', 'EXECUTE'),
   true,
   'anonymous clients can execute the locale-aware public recorder'
+);
+select is(
+  has_function_privilege('anon', 'public.record_analytics_event(text,text,text,text,text)', 'EXECUTE'),
+  true,
+  'anonymous clients can execute the currency-aware public recorder'
 );
 select has_function(
   'public',
@@ -76,6 +92,12 @@ select has_function(
   'record_analytics_event',
   array['text', 'text', 'text', 'text'],
   'locale-aware analytics RPC exists'
+);
+select has_function(
+  'public',
+  'record_analytics_event',
+  array['text', 'text', 'text', 'text', 'text'],
+  'currency-aware analytics RPC exists'
 );
 
 select set_config('request.headers', '{"x-forwarded-for":"203.0.113.20"}', true);
@@ -121,6 +143,20 @@ select is(
   'the resolved app locale is stored'
 );
 
+select lives_ok(
+  $$select public.record_analytics_event('currency_selected', 'local', '123456789abcdef0123456789abcdef0', 'en', 'CNY')$$,
+  'an approved currency selection is recorded'
+);
+select is(
+  (
+    select currency
+    from private.analytics_events
+    where event_name = 'currency_selected'
+  ),
+  'CNY',
+  'the selected allowlisted currency is stored'
+);
+
 select throws_ok(
   $$select public.record_analytics_event('expense_with_amount_42', 'local', '0123456789abcdef0123456789abcdef')$$,
   '22023',
@@ -144,6 +180,18 @@ select throws_ok(
   '22023',
   'invalid_analytics_locale',
   'unapproved locales are rejected'
+);
+select throws_ok(
+  $$select public.record_analytics_event('currency_selected', 'local', '0123456789abcdef0123456789abcdef', 'en', 'BTC')$$,
+  '22023',
+  'invalid_analytics_currency',
+  'unsupported currencies are rejected'
+);
+select throws_ok(
+  $$select public.record_analytics_event('expense_added', 'local', '0123456789abcdef0123456789abcdef', 'en', 'USD')$$,
+  '22023',
+  'invalid_analytics_currency',
+  'currency metadata is rejected for unrelated events'
 );
 
 select is(
@@ -185,6 +233,24 @@ select is(
   ),
   1::bigint,
   'locale aggregates count anonymous sessions by app locale'
+);
+select is(
+  (
+    select events
+    from private.analytics_currency_daily
+    where currency = 'CNY' and surface = 'local'
+  ),
+  1::bigint,
+  'currency aggregates count approved selection events'
+);
+select is(
+  (
+    select sessions
+    from private.analytics_currency_daily
+    where currency = 'CNY' and surface = 'local'
+  ),
+  1::bigint,
+  'currency aggregates count anonymous selection sessions'
 );
 
 insert into private.analytics_events (event_name, surface, session_hash, occurred_at, locale)
