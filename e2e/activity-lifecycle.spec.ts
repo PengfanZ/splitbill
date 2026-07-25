@@ -431,7 +431,7 @@ test('shares a QR destination that opens the same read-only activity on another 
   await page.getByRole('button', { name: 'Save expense' }).click()
 
   await page.getByRole('button', { name: 'Share', exact: true }).click()
-  await page.getByRole('dialog', { name: 'Share activity' }).getByRole('button', { name: /^Show QR code/ }).click()
+  await page.getByRole('dialog', { name: 'Share activity' }).getByRole('button', { name: 'Show snapshot QR' }).click()
   await expect(page.getByRole('dialog', { name: 'Scan to open Weekend' })).toBeVisible()
   await expect(page.getByRole('img', { name: 'Weekend shared activity QR code' })).toBeVisible()
   await page.getByRole('button', { name: 'Copy link' }).click()
@@ -535,7 +535,7 @@ test('shares one editable backend activity across isolated browser sessions', as
   await page.getByRole('button', { name: 'Create activity' }).click()
   await page.getByRole('button', { name: 'Open Shared cabin activity' }).click()
   await page.getByRole('button', { name: 'Share', exact: true }).click()
-  await page.getByRole('dialog', { name: 'Share activity' }).getByRole('button', { name: /^Collaborate live/ }).click()
+  await page.getByRole('dialog', { name: 'Share activity' }).getByRole('button', { name: 'Start live activity' }).click()
   await expect(page.getByRole('dialog', { name: 'Scan to join Shared cabin' })).toBeVisible()
   await page.getByRole('button', { name: 'Copy link' }).click()
   const liveUrl = await page.evaluate(() => navigator.clipboard.readText())

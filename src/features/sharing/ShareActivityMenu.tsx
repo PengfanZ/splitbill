@@ -1,17 +1,50 @@
 import { useEffect, type ReactNode } from 'react'
-import { ChevronRight, Link2, QrCode, Radio, Share2, X } from 'lucide-react'
+import { ChevronRight, Copy, Eye, QrCode, Radio, Share2, X } from 'lucide-react'
 import { useLocalization } from '../../i18n/LocalizationContext'
 
 type ShareAction = () => void | Promise<void>
 
-function ShareMenuAction({ icon, title, description, onClick }: {
+function ShareChoice({ icon, badge, title, description, live, children }: {
+  icon: ReactNode
+  badge: string
+  title: string
+  description: string
+  live?: boolean
+  children: ReactNode
+}) {
+  return (
+    <section className={live ? 'share-choice share-choice--live' : 'share-choice share-choice--snapshot'}>
+      <div className="share-choice-heading">
+        <span className="share-choice-icon">{icon}</span>
+        <span className="share-choice-badge">{badge}</span>
+      </div>
+      <div className="share-choice-copy"><h3>{title}</h3><p>{description}</p></div>
+      <div className="share-choice-actions">{children}</div>
+    </section>
+  )
+}
+
+function ShareChoiceAction({ icon, label, primary = false, onClick }: {
+  icon: ReactNode
+  label: string
+  primary?: boolean
+  onClick: ShareAction
+}) {
+  return (
+    <button type="button" className={primary ? 'share-choice-action share-choice-action--primary' : 'share-choice-action'} onClick={onClick}>
+      {icon}<span>{label}</span><ChevronRight size={16} aria-hidden="true" />
+    </button>
+  )
+}
+
+function ShareSummaryAction({ icon, title, description, onClick }: {
   icon: ReactNode
   title: string
   description: string
   onClick: ShareAction
 }) {
   return (
-    <button type="button" className="share-menu-action" onClick={onClick}>
+    <button type="button" className="share-summary-action" onClick={onClick}>
       <span className="share-menu-icon">{icon}</span>
       <span className="share-menu-copy"><b>{title}</b><small>{description}</small></span>
       <ChevronRight size={18} aria-hidden="true" />
@@ -51,12 +84,43 @@ export function ShareActivityMenu({ groupName, live = false, onClose, onCollabor
           <div><h2 id="share-menu-title">{t('shareMenu.title')}</h2><p>{t('shareMenu.description', { name: groupName })}</p></div>
           <button type="button" className="share-menu-close" aria-label={t('common.close')} onClick={onClose}><X size={20} /></button>
         </header>
-        <div className="share-menu-actions">
-          {onCollaborateLive ? <ShareMenuAction icon={<Radio size={20} />} title={t('shareMenu.collaborate')} description={t('shareMenu.collaborateHelp')} onClick={() => run(onCollaborateLive)} /> : null}
-          {onCopyLink ? <ShareMenuAction icon={<Link2 size={20} />} title={t(live ? 'shareMenu.copyLive' : 'shareMenu.copyLink')} description={t(live ? 'shareMenu.copyLiveHelp' : 'shareMenu.copyLinkHelp')} onClick={() => run(onCopyLink)} /> : null}
-          {onShowQr ? <ShareMenuAction icon={<QrCode size={20} />} title={t('shareMenu.showQr')} description={t('shareMenu.showQrHelp')} onClick={() => run(onShowQr)} /> : null}
-          {onShareSummary ? <ShareMenuAction icon={<Share2 size={20} />} title={t('shareMenu.summary')} description={t('shareMenu.summaryHelp')} onClick={() => run(onShareSummary)} /> : null}
+        <div className="share-menu-choices">
+          {!live && (onCopyLink || onShowQr) ? (
+            <ShareChoice
+              icon={<Eye size={21} />}
+              badge={t('shareMenu.snapshotBadge')}
+              title={t('shareMenu.snapshotTitle')}
+              description={t('shareMenu.snapshotHelp')}
+            >
+              {onCopyLink ? <ShareChoiceAction icon={<Copy size={16} />} label={t('shareMenu.copySnapshot')} primary onClick={() => run(onCopyLink)} /> : null}
+              {onShowQr ? <ShareChoiceAction icon={<QrCode size={16} />} label={t('shareMenu.snapshotQr')} onClick={() => run(onShowQr)} /> : null}
+            </ShareChoice>
+          ) : null}
+          {onCollaborateLive ? (
+            <ShareChoice
+              icon={<Radio size={21} />}
+              badge={t('shareMenu.liveBadge')}
+              title={t('shareMenu.liveTitle')}
+              description={t('shareMenu.liveHelp')}
+              live
+            >
+              <ShareChoiceAction icon={<Radio size={16} />} label={t('shareMenu.startLive')} primary onClick={() => run(onCollaborateLive)} />
+            </ShareChoice>
+          ) : null}
+          {live && (onCopyLink || onShowQr) ? (
+            <ShareChoice
+              icon={<Radio size={21} />}
+              badge={t('shareMenu.liveBadge')}
+              title={t('shareMenu.currentLiveTitle')}
+              description={t('shareMenu.liveHelp')}
+              live
+            >
+              {onCopyLink ? <ShareChoiceAction icon={<Copy size={16} />} label={t('shareMenu.copyLive')} primary onClick={() => run(onCopyLink)} /> : null}
+              {onShowQr ? <ShareChoiceAction icon={<QrCode size={16} />} label={t('shareMenu.liveQr')} onClick={() => run(onShowQr)} /> : null}
+            </ShareChoice>
+          ) : null}
         </div>
+        {onShareSummary ? <div className="share-menu-other"><span>{t('shareMenu.otherTitle')}</span><ShareSummaryAction icon={<Share2 size={20} />} title={t('shareMenu.summary')} description={t('shareMenu.summaryHelp')} onClick={() => run(onShareSummary)} /></div> : null}
         <button type="button" className="share-menu-cancel" onClick={onClose}>{t('common.cancel')}</button>
       </section>
     </div>
