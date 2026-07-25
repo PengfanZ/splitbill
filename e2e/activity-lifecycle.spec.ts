@@ -1,4 +1,4 @@
-import { expect, test, type BrowserContext, type Route } from '@playwright/test'
+import { expect, test, type BrowserContext, type Page, type Route } from '@playwright/test'
 
 type AnalyticsPayload = {
   p_event_name: string
@@ -6,6 +6,11 @@ type AnalyticsPayload = {
   p_session_token: string
   p_locale: 'en' | 'zh-CN'
   p_currency: string | null
+}
+
+async function chooseActivityCurrency(page: Page, currentCurrency: string, nextCurrency: string) {
+  await page.getByRole('button', { name: `Activity currency, ${currentCurrency}` }).click()
+  await page.getByRole('option', { name: nextCurrency }).click()
 }
 
 test.beforeEach(async ({ context }) => {
@@ -211,18 +216,18 @@ test('keeps an activity currency across expenses, changes, and reloads', async (
   await page.getByLabel(/Add friends/).fill('Maya')
   await page.getByRole('button', { name: 'Create activity' }).click()
 
-  await expect(page.getByLabel('Activity currency', { exact: true })).toHaveValue('EUR')
+  await expect(page.getByRole('button', { name: 'Activity currency, EUR' })).toBeVisible()
   await page.getByRole('button', { name: 'Add expense' }).click()
   await page.getByLabel('Description').fill('Train')
   await page.getByRole('spinbutton', { name: 'Amount' }).fill('18')
   await page.getByRole('button', { name: 'Save expense' }).click()
   await expect(page.locator('.expense-amount b')).toHaveText('€18.00')
 
-  await page.getByLabel('Activity currency', { exact: true }).selectOption('CNY')
+  await chooseActivityCurrency(page, 'EUR', 'CNY')
   await expect(page.getByRole('status')).toContainText('Activity currency changed to CNY')
   await expect(page.locator('.expense-amount b')).toHaveText('¥18.00')
   await page.reload()
-  await expect(page.getByLabel('Activity currency', { exact: true })).toHaveValue('CNY')
+  await expect(page.getByRole('button', { name: 'Activity currency, CNY' })).toBeVisible()
   await expect(page.locator('.expense-amount b')).toHaveText('¥18.00')
 })
 
@@ -309,7 +314,7 @@ test('tracks local outcomes without sending local activity data or loading third
   await page.getByLabel(/Activity currency/).selectOption('CNY')
   await page.getByLabel(/Add friends/).fill('Private Friend')
   await page.getByRole('button', { name: 'Create activity' }).click()
-  await page.getByLabel('Activity currency', { exact: true }).selectOption('EUR')
+  await chooseActivityCurrency(page, 'CNY', 'EUR')
   await page.getByRole('button', { name: 'Add expense' }).click()
   await page.getByLabel('Description').fill('Private dinner description')
   await page.getByRole('spinbutton', { name: 'Amount' }).fill('42.37')

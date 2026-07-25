@@ -85,6 +85,11 @@ async function chooseShareAction(user: UserEvent, actionName: string) {
   await user.click(within(menu).getByRole('button', { name: new RegExp(`^${actionName}`) }))
 }
 
+async function chooseActivityCurrency(user: UserEvent, currentCurrency: string, nextCurrency: string) {
+  await user.click(screen.getByRole('button', { name: `Activity currency, ${currentCurrency}` }))
+  await user.click(screen.getByRole('option', { name: nextCurrency }))
+}
+
 describe('state and formatting helpers', () => {
   it('uses the default English live-activity error translator', () => {
     expect(liveActivityErrorMessage(new Error('unexpected'))).toBe('The live activity could not be updated. Please try again.')
@@ -896,7 +901,7 @@ describe('complete app workflows', () => {
     await user.selectOptions(screen.getByLabelText(/Activity currency/), 'CNY')
     fireEvent.change(screen.getByLabelText(/Activity currency/), { target: { value: 'CNY' } })
     await user.click(screen.getByRole('button', { name: 'Create activity' }))
-    expect(screen.getByLabelText('Activity currency')).toHaveValue('CNY')
+    expect(screen.getByRole('button', { name: 'Activity currency, CNY' })).toBeVisible()
     expect(screen.getByText('No expenses yet')).toBeVisible()
     expect(screen.queryByText('¥0.00')).not.toBeInTheDocument()
 
@@ -906,10 +911,10 @@ describe('complete app workflows', () => {
     await user.click(screen.getByRole('button', { name: 'Save expense' }))
     expect(screen.getAllByText('¥24.00').length).toBeGreaterThan(0)
 
-    await user.selectOptions(screen.getByLabelText('Activity currency'), 'EUR')
+    await chooseActivityCurrency(user, 'CNY', 'EUR')
     expect(await screen.findByRole('status')).toHaveTextContent('Activity currency changed to EUR')
     expect(screen.getAllByText('€24.00').length).toBeGreaterThan(0)
-    fireEvent.change(screen.getByLabelText('Activity currency'), { target: { value: 'EUR' } })
+    await chooseActivityCurrency(user, 'EUR', 'EUR')
     await waitFor(() => expect(parseState(localStorage.getItem(STORAGE_KEY)).groups[0].currency).toBe('EUR'))
     expect(analyticsClient.track.mock.calls.filter(([event]) => event === 'currency_selected')).toEqual([
       ['currency_selected', 'local', 'en', 'CNY'],
@@ -918,7 +923,7 @@ describe('complete app workflows', () => {
 
     unmount()
     render(<App />)
-    expect(screen.getByLabelText('Activity currency')).toHaveValue('EUR')
+    expect(screen.getByRole('button', { name: 'Activity currency, EUR' })).toBeVisible()
     expect(screen.getAllByText('€24.00').length).toBeGreaterThan(0)
   })
 
@@ -1275,7 +1280,7 @@ describe('complete app workflows', () => {
     render(<App analyticsClient={analyticsClient} liveActivityClient={client} />)
 
     expect(await screen.findByText('Live · revision 1')).toBeVisible()
-    await user.selectOptions(screen.getByLabelText('Activity currency'), 'CNY')
+    await chooseActivityCurrency(user, 'USD', 'CNY')
 
     expect(await screen.findByText('Live · revision 2')).toBeVisible()
     expect(client.update).toHaveBeenCalledWith(

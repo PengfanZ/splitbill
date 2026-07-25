@@ -10,12 +10,13 @@ import {
   Trash2,
 } from 'lucide-react'
 import { Avatar } from '../../components/AppShell'
-import { activityCurrency, currencySymbol, SUPPORTED_CURRENCIES, type CurrencyCode } from '../../domain/currency'
+import { activityCurrency, type CurrencyCode } from '../../domain/currency'
 import { calculateMemberBalance, calculateSettlements, getSettlementRecipientId, isSettlementPayment, money, spendingExpenses } from '../../domain/expenses'
 import { CURRENT_USER } from '../../domain/members'
 import type { ActivityGroup, Expense, Member, Settlement } from '../../domain/models'
 import { useLocalization } from '../../i18n/LocalizationContext'
 import { ShareActivityMenu } from '../sharing/ShareActivityMenu'
+import { ActivityCurrencyControl } from './ActivityCurrencyControl'
 
 export function ActivitySummary({ expenses, currency = 'USD', currentUserLabel }: { expenses: Expense[]; currency?: CurrencyCode; currentUserLabel?: string }) {
   const { locale, t } = useLocalization()
@@ -129,30 +130,6 @@ export function MembersRail({ members, readOnly = false, onAddFriend }: { member
       </section>
     </aside>
   )
-}
-
-function ActivityCurrencyControl({ currency, locale, readOnly, onChange }: {
-  currency: CurrencyCode
-  locale: string
-  readOnly: boolean
-  onChange?: (currency: CurrencyCode) => void
-}) {
-  const { t } = useLocalization()
-  const value = `${currency} · ${currencySymbol(currency, locale)}`
-  const content = (
-    <>
-      <span className="activity-currency-icon"><CircleDollarSign size={18} /></span>
-      {onChange && !readOnly ? (
-        <select aria-label={t('group.currency')} value={currency} onChange={event => onChange(event.target.value as CurrencyCode)}>
-          {SUPPORTED_CURRENCIES.map(code => <option key={code} value={code}>{code} · {currencySymbol(code, locale)}</option>)}
-        </select>
-      ) : <b>{value}</b>}
-    </>
-  )
-
-  return onChange && !readOnly
-    ? <label className="activity-currency">{content}</label>
-    : <div className="activity-currency activity-currency--read-only">{content}</div>
 }
 
 export function GroupDashboard({ group, members, expenses, query, activityFeedback, readOnly = false, currentUserLabel = 'You', statusLabel, onCurrencyChange, onShareSummary, onShareQr, onShareLive, onCopyShareLink, onAddFriend, onAddExpense, onSettleUp, onEditExpense, onDeleteExpense }: {
