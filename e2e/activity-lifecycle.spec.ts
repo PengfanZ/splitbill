@@ -54,7 +54,8 @@ test('automatically uses Simplified Chinese in China and keeps the choice across
     await expect(page.getByText(/^创建于 .*GMT\+8/)).toBeVisible()
 
     await page.getByRole('button', { name: '设置' }).click()
-    await page.getByLabel('语言').selectOption('en')
+    await page.getByRole('button', { name: '语言：简体中文' }).click()
+    await page.getByRole('option', { name: 'English' }).click()
     await expect(page).toHaveTitle('Tally — Group Expense Splitter')
     await page.getByRole('button', { name: 'Save name' }).click()
     await page.reload()

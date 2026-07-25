@@ -724,7 +724,8 @@ describe('complete app workflows', () => {
 
     await user.click(screen.getByRole('button', { name: 'Settings' }))
     expect(screen.getByText(/Times are shown in/)).toBeVisible()
-    await user.selectOptions(screen.getByLabelText('Language'), 'zh-CN')
+    await user.click(screen.getByRole('button', { name: 'Language, English' }))
+    await user.click(screen.getByRole('option', { name: '简体中文' }))
 
     expect(document.documentElement.lang).toBe('zh-CN')
     expect(document.title).toBe('Tally — 多人分账工具')
@@ -738,7 +739,8 @@ describe('complete app workflows', () => {
     render(<App />)
     expect(screen.getByRole('button', { name: '设置' })).toBeVisible()
     await user.click(screen.getByRole('button', { name: '设置' }))
-    await user.selectOptions(screen.getByLabelText('语言'), 'en')
+    await user.click(screen.getByRole('button', { name: '语言：简体中文' }))
+    await user.click(screen.getByRole('option', { name: 'English' }))
     expect(screen.getByRole('heading', { name: 'Settings' })).toBeVisible()
   })
 
