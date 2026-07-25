@@ -32,6 +32,7 @@ import { SharedActivityIdentityModal } from './features/sharing/SharedActivityId
 import {
   clearSharedActivityHash,
   buildSharedActivityQrUrl,
+  buildSharedActivityUrl,
   createSharedActivity,
   decodeSharedActivityHash,
   getSharedActivitySender,
@@ -90,6 +91,14 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
   const activeGroup = liveActivity?.group ?? selectedGroup
   const activeMembers = liveActivity ? liveMembers : selectedMembers
   const activeExpenses = liveActivity?.expenses ?? selectedExpenses
+  const displayedGroup = liveActivity?.group ?? sharedActivity?.group ?? selectedGroup
+  const displayedMemberCount = liveActivity
+    ? liveMembers.length
+    : sharedActivity
+      ? sharedMembers.length
+      : selectedGroup
+        ? selectedMembers.length
+        : 0
   const displayedLiveNotice = live.displayedNotice
   const liveActivityCodes = live.activityCodes
   const bookmarkedLiveGroupId = live.bookmarkedGroupId
@@ -287,6 +296,21 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
     }
   }
 
+  const copySnapshotLink = async (group: ActivityGroup, members: Member[], expenses: Expense[]) => {
+    try {
+      const result = await copyLink(buildSharedActivityUrl(createSharedActivity(group, members, expenses)))
+      setActivityFeedback({
+        groupId: group.id,
+        message: t(result === 'copied' ? 'feedback.snapshotCopied' : 'feedback.snapshotFailed'),
+      })
+    } catch {
+      setActivityFeedback({
+        groupId: group.id,
+        message: t('feedback.snapshotTooLarge'),
+      })
+    }
+  }
+
   const openLiveShare = async (group: ActivityGroup, members: Member[], expenses: Expense[]) => {
     setActivityFeedback({ groupId: group.id, message: t('live.creating') })
     const activity = createSharedActivity(group, members, expenses)
@@ -308,6 +332,11 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
       mode: 'live',
       activityCode: session.record.code,
     })
+  }
+
+  const copyCurrentLiveLink = async (session: NonNullable<typeof live.session>) => {
+    const result = await copyLink(buildLiveActivityUrl(session.credentials))
+    live.notify(t(result === 'copied' ? 'feedback.liveCopied' : 'feedback.liveCopyFailed'))
   }
 
   const reportQrShareResult = (share: NonNullable<QrShare>, result: LinkShareResult) => {
@@ -395,7 +424,17 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
         onReset={resetData}
       />
       <div className="workspace">
-        <Topbar query={query} setQuery={setQuery} onSettings={() => setModal('identity')} />
+        <Topbar
+          query={query}
+          setQuery={setQuery}
+          onSettings={() => setModal('identity')}
+          activityName={displayedGroup?.name}
+          activityEmoji={displayedGroup?.emoji}
+          activityDetail={displayedGroup ? t('nav.memberCount', {
+            count: displayedMemberCount,
+            unit: t(displayedMemberCount === 1 ? 'common.person' : 'common.people'),
+          }) : undefined}
+        />
         {(live.credentials || sharedActivity) && !isStandalonePwa() ? <BrowserToPwaHandoff url={window.location.href} /> : null}
         {live.credentials ? (
           <>
@@ -411,12 +450,11 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
                 query={query}
                 activityFeedback={null}
                 currentUserLabel={getSharedActivitySender(liveActivity).name}
-                currentUserRole={t('dashboard.creator')}
                 statusLabel={t('dashboard.liveRevision', { revision: liveSession.record.revision })}
-                shareQrLabel={t('dashboard.showQr')}
                 onCurrencyChange={changeActivityCurrency}
                 onShareQr={() => openCurrentLiveQr(liveSession)}
-                onShare={() => shareGroup(liveActivity.group, liveMembers, liveActivity.expenses)}
+                onCopyShareLink={() => copyCurrentLiveLink(liveSession)}
+                onShareSummary={() => shareGroup(liveActivity.group, liveMembers, liveActivity.expenses)}
                 onAddFriend={() => setModal('friend')}
                 onAddExpense={openNewExpense}
                 onSettleUp={openSettleUp}
@@ -450,9 +488,10 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
             activityFeedback={activityFeedback?.groupId === selectedGroup.id ? activityFeedback.message : null}
             currentUserLabel={currentUser.name}
             onCurrencyChange={changeActivityCurrency}
-            onShare={() => shareGroup(selectedGroup, selectedMembers, selectedExpenses)}
+            onShareSummary={() => shareGroup(selectedGroup, selectedMembers, selectedExpenses)}
             onShareQr={() => openShareQr(selectedGroup, selectedMembers, selectedExpenses)}
             onShareLive={() => openLiveShare(selectedGroup, selectedMembers, selectedExpenses)}
+            onCopyShareLink={() => copySnapshotLink(selectedGroup, selectedMembers, selectedExpenses)}
             onAddFriend={() => setModal('friend')}
             onAddExpense={openNewExpense}
             onSettleUp={openSettleUp}

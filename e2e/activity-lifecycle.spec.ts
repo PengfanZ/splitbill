@@ -277,7 +277,7 @@ test('centers compact mobile dialogs and keeps long forms as sheets', async ({ p
   await expect(page.locator('.modal-backdrop')).toHaveClass(/modal-backdrop--center/)
   await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click()
 
-  await page.locator('.group-actions').getByRole('button', { name: 'Add friend' }).click()
+  await page.getByRole('button', { name: 'Add friend' }).click()
   await expect(page.locator('.modal-backdrop')).toHaveClass(/modal-backdrop--center/)
   await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click()
 
@@ -425,7 +425,8 @@ test('shares a QR destination that opens the same read-only activity on another 
   await page.getByRole('spinbutton', { name: 'Amount' }).fill('40')
   await page.getByRole('button', { name: 'Save expense' }).click()
 
-  await page.getByRole('button', { name: 'Share QR' }).click()
+  await page.getByRole('button', { name: 'Share', exact: true }).click()
+  await page.getByRole('dialog', { name: 'Share activity' }).getByRole('button', { name: /^Show QR code/ }).click()
   await expect(page.getByRole('dialog', { name: 'Scan to open Weekend' })).toBeVisible()
   await expect(page.getByRole('img', { name: 'Weekend shared activity QR code' })).toBeVisible()
   await page.getByRole('button', { name: 'Copy link' }).click()
@@ -528,7 +529,8 @@ test('shares one editable backend activity across isolated browser sessions', as
   await page.getByLabel('Activity name').fill('Local dinner')
   await page.getByRole('button', { name: 'Create activity' }).click()
   await page.getByRole('button', { name: 'Open Shared cabin activity' }).click()
-  await page.getByRole('button', { name: 'Share live' }).click()
+  await page.getByRole('button', { name: 'Share', exact: true }).click()
+  await page.getByRole('dialog', { name: 'Share activity' }).getByRole('button', { name: /^Collaborate live/ }).click()
   await expect(page.getByRole('dialog', { name: 'Scan to join Shared cabin' })).toBeVisible()
   await page.getByRole('button', { name: 'Copy link' }).click()
   const liveUrl = await page.evaluate(() => navigator.clipboard.readText())

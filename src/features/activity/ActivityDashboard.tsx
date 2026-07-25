@@ -1,16 +1,13 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import {
   Check,
   CircleDollarSign,
   Pencil,
   Plus,
-  QrCode,
   Radio,
   ReceiptText,
   Share2,
-  Sparkles,
   Trash2,
-  Users,
 } from 'lucide-react'
 import { Avatar } from '../../components/AppShell'
 import { activityCurrency, currencySymbol, SUPPORTED_CURRENCIES, type CurrencyCode } from '../../domain/currency'
@@ -18,6 +15,7 @@ import { calculateMemberBalance, calculateSettlements, getSettlementRecipientId,
 import { CURRENT_USER } from '../../domain/members'
 import type { ActivityGroup, Expense, Member, Settlement } from '../../domain/models'
 import { useLocalization } from '../../i18n/LocalizationContext'
+import { ShareActivityMenu } from '../sharing/ShareActivityMenu'
 
 export function ActivitySummary({ expenses, currency = 'USD', currentUserLabel }: { expenses: Expense[]; currency?: CurrencyCode; currentUserLabel?: string }) {
   const { locale, t } = useLocalization()
@@ -26,8 +24,9 @@ export function ActivitySummary({ expenses, currency = 'USD', currentUserLabel }
   const total = spending.reduce((sum, expense) => sum + expense.amount, 0)
   const paid = spending.reduce((sum, expense) => sum + (expense.payerId === 'me' ? expense.amount : 0), 0)
   const balance = calculateMemberBalance('me', expenses)
-  const balanceLabel = currentUserLabel && currentUserLabel !== 'You' && currentUserLabel !== t('common.you')
-    ? t('dashboard.memberBalance', { name: currentUserLabel })
+  const namedUser = currentUserLabel && currentUserLabel !== 'You' && currentUserLabel !== t('common.you')
+  const balanceLabel = namedUser
+    ? t(balance > 0 ? 'dashboard.memberIsOwed' : balance < 0 ? 'dashboard.memberOwesBalance' : 'dashboard.memberBalance', { name: currentUserLabel })
     : t('dashboard.yourBalance')
 
   return (
@@ -113,29 +112,20 @@ export function ExpenseList({ expenses, members, currency = 'USD', query, readOn
               )}
             </div>
           )
-        }) : <div className="empty-state"><Sparkles size={22} /><p>{t(query ? 'dashboard.noMatches' : 'dashboard.noExpenses')}</p></div>}
+        }) : <div className="empty-state"><ReceiptText size={22} /><p>{t(query ? 'dashboard.noMatches' : 'dashboard.noExpenses')}</p></div>}
       </div>
     </section>
   )
 }
 
-export function MembersRail({ members, expenses, currency = 'USD', readOnly = false, currentUserRole = 'You', onAddFriend }: { members: Member[]; expenses: Expense[]; currency?: CurrencyCode; readOnly?: boolean; currentUserRole?: string; onAddFriend?: () => void }) {
-  const { locale, t } = useLocalization()
-  const total = spendingExpenses(expenses).reduce((sum, expense) => sum + expense.amount, 0)
-  const userRole = currentUserRole === 'You' ? t('common.you') : currentUserRole
-
+export function MembersRail({ members, readOnly = false, onAddFriend }: { members: Member[]; readOnly?: boolean; onAddFriend?: () => void }) {
+  const { t } = useLocalization()
   return (
     <aside className="right-rail activity-rail">
       <section className="members-panel">
         <div className="rail-heading"><h2>{t('dashboard.people')}</h2><span>{members.length}</span></div>
-        <div className="member-list">{members.map(member => <div className="member-row" key={member.id}><Avatar member={member} size="sm" /><span><b>{member.name}</b><small>{member.id === 'me' ? userRole : t('common.friend')}</small></span>{member.id === 'me' ? <Check size={15} /> : null}</div>)}</div>
+        <div className="member-list">{members.map(member => <div className="member-row" key={member.id}><Avatar member={member} size="sm" /><b>{member.name}</b>{member.id === 'me' ? <Check size={15} aria-label={t('dashboard.currentIdentity')} /> : null}</div>)}</div>
         {readOnly ? null : <button className="outline-button add-friend-button" onClick={onAddFriend}><Plus size={16} />{t('dashboard.addFriend')}</button>}
-      </section>
-      <section className="rail-guide">
-        <span className="guide-icon"><CircleDollarSign size={22} /></span>
-        <h3>{t('dashboard.howTitle')}</h3>
-        <p>{t('dashboard.howText')}</p>
-        <div><span>{t('dashboard.activityTotal')}</span><strong>{money(total, currency, locale)}</strong></div>
       </section>
     </aside>
   )
@@ -152,14 +142,11 @@ function ActivityCurrencyControl({ currency, locale, readOnly, onChange }: {
   const content = (
     <>
       <span className="activity-currency-icon"><CircleDollarSign size={18} /></span>
-      <span className="activity-currency-copy">
-        <span>{t('group.currency')}</span>
-        {onChange && !readOnly ? (
-          <select aria-label={t('group.currency')} value={currency} onChange={event => onChange(event.target.value as CurrencyCode)}>
-            {SUPPORTED_CURRENCIES.map(code => <option key={code} value={code}>{code} · {currencySymbol(code, locale)}</option>)}
-          </select>
-        ) : <b>{value}</b>}
-      </span>
+      {onChange && !readOnly ? (
+        <select aria-label={t('group.currency')} value={currency} onChange={event => onChange(event.target.value as CurrencyCode)}>
+          {SUPPORTED_CURRENCIES.map(code => <option key={code} value={code}>{code} · {currencySymbol(code, locale)}</option>)}
+        </select>
+      ) : <b>{value}</b>}
     </>
   )
 
@@ -168,7 +155,7 @@ function ActivityCurrencyControl({ currency, locale, readOnly, onChange }: {
     : <div className="activity-currency activity-currency--read-only">{content}</div>
 }
 
-export function GroupDashboard({ group, members, expenses, query, activityFeedback, readOnly = false, currentUserLabel = 'You', currentUserRole, statusLabel, shareQrLabel = 'Share QR', onCurrencyChange, onShare, onShareQr, onShareLive, onAddFriend, onAddExpense, onSettleUp, onEditExpense, onDeleteExpense }: {
+export function GroupDashboard({ group, members, expenses, query, activityFeedback, readOnly = false, currentUserLabel = 'You', statusLabel, onCurrencyChange, onShareSummary, onShareQr, onShareLive, onCopyShareLink, onAddFriend, onAddExpense, onSettleUp, onEditExpense, onDeleteExpense }: {
   group: ActivityGroup
   members: Member[]
   expenses: Expense[]
@@ -176,13 +163,12 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
   activityFeedback: string | null
   readOnly?: boolean
   currentUserLabel?: string
-  currentUserRole?: string
   statusLabel?: string
-  shareQrLabel?: string
   onCurrencyChange?: (currency: CurrencyCode) => void
-  onShare?: () => void
+  onShareSummary?: () => void
   onShareQr?: () => void
   onShareLive?: () => void
+  onCopyShareLink?: () => void
   onAddFriend?: () => void
   onAddExpense?: () => void
   onSettleUp?: (settlement: Settlement) => void
@@ -190,19 +176,55 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
   onDeleteExpense?: (expense: Expense) => void
 }) {
   const { locale, t } = useLocalization()
+  const [shareMenuOpen, setShareMenuOpen] = useState(false)
   const currency = activityCurrency(group)
+  const hasExpenses = expenses.length > 0
+  const canShare = Boolean(onShareSummary || onShareQr || onShareLive || onCopyShareLink)
   return (
     <main className="dashboard">
       <div className="main-column">
         <header className="group-welcome">
-          <div><span className="date">{group.emoji} {t('dashboard.activityGroup')}</span><h1>{group.name}</h1><div className="activity-meta"><p>{t('dashboard.sharing', { count: members.length, unit: t(members.length === 1 ? 'common.person' : 'common.people') })}</p><ActivityCurrencyControl currency={currency} locale={locale} readOnly={readOnly} onChange={onCurrencyChange} /></div></div>
-          <div className="group-share">{readOnly ? <span className="read-only-badge">{t('dashboard.readOnly')}</span> : <div className="group-actions">{statusLabel ? <span className="read-only-badge live-badge"><Radio size={14} />{statusLabel}</span> : null}{onShareQr ? <button className="outline-button" onClick={onShareQr}><QrCode size={16} />{shareQrLabel === 'Share QR' ? t('dashboard.shareQr') : shareQrLabel}</button> : null}{onShareLive ? <button className="outline-button" onClick={onShareLive}><Radio size={16} />{t('dashboard.shareLive')}</button> : null}{onShare ? <button className="outline-button" onClick={onShare}><Share2 size={16} />{t('dashboard.shareSummary')}</button> : null}{onAddFriend ? <button className="outline-button" onClick={onAddFriend}><Users size={16} />{t('dashboard.addFriend')}</button> : null}{onAddExpense ? <button className="confirm-button" onClick={onAddExpense}><Plus size={17} />{t('dashboard.addExpense')}</button> : null}</div>}{activityFeedback ? <span className="activity-feedback" role="status">{activityFeedback}</span> : null}</div>
+          <div className="group-title"><h1>{group.name}</h1><p>{t('dashboard.sharing', { count: members.length, unit: t(members.length === 1 ? 'common.person' : 'common.people') })}</p></div>
+          <div className="group-share">
+            <div className="group-actions">
+              <div className="group-context-actions">
+                {statusLabel ? <span className="read-only-badge live-badge"><Radio size={14} />{statusLabel}</span> : null}
+                <ActivityCurrencyControl currency={currency} locale={locale} readOnly={readOnly} onChange={onCurrencyChange} />
+                {readOnly ? <span className="read-only-badge">{t('dashboard.readOnly')}</span> : null}
+              </div>
+              <div className="group-primary-actions">
+                {!readOnly && canShare ? <button className="outline-button share-button" onClick={() => setShareMenuOpen(true)}><Share2 size={16} />{t('dashboard.share')}</button> : null}
+                {!readOnly && hasExpenses && onAddExpense ? <button className="confirm-button" onClick={onAddExpense}><Plus size={17} />{t('dashboard.addExpense')}</button> : null}
+              </div>
+            </div>
+            {activityFeedback ? <span className="activity-feedback" role="status">{activityFeedback}</span> : null}
+          </div>
         </header>
-        <ActivitySummary expenses={expenses} currency={currency} currentUserLabel={currentUserLabel} />
-        <SettlementDirections members={members} expenses={expenses} currency={currency} currentUserLabel={currentUserLabel} onSettleUp={readOnly ? undefined : onSettleUp} />
-        <ExpenseList expenses={expenses} members={members} currency={currency} query={query} readOnly={readOnly} onEditExpense={onEditExpense} onDeleteExpense={onDeleteExpense} />
+        {hasExpenses ? (
+          <>
+            <ActivitySummary expenses={expenses} currency={currency} currentUserLabel={currentUserLabel} />
+            <SettlementDirections members={members} expenses={expenses} currency={currency} currentUserLabel={currentUserLabel} onSettleUp={readOnly ? undefined : onSettleUp} />
+            <ExpenseList expenses={expenses} members={members} currency={currency} query={query} readOnly={readOnly} onEditExpense={onEditExpense} onDeleteExpense={onDeleteExpense} />
+          </>
+        ) : (
+          <section className="activity-empty">
+            <span><ReceiptText size={25} /></span>
+            <h2>{t('dashboard.emptyTitle')}</h2>
+            <p>{t('dashboard.emptyText')}</p>
+            {!readOnly && onAddExpense ? <button className="confirm-button" onClick={onAddExpense}><Plus size={17} />{t('dashboard.addExpense')}</button> : null}
+          </section>
+        )}
       </div>
-      <MembersRail members={members} expenses={expenses} currency={currency} readOnly={readOnly} currentUserRole={currentUserRole ?? (readOnly ? t('dashboard.sharedRole') : t('common.you'))} onAddFriend={onAddFriend} />
+      <MembersRail members={members} readOnly={readOnly} onAddFriend={onAddFriend} />
+      {shareMenuOpen ? <ShareActivityMenu
+        groupName={group.name}
+        live={Boolean(onCopyShareLink && !onShareLive)}
+        onClose={() => setShareMenuOpen(false)}
+        onCollaborateLive={onShareLive}
+        onCopyLink={onCopyShareLink}
+        onShowQr={onShareQr}
+        onShareSummary={onShareSummary}
+      /> : null}
     </main>
   )
 }

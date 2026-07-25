@@ -70,11 +70,21 @@ export function Sidebar({ groups, selectedId, liveActivityCodes = EMPTY_LIVE_ACT
   )
 }
 
-export function Topbar({ query, setQuery, onSettings }: { query: string; setQuery: (value: string) => void; onSettings?: () => void }) {
+export function Topbar({ query, setQuery, onSettings, activityName, activityDetail, activityEmoji }: {
+  query: string
+  setQuery: (value: string) => void
+  onSettings?: () => void
+  activityName?: string
+  activityDetail?: string
+  activityEmoji?: string
+}) {
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
   const { t } = useLocalization()
   return (
     <header className="topbar">
-      <div className="search-box"><Search size={18} /><input aria-label={t('topbar.searchLabel')} placeholder={t('topbar.searchPlaceholder')} value={query} onChange={event => setQuery(event.target.value)} />{query ? <button onClick={() => setQuery('')} aria-label={t('topbar.clearSearch')}><X size={16} /></button> : null}</div>
+      {activityName ? <div className={`topbar-context${mobileSearchOpen ? ' topbar-context--hidden' : ''}`}><span>{activityEmoji}</span><div><b>{activityName}</b>{activityDetail ? <small>{activityDetail}</small> : null}</div></div> : null}
+      <div className={`search-box${mobileSearchOpen ? ' search-box--mobile-open' : ''}`}><Search size={18} /><input aria-label={t('topbar.searchLabel')} placeholder={t('topbar.searchPlaceholder')} value={query} onChange={event => setQuery(event.target.value)} />{query || mobileSearchOpen ? <button onClick={() => { setQuery(''); setMobileSearchOpen(false) }} aria-label={query ? t('topbar.clearSearch') : t('topbar.closeSearch')}><X size={16} /></button> : null}</div>
+      <button className="icon-button mobile-search-toggle" aria-label={t('topbar.openSearch')} onClick={() => setMobileSearchOpen(true)}><Search size={20} /></button>
       <button className="icon-button" aria-label={t('topbar.settings')} onClick={onSettings}><Settings size={20} /></button>
     </header>
   )
