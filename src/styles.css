@@ -293,6 +293,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .group-actions { display: grid; justify-items: end; gap: 9px; }
 .group-context-actions, .group-primary-actions { display: flex; align-items: center; justify-content: flex-end; gap: 9px; }
 .group-actions button { display: flex; align-items: center; justify-content: center; gap: 7px; padding-inline: 13px; }
+.group-actions .currency-option { display: grid; justify-content: stretch; padding: 5px 7px; }
 .group-actions .share-button { min-width: 92px; }
 .activity-feedback { color: var(--green); font-size: 11px; font-weight: 600; max-width: 470px; text-align: right; line-height: 1.4; }
 .read-only-badge { display: inline-flex; align-items: center; min-height: 34px; padding: 0 13px; border: 1px solid #c9ddd1; border-radius: 999px; background: #eaf4ee; color: var(--green); font-size: 11px; font-weight: 700; }
