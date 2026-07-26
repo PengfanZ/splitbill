@@ -296,6 +296,46 @@ test('centers compact mobile dialogs and keeps long forms as sheets', async ({ p
   await expect(page.locator('.modal-backdrop')).toHaveClass(/modal-backdrop--center/)
 })
 
+test('shows new updates once and keeps the changelog available on mobile', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.addInitScript(() => {
+    localStorage.setItem('tally:identity:v1', JSON.stringify({
+      id: 'me',
+      name: 'Returning Tester',
+      initials: 'RT',
+      color: '#f4cfb6',
+    }))
+  })
+
+  await page.goto('./')
+  const update = page.getByRole('dialog', { name: 'What’s new in Tally' })
+  await expect(update).toBeVisible()
+  await expect(update).toContainText('Sharing, without the guesswork')
+  await expect(update).toContainText('Reliable live collaboration')
+  await update.evaluate(element => Promise.all(
+    element.getAnimations().map(animation => animation.finished),
+  ))
+  const updateBounds = await update.evaluate(element => {
+    const bounds = element.getBoundingClientRect()
+    return {
+      centered: Math.abs(bounds.top + bounds.height / 2 - window.innerHeight / 2),
+      withinViewport: bounds.top >= 12 && bounds.bottom <= window.innerHeight - 12,
+    }
+  })
+  expect(updateBounds.centered).toBeLessThanOrEqual(1)
+  expect(updateBounds.withinViewport).toBe(true)
+
+  await page.getByRole('button', { name: 'Got it' }).click()
+  await expect(update).toBeHidden()
+  await page.reload()
+  await expect(page.getByRole('dialog', { name: 'What’s new in Tally' })).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Open navigation' }).click()
+  await page.getByRole('button', { name: 'What’s new' }).click()
+  await expect(page.getByRole('dialog', { name: 'What’s new in Tally' })).toBeVisible()
+  await expect(page.getByLabel('New updates')).toHaveCount(0)
+})
+
 test('tracks local outcomes without sending local activity data or loading third-party analytics', async ({ page, context }) => {
   const events: AnalyticsPayload[] = []
   const thirdPartyRequests: string[] = []

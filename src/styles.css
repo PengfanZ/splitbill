@@ -214,6 +214,19 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .pwa-handoff small { color: var(--muted); font-size: 10px; line-height: 1.45; }
 .pwa-handoff button { min-height: 38px; white-space: nowrap; }
 
+.changelog { display: grid; gap: 20px; }
+.changelog-release { display: grid; gap: 7px; }
+.changelog-release time { color: var(--coral); font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+.changelog-release h3 { margin: 0; color: var(--ink); font-family: var(--serif); font-size: 21px; font-weight: 400; line-height: 1.2; }
+.changelog-summary { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.changelog-list { list-style: none; margin: 8px 0 0; padding: 0; border-top: 1px solid var(--line); }
+.changelog-item { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 12px; align-items: start; padding: 13px 0; border-bottom: 1px solid var(--line); }
+.changelog-icon { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; background: #f8ded9; color: var(--coral); }
+.changelog-item > span:last-child { display: grid; gap: 3px; padding-top: 1px; }
+.changelog-item b { color: var(--ink); font-size: 12px; }
+.changelog-item small { color: var(--muted); font-size: 10px; line-height: 1.45; }
+.changelog-confirm { width: 100%; }
+
 /* Activity-first workspace */
 .group-row:hover, .group-row.is-selected { background: #ece8e2; }
 .group-row.is-selected { box-shadow: inset 3px 0 var(--coral); }
@@ -226,6 +239,8 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .sidebar-footer { margin-top: auto; padding: 16px 10px 12px; border-top: 1px solid var(--line); display: grid; gap: 10px; }
 .source-link { color: var(--muted); display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; text-decoration: none; }
 .source-link:hover { color: var(--ink); }
+.changelog-link { width: 100%; border: 0; background: transparent; padding: 0; text-align: left; }
+.changelog-unread { width: 7px; height: 7px; margin-left: auto; border-radius: 50%; background: var(--coral); box-shadow: 0 0 0 3px rgba(242, 76, 67, .12); }
 .reset-button { border: 0; background: transparent; color: var(--muted); font-size: 11px; text-decoration: underline; text-underline-offset: 3px; justify-self: start; padding: 0; }
 .reset-button:hover { color: var(--red); }
 
@@ -444,6 +459,10 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
   .modal-amount { height: 54px; }
   .modal-amount input { height: 52px; }
   .modal-actions { position: sticky; bottom: 0; z-index: 2; margin-top: 0; padding-top: 12px; padding-bottom: max(4px, env(safe-area-inset-bottom)); background: var(--surface); box-shadow: 0 -12px 18px var(--surface); }
+  .changelog { gap: 16px; }
+  .changelog-item { grid-template-columns: 34px minmax(0, 1fr); gap: 10px; padding-block: 11px; }
+  .changelog-icon { width: 34px; height: 34px; border-radius: 10px; }
+  .changelog-confirm { position: sticky; bottom: 0; box-shadow: 0 -12px 18px var(--surface); }
   .topbar { height: 66px; padding: 0 10px 0 62px; gap: 2px; }
   .topbar-context { min-width: 0; display: flex; align-items: center; gap: 9px; margin-right: auto; }
   .topbar-context--hidden { display: none; }

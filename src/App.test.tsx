@@ -11,6 +11,7 @@ import { CURRENT_USER } from './domain/members'
 import type { ActivityGroup, Expense, Member, PersistedState } from './domain/models'
 import { ActivitySummary, ExpenseList, GroupDashboard, MembersRail, SettlementDirections } from './features/activity/ActivityDashboard'
 import { AddFriendModal, CreateGroupModal, ExpenseModal, SettleUpModal } from './features/activity/ActivityModals'
+import { CHANGELOG_SEEN_STORAGE_KEY, LATEST_CHANGELOG_ID } from './features/changelog/changelog'
 import { LiveActivityApiError, type LiveActivityRecord } from './features/liveSharing/liveActivityApi'
 import type { LiveActivityClient } from './features/liveSharing/liveActivityConfig'
 import { buildLiveActivityUrl, LIVE_ACTIVITY_HASH_PREFIX } from './features/liveSharing/liveActivityLink'
@@ -60,6 +61,7 @@ beforeEach(() => {
   vi.restoreAllMocks()
   window.history.replaceState(null, '', '/')
   localStorage.setItem(IDENTITY_KEY, JSON.stringify(CURRENT_USER))
+  localStorage.setItem(CHANGELOG_SEEN_STORAGE_KEY, LATEST_CHANGELOG_ID)
   Object.defineProperty(navigator, 'share', { configurable: true, value: undefined })
   Object.defineProperty(navigator, 'canShare', { configurable: true, value: undefined })
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined })
@@ -304,10 +306,12 @@ describe('small UI building blocks', () => {
     const onSelect = vi.fn()
     const onCreate = vi.fn()
     const onJoin = vi.fn()
+    const onShowChangelog = vi.fn()
     const onDelete = vi.fn()
     const onReset = vi.fn()
-    const { rerender } = render(<Sidebar groups={[]} selectedId={null} onSelect={onSelect} onCreate={onCreate} onJoin={onJoin} onDelete={onDelete} onReset={onReset} />)
+    const { rerender } = render(<Sidebar groups={[]} selectedId={null} onSelect={onSelect} onCreate={onCreate} onJoin={onJoin} onShowChangelog={onShowChangelog} onDelete={onDelete} onReset={onReset} hasUnreadChangelog />)
     expect(screen.getByText('No activities yet.')).toBeVisible()
+    expect(screen.getByLabelText('New updates')).toBeVisible()
     expect(screen.getByRole('link', { name: 'Source & feedback' })).toHaveAttribute('href', 'https://github.com/PengfanZ/splitbill')
     expect(screen.getByRole('link', { name: 'Source & feedback' })).toHaveAttribute('target', '_blank')
     expect(screen.getByRole('link', { name: 'Source & feedback' })).toHaveAttribute('rel', 'noreferrer')
@@ -318,12 +322,14 @@ describe('small UI building blocks', () => {
     expect(onCreate).toHaveBeenCalledOnce()
     await user.click(screen.getByRole('button', { name: 'Join activity' }))
     expect(onJoin).toHaveBeenCalledOnce()
+    await user.click(screen.getByRole('button', { name: /What’s new/ }))
+    expect(onShowChangelog).toHaveBeenCalledOnce()
 
     const home: ActivityGroup = { id: 'home', name: 'Home', emoji: '⌂', memberIds: ['me'] }
-    rerender(<Sidebar groups={[home, group]} selectedId="home" onSelect={onSelect} onCreate={onCreate} onJoin={onJoin} onDelete={onDelete} onReset={onReset} />)
+    rerender(<Sidebar groups={[home, group]} selectedId="home" onSelect={onSelect} onCreate={onCreate} onJoin={onJoin} onShowChangelog={onShowChangelog} onDelete={onDelete} onReset={onReset} />)
     expect(screen.getByText('1 person')).toBeVisible()
     expect(screen.getByText('3 people')).toBeVisible()
-    rerender(<Sidebar groups={[home, group]} selectedId={null} liveActivityCodes={{ trip: 'A1B2C3D4E5' }} onSelect={onSelect} onCreate={onCreate} onJoin={onJoin} onDelete={onDelete} onReset={onReset} />)
+    rerender(<Sidebar groups={[home, group]} selectedId={null} liveActivityCodes={{ trip: 'A1B2C3D4E5' }} onSelect={onSelect} onCreate={onCreate} onJoin={onJoin} onShowChangelog={onShowChangelog} onDelete={onDelete} onReset={onReset} />)
     expect(screen.getByText('Live · A1B2C3D4E5')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Open Trip activity' }))
     expect(onSelect).toHaveBeenCalledWith('trip')
@@ -782,9 +788,29 @@ describe('complete app workflows', () => {
     ])
   })
 
+  it('shows the latest update once to returning users and keeps it available from the sidebar', async () => {
+    const user = userEvent.setup()
+    localStorage.removeItem(CHANGELOG_SEEN_STORAGE_KEY)
+    render(<App />)
+
+    const update = await screen.findByRole('dialog', { name: 'What’s new in Tally' })
+    expect(update).toHaveTextContent('Sharing, without the guesswork')
+    expect(screen.getByLabelText('New updates')).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Got it' }))
+    expect(screen.queryByRole('dialog', { name: 'What’s new in Tally' })).not.toBeInTheDocument()
+    expect(localStorage.getItem(CHANGELOG_SEEN_STORAGE_KEY)).toBe(LATEST_CHANGELOG_ID)
+    expect(screen.queryByLabelText('New updates')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'What’s new' }))
+    expect(await screen.findByRole('dialog', { name: 'What’s new in Tally' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+  })
+
   it('creates and updates a persistent local identity', async () => {
     const user = userEvent.setup()
     localStorage.removeItem(IDENTITY_KEY)
+    localStorage.removeItem(CHANGELOG_SEEN_STORAGE_KEY)
     render(<App />)
 
     const onboarding = screen.getByRole('dialog', { name: 'What should we call you?' })
@@ -797,6 +823,7 @@ describe('complete app workflows', () => {
     await user.click(screen.getByRole('button', { name: 'Continue' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     await waitFor(() => expect(JSON.parse(localStorage.getItem(IDENTITY_KEY)!)).toMatchObject({ name: 'Pengfan Zhang', initials: 'PZ' }))
+    expect(localStorage.getItem(CHANGELOG_SEEN_STORAGE_KEY)).toBe(LATEST_CHANGELOG_ID)
 
     await user.click(screen.getByRole('button', { name: 'Settings' }))
     expect(screen.getByLabelText('Display name')).toHaveValue('Pengfan Zhang')

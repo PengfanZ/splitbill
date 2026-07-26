@@ -8,6 +8,10 @@ import { calculateSettlements } from './domain/expenses'
 import { CURRENT_USER } from './domain/members'
 import type { ActivityGroup, Expense, Member, PersistedState } from './domain/models'
 import { ExpenseModal } from './features/activity/ActivityModals'
+import {
+  CHANGELOG_SEEN_STORAGE_KEY,
+  LATEST_CHANGELOG_ID,
+} from './features/changelog/changelog'
 
 const maya: Member = { id: 'maya', name: 'Maya', initials: 'M', color: '#d6e8dc' }
 const jordan: Member = { id: 'jordan', name: 'Jordan', initials: 'J', color: '#d8dde8' }
@@ -30,6 +34,7 @@ const persistedTrip: PersistedState = {
 beforeEach(() => {
   vi.restoreAllMocks()
   localStorage.setItem(IDENTITY_KEY, JSON.stringify(CURRENT_USER))
+  localStorage.setItem(CHANGELOG_SEEN_STORAGE_KEY, LATEST_CHANGELOG_ID)
   vi.spyOn(window, 'confirm').mockReturnValue(true)
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
 })

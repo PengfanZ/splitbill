@@ -11,6 +11,10 @@ import type { ActivityGroup, Expense, Member, Settlement } from './domain/models
 import { GroupDashboard } from './features/activity/ActivityDashboard'
 import { AddFriendModal, CreateGroupModal, ExpenseModal, SettleUpModal } from './features/activity/ActivityModals'
 import {
+  hasSeenLatestChangelog,
+  markLatestChangelogSeen,
+} from './features/changelog/changelog'
+import {
   addLocalExpense,
   addLocalFriends,
   createActivityFriends,
@@ -56,10 +60,15 @@ type AppProps = {
 }
 
 const ShareActivityQrModal = lazy(() => import('./features/sharing/ShareActivityQrModal').then(module => ({ default: module.ShareActivityQrModal })))
+const ChangelogModal = lazy(() => import('./features/changelog/ChangelogModal').then(module => ({ default: module.ChangelogModal })))
 
 function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps = {}) {
   const [state, setState] = usePersistedState()
   const [identity, setIdentity] = useIdentity()
+  const [changelogState, setChangelogState] = useState(() => {
+    const seen = hasSeenLatestChangelog()
+    return { open: Boolean(identity) && !seen, unread: !seen }
+  })
   const { locale, t } = useLocalization()
   const [query, setQuery] = useState('')
   const [modal, setModal] = useState<ModalType>(null)
@@ -112,6 +121,16 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
       : 'local'
 
   useAppAnalytics(analyticsClient, analyticsSurface, locale, liveSession?.record.code ?? null)
+
+  const openChangelog = () => {
+    markLatestChangelogSeen()
+    setChangelogState({ open: true, unread: false })
+  }
+
+  const closeChangelog = () => {
+    markLatestChangelogSeen()
+    setChangelogState({ open: false, unread: false })
+  }
 
   const closeSharedActivity = () => {
     clearSharedActivityHash()
@@ -446,6 +465,8 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
           setModal('group')
         }}
         onJoin={() => setModal('join')}
+        onShowChangelog={openChangelog}
+        hasUnreadChangelog={changelogState.unread}
         onDelete={deleteActivity}
         onReset={resetData}
       />
@@ -569,7 +590,15 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
       {modal === 'live-identity' && liveActivity && liveIdentityMode ? <SharedActivityIdentityModal members={liveMembers} mode={liveIdentityMode} onClose={() => { setModal(null); setLiveIdentityMode(null) }} onSave={viewerId => saveLiveActivityCopy(liveActivity, liveIdentityMode, viewerId)} /> : null}
       {modal === 'join' ? <JoinActivityModal onClose={() => setModal(null)} onJoin={joinSharedActivity} /> : null}
       {qrShare ? <Suspense fallback={null}><ShareActivityQrModal groupName={qrShare.activity.group.name} url={qrShare.url} mode={qrShare.mode} activityCode={qrShare.activityCode} onClose={() => setQrShare(null)} onCopy={() => copyQrLink(qrShare)} onShare={() => shareQrLink(qrShare)} /></Suspense> : null}
-      {!identity || modal === 'identity' ? <IdentityModal initialName={identity?.name} onClose={identity ? () => setModal(null) : undefined} onSave={name => { setIdentity(createIdentity(name)); setModal(null) }} /> : null}
+      {changelogState.open ? <Suspense fallback={null}><ChangelogModal onClose={closeChangelog} /></Suspense> : null}
+      {!identity || modal === 'identity' ? <IdentityModal initialName={identity?.name} onClose={identity ? () => setModal(null) : undefined} onSave={name => {
+        if (!identity) {
+          markLatestChangelogSeen()
+          setChangelogState({ open: false, unread: false })
+        }
+        setIdentity(createIdentity(name))
+        setModal(null)
+      }} /> : null}
     </div>
   )
 }

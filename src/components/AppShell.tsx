@@ -7,6 +7,7 @@ import {
   Plus,
   Search,
   Settings,
+  Sparkles,
   Trash2,
   Users,
   X,
@@ -20,15 +21,17 @@ export function Avatar({ member, size = 'md' }: { member: Member; size?: 'sm' | 
   return <span className={`avatar avatar--${size}`} style={{ background: member.color }}>{member.initials}</span>
 }
 
-export function Sidebar({ groups, selectedId, liveActivityCodes = EMPTY_LIVE_ACTIVITY_CODES, onSelect, onCreate, onJoin, onDelete, onReset }: {
+export function Sidebar({ groups, selectedId, liveActivityCodes = EMPTY_LIVE_ACTIVITY_CODES, onSelect, onCreate, onJoin, onShowChangelog, onDelete, onReset, hasUnreadChangelog = false }: {
   groups: ActivityGroup[]
   selectedId: string | null
   liveActivityCodes?: Record<string, string>
   onSelect: (id: string) => void
   onCreate: () => void
   onJoin: () => void
+  onShowChangelog: () => void
   onDelete: (group: ActivityGroup) => void
   onReset: () => void
+  hasUnreadChangelog?: boolean
 }) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const { t } = useLocalization()
@@ -61,6 +64,10 @@ export function Sidebar({ groups, selectedId, liveActivityCodes = EMPTY_LIVE_ACT
           )) : <p className="sidebar-empty">{t('nav.noActivities')}</p>}
         </div>
         <div className="sidebar-footer">
+          <button className="source-link changelog-link" onClick={() => { onShowChangelog(); setMobileOpen(false) }}>
+            <Sparkles size={16} />{t('nav.whatsNew')}
+            {hasUnreadChangelog ? <span className="changelog-unread" aria-label={t('nav.newUpdates')} /> : null}
+          </button>
           <a className="source-link" href="https://github.com/PengfanZ/splitbill" target="_blank" rel="noreferrer"><Github size={16} />{t('nav.sourceFeedback')}</a>
           {groups.length ? <button className="reset-button" onClick={onReset}>{t('nav.resetData')}</button> : null}
         </div>
