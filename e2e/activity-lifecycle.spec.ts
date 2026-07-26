@@ -561,6 +561,19 @@ test('shares one editable backend activity across isolated browser sessions', as
   await page.reload()
   await expect(page.getByText('Live · revision 2')).toBeVisible()
   await expect(page.getByText('Groceries', { exact: true })).toBeVisible()
+  const creatorMirrors = await page.evaluate(() => {
+    const rawMirrors = localStorage.getItem('tally:live-activity-mirrors:v1')
+    return rawMirrors ? JSON.parse(rawMirrors) as Record<string, { revision: number; snapshot: { group: { name: string }; expenses: { title: string }[] } }> : {}
+  })
+  expect(Object.values(creatorMirrors)).toEqual(expect.arrayContaining([
+    expect.objectContaining({
+      revision: 2,
+      snapshot: expect.objectContaining({
+        group: expect.objectContaining({ name: 'Shared cabin' }),
+        expenses: expect.arrayContaining([expect.objectContaining({ title: 'Groceries' })]),
+      }),
+    }),
+  ]))
 
   const editorContext = await browser.newContext()
   await prepareSharedSession(editorContext)
@@ -618,6 +631,20 @@ test('shares one editable backend activity across isolated browser sessions', as
   await expect(observer.getByText('Firewood', { exact: true })).toBeVisible()
   await expect(observer.getByText('Cabin fee', { exact: true })).toBeVisible()
   await expect(observer.getByText(`Live · ${code}`, { exact: true })).toBeVisible()
+
+  await editorContext.setOffline(true)
+  await editor.bringToFront()
+  await expect(editor.getByText('You’re offline')).toBeVisible()
+  await expect(editor.getByText('This is your last synced copy. Editing is paused until Tally reconnects, or you can create an independent copy.')).toBeVisible()
+  await expect(editor.getByText('Firewood', { exact: true })).toBeVisible()
+  await expect(editor.getByRole('button', { name: 'Add expense' })).toHaveCount(0)
+  await editor.getByRole('button', { name: 'Duplicate and edit' }).click()
+  await expect(editor.getByRole('heading', { name: 'Who are you in this copy?' })).toBeVisible()
+  await editor.getByRole('button', { name: 'Create editable copy' }).click()
+  await expect(editor.getByRole('heading', { name: 'Shared cabin copy' })).toBeVisible()
+  await expect(editor.getByRole('button', { name: 'Add expense' })).toBeVisible()
+  await expect(editor.getByText('Firewood', { exact: true })).toBeVisible()
+
   expect(browserErrors).toEqual([])
   await editorContext.close()
   await observerContext.close()

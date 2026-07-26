@@ -132,13 +132,14 @@ export function MembersRail({ members, readOnly = false, onAddFriend }: { member
   )
 }
 
-export function GroupDashboard({ group, members, expenses, query, activityFeedback, readOnly = false, currentUserLabel = 'You', statusLabel, onCurrencyChange, onShareSummary, onShareQr, onShareLive, onCopyShareLink, onAddFriend, onAddExpense, onSettleUp, onEditExpense, onDeleteExpense }: {
+export function GroupDashboard({ group, members, expenses, query, activityFeedback, readOnly = false, readOnlyLabel, currentUserLabel = 'You', statusLabel, onCurrencyChange, onShareSummary, onShareQr, onShareLive, onCopyShareLink, onAddFriend, onAddExpense, onSettleUp, onEditExpense, onDeleteExpense }: {
   group: ActivityGroup
   members: Member[]
   expenses: Expense[]
   query: string
   activityFeedback: string | null
   readOnly?: boolean
+  readOnlyLabel?: string
   currentUserLabel?: string
   statusLabel?: string
   onCurrencyChange?: (currency: CurrencyCode) => void
@@ -167,7 +168,7 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
               <div className="group-context-actions">
                 {statusLabel ? <span className="read-only-badge live-badge"><Radio size={14} />{statusLabel}</span> : null}
                 <ActivityCurrencyControl currency={currency} locale={locale} readOnly={readOnly} onChange={onCurrencyChange} />
-                {readOnly ? <span className="read-only-badge">{t('dashboard.readOnly')}</span> : null}
+                {readOnly ? <span className="read-only-badge">{readOnlyLabel ?? t('dashboard.readOnly')}</span> : null}
               </div>
               <div className="group-primary-actions">
                 {!readOnly && canShare ? <button className="outline-button share-button" onClick={() => setShareMenuOpen(true)}><Share2 size={16} />{t('dashboard.share')}</button> : null}

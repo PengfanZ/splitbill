@@ -280,8 +280,26 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .activity-feedback { color: var(--green); font-size: 11px; font-weight: 600; max-width: 470px; text-align: right; line-height: 1.4; }
 .read-only-badge { display: inline-flex; align-items: center; min-height: 34px; padding: 0 13px; border: 1px solid #c9ddd1; border-radius: 999px; background: #eaf4ee; color: var(--green); font-size: 11px; font-weight: 700; }
 .live-badge { gap: 6px; }
-.shared-preview.live-preview { border-color: #c9ddd1; }
-.shared-preview.live-preview .live-error { color: #a33c32; }
+.live-status { margin: 18px 36px 0; min-height: 72px; padding: 13px 15px; border: 1px solid #c9ddd1; border-radius: 15px; background: #edf6f0; display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; gap: 12px; box-shadow: 0 1px 0 rgba(38, 35, 31, .03); }
+.live-status-icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: #dcece3; color: var(--green); }
+.live-status-copy { min-width: 0; display: grid; gap: 4px; }
+.live-status-copy strong { color: var(--green); font-size: 13px; }
+.live-status-copy span { color: var(--muted); font-size: 11px; line-height: 1.45; }
+.live-status-copy small { color: #8f332b; font-size: 10px; line-height: 1.4; }
+.live-status-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.live-status-actions button { min-height: 38px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
+.live-status--cached { border-color: #ded0ad; background: #faf5e8; }
+.live-status--cached .live-status-icon { background: #f2e6c8; color: #8a681d; }
+.live-status--cached .live-status-copy strong { color: #745619; }
+.live-status--expired { border-color: #d7cec5; background: #f5f1ec; }
+.live-status--expired .live-status-icon { background: #e8e0d7; color: #66584c; }
+.live-status--expired .live-status-copy strong { color: #55483e; }
+.live-status--opening { border-color: #d8d2ca; background: #f7f4ef; }
+.live-status--opening .live-status-icon { background: #e9e4dd; color: #70675f; }
+.live-status--opening .live-status-copy strong { color: var(--ink); }
+.live-status--unavailable { border-color: #e0bcb5; background: #fbefec; }
+.live-status--unavailable .live-status-icon { background: #f3dcd7; color: #a33c32; }
+.live-status--unavailable .live-status-copy strong { color: #8f332b; }
 .shared-preview { margin: 18px 36px 0; padding: 15px 17px; border: 1px solid #c9ddd1; border-radius: 14px; background: #edf6f0; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
 .shared-preview > div { display: flex; align-items: center; gap: 10px; }
 .shared-preview > div:first-child { display: grid; gap: 3px; }
@@ -468,6 +486,9 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
   .activity-feedback { text-align: left; }
   .activity-empty { min-height: 330px; padding-block: 34px; }
   .shared-preview { margin: 14px 18px 0; align-items: stretch; flex-direction: column; }
+  .live-status { margin: 14px 18px 0; grid-template-columns: 40px minmax(0, 1fr); }
+  .live-status-actions { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .live-status-actions button:only-child { grid-column: 1 / -1; }
   .pwa-handoff { margin: 14px 18px 0; align-items: stretch; flex-direction: column; }
   .pwa-handoff button { width: 100%; }
   .shared-preview > div:last-child { display: grid; grid-template-columns: 1fr 1fr; }
@@ -500,6 +521,8 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
   .form-grid { grid-template-columns: 1fr; }
   .group-actions { display: flex; }
   .shared-preview > div:last-child { grid-template-columns: 1fr; }
+  .live-status-actions { grid-template-columns: 1fr; }
+  .live-status-actions button:only-child { grid-column: auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {

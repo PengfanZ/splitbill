@@ -23,12 +23,13 @@ import {
 import { IdentityModal } from './features/identity/IdentityModal'
 import type { LiveActivityClient } from './features/liveSharing/liveActivityConfig'
 import { buildLiveActivityUrl, parseLiveActivityHash } from './features/liveSharing/liveActivityLink'
+import { LiveActivityStatusBanner } from './features/liveSharing/LiveActivityStatusBanner'
 import { useLiveActivitySession } from './features/liveSharing/useLiveActivitySession'
 import { exportActivitySummary } from './features/sharing/shareActivity'
 import { BrowserToPwaHandoff, JoinActivityModal } from './features/sharing/JoinActivityModal'
 import { copyLink, shareLink, type LinkShareResult } from './features/sharing/shareLink'
 import { isStandalonePwa } from './features/sharing/sharedLinkHandoff'
-import { SharedActivityIdentityModal } from './features/sharing/SharedActivityIdentityModal'
+import { SharedActivityIdentityModal, type SharedActivityIdentityMode } from './features/sharing/SharedActivityIdentityModal'
 import {
   clearSharedActivityHash,
   buildSharedActivityQrUrl,
@@ -46,7 +47,7 @@ import { LocalizationProvider, useLocalization } from './i18n/LocalizationContex
 import { formatLocalizedList } from './i18n/localization'
 import { createAppQueryClient } from './queryClient'
 
-type ModalType = 'group' | 'friend' | 'expense' | 'settlement' | 'identity' | 'join' | 'shared-identity' | null
+type ModalType = 'group' | 'friend' | 'expense' | 'settlement' | 'identity' | 'join' | 'shared-identity' | 'live-identity' | null
 type ActivityFeedback = { groupId: string; message: string } | null
 type QrShare = { activity: SharedActivity; url: string; mode: 'snapshot' | 'live'; activityCode?: string } | null
 type AppProps = {
@@ -66,6 +67,7 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
   const [settlingDirection, setSettlingDirection] = useState<Settlement | null>(null)
   const [activityFeedback, setActivityFeedback] = useState<ActivityFeedback>(null)
   const [qrShare, setQrShare] = useState<QrShare>(null)
+  const [liveIdentityMode, setLiveIdentityMode] = useState<Extract<SharedActivityIdentityMode, 'live-copy' | 'live-recovery'> | null>(null)
   const selectedGroupIdAtLoad = state.selectedGroupId ?? state.groups[0]?.id ?? null
   const [sharedActivity, setSharedActivity] = useState(() => parseLiveActivityHash(window.location.hash) ? null : decodeSharedActivityHash(window.location.hash))
   const live = useLiveActivitySession({
@@ -91,6 +93,7 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
   const activeGroup = liveActivity?.group ?? selectedGroup
   const activeMembers = liveActivity ? liveMembers : selectedMembers
   const activeExpenses = liveActivity?.expenses ?? selectedExpenses
+  const liveEditBlocked = Boolean(live.credentials && !live.editable)
   const displayedGroup = liveActivity?.group ?? sharedActivity?.group ?? selectedGroup
   const displayedMemberCount = liveActivity
     ? liveMembers.length
@@ -119,6 +122,7 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
   const closeLiveActivity = () => {
     live.close()
     setModal(null)
+    setLiveIdentityMode(null)
   }
 
   const closeSharedViews = () => {
@@ -146,6 +150,27 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
     setState(current => saveSharedActivityCopy(current, activity, viewerId))
     analyticsClient?.track('activity_created', 'snapshot', locale)
     closeSharedActivity()
+  }
+
+  const saveLiveActivityCopy = (
+    activityToCopy: NonNullable<typeof liveActivity>,
+    identityMode: NonNullable<typeof liveIdentityMode>,
+    viewerId: string,
+  ) => {
+    const sourceGroupId = live.mirroredGroupId
+    const replacingExpiredLiveActivity = identityMode === 'live-recovery' && sourceGroupId
+    const activity = identityMode === 'live-copy'
+      ? { ...activityToCopy, group: { ...activityToCopy.group, name: t('live.copyName', { name: activityToCopy.group.name }) } }
+      : activityToCopy
+    setState(current => {
+      const baseState = replacingExpiredLiveActivity
+        ? deleteLocalActivity(current, sourceGroupId)
+        : current
+      return saveSharedActivityCopy(baseState, activity, viewerId)
+    })
+    if (replacingExpiredLiveActivity) live.removeBookmark(sourceGroupId)
+    analyticsClient?.track('activity_created', 'snapshot', locale)
+    closeLiveActivity()
   }
 
   const createGroup = (name: string, friendNames: string[], currency: CurrencyCode) => {
@@ -438,28 +463,50 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
         {(live.credentials || sharedActivity) && !isStandalonePwa() ? <BrowserToPwaHandoff url={window.location.href} /> : null}
         {live.credentials ? (
           <>
-            <section className="shared-preview live-preview" aria-label={t('live.label')}>
-              <div><strong className={displayedLiveNotice && !live.session ? 'live-error' : undefined}>{live.session ? t('live.title', { code: live.session.record.code }) : t('live.opening')}</strong><span role={displayedLiveNotice ? 'status' : undefined}>{live.saving ? t('live.saving') : displayedLiveNotice ?? (live.loading ? t('live.loadingLatest') : t('live.everyoneCanEdit'))}</span></div>
-              <div>{bookmarkedLiveGroupId ? null : <button className="outline-button" onClick={closeLiveActivity}>{t('shared.back')}</button>}{live.refresh ? <button className="confirm-button" onClick={live.refresh} disabled={live.loading}>{live.loading ? t('common.loading') : t('live.refresh')}</button> : null}</div>
-            </section>
-            {liveActivity && liveSession ? (
+            <LiveActivityStatusBanner
+              state={live.connectionState!}
+              code={liveSession?.record.code ?? live.mirror?.code}
+              notice={live.saving ? t('live.saving') : displayedLiveNotice}
+              browserOnline={live.browserOnline}
+              refreshing={live.loading}
+              hasBookmark={Boolean(bookmarkedLiveGroupId)}
+              onBack={closeLiveActivity}
+              onRefresh={live.refresh}
+              onDuplicate={live.connectionState === 'cached' && liveActivity
+                ? () => {
+                    setLiveIdentityMode('live-copy')
+                    setModal('live-identity')
+                  }
+                : undefined}
+              onContinueLocally={live.connectionState === 'expired' && liveActivity
+                ? () => {
+                    setLiveIdentityMode('live-recovery')
+                    setModal('live-identity')
+                  }
+                : undefined}
+            />
+            {liveActivity ? (
               <GroupDashboard
                 group={liveActivity.group}
                 members={liveMembers}
                 expenses={liveActivity.expenses}
                 query={query}
                 activityFeedback={null}
+                readOnly={!live.editable}
+                readOnlyLabel={t('dashboard.editingPaused')}
                 currentUserLabel={getSharedActivitySender(liveActivity).name}
-                statusLabel={t('dashboard.liveRevision', { revision: liveSession.record.revision })}
-                onCurrencyChange={changeActivityCurrency}
-                onShareQr={() => openCurrentLiveQr(liveSession)}
-                onCopyShareLink={() => copyCurrentLiveLink(liveSession)}
+                statusLabel={live.connectionState === 'connected' && liveSession
+                  ? t('dashboard.liveRevision', { revision: liveSession.record.revision })
+                  : t('dashboard.savedRevision', { revision: live.mirror!.revision })}
+                onCurrencyChange={live.editable ? changeActivityCurrency : undefined}
+                onShareQr={live.editable && liveSession ? () => openCurrentLiveQr(liveSession) : undefined}
+                onCopyShareLink={live.editable && liveSession ? () => copyCurrentLiveLink(liveSession) : undefined}
                 onShareSummary={() => shareGroup(liveActivity.group, liveMembers, liveActivity.expenses)}
-                onAddFriend={() => setModal('friend')}
-                onAddExpense={openNewExpense}
-                onSettleUp={openSettleUp}
-                onEditExpense={openEditExpense}
-                onDeleteExpense={deleteExpense}
+                onAddFriend={live.editable ? () => setModal('friend') : undefined}
+                onAddExpense={live.editable ? openNewExpense : undefined}
+                onSettleUp={live.editable ? openSettleUp : undefined}
+                onEditExpense={live.editable ? openEditExpense : undefined}
+                onDeleteExpense={live.editable ? deleteExpense : undefined}
               />
             ) : null}
           </>
@@ -505,7 +552,7 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
         onCurrencySelect={currency => analyticsClient?.track('currency_selected', 'local', locale, currency)}
         onSave={createGroup}
       /> : null}
-      {modal === 'friend' ? <AddFriendModal existingExpenseCount={spendingExpenses(activeExpenses).length} onClose={() => setModal(null)} onSave={addFriends} saving={live.saving} /> : null}
+      {modal === 'friend' ? <AddFriendModal existingExpenseCount={spendingExpenses(activeExpenses).length} onClose={() => setModal(null)} onSave={addFriends} saving={live.saving || liveEditBlocked} /> : null}
       {modal === 'expense' && activeGroup ? (
         <ExpenseModal
           group={activeGroup}
@@ -513,11 +560,12 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
           expense={editingExpense ?? undefined}
           onClose={closeExpenseModal}
           onSave={editingExpense ? updateExpense : addExpense}
-          saving={live.saving}
+          saving={live.saving || liveEditBlocked}
         />
       ) : null}
-      {modal === 'settlement' && activeGroup && settlingDirection ? <SettleUpModal group={activeGroup} settlement={settlingDirection} onClose={closeSettleUpModal} onSave={recordSettlement} saving={live.saving} /> : null}
+      {modal === 'settlement' && activeGroup && settlingDirection ? <SettleUpModal group={activeGroup} settlement={settlingDirection} onClose={closeSettleUpModal} onSave={recordSettlement} saving={live.saving || liveEditBlocked} /> : null}
       {modal === 'shared-identity' && sharedActivity ? <SharedActivityIdentityModal members={sharedMembers} onClose={() => setModal(null)} onSave={viewerId => saveSharedActivity(sharedActivity, viewerId)} /> : null}
+      {modal === 'live-identity' && liveActivity && liveIdentityMode ? <SharedActivityIdentityModal members={liveMembers} mode={liveIdentityMode} onClose={() => { setModal(null); setLiveIdentityMode(null) }} onSave={viewerId => saveLiveActivityCopy(liveActivity, liveIdentityMode, viewerId)} /> : null}
       {modal === 'join' ? <JoinActivityModal onClose={() => setModal(null)} onJoin={joinSharedActivity} /> : null}
       {qrShare ? <Suspense fallback={null}><ShareActivityQrModal groupName={qrShare.activity.group.name} url={qrShare.url} mode={qrShare.mode} activityCode={qrShare.activityCode} onClose={() => setQrShare(null)} onCopy={() => copyQrLink(qrShare)} onShare={() => shareQrLink(qrShare)} /></Suspense> : null}
       {!identity || modal === 'identity' ? <IdentityModal initialName={identity?.name} onClose={identity ? () => setModal(null) : undefined} onSave={name => { setIdentity(createIdentity(name)); setModal(null) }} /> : null}

@@ -72,21 +72,24 @@ The UI immediately loads the latest record, keeps the editor open, and asks the 
 ## Implemented frontend
 
 - **Share live** creates a backend activity and immediately moves the creator's tab into that live revision, without removing the existing read-only snapshot option.
-- Every browser that successfully opens a live capability remembers it under **Your activities**. The creator keeps the original local activity entry; recipients receive a lightweight `Live · CODE` shortcut that always reopens the canonical backend copy.
+- Every browser that successfully opens a live capability remembers it under **Your activities** and stores the latest validated snapshot as a local recovery copy. The creator keeps the original local activity entry; recipients receive a `Live · CODE` entry that reopens the canonical backend copy whenever it remains available.
 - A remembered live activity stays selected until another activity is chosen. Returning to the app or clicking its sidebar shortcut reconnects to the latest backend revision without requiring the link again.
 - The QR dialog displays the short `#live=` capability URL, opens the device's native share sheet, and retains an explicit copy-link fallback. Installed PWA users can paste a browser-opened capability link into **Join activity** to continue in their existing app session.
 - Opening a live link loads the canonical backend snapshot and enables adding friends plus creating, editing, and deleting expenses.
 - Every mutation sends the last loaded revision. A stale save loads the current activity with a visible conflict message instead of overwriting someone else's work.
 - Newer revisions load automatically while the live activity is visible. Polling pauses for hidden, offline, or actively-saving tabs and backs off to at most one request per minute after failures.
 - **Refresh latest** manually loads the current revision, and **Show QR** reopens the same live link for sharing.
+- While connected, Supabase is authoritative and all edits target the same revision-checked Live session. The local recovery copy is refreshed after every successful load or save.
+- If the browser is offline or the service cannot be reached, Tally shows the last synced copy read-only. Editing becomes available only after reconnecting or after the person explicitly chooses **Duplicate and edit**, which creates an independent local branch and leaves the Live session untouched.
+- If the backend confirms that the remembered Live activity no longer exists, Tally offers **Continue locally**. The recovered activity becomes a normal editable local activity and can start a new Live session with a new capability code and expiration window.
 - A missing backend configuration, invalid link, network failure, and clipboard failure each have explicit UI feedback.
 
 Supabase Realtime remains deferred until the capability-token authorization model is evaluated. Visibility-aware polling provides automatic synchronization without exposing the private activity table or requiring user accounts.
 
-Each browser's shortcut is stored in local storage. Removing the shortcut, clearing site data, or moving to another browser does not delete the backend activity; that browser needs the original capability link to reconnect again.
+Each browser's shortcut, capability, and latest full recovery snapshot are stored in local storage. Removing the shortcut, clearing site data, or moving to another browser does not delete the backend activity; that browser needs the original capability link to reconnect again. Recovery copies belong only to the browser and device that saved them.
 
 ## Verification
 
 - Vitest enforces 100% statement, branch, function, and line coverage, including happy paths and failure states.
-- Playwright covers isolated creator, editor, and observer browser sessions, including a stale save, latest-state recovery, and successful retry. Recipients persist the live shortcut locally, reopen it without the original URL, and share revision-checked updates through the backend.
+- Playwright covers isolated creator, editor, and observer browser sessions, including full local-mirror persistence, latest-state synchronization, offline read-only behavior, and explicit duplication into an editable local branch. Component and integration tests cover stale-save recovery and continuing locally after confirmed expiration.
 - pgTAP verifies the SQL capability, privacy, validation, and optimistic-concurrency contract.
