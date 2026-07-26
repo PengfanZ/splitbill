@@ -74,14 +74,15 @@ The workflow can also be started manually from `main` with **Run workflow**.
 - Confirm the browser recognizes the web app manifest and offers installation, then load the installed app once and verify the local activity shell reopens while offline.
 - Create an activity and choose **Share live**.
 - Open the link in a private browser, add an expense, and confirm the first visible browser updates automatically within 15 seconds.
-- Confirm the recipient receives a persistent `Live · CODE` shortcut.
+- Confirm the recipient receives a persistent `Live · CODE` activity, then go offline and verify that its last synced snapshot remains visible but read-only.
+- Choose **Duplicate and edit** while offline and confirm the new independent local copy is editable without changing the Live activity.
 - Create one local activity and one live activity, then confirm their allowlisted events appear separately in `private.analytics_daily` and `private.analytics_hourly`, and their resolved UI locale appears in `private.analytics_locale_daily`, without URL or activity fields.
 - Run Supabase Security Advisor and Performance Advisor after the first migration.
 - Confirm the migration list is synchronized before the next release with `supabase migration list`.
 
 ## Operational requirements
 
-- Activities expire 90 days after their last successful update. Expired rows are removed incrementally during new activity creation.
+- Backend activities expire 90 days after their last successful update and expired rows are removed incrementally during new activity creation. Each browser that opened the activity keeps its latest full snapshot locally until the person removes it or clears site data; after confirmed backend expiration, that saved copy can continue as a local activity and start a new Live session.
 - Create, load, and update RPCs are rate-limited per hashed client IP. Review API/database logs and tune limits from observed traffic.
 - First-party analytics events expire after 90 days and contain no URL, capability, identity, activity, or financial payload. Review aggregate usage with the queries in [ANALYTICS.md](ANALYTICS.md).
 - Free-tier projects should export regular off-site logical backups with `supabase db dump`. Paid projects provide daily backups; consider point-in-time recovery when the recovery objective warrants it. See [Supabase backups](https://supabase.com/docs/guides/platform/backups).

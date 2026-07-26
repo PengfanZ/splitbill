@@ -20,7 +20,7 @@ Tally supports two deliberately different sharing modes:
 - **Share live** creates a short capability URL for one canonical activity in Supabase. Trusted recipients with the complete link can load and edit the same revision-checked data from different browsers.
 - **Share link** opens the device share sheet, with a separate copy-link fallback. If Safari opens the link outside the installed PWA, **Join activity** safely transfers the copied link into the existing Tally app session.
 
-Opening a snapshot never overwrites browser data, and shared-preview URLs never load third-party analytics because the fragment contains names and expense details. First-party measurement records only the coarse `snapshot` surface. Live links keep their secret edit token in the fragment; Supabase stores only its SHA-256 hash. Every browser that opens a live link keeps a local shortcut, while Supabase remains the source of truth. See [the live sharing architecture](docs/LIVE_SHARING_EXPERIMENT.md) and [production deployment guide](docs/DEPLOYMENT.md).
+Opening a snapshot never overwrites browser data, and shared-preview URLs never load third-party analytics because the fragment contains names and expense details. First-party measurement records only the coarse `snapshot` surface. Live links keep their secret edit token in the fragment; Supabase stores only its SHA-256 hash. Every browser that successfully opens a live link keeps the latest full snapshot as a recovery copy, while Supabase remains the source of truth for as long as that Live session is available. See [the live sharing architecture](docs/LIVE_SHARING_EXPERIMENT.md) and [production deployment guide](docs/DEPLOYMENT.md).
 
 [Try the live demo](https://pengfanz.github.io/splitbill/)
 
@@ -48,7 +48,7 @@ For launch copy, a privacy-safe demo storyboard, and channel guidance, see the [
 
 ## Important data note
 
-Local activities remain in browser `localStorage` and can be viewed after the installed app shell has been cached for offline use. Live activities are stored in Supabase, require a network connection to synchronize, and are editable by anyone with the full capability link. There are no user accounts or participant-level permissions. Read [PRIVACY.md](PRIVACY.md) before deploying or sharing real activity data.
+Local activities remain in browser `localStorage` and can be viewed after the installed app shell has been cached for offline use. Live activities are stored in Supabase and are editable by anyone with the full capability link while connected. Each participating browser also keeps the latest full Live snapshot locally: if the connection is unavailable, that recovery copy is read-only so offline changes cannot silently conflict. A person can explicitly duplicate it into an independent editable activity, or continue it locally after the backend confirms that the Live session has ended. There are no user accounts or participant-level permissions. Read [PRIVACY.md](PRIVACY.md) before deploying or sharing real activity data.
 
 Currency selection controls display only. Tally does not convert amounts or support mixed currencies inside one activity.
 

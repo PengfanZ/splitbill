@@ -22,9 +22,15 @@ import {
   liveActivityShortcutId,
   useLiveActivityBookmarks,
 } from './useLiveActivityBookmarks'
+import {
+  createLiveActivityMirror,
+  findLiveActivityMirrorGroupId,
+  useLiveActivityMirrors,
+} from './useLiveActivityMirrors'
 
 type LiveSession = { credentials: LiveActivityCredentials; record: LiveActivityRecord }
 type CreateLiveActivityResult = { ok: true; code: string; url: string } | { ok: false; message: string }
+export type LiveActivityConnectionState = 'opening' | 'connected' | 'cached' | 'expired' | 'unavailable'
 
 type UseLiveActivitySessionOptions = {
   initialSelectedGroupId: string | null
@@ -35,6 +41,11 @@ type UseLiveActivitySessionOptions = {
 }
 
 const englishT: Translate = (key, variables) => translate('en', key, variables)
+
+function isConnectivityError(error: unknown) {
+  return error instanceof LiveActivityApiError
+    && ['configuration', 'rate-limit', 'backend', 'network', 'invalid-response'].includes(error.kind)
+}
 
 export function liveActivityErrorMessage(error: unknown, t: Translate = englishT) {
   if (error instanceof LiveActivityApiError) {
@@ -56,9 +67,13 @@ export function useLiveActivitySession({
 }: UseLiveActivitySessionOptions) {
   const queryClient = useQueryClient()
   const [bookmarks, setBookmarks] = useLiveActivityBookmarks()
+  const [mirrors, setMirrors] = useLiveActivityMirrors()
   const [client] = useState(() => liveActivityClient === undefined ? createConfiguredLiveActivityClient() : liveActivityClient)
   const bookmarkedCredentialsAtLoad = !window.location.hash && initialSelectedGroupId ? bookmarks[initialSelectedGroupId] ?? null : null
   const [credentials, setCredentials] = useState(() => parseLiveActivityHash(window.location.hash) ?? bookmarkedCredentialsAtLoad)
+  const [browserOnline, setBrowserOnline] = useState(() => navigator.onLine)
+  const [connectionBlocked, setConnectionBlocked] = useState(false)
+  const [liveEnded, setLiveEnded] = useState(false)
   const saveInFlight = useRef(false)
   const rejectedSaveFingerprint = useRef<string | null>(null)
   const polledRevision = useRef<number | null>(null)
@@ -87,7 +102,7 @@ export function useLiveActivitySession({
   const queryKey = credentials ? liveActivityQueryKey(credentials) : ['live-activity', 'inactive'] as const
   const liveQuery = useQuery({
     queryKey,
-    enabled: Boolean(client && credentials && !updateMutation.isPending),
+    enabled: Boolean(client && credentials && browserOnline && !updateMutation.isPending),
     queryFn: client && credentials
       ? async () => {
           const cachedRecord = queryClient.getQueryData<LiveActivityRecord>(liveActivityQueryKey(credentials))
@@ -105,16 +120,34 @@ export function useLiveActivitySession({
   const session: LiveSession | null = credentials && liveQuery.data
     ? { credentials, record: liveQuery.data }
     : null
+  const bookmarkedGroupId = credentials ? findLiveActivityBookmarkGroupId(bookmarks, credentials) : null
+  const mirroredGroupId = credentials
+    ? bookmarkedGroupId ?? findLiveActivityMirrorGroupId(mirrors, credentials.code)
+    : null
+  const mirror = mirroredGroupId ? mirrors[mirroredGroupId] ?? null : null
 
   useEffect(() => {
     if (credentials && !parseLiveActivityHash(window.location.hash)) window.history.replaceState(null, '', buildLiveActivityUrl(credentials))
   }, [credentials])
 
   useEffect(() => {
+    const markOnline = () => setBrowserOnline(true)
+    const markOffline = () => setBrowserOnline(false)
+    window.addEventListener('online', markOnline)
+    window.addEventListener('offline', markOffline)
+    return () => {
+      window.removeEventListener('online', markOnline)
+      window.removeEventListener('offline', markOffline)
+    }
+  }, [])
+
+  useEffect(() => {
     const syncSharedActivity = () => {
       const nextCredentials = parseLiveActivityHash(window.location.hash)
       if (nextCredentials) queryClient.removeQueries({ queryKey: liveActivityQueryKey(nextCredentials) })
       setCredentials(nextCredentials)
+      setConnectionBlocked(false)
+      setLiveEnded(false)
       setNotice(null)
       onSharedActivityChange(nextCredentials ? null : decodeSharedActivityHash(window.location.hash))
     }
@@ -138,6 +171,12 @@ export function useLiveActivitySession({
     setBookmarks(current => findLiveActivityBookmarkGroupId(current, credentials)
       ? current
       : { ...current, [shortcutGroupId]: credentials })
+    setMirrors(current => {
+      const nextMirror = createLiveActivityMirror(record)
+      const existing = current[shortcutGroupId]
+      if (existing?.revision === nextMirror.revision && existing.updatedAt === nextMirror.updatedAt) return current
+      return { ...current, [shortcutGroupId]: nextMirror }
+    })
     setPersistedState(current => {
       const shortcutGroup = { ...record.snapshot.group, id: shortcutGroupId }
       const hasShortcut = current.groups.some(group => group.id === shortcutGroupId)
@@ -147,7 +186,7 @@ export function useLiveActivitySession({
         selectedGroupId: shortcutGroupId,
       }
     })
-  }, [bookmarks, credentials, liveQuery.data, setBookmarks, setPersistedState])
+  }, [bookmarks, credentials, liveQuery.data, setBookmarks, setMirrors, setPersistedState])
 
   useEffect(() => {
     if (!liveQuery.data || polledRevision.current !== liveQuery.data.revision) return
@@ -173,13 +212,20 @@ export function useLiveActivitySession({
     return true
   }
 
-  const refresh = client && credentials
+  const refresh = client && credentials && browserOnline
     ? async () => {
         try {
           const record = await refreshMutation.mutateAsync({ activeClient: client, activeCredentials: credentials })
           queryClient.setQueryData(liveActivityQueryKey(credentials), record)
+          setConnectionBlocked(false)
+          setLiveEnded(false)
           setNotice(t('live.latestLoaded'))
         } catch (error) {
+          if (error instanceof LiveActivityApiError && error.kind === 'not-found' && mirror) {
+            setLiveEnded(true)
+          } else if (isConnectivityError(error)) {
+            setConnectionBlocked(true)
+          }
           setNotice(liveActivityErrorMessage(error, t))
         }
       }
@@ -202,6 +248,8 @@ export function useLiveActivitySession({
       })
       rejectedSaveFingerprint.current = null
       queryClient.setQueryData(liveActivityQueryKey(activeSession.credentials), record)
+      setConnectionBlocked(false)
+      setLiveEnded(false)
       setNotice(successMessage)
       return true
     } catch (error) {
@@ -210,6 +258,11 @@ export function useLiveActivitySession({
         queryClient.setQueryData(liveActivityQueryKey(activeSession.credentials), error.latestRecord)
         setNotice(t('live.conflictLoaded'))
       } else {
+        if (error instanceof LiveActivityApiError && error.kind === 'not-found' && mirror) {
+          setLiveEnded(true)
+        } else if (isConnectivityError(error)) {
+          setConnectionBlocked(true)
+        }
         if (error instanceof LiveActivityApiError && error.kind === 'invalid-input') {
           rejectedSaveFingerprint.current = fingerprint
         }
@@ -231,6 +284,8 @@ export function useLiveActivitySession({
       queryClient.setQueryData(liveActivityQueryKey(nextCredentials), created)
       setCredentials(nextCredentials)
       setBookmarks(current => ({ ...current, [groupId]: nextCredentials }))
+      setConnectionBlocked(false)
+      setLiveEnded(false)
       setNotice(t('live.ready', { code: created.code }))
       return { ok: true, code: created.code, url }
     } catch (error) {
@@ -238,31 +293,59 @@ export function useLiveActivitySession({
     }
   }
 
-  const activity = session?.record.snapshot ?? null
+  const activity = session?.record.snapshot ?? mirror?.snapshot ?? null
   const members = activity ? [getSharedActivitySender(activity), ...activity.friends] : []
+  const queryEnded = liveQuery.error instanceof LiveActivityApiError
+    && liveQuery.error.kind === 'not-found'
+    && Boolean(mirror)
+  const queryConnectionBlocked = isConnectivityError(liveQuery.error)
+  const ended = liveEnded || queryEnded
+  const blocked = connectionBlocked || queryConnectionBlocked
+  const editable = Boolean(session && browserOnline && !blocked && !ended)
+  const connectionState: LiveActivityConnectionState | null = !credentials
+    ? null
+    : ended && mirror
+      ? 'expired'
+      : editable
+        ? 'connected'
+        : mirror
+          ? 'cached'
+          : client && liveQuery.isPending
+            ? 'opening'
+            : 'unavailable'
   const displayedNotice = notice
     ?? (!liveQuery.data && liveQuery.error ? liveActivityErrorMessage(liveQuery.error, t) : null)
     ?? (!client && credentials ? t('live.notConfigured') : null)
   const activityCodes = Object.fromEntries(Object.entries(bookmarks).map(([groupId, savedCredentials]) => [groupId, savedCredentials.code]))
-  const bookmarkedGroupId = credentials ? findLiveActivityBookmarkGroupId(bookmarks, credentials) : null
 
   return {
     activity,
     activityCodes,
     bookmarkedGroupId,
-    clearBookmarks: () => setBookmarks({}),
+    browserOnline,
+    clearBookmarks: () => {
+      setBookmarks({})
+      setMirrors({})
+    },
     client,
     close,
+    connectionState,
     create,
     credentials,
     displayedNotice,
+    editable,
     loading: Boolean(client && credentials && !session && liveQuery.isPending) || refreshMutation.isPending,
     members,
+    mirror,
+    mirroredGroupId,
     notice,
     notify: setNotice,
     openBookmarked,
     refresh,
-    removeBookmark: (groupId: string) => setBookmarks(current => Object.fromEntries(Object.entries(current).filter(([savedGroupId]) => savedGroupId !== groupId))),
+    removeBookmark: (groupId: string) => {
+      setBookmarks(current => Object.fromEntries(Object.entries(current).filter(([savedGroupId]) => savedGroupId !== groupId)))
+      setMirrors(current => Object.fromEntries(Object.entries(current).filter(([savedGroupId]) => savedGroupId !== groupId)))
+    },
     save,
     saving: updateMutation.isPending,
     session,

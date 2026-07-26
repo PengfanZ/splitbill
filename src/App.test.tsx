@@ -16,6 +16,7 @@ import type { LiveActivityClient } from './features/liveSharing/liveActivityConf
 import { buildLiveActivityUrl, LIVE_ACTIVITY_HASH_PREFIX } from './features/liveSharing/liveActivityLink'
 import { liveActivityErrorMessage } from './features/liveSharing/useLiveActivitySession'
 import { LIVE_ACTIVITY_BOOKMARKS_KEY } from './features/liveSharing/useLiveActivityBookmarks'
+import { LIVE_ACTIVITY_MIRRORS_KEY, createLiveActivityMirror } from './features/liveSharing/useLiveActivityMirrors'
 import { LIVE_ACTIVITY_POLL_INTERVAL_MS } from './features/liveSharing/liveActivityQuery'
 import { buildShareSummary, createSummaryCard, exportActivitySummary, SHARE_MESSAGES, shareActivitySummary } from './features/sharing/shareActivity'
 import { SharedActivityIdentityModal } from './features/sharing/SharedActivityIdentityModal'
@@ -62,6 +63,7 @@ beforeEach(() => {
   Object.defineProperty(navigator, 'share', { configurable: true, value: undefined })
   Object.defineProperty(navigator, 'canShare', { configurable: true, value: undefined })
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined })
+  Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
   vi.spyOn(window, 'confirm').mockReturnValue(true)
 })
@@ -675,7 +677,7 @@ describe('modals', () => {
     const user = userEvent.setup()
     const onClose = vi.fn()
     const onSave = vi.fn()
-    const { container: sharedIdentityContainer, unmount } = render(<SharedActivityIdentityModal members={[LINK_SENDER, maya]} onClose={onClose} onSave={onSave} />)
+    const { container: sharedIdentityContainer, rerender, unmount } = render(<SharedActivityIdentityModal members={[LINK_SENDER, maya]} onClose={onClose} onSave={onSave} />)
 
     expect(sharedIdentityContainer.querySelector('.modal-backdrop')).toHaveClass('modal-backdrop--center')
     expect(screen.getByLabelText('Your participant')).toHaveValue('me')
@@ -684,6 +686,15 @@ describe('modals', () => {
     expect(onSave).toHaveBeenCalledWith(maya.id)
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(onClose).toHaveBeenCalledOnce()
+
+    rerender(<SharedActivityIdentityModal members={[LINK_SENDER, maya]} mode="live-copy" onClose={onClose} onSave={onSave} />)
+    expect(screen.getByRole('heading', { name: 'Who are you in this copy?' })).toBeVisible()
+    expect(screen.getByText(/will not sync back/)).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Create editable copy' })).toBeEnabled()
+
+    rerender(<SharedActivityIdentityModal members={[LINK_SENDER, maya]} mode="live-recovery" onClose={onClose} onSave={onSave} />)
+    expect(screen.getByText(/Live session has ended/)).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Save editable activity' })).toBeEnabled()
 
     unmount()
     const { container } = render(<SharedActivityIdentityModal members={[]} onClose={onClose} onSave={onSave} />)
@@ -1209,6 +1220,15 @@ describe('complete app workflows', () => {
     expect(client.update).toHaveBeenCalledWith(expect.objectContaining({ code: 'A1B2C3D4E5' }), expect.objectContaining({ expenses: expect.arrayContaining([expect.objectContaining({ title: 'Creator expense' })]) }), 1)
     expect(analyticsClient.track).toHaveBeenCalledWith('expense_added', 'live', 'en')
     await waitFor(() => expect(JSON.parse(localStorage.getItem(LIVE_ACTIVITY_BOOKMARKS_KEY)!)).toEqual({ trip: { code: 'A1B2C3D4E5', editToken: 'a'.repeat(64) } }))
+    await waitFor(() => expect(JSON.parse(localStorage.getItem(LIVE_ACTIVITY_MIRRORS_KEY)!)).toEqual({
+      trip: expect.objectContaining({
+        code: 'A1B2C3D4E5',
+        revision: 2,
+        snapshot: expect.objectContaining({
+          expenses: expect.arrayContaining([expect.objectContaining({ title: 'Creator expense' })]),
+        }),
+      }),
+    }))
 
     expect(screen.queryByRole('button', { name: 'Back to my activities' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open Trip activity' }).closest('.group-row')).toHaveClass('is-selected')
@@ -1225,6 +1245,190 @@ describe('complete app workflows', () => {
     render(<App liveActivityClient={client} />)
     expect(await screen.findByText('Live · revision 2')).toBeVisible()
     expect(window.location.hash).toContain(`${LIVE_ACTIVITY_HASH_PREFIX}A1B2C3D4E5.`)
+  })
+
+  it('shows an offline Live mirror as read-only and creates an explicit editable branch', async () => {
+    const user = userEvent.setup()
+    const credentials = { code: 'A1B2C3D4E5', editToken: 'a'.repeat(64) }
+    const snapshot = createSharedActivity(group, [CURRENT_USER, maya, jordan], [expense()])
+    const record = { code: credentials.code, revision: 4, snapshot, updatedAt: '2026-07-14T01:00:00.000Z' }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState()))
+    localStorage.setItem(LIVE_ACTIVITY_BOOKMARKS_KEY, JSON.stringify({ trip: credentials }))
+    localStorage.setItem(LIVE_ACTIVITY_MIRRORS_KEY, JSON.stringify({ trip: createLiveActivityMirror(record) }))
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false })
+    const client = {
+      create: vi.fn(),
+      load: vi.fn(),
+      poll: vi.fn(),
+      update: vi.fn(),
+    } satisfies LiveActivityClient
+
+    render(<App liveActivityClient={client} />)
+
+    expect(screen.getByText('You’re offline')).toBeVisible()
+    expect(screen.getByText('Dinner', { exact: true })).toBeVisible()
+    expect(screen.getByText('Saved · revision 4')).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Add expense' })).not.toBeInTheDocument()
+    expect(client.load).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'Duplicate and edit' }))
+    expect(screen.getByRole('dialog', { name: 'Who are you in this copy?' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Duplicate and edit' }))
+    await user.click(screen.getByRole('button', { name: 'Create editable copy' }))
+
+    expect(await screen.findByRole('heading', { name: 'Trip copy' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Add expense' })).toBeVisible()
+    expect(window.location.hash).toBe('')
+    const saved = parseState(localStorage.getItem(STORAGE_KEY))
+    expect(saved.groups.map(savedGroup => savedGroup.name)).toEqual(['Trip', 'Trip copy'])
+    expect(saved.expenses).toEqual(expect.arrayContaining([expect.objectContaining({ title: 'Dinner' })]))
+    expect(JSON.parse(localStorage.getItem(LIVE_ACTIVITY_BOOKMARKS_KEY)!)).toEqual({ trip: credentials })
+  })
+
+  it('upgrades an existing bookmark-only Live session after a temporary connection failure', async () => {
+    const user = userEvent.setup()
+    const credentials = { code: 'A1B2C3D4E5', editToken: 'a'.repeat(64) }
+    const snapshot = createSharedActivity(group, [CURRENT_USER, maya, jordan], [expense()])
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState()))
+    localStorage.setItem(LIVE_ACTIVITY_BOOKMARKS_KEY, JSON.stringify({ trip: credentials }))
+    expect(localStorage.getItem(LIVE_ACTIVITY_MIRRORS_KEY)).toBeNull()
+    const client = {
+      create: vi.fn(),
+      load: vi.fn()
+        .mockRejectedValueOnce(new LiveActivityApiError('network', 'temporarily unavailable'))
+        .mockResolvedValue({
+          code: credentials.code,
+          revision: 8,
+          snapshot,
+          updatedAt: '2026-07-25T01:00:00.000Z',
+        }),
+      poll: vi.fn(),
+      update: vi.fn().mockImplementation(async (_credentials, nextSnapshot) => ({
+        code: credentials.code,
+        revision: 9,
+        snapshot: nextSnapshot,
+        updatedAt: '2026-07-25T01:01:00.000Z',
+      })),
+    } satisfies LiveActivityClient
+
+    render(<App liveActivityClient={client} />)
+
+    expect(await screen.findByText('Live activity unavailable')).toBeVisible()
+    expect(screen.getByRole('status')).toHaveTextContent('Could not reach the live activity service')
+    expect(screen.queryByRole('button', { name: 'Duplicate and edit' })).not.toBeInTheDocument()
+    expect(window.location.hash).toContain(`${LIVE_ACTIVITY_HASH_PREFIX}${credentials.code}.${credentials.editToken}`)
+
+    await user.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByText('Live and synced · A1B2C3D4E5')).toBeVisible()
+    expect(screen.getByText('Dinner', { exact: true })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Add expense' })).toBeVisible()
+    await waitFor(() => expect(JSON.parse(localStorage.getItem(LIVE_ACTIVITY_MIRRORS_KEY)!)).toEqual({
+      trip: expect.objectContaining({
+        code: credentials.code,
+        revision: 8,
+        snapshot: expect.objectContaining({
+          expenses: expect.arrayContaining([expect.objectContaining({ title: 'Dinner' })]),
+        }),
+      }),
+    }))
+    expect(JSON.parse(localStorage.getItem(LIVE_ACTIVITY_BOOKMARKS_KEY)!)).toEqual({ trip: credentials })
+
+    await user.click(screen.getByRole('button', { name: 'Add expense' }))
+    await user.type(screen.getByLabelText('Description'), 'Parking')
+    await user.type(screen.getByLabelText('Amount'), '15')
+    await user.click(screen.getByRole('button', { name: 'Save expense' }))
+
+    expect(await screen.findByText('Live · revision 9')).toBeVisible()
+    expect(client.update).toHaveBeenCalledWith(
+      credentials,
+      expect.objectContaining({
+        expenses: expect.arrayContaining([expect.objectContaining({ title: 'Parking' })]),
+      }),
+      8,
+    )
+    await waitFor(() => expect(JSON.parse(localStorage.getItem(LIVE_ACTIVITY_MIRRORS_KEY)!).trip).toEqual(expect.objectContaining({
+      revision: 9,
+      snapshot: expect.objectContaining({
+        expenses: expect.arrayContaining([expect.objectContaining({ title: 'Parking' })]),
+      }),
+    })))
+  })
+
+  it('pauses Live editing when the browser goes offline and restores it after reconnecting', async () => {
+    const credentials = { code: 'A1B2C3D4E5', editToken: 'a'.repeat(64) }
+    const snapshot = createSharedActivity(group, [CURRENT_USER, maya, jordan], [expense()])
+    const client = {
+      create: vi.fn(),
+      load: vi.fn().mockResolvedValue({
+        code: credentials.code,
+        revision: 1,
+        snapshot,
+        updatedAt: '2026-07-14T01:00:00.000Z',
+      }),
+      poll: vi.fn(),
+      update: vi.fn(),
+    } satisfies LiveActivityClient
+    window.history.replaceState(null, '', `/${LIVE_ACTIVITY_HASH_PREFIX}${credentials.code}.${credentials.editToken}`)
+    render(<App liveActivityClient={client} />)
+
+    expect(await screen.findByText('Live and synced · A1B2C3D4E5')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Add expense' })).toBeVisible()
+
+    fireEvent(window, new Event('offline'))
+    expect(screen.getByText('You’re offline')).toBeVisible()
+    expect(screen.getByText('Saved · revision 1')).toBeVisible()
+    expect(screen.getByText('Editing paused')).toBeVisible()
+    expect(screen.queryByText('Read-only snapshot')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add expense' })).not.toBeInTheDocument()
+
+    fireEvent(window, new Event('online'))
+    expect(await screen.findByText('Live and synced · A1B2C3D4E5')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Add expense' })).toBeVisible()
+  })
+
+  it('recovers an expired Live mirror locally and can start a fresh Live session', async () => {
+    const user = userEvent.setup()
+    const credentials = { code: 'A1B2C3D4E5', editToken: 'a'.repeat(64) }
+    const nextCredentials = { code: 'F1E2D3C4B5', editToken: 'b'.repeat(64) }
+    const snapshot = createSharedActivity(group, [CURRENT_USER, maya, jordan], [expense()])
+    const record = { code: credentials.code, revision: 7, snapshot, updatedAt: '2026-01-01T01:00:00.000Z' }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState()))
+    localStorage.setItem(LIVE_ACTIVITY_BOOKMARKS_KEY, JSON.stringify({ trip: credentials }))
+    localStorage.setItem(LIVE_ACTIVITY_MIRRORS_KEY, JSON.stringify({ trip: createLiveActivityMirror(record) }))
+    const client = {
+      create: vi.fn().mockImplementation(async (nextSnapshot: SharedActivity) => ({
+        ...nextCredentials,
+        revision: 1,
+        snapshot: nextSnapshot,
+        updatedAt: '2026-07-25T01:00:00.000Z',
+      })),
+      load: vi.fn().mockRejectedValue(new LiveActivityApiError('not-found', 'expired')),
+      poll: vi.fn(),
+      update: vi.fn(),
+    } satisfies LiveActivityClient
+
+    render(<App liveActivityClient={client} />)
+
+    expect(await screen.findByText('Live sharing has ended')).toBeVisible()
+    expect(screen.getByText('Dinner', { exact: true })).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Add expense' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Continue locally' }))
+    expect(screen.getByRole('dialog', { name: 'Who are you in this activity?' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Save editable activity' }))
+
+    expect(await screen.findByRole('heading', { name: 'Trip' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Add expense' })).toBeVisible()
+    await waitFor(() => expect(JSON.parse(localStorage.getItem(LIVE_ACTIVITY_BOOKMARKS_KEY)!)).toEqual({}))
+    await waitFor(() => expect(JSON.parse(localStorage.getItem(LIVE_ACTIVITY_MIRRORS_KEY)!)).toEqual({}))
+
+    await chooseShareAction(user, 'Start live activity')
+    expect(await screen.findByText('Live · revision 1')).toBeVisible()
+    expect(window.location.hash).toContain(`${LIVE_ACTIVITY_HASH_PREFIX}${nextCredentials.code}.`)
+    expect(client.create).toHaveBeenCalledWith(expect.objectContaining({
+      expenses: expect.arrayContaining([expect.objectContaining({ title: 'Dinner' })]),
+    }))
   })
 
   it('saves settlement payments to the canonical live activity', async () => {
@@ -1367,7 +1571,8 @@ describe('complete app workflows', () => {
 
     expect(await screen.findByRole('status')).toHaveTextContent('Could not reach the live activity service')
     expect(screen.getByRole('heading', { name: 'Record a settlement' })).toBeVisible()
-    expect(screen.getByText('Live · revision 1')).toBeVisible()
+    expect(screen.getByText('Saved · revision 1')).toBeVisible()
+    expect(screen.getByText('Editing paused')).toBeVisible()
   })
 
   it('reports backend failures while creating a live activity', async () => {
@@ -1521,7 +1726,7 @@ describe('complete app workflows', () => {
     } satisfies LiveActivityClient
     render(<App liveActivityClient={client} />)
     expect(await screen.findByRole('status')).toHaveTextContent('invalid or no longer available')
-    await user.click(screen.getByRole('button', { name: 'Refresh latest' }))
+    await user.click(screen.getByRole('button', { name: 'Try again' }))
     expect(await screen.findByText('Live · revision 2')).toBeVisible()
     await user.click(screen.getAllByRole('button', { name: 'Add friend' })[0])
     await user.type(screen.getByLabelText(/Friend names/), 'Sam')
@@ -1547,9 +1752,46 @@ describe('complete app workflows', () => {
     await user.click(screen.getByRole('button', { name: 'Copy link' }))
     expect(screen.getAllByRole('status').some(status => status.textContent?.includes('Could not copy'))).toBe(true)
 
+    client.load.mockRejectedValueOnce(new Error('unexpected'))
+    await user.click(screen.getByRole('button', { name: 'Refresh latest' }))
+    expect(screen.getByRole('status')).toHaveTextContent('could not be updated')
+
     client.load.mockRejectedValueOnce(new LiveActivityApiError('network', 'offline'))
     await user.click(screen.getByRole('button', { name: 'Refresh latest' }))
     expect(screen.getByRole('status')).toHaveTextContent('Could not reach the live activity service')
+
+    client.load.mockRejectedValueOnce(new LiveActivityApiError('not-found', 'expired'))
+    await user.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByText('Live sharing has ended')).toBeVisible()
+  })
+
+  it('ends a remembered Live session when a save confirms that it expired', async () => {
+    const user = userEvent.setup()
+    const credentials = { code: 'A1B2C3D4E5', editToken: 'a'.repeat(64) }
+    const snapshot = createSharedActivity(group, [CURRENT_USER, maya, jordan], [expense()])
+    const client = {
+      create: vi.fn(),
+      load: vi.fn().mockResolvedValue({
+        code: credentials.code,
+        revision: 1,
+        snapshot,
+        updatedAt: '2026-07-14T01:00:00.000Z',
+      }),
+      poll: vi.fn(),
+      update: vi.fn().mockRejectedValue(new LiveActivityApiError('not-found', 'expired')),
+    } satisfies LiveActivityClient
+
+    window.history.replaceState(null, '', `/${LIVE_ACTIVITY_HASH_PREFIX}${credentials.code}.${credentials.editToken}`)
+    render(<App liveActivityClient={client} />)
+    expect(await screen.findByText('Live · revision 1')).toBeVisible()
+
+    await user.click(screen.getAllByRole('button', { name: 'Add friend' })[0])
+    await user.type(screen.getByLabelText(/Friend names/), 'Sam')
+    await user.click(screen.getByRole('button', { name: 'Add friends' }))
+
+    expect(await screen.findByText('Live sharing has ended')).toBeVisible()
+    expect(screen.getByText('Dinner', { exact: true })).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Add expense' })).not.toBeInTheDocument()
   })
 
   it('serializes saves from one live browser tab', async () => {
