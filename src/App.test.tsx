@@ -1180,6 +1180,7 @@ describe('complete app workflows', () => {
     expect(client.load).not.toHaveBeenCalled()
     await waitFor(() => expect(analyticsClient.track).toHaveBeenCalledWith('live_activity_opened', 'live', 'en'))
     expect(analyticsClient.track).toHaveBeenCalledWith('app_opened', 'local', 'en')
+    expect(analyticsClient.track).toHaveBeenCalledWith('live_share_clicked', 'local', 'en')
     expect(analyticsClient.track).toHaveBeenCalledWith('live_activity_created', 'local', 'en')
 
     await chooseShareAction(user, 'Copy live invite link')
@@ -1577,6 +1578,7 @@ describe('complete app workflows', () => {
 
   it('reports backend failures while creating a live activity', async () => {
     const user = userEvent.setup()
+    const analyticsClient = { track: vi.fn() } satisfies AnalyticsClient
     localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState()))
     const client = {
       create: vi.fn()
@@ -1588,7 +1590,7 @@ describe('complete app workflows', () => {
       poll: vi.fn(),
       update: vi.fn(),
     } satisfies LiveActivityClient
-    render(<App liveActivityClient={client} />)
+    render(<App analyticsClient={analyticsClient} liveActivityClient={client} />)
 
     await chooseShareAction(user, 'Start live activity')
     expect(await screen.findByRole('status')).toHaveTextContent('Could not reach the live activity service')
@@ -1598,6 +1600,8 @@ describe('complete app workflows', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('could not be updated')
     await chooseShareAction(user, 'Start live activity')
     expect(await screen.findByRole('status')).toHaveTextContent('could not be updated')
+    expect(analyticsClient.track.mock.calls.filter(([event]) => event === 'live_share_clicked')).toHaveLength(4)
+    expect(analyticsClient.track).not.toHaveBeenCalledWith('live_activity_created', 'local', 'en')
   })
 
   it('edits, refreshes, shares, and leaves one backend activity from its capability URL', async () => {

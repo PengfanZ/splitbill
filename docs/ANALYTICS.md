@@ -9,6 +9,7 @@ The browser may send only these event names:
 - `app_opened`
 - `activity_created`
 - `expense_added`
+- `live_share_clicked`
 - `live_activity_created`
 - `live_activity_opened`
 - `settlement_recorded`
@@ -27,6 +28,8 @@ Do not add arbitrary metadata to this contract. Analytics must never receive URL
 `public.record_analytics_event` is the only browser-callable database entry point. It validates the event, surface, locale, and session-token shape; applies hashed-IP throttling; hashes the session token; and inserts into `private.analytics_events`. Browser roles cannot read or write that table directly and cannot read `private.analytics_daily`, `private.analytics_hourly`, or `private.analytics_locale_daily`.
 
 Opening the app records its initial surface. Successful product actions are measured only after their local state update or live revision save succeeds. A failed expense or settlement save does not produce a success event. Currency selection is intentionally an interaction event: it records a deliberate change in either currency selector, even if the person later cancels activity creation or a live update cannot be saved.
+
+`live_share_clicked` is also an intentional interaction event. It records when someone chooses **Start live activity**, before the backend request begins. Compare it with `live_activity_created` to distinguish sharing intent from successful Live activity creation. It contains no activity or link data.
 
 ## Reports in Supabase
 
@@ -108,6 +111,30 @@ from private.analytics_events
 where occurred_at >= now() - interval '7 days'
 group by surface, event_name
 order by surface, event_name;
+```
+
+To see when people choose Live sharing, including attempts that do not finish creating a Live activity:
+
+```sql
+select
+  occurred_at at time zone 'America/New_York' as clicked_at_local
+from private.analytics_events
+where event_name = 'live_share_clicked'
+order by occurred_at desc
+limit 100;
+```
+
+For an hour-of-day chart, aggregate the same event through the hourly view:
+
+```sql
+select
+  extract(hour from event_hour at time zone 'America/New_York')::integer as hour_of_day,
+  sum(events)::bigint as clicks
+from private.analytics_hourly
+where event_name = 'live_share_clicked'
+  and event_hour >= now() - interval '30 days'
+group by hour_of_day
+order by hour_of_day;
 ```
 
 These are anonymous sessions, not authenticated users. One person can create multiple sessions, a selected UI language is not proof of physical location, and offline or self-hosted development use is not measured.

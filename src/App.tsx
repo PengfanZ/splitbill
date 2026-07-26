@@ -337,6 +337,7 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
   }
 
   const openLiveShare = async (group: ActivityGroup, members: Member[], expenses: Expense[]) => {
+    analyticsClient?.track('live_share_clicked', 'local', locale)
     setActivityFeedback({ groupId: group.id, message: t('live.creating') })
     const activity = createSharedActivity(group, members, expenses)
     const result = await live.create(activity, group.id)

@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(51);
+select plan(53);
 
 select has_table('private', 'analytics_events', 'private analytics storage exists');
 select columns_are(
@@ -155,6 +155,22 @@ select is(
   ),
   'CNY',
   'the selected allowlisted currency is stored'
+);
+
+select lives_ok(
+  $$select public.record_analytics_event('live_share_clicked', 'local', '23456789abcdef0123456789abcdef01', 'en')$$,
+  'a Live sharing click is recorded'
+);
+select is(
+  (
+    select count(*)
+    from private.analytics_events
+    where event_name = 'live_share_clicked'
+      and surface = 'local'
+      and occurred_at is not null
+  ),
+  1::bigint,
+  'Live sharing clicks retain their server-side event time without activity data'
 );
 
 select throws_ok(

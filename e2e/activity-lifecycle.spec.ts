@@ -468,6 +468,7 @@ test('shares a QR destination that opens the same read-only activity on another 
 
 test('shares one editable backend activity across isolated browser sessions', async ({ page, context, browser }) => {
   const browserErrors: string[] = []
+  const liveAnalyticsEvents: AnalyticsPayload[] = []
   page.on('console', message => {
     if (message.type() === 'error') browserErrors.push(message.text())
   })
@@ -481,6 +482,7 @@ test('shares one editable backend activity across isolated browser sessions', as
     const functionName = new URL(route.request().url()).pathname.split('/').at(-1)
     const body = route.request().postDataJSON()
     if (functionName === 'record_analytics_event') {
+      liveAnalyticsEvents.push(body as AnalyticsPayload)
       await route.fulfill({ status: 204, body: '' })
       return
     }
@@ -538,6 +540,16 @@ test('shares one editable backend activity across isolated browser sessions', as
   await page.getByRole('button', { name: 'Share', exact: true }).click()
   await page.getByRole('dialog', { name: 'Share activity' }).getByRole('button', { name: 'Start live activity' }).click()
   await expect(page.getByRole('dialog', { name: 'Scan to join Shared cabin' })).toBeVisible()
+  await expect.poll(() => liveAnalyticsEvents.map(event => event.p_event_name)).toContain('live_activity_created')
+  const liveEventNames = liveAnalyticsEvents.map(event => event.p_event_name)
+  expect(liveEventNames.indexOf('live_share_clicked')).toBeGreaterThanOrEqual(0)
+  expect(liveEventNames.indexOf('live_share_clicked')).toBeLessThan(liveEventNames.indexOf('live_activity_created'))
+  expect(liveAnalyticsEvents.find(event => event.p_event_name === 'live_share_clicked')).toEqual(expect.objectContaining({
+    p_surface: 'local',
+    p_locale: 'en',
+    p_currency: null,
+  }))
+  expect(JSON.stringify(liveAnalyticsEvents)).not.toMatch(/Shared cabin|#live=|A1B2C3D4E5/i)
   await page.getByRole('button', { name: 'Copy link' }).click()
   const liveUrl = await page.evaluate(() => navigator.clipboard.readText())
   expect(liveUrl).toContain(`#live=${code}.${editToken}`)
