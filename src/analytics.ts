@@ -11,6 +11,7 @@ export const ANALYTICS_EVENTS = [
   'app_opened',
   'activity_created',
   'expense_added',
+  'live_share_clicked',
   'live_activity_created',
   'live_activity_opened',
   'settlement_recorded',
