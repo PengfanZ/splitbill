@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   activityCurrency,
+  currencyLabel,
   currencySymbol,
   currencySymbolFromParts,
   defaultCurrencyForLocale,
@@ -23,6 +24,28 @@ describe('activity currency', () => {
   it('uses CNY for Simplified Chinese and USD for other locales', () => {
     expect(defaultCurrencyForLocale('zh-CN')).toBe('CNY')
     expect(defaultCurrencyForLocale('en')).toBe('USD')
+  })
+
+  it('shows natural Chinese currency names while keeping English codes unchanged', () => {
+    expect(SUPPORTED_CURRENCIES.map(currency => currencyLabel(currency, 'zh-CN'))).toEqual([
+      '美元',
+      '欧元',
+      '英镑',
+      '人民币',
+      '日元',
+      '加拿大元',
+      '澳大利亚元',
+      '港元',
+      '新加坡元',
+      '韩元',
+      '印度卢比',
+      '瑞士法郎',
+      '新西兰元',
+      '新台币',
+      '泰铢',
+    ])
+    expect(currencyLabel('CNY', 'en')).toBe('CNY')
+    expect(currencyLabel('USD', 'en-US')).toBe('USD')
   })
 
   it('formats absolute amounts and exposes the localized narrow symbol', () => {

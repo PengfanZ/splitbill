@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { ArrowRight, CircleDollarSign, Pencil, Users } from 'lucide-react'
 import { Avatar, ModalShell } from '../../components/AppShell'
-import { activityCurrency, currencySymbol, defaultCurrencyForLocale, SUPPORTED_CURRENCIES, type CurrencyCode } from '../../domain/currency'
+import { activityCurrency, currencyLabel, currencySymbol, defaultCurrencyForLocale, SUPPORTED_CURRENCIES, type CurrencyCode } from '../../domain/currency'
 import { createEqualShares, createExactShares, createExpenseTimestamp, createSettlementPayment, money } from '../../domain/expenses'
 import { makeId } from '../../domain/members'
 import type { ActivityGroup, Expense, Member, Settlement, SplitMethod } from '../../domain/models'
@@ -34,7 +34,7 @@ export function CreateGroupModal({ onClose, onCurrencySelect, onSave }: {
     <ModalShell eyebrow={t('group.newEyebrow')} title={t('group.newTitle')} onClose={onClose} mobilePlacement="center">
       <form onSubmit={submit}>
         <label>{t('group.name')}<input autoFocus value={name} onChange={event => setName(event.target.value)} placeholder={t('group.namePlaceholder')} required /></label>
-        <label>{t('group.currency')} <small>{t('group.currencyHelp')}</small><select value={currency} onChange={event => selectCurrency(event.target.value as CurrencyCode)}>{SUPPORTED_CURRENCIES.map(code => <option key={code} value={code}>{code} ({currencySymbol(code, locale)})</option>)}</select></label>
+        <label>{t('group.currency')} <small>{t('group.currencyHelp')}</small><select value={currency} onChange={event => selectCurrency(event.target.value as CurrencyCode)}>{SUPPORTED_CURRENCIES.map(code => <option key={code} value={code}>{currencyLabel(code, locale)} ({currencySymbol(code, locale)})</option>)}</select></label>
         <label>{t('group.addFriends')} <small>{t('group.addFriendsHelp')}</small><textarea value={friends} onChange={event => setFriends(event.target.value)} placeholder={t('group.addFriendsPlaceholder')} rows={3} /></label>
         <div className="split-note"><Users size={18} /><span>{t('group.included')}</span></div>
         <div className="modal-actions"><button type="button" className="outline-button" onClick={onClose}>{t('common.cancel')}</button><button className="confirm-button" type="submit">{t('group.create')}</button></div>

@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+import { LocalizationProvider } from '../../i18n/LocalizationContext'
 import { ActivityCurrencyControl } from './ActivityCurrencyControl'
 
 describe('ActivityCurrencyControl', () => {
@@ -48,11 +49,31 @@ describe('ActivityCurrencyControl', () => {
 
   it('renders a non-interactive value without a change handler or in read-only mode', () => {
     const { rerender } = render(<ActivityCurrencyControl currency="CNY" locale="zh-CN" readOnly={false} />)
-    expect(screen.getByText('CNY · ¥')).toBeVisible()
+    expect(screen.getByText('人民币 · ¥')).toBeVisible()
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
 
     rerender(<ActivityCurrencyControl currency="USD" locale="en" readOnly onChange={vi.fn()} />)
     expect(screen.getByText('USD · $')).toBeVisible()
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('uses Chinese currency names in the trigger, menu, and accessible labels', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(
+      <LocalizationProvider initialLocale="zh-CN">
+        <ActivityCurrencyControl currency="CNY" locale="zh-CN" readOnly={false} onChange={onChange} />
+      </LocalizationProvider>,
+    )
+
+    const trigger = screen.getByRole('button', { name: '活动币种：人民币' })
+    expect(trigger).toHaveTextContent('人民币 · ¥')
+    await user.click(trigger)
+    expect(screen.getByRole('option', { name: '人民币' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('option', { name: '美元' })).toBeVisible()
+    expect(screen.queryByRole('option', { name: 'CNY' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('option', { name: '欧元' }))
+    expect(onChange).toHaveBeenCalledWith('EUR')
   })
 })

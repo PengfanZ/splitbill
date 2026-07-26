@@ -22,6 +22,7 @@ import { LIVE_ACTIVITY_POLL_INTERVAL_MS } from './features/liveSharing/liveActiv
 import { buildShareSummary, createSummaryCard, exportActivitySummary, SHARE_MESSAGES, shareActivitySummary } from './features/sharing/shareActivity'
 import { SharedActivityIdentityModal } from './features/sharing/SharedActivityIdentityModal'
 import { createSharedActivity, encodeSharedActivity, LINK_SENDER, SHARE_HASH_PREFIX, type SharedActivity } from './features/sharing/shareActivityUrl'
+import { LocalizationProvider } from './i18n/LocalizationContext'
 
 const maya: Member = { id: 'maya', name: 'Maya Chen', initials: 'MC', color: '#abc' }
 const jordan: Member = { id: 'jordan', name: 'Jordan', initials: 'J', color: '#def' }
@@ -535,6 +536,29 @@ describe('modals', () => {
     expect(onSave).toHaveBeenCalledWith('Beach trip', ['Maya', 'Jordan'], 'USD')
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('localizes activity currency options in Chinese without changing saved codes', async () => {
+    const user = userEvent.setup()
+    const onCurrencySelect = vi.fn()
+    const onSave = vi.fn()
+    render(
+      <LocalizationProvider initialLocale="zh-CN">
+        <CreateGroupModal onClose={vi.fn()} onCurrencySelect={onCurrencySelect} onSave={onSave} />
+      </LocalizationProvider>,
+    )
+
+    const currency = screen.getByLabelText(/活动币种/)
+    expect(currency).toHaveValue('CNY')
+    expect(screen.getByRole('option', { name: '人民币 (¥)' })).toBeVisible()
+    expect(screen.getByRole('option', { name: '美元 ($)' })).toBeVisible()
+    expect(screen.queryByRole('option', { name: 'CNY (¥)' })).not.toBeInTheDocument()
+
+    await user.selectOptions(currency, 'USD')
+    expect(onCurrencySelect).toHaveBeenCalledWith('USD')
+    await user.type(screen.getByLabelText('活动名称'), '纽约旅行')
+    await user.click(screen.getByRole('button', { name: '创建活动' }))
+    expect(onSave).toHaveBeenCalledWith('纽约旅行', [], 'USD')
   })
 
   it('validates and submits friend names', async () => {

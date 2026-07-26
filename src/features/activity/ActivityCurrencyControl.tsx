@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, CircleDollarSign } from 'lucide-react'
-import { currencySymbol, SUPPORTED_CURRENCIES, type CurrencyCode } from '../../domain/currency'
+import { currencyLabel, currencySymbol, SUPPORTED_CURRENCIES, type CurrencyCode } from '../../domain/currency'
 import { useLocalization } from '../../i18n/LocalizationContext'
 
 export function ActivityCurrencyControl({ currency, locale, readOnly, onChange }: {
@@ -13,7 +13,9 @@ export function ActivityCurrencyControl({ currency, locale, readOnly, onChange }
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const value = `${currency} · ${currencySymbol(currency, locale)}`
+  const localizedLabels = locale === 'zh-CN'
+  const selectedLabel = currencyLabel(currency, locale)
+  const value = `${selectedLabel} · ${currencySymbol(currency, locale)}`
 
   useEffect(() => {
     if (!open) return
@@ -27,7 +29,7 @@ export function ActivityCurrencyControl({ currency, locale, readOnly, onChange }
 
   if (!onChange || readOnly) {
     return (
-      <div className="activity-currency activity-currency--read-only">
+      <div className={`activity-currency activity-currency--read-only${localizedLabels ? ' activity-currency--localized' : ''}`}>
         <span className="activity-currency-icon"><CircleDollarSign size={18} /></span>
         <b>{value}</b>
       </div>
@@ -49,8 +51,8 @@ export function ActivityCurrencyControl({ currency, locale, readOnly, onChange }
       <button
         ref={triggerRef}
         type="button"
-        className="activity-currency"
-        aria-label={t('group.chooseCurrency', { currency })}
+        className={`activity-currency${localizedLabels ? ' activity-currency--localized' : ''}`}
+        aria-label={t('group.chooseCurrency', { currency: selectedLabel })}
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => setOpen(current => !current)}
@@ -60,23 +62,24 @@ export function ActivityCurrencyControl({ currency, locale, readOnly, onChange }
         <ChevronDown className={open ? 'currency-chevron currency-chevron--open' : 'currency-chevron'} size={15} aria-hidden="true" />
       </button>
       {open ? (
-        <div className="currency-menu" role="listbox" aria-label={t('group.currencyMenu')}>
+        <div className={`currency-menu${localizedLabels ? ' currency-menu--localized' : ''}`} role="listbox" aria-label={t('group.currencyMenu')}>
           <div className="currency-menu-heading"><span>{t('group.currency')}</span><small>{t('group.currencyHelp')}</small></div>
           <div className="currency-options">
             {SUPPORTED_CURRENCIES.map(code => {
               const selected = code === currency
+              const label = currencyLabel(code, locale)
               return (
                 <button
                   type="button"
                   role="option"
-                  aria-label={code}
+                  aria-label={label}
                   aria-selected={selected}
                   className={selected ? 'currency-option currency-option--selected' : 'currency-option'}
                   key={code}
                   onClick={() => selectCurrency(code)}
                 >
                   <span>{currencySymbol(code, locale)}</span>
-                  <b>{code}</b>
+                  <b>{label}</b>
                   {selected ? <Check size={16} aria-hidden="true" /> : null}
                 </button>
               )

@@ -4,7 +4,7 @@ import type { AnalyticsClient, AnalyticsSurface } from './analytics'
 import { FreshStart, Sidebar, Topbar } from './components/AppShell'
 import { createIdentity } from './data/identity'
 import { EMPTY_STATE } from './data/storage'
-import { activityCurrency, type CurrencyCode } from './domain/currency'
+import { activityCurrency, currencyLabel, type CurrencyCode } from './domain/currency'
 import { isSettlementPayment, money, spendingExpenses } from './domain/expenses'
 import { CURRENT_USER } from './domain/members'
 import type { ActivityGroup, Expense, Member, Settlement } from './domain/models'
@@ -201,7 +201,7 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
   const changeActivityCurrency = async (currency: CurrencyCode) => {
     if (!activeGroup || currency === activityCurrency(activeGroup)) return
     analyticsClient?.track('currency_selected', liveActivity ? 'live' : 'local', locale, currency)
-    const message = t('feedback.currencyChanged', { currency })
+    const message = t('feedback.currencyChanged', { currency: currencyLabel(currency, locale) })
     if (liveActivity) {
       await live.save(
         { ...liveActivity, group: { ...liveActivity.group, currency } },

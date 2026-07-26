@@ -47,6 +47,14 @@ test('automatically uses Simplified Chinese in China and keeps the choice across
     await page.getByLabel('活动名称').fill('周末旅行')
     await page.getByLabel(/添加朋友/).fill('小明')
     await page.getByRole('dialog').getByRole('button', { name: '创建活动' }).click()
+    const localizedCurrency = page.getByRole('button', { name: '活动币种：人民币' })
+    await expect(localizedCurrency).toContainText('人民币 · ¥')
+    await localizedCurrency.click()
+    await expect(page.getByRole('option', { name: '美元' })).toBeVisible()
+    await expect(page.getByRole('option', { name: '人民币' })).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByRole('option', { name: 'CNY' })).toHaveCount(0)
+    await page.getByRole('option', { name: '欧元' }).click()
+    await expect(page.getByRole('status')).toContainText('活动币种已更改为欧元')
     await page.getByRole('button', { name: '添加支出' }).click()
     await page.getByLabel('说明').fill('晚餐')
     await page.getByRole('spinbutton', { name: '金额' }).fill('80')
@@ -72,6 +80,11 @@ test('automatically uses Simplified Chinese in China and keeps the choice across
       p_surface: 'local',
       p_locale: 'en',
     })
+    expect(events).toContainEqual(expect.objectContaining({
+      p_event_name: 'currency_selected',
+      p_locale: 'zh-CN',
+      p_currency: 'EUR',
+    }))
   } finally {
     await context.close()
   }
