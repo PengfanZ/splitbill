@@ -88,8 +88,12 @@ Supabase Realtime remains deferred until the capability-token authorization mode
 
 Each browser's shortcut, capability, and latest full recovery snapshot are stored in local storage. Removing the shortcut, clearing site data, or moving to another browser does not delete the backend activity; that browser needs the original capability link to reconnect again. Recovery copies belong only to the browser and device that saved them.
 
+### Upgrade compatibility
+
+The recovery-copy feature is additive. Existing `#live=` capability URLs, `tally:frontend:v2` activity data, and `tally:live-activity-bookmarks:v1` bookmarks keep their existing formats. After an upgraded browser successfully reconnects to a valid remembered Live activity, Tally writes the new full recovery mirror automatically and keeps the same code, edit token, revision checks, and backend RPC contract. If that first connection is temporarily unavailable, the old bookmark remains intact and **Try again** reconnects it without creating a replacement session.
+
 ## Verification
 
 - Vitest enforces 100% statement, branch, function, and line coverage, including happy paths and failure states.
-- Playwright covers isolated creator, editor, and observer browser sessions, including full local-mirror persistence, latest-state synchronization, offline read-only behavior, and explicit duplication into an editable local branch. Component and integration tests cover stale-save recovery and continuing locally after confirmed expiration.
+- Playwright covers isolated creator, editor, observer, and pre-upgrade bookmark-only browser sessions, including additive mirror backfilling, latest-state synchronization, offline read-only behavior, and explicit duplication into an editable local branch. Component and integration tests cover a failed first upgrade connection, stale-save recovery, and continuing locally after confirmed expiration.
 - pgTAP verifies the SQL capability, privacy, validation, and optimistic-concurrency contract.

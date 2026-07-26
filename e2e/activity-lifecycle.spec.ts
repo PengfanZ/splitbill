@@ -575,6 +575,47 @@ test('shares one editable backend activity across isolated browser sessions', as
     }),
   ]))
 
+  const legacyContext = await browser.newContext()
+  await prepareSharedSession(legacyContext)
+  await legacyContext.addInitScript(({ legacyCode, legacyEditToken }) => {
+    localStorage.setItem('tally:identity:v1', JSON.stringify({
+      id: 'me',
+      name: 'Legacy user',
+      initials: 'LU',
+      color: '#ead1b9',
+    }))
+    localStorage.setItem('tally:frontend:v2', JSON.stringify({
+      groups: [{ id: 'legacy-trip', name: 'Shared cabin', emoji: '✦', memberIds: ['me'] }],
+      friends: [],
+      expenses: [],
+      selectedGroupId: 'legacy-trip',
+    }))
+    localStorage.setItem('tally:live-activity-bookmarks:v1', JSON.stringify({
+      'legacy-trip': { code: legacyCode, editToken: legacyEditToken },
+    }))
+  }, { legacyCode: code, legacyEditToken: editToken })
+  const legacyPage = await legacyContext.newPage()
+  legacyPage.on('console', message => {
+    if (message.type() === 'error') browserErrors.push(message.text())
+  })
+  legacyPage.on('pageerror', error => browserErrors.push(error.message))
+  await legacyPage.goto('./')
+  await expect(legacyPage).toHaveURL(new RegExp(`#live=${code}\\.${editToken}`))
+  await expect(legacyPage.getByText('Live · revision 2')).toBeVisible()
+  await expect(legacyPage.getByText('Groceries', { exact: true })).toBeVisible()
+  await expect(legacyPage.getByRole('button', { name: 'Add expense' })).toBeVisible()
+  const upgradedLegacyMirror = await legacyPage.evaluate(() => {
+    const mirrors = JSON.parse(localStorage.getItem('tally:live-activity-mirrors:v1') ?? '{}')
+    return mirrors['legacy-trip']
+  })
+  expect(upgradedLegacyMirror).toEqual(expect.objectContaining({
+    code,
+    revision: 2,
+    snapshot: expect.objectContaining({
+      expenses: expect.arrayContaining([expect.objectContaining({ title: 'Groceries' })]),
+    }),
+  }))
+
   const editorContext = await browser.newContext()
   await prepareSharedSession(editorContext)
   const editor = await editorContext.newPage()
@@ -646,6 +687,7 @@ test('shares one editable backend activity across isolated browser sessions', as
   await expect(editor.getByText('Firewood', { exact: true })).toBeVisible()
 
   expect(browserErrors).toEqual([])
+  await legacyContext.close()
   await editorContext.close()
   await observerContext.close()
 })
