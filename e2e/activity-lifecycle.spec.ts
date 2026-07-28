@@ -14,11 +14,6 @@ async function chooseActivityCurrency(page: Page, currentCurrency: string, nextC
 }
 
 test.beforeEach(async ({ context }) => {
-  await context.route('https://static.cloudflareinsights.com/**', route => route.fulfill({
-    status: 200,
-    contentType: 'application/javascript',
-    body: '',
-  }))
   await context.route('https://live-sharing.test/rest/v1/rpc/record_analytics_event', route => route.fulfill({
     status: 204,
     body: '',
@@ -493,11 +488,6 @@ test('shares a QR destination that opens the same read-only activity on another 
   expect(sharedUrl).toContain('/splitbill/#share=z.')
 
   const recipientContext = await browser.newContext()
-  await recipientContext.route('https://static.cloudflareinsights.com/**', route => route.fulfill({
-    status: 200,
-    contentType: 'application/javascript',
-    body: '',
-  }))
   await recipientContext.route('https://live-sharing.test/rest/v1/rpc/record_analytics_event', route => route.fulfill({
     status: 204,
     body: '',
@@ -569,11 +559,6 @@ test('shares one editable backend activity across isolated browser sessions', as
     })
   }
   const prepareSharedSession = async (targetContext: BrowserContext) => {
-    await targetContext.route('https://static.cloudflareinsights.com/**', route => route.fulfill({
-      status: 200,
-      contentType: 'application/javascript',
-      body: '',
-    }))
     await targetContext.route('https://live-sharing.test/rest/v1/rpc/**', handleLiveBackend)
   }
   await context.route('https://live-sharing.test/rest/v1/rpc/**', handleLiveBackend)

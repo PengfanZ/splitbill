@@ -1,3 +1,4 @@
+import { compressToEncodedURIComponent } from 'lz-string'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { EMPTY_STATE } from '../../data/storage'
 import { CURRENT_USER } from '../../domain/members'
@@ -17,6 +18,7 @@ import {
   MAX_QR_URL_LENGTH,
   MAX_ACTIVITY_AMOUNT,
   MAX_ACTIVITY_FRIENDS,
+  MAX_ACTIVITY_SNAPSHOT_BYTES,
   saveSharedActivityCopy,
   SHARE_HASH_PREFIX,
   SHARE_URL_MESSAGES,
@@ -165,6 +167,22 @@ describe('URL activity serialization', () => {
     ]
 
     invalid.forEach(value => expect(decodeSharedActivityHash(encoded(value))).toBeNull())
+  })
+
+  it('rejects oversized compressed and legacy tokens before they can consume unbounded memory', () => {
+    const expansionBomb = `${COMPRESSED_SHARE_PREFIX}${compressToEncodedURIComponent(
+      'x'.repeat(MAX_ACTIVITY_SNAPSHOT_BYTES + 1),
+    )}`
+
+    expect(decodeSharedActivityHash(`${SHARE_HASH_PREFIX}${expansionBomb}`)).toBeNull()
+    expect(decodeSharedActivityHash(
+      `${SHARE_HASH_PREFIX}${'a'.repeat(MAX_SHARE_URL_LENGTH + 1)}`,
+    )).toBeNull()
+
+    const oversizedUtf8 = `${COMPRESSED_SHARE_PREFIX}${compressToEncodedURIComponent(
+      '夏'.repeat(Math.floor(MAX_ACTIVITY_SNAPSHOT_BYTES / 2)),
+    )}`
+    expect(decodeSharedActivityHash(`${SHARE_HASH_PREFIX}${oversizedUtf8}`)).toBeNull()
   })
 
   it('enforces a conservative URL size limit', () => {

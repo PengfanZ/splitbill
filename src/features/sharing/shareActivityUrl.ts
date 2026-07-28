@@ -1,9 +1,14 @@
-import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string'
+import { compressToEncodedURIComponent } from 'lz-string'
 import { CURRENT_USER, makeId } from '../../domain/members'
 import type { ActivityGroup, Expense, Member, PersistedState } from '../../domain/models'
+import { decompressFromEncodedURIComponentBounded } from './boundedLzString'
 import { shareLink } from './shareLink'
 import {
   legacySharedActivitySchema,
+  MAX_ACTIVITY_AMOUNT,
+  MAX_ACTIVITY_EXPENSES,
+  MAX_ACTIVITY_FRIENDS,
+  MAX_ACTIVITY_SNAPSHOT_BYTES,
   sharedActivitySchema,
   type SharedActivity,
 } from './sharedActivitySchema'
@@ -14,7 +19,7 @@ export {
   MAX_ACTIVITY_FRIENDS,
   MAX_ACTIVITY_SNAPSHOT_BYTES,
   type SharedActivity,
-} from './sharedActivitySchema'
+}
 
 export const SHARE_HASH_PREFIX = '#share='
 export const COMPRESSED_SHARE_PREFIX = 'z.'
@@ -79,10 +84,15 @@ export function decodeSharedActivityHash(hash: string): SharedActivity | null {
   if (!hash.startsWith(SHARE_HASH_PREFIX)) return null
   try {
     const token = hash.slice(SHARE_HASH_PREFIX.length)
+    if (token.length > MAX_SHARE_URL_LENGTH) return null
     const serialized = token.startsWith(COMPRESSED_SHARE_PREFIX)
-      ? decompressFromEncodedURIComponent(token.slice(COMPRESSED_SHARE_PREFIX.length))
+      ? decompressFromEncodedURIComponentBounded(
+          token.slice(COMPRESSED_SHARE_PREFIX.length),
+          MAX_ACTIVITY_SNAPSHOT_BYTES,
+        )
       : fromBase64Url(token)
     if (!serialized) return null
+    if (new TextEncoder().encode(serialized).byteLength > MAX_ACTIVITY_SNAPSHOT_BYTES) return null
     const parsed: unknown = JSON.parse(serialized)
     if (!isRecord(parsed)) return null
     if (legacySharedActivitySchema.safeParse(parsed).success) {

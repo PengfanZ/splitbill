@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(53);
+select plan(61);
 
 select has_schema('private', 'private schema exists');
 select has_table('private', 'shared_activities', 'shared activity storage exists');
@@ -12,6 +12,12 @@ select is(
   'shared activity storage has row security enabled'
 );
 select has_table('private', 'shared_activity_rate_limits', 'private API rate limits exist');
+select has_table('private', 'security_secrets', 'private request-identifier secrets exist');
+select is(
+  has_table_privilege('anon', 'private.security_secrets', 'SELECT'),
+  false,
+  'anonymous clients cannot read request-identifier secrets'
+);
 select has_index(
   'private',
   'shared_activity_rate_limits',
@@ -106,16 +112,25 @@ select is(
   'updates increment the revision atomically'
 );
 
-select throws_ok(
-  format(
-    'select public.update_shared_activity(%L, %L, 1, %L::jsonb)',
-    (select code from created_activity),
-    (select edit_token from created_activity),
-    (select snapshot::text from created_activity)
+select set_config('response.status', '200', true);
+select is(
+  (
+    select count(*)
+    from created_activity created
+    cross join lateral public.update_shared_activity(
+      created.code,
+      created.edit_token,
+      1,
+      created.snapshot
+    )
   ),
-  'PT409',
-  'shared_activity_conflict',
-  'legacy stale revisions return a semantic HTTP conflict'
+  0::bigint,
+  'legacy stale revisions return no writable record'
+);
+select is(
+  current_setting('response.status', true),
+  '409',
+  'legacy stale revisions preserve the semantic HTTP conflict status'
 );
 
 create temporary table v2_updated_activity as
@@ -161,7 +176,7 @@ select is(revision, 3::bigint, 'legacy invalid snapshots do not increment the re
 create temporary table update_rate_before_rejection as
 select request_count
 from private.shared_activity_rate_limits
-where identifier_hash = extensions.digest('local-development', 'sha256')
+where identifier_hash = private.shared_activity_request_identifier()
   and operation = 'update';
 
 create temporary table v3_rejected_activity as
@@ -181,99 +196,133 @@ select is(
   (
     select request_count
     from private.shared_activity_rate_limits
-    where identifier_hash = extensions.digest('local-development', 'sha256')
+    where identifier_hash = private.shared_activity_request_identifier()
       and operation = 'update'
   ),
   (select request_count + 1 from update_rate_before_rejection),
   'rejected snapshots still consume a rate-limit request'
 );
 
-select throws_ok(
-  format('select public.load_shared_activity(%L, %L)', (select code from created_activity), repeat('0', 64)),
-  'P0002',
-  'shared_activity_not_found',
+select set_config('response.status', '200', true);
+select is(
+  (
+    select count(*)
+    from created_activity created
+    cross join lateral public.load_shared_activity(created.code, repeat('0', 64))
+  ),
+  0::bigint,
   'invalid edit tokens do not reveal activities'
 );
-
-select throws_ok(
-  format('select public.poll_shared_activity(%L, %L)', (select code from created_activity), repeat('0', 64)),
-  'P0002',
-  'shared_activity_not_found',
+select is(
+  current_setting('response.status', true),
+  '404',
+  'invalid edit tokens preserve the not-found HTTP status'
+);
+select is(
+  (
+    select count(*)
+    from created_activity created
+    cross join lateral public.poll_shared_activity(created.code, repeat('0', 64))
+  ),
+  0::bigint,
   'revision polling does not reveal invalid edit tokens'
 );
 
-select throws_ok(
-  $$select public.create_shared_activity('{}'::jsonb)$$,
-  '22023',
-  'invalid_activity_snapshot',
+create temporary table create_rate_before_rejection as
+select request_count
+from private.shared_activity_rate_limits
+where identifier_hash = private.shared_activity_request_identifier()
+  and operation = 'create';
+
+select is(
+  (select count(*) from public.create_shared_activity('{}'::jsonb)),
+  0::bigint,
   'invalid snapshots are rejected'
 );
-
-select throws_ok(
-  $$select public.create_shared_activity(null::jsonb)$$,
-  '22023',
-  'invalid_activity_snapshot',
+select is(
+  (
+    select request_count
+    from private.shared_activity_rate_limits
+    where identifier_hash = private.shared_activity_request_identifier()
+      and operation = 'create'
+  ),
+  (select request_count + 1 from create_rate_before_rejection),
+  'invalid creates still consume a rate-limit request'
+);
+select is(
+  (select count(*) from public.create_shared_activity(null::jsonb)),
+  0::bigint,
   'null snapshots are rejected explicitly'
 );
 
-select throws_ok(
-  format(
-    'select public.update_shared_activity_v2(%L, %L, 0, %L::jsonb)',
-    (select code from created_activity),
-    (select edit_token from created_activity),
-    (select snapshot::text from created_activity)
+select is(
+  (
+    select count(*)
+    from created_activity created
+    cross join lateral public.update_shared_activity_v2(
+      created.code,
+      created.edit_token,
+      0,
+      created.snapshot
+    )
   ),
-  '22023',
-  'invalid_expected_revision',
+  0::bigint,
   'invalid revisions are rejected'
 );
 
-select throws_ok(
-  format(
-    'select public.update_shared_activity_v2(%L, %L, null, %L::jsonb)',
-    (select code from created_activity),
-    (select edit_token from created_activity),
-    (select snapshot::text from created_activity)
+select is(
+  (
+    select count(*)
+    from created_activity created
+    cross join lateral public.update_shared_activity_v2(
+      created.code,
+      created.edit_token,
+      null,
+      created.snapshot
+    )
   ),
-  '22023',
-  'invalid_expected_revision',
+  0::bigint,
   'null revisions are rejected explicitly'
 );
 
-select throws_ok(
-  format(
-    'select public.update_shared_activity_v2(%L, %L, 3, %L::jsonb)',
-    (select code from created_activity),
-    repeat('0', 64),
-    (select snapshot::text from created_activity)
+select is(
+  (
+    select count(*)
+    from created_activity created
+    cross join lateral public.update_shared_activity_v2(
+      created.code,
+      repeat('0', 64),
+      3,
+      created.snapshot
+    )
   ),
-  'P0002',
-  'shared_activity_not_found',
+  0::bigint,
   'conflict-aware updates do not reveal invalid edit tokens'
 );
 
-select throws_ok(
-  format(
-    'select public.create_shared_activity(%L::jsonb)',
-    (
-      select jsonb_set(
-        snapshot,
-        '{friends}',
-        (
-          select jsonb_agg(jsonb_build_object(
-            'id', 'friend-' || index,
-            'name', 'Friend ' || index,
-            'initials', 'F',
-            'color', '#abc'
-          ))
-          from generate_series(1, 101) index
+select is(
+  (
+    select count(*)
+    from public.create_shared_activity(
+      (
+        select jsonb_set(
+          snapshot,
+          '{friends}',
+          (
+            select jsonb_agg(jsonb_build_object(
+              'id', 'friend-' || index,
+              'name', 'Friend ' || index,
+              'initials', 'F',
+              'color', '#abc'
+            ))
+            from generate_series(1, 101) index
+          )
         )
-      )::text
-      from created_activity
+        from created_activity
+      )
     )
   ),
-  '22023',
-  'invalid_activity_snapshot',
+  0::bigint,
   'oversized participant lists are rejected'
 );
 
@@ -283,25 +332,23 @@ set created_at = clock_timestamp() - interval '100 days',
     expires_at = clock_timestamp() - interval '1 day'
 where code = (select code from created_activity);
 
-select throws_ok(
-  format(
-    'select public.load_shared_activity(%L, %L)',
-    (select code from created_activity),
-    (select edit_token from created_activity)
+select is(
+  (
+    select count(*)
+    from created_activity created
+    cross join lateral public.load_shared_activity(created.code, created.edit_token)
   ),
-  'P0002',
-  'shared_activity_not_found',
+  0::bigint,
   'expired activities cannot be loaded'
 );
 
-select throws_ok(
-  format(
-    'select public.poll_shared_activity(%L, %L)',
-    (select code from created_activity),
-    (select edit_token from created_activity)
+select is(
+  (
+    select count(*)
+    from created_activity created
+    cross join lateral public.poll_shared_activity(created.code, created.edit_token)
   ),
-  'P0002',
-  'shared_activity_not_found',
+  0::bigint,
   'expired activities cannot be polled'
 );
 
@@ -323,11 +370,32 @@ select is(
   (
     select octet_length(identifier_hash)
     from private.shared_activity_rate_limits
-    where identifier_hash = extensions.digest('203.0.113.10', 'sha256')
+    where identifier_hash = private.shared_activity_request_identifier()
       and operation = 'load'
   ),
   32,
-  'rate limits store only a one-way client identifier hash'
+  'rate limits store only a fixed-length pseudonymous identifier'
+);
+select isnt(
+  private.shared_activity_request_identifier(),
+  extensions.digest('203.0.113.10', 'sha256'),
+  'request identifiers are protected with a database-secret pepper'
+);
+
+create table public.default_privilege_probe (id bigint);
+create function public.default_privilege_probe()
+returns integer
+language sql
+as $$ select 1; $$;
+select is(
+  has_table_privilege('anon', 'public.default_privilege_probe', 'SELECT'),
+  false,
+  'new public tables are not exposed to anonymous clients by default'
+);
+select is(
+  has_function_privilege('anon', 'public.default_privilege_probe()', 'EXECUTE'),
+  false,
+  'new public functions are not executable anonymously by default'
 );
 
 select * from finish();

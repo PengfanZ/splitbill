@@ -551,3 +551,30 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+.frame-protection {
+  min-height: 100dvh;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  padding: 32px;
+  text-align: center;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.frame-protection h1,
+.frame-protection p { margin: 0; }
+.frame-protection p { max-width: 420px; color: var(--muted); }
+.frame-protection-link {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 20px;
+  border-radius: 10px;
+  background: var(--coral);
+  color: white;
+  font-weight: 700;
+  text-decoration: none;
+}

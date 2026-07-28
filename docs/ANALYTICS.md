@@ -139,8 +139,8 @@ order by hour_of_day;
 
 These are anonymous sessions, not authenticated users. One person can create multiple sessions, a selected UI language is not proof of physical location, and offline or self-hosted development use is not measured.
 
-## Retention and fallback
+## Retention and availability
 
 Events older than 90 days are removed in bounded batches when an app-open event is recorded. The timestamp index keeps cleanup bounded as the table grows.
 
-When a production build has no Supabase configuration, the existing Cloudflare Web Analytics page-view beacon remains an optional fallback. It is always disabled on `#share=` and `#live=` URLs. Development and test builds do not initialize either analytics path by default.
+When a production build has no Supabase configuration, product analytics is disabled. Tally does not load a third-party page-view beacon. Development and test builds do not initialize first-party analytics by default.

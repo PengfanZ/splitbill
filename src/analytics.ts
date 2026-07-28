@@ -1,10 +1,6 @@
 import type { AppLocale } from './i18n/localization'
 import type { CurrencyCode } from './domain/currency'
 
-const CLOUDFLARE_BEACON_URL =
-  'https://static.cloudflareinsights.com/beacon.min.js'
-const CLOUDFLARE_ANALYTICS_TOKEN = 'e7952cd24d1b46ef8f41cb98923762e8'
-
 export const ANALYTICS_SESSION_KEY = 'tally:analytics-session:v1'
 
 export const ANALYTICS_EVENTS = [
@@ -127,30 +123,4 @@ export function createConfiguredAnalyticsClient(
   } catch {
     return null
   }
-}
-
-export function initializeAnalytics(
-  enabled = import.meta.env.PROD,
-  firstPartyAnalyticsEnabled = Boolean(
-    import.meta.env.VITE_SUPABASE_URL?.trim()
-    && import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim(),
-  ),
-) {
-  if (
-    !enabled
-    || firstPartyAnalyticsEnabled
-    || window.location.hash.startsWith('#share=')
-    || window.location.hash.startsWith('#live=')
-    || document.querySelector(`script[src="${CLOUDFLARE_BEACON_URL}"]`)
-  ) {
-    return
-  }
-
-  const script = document.createElement('script')
-  script.defer = true
-  script.src = CLOUDFLARE_BEACON_URL
-  script.dataset.cfBeacon = JSON.stringify({
-    token: CLOUDFLARE_ANALYTICS_TOKEN,
-  })
-  document.body.append(script)
 }
