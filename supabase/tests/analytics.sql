@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(53);
+select plan(57);
 
 select has_table('private', 'analytics_events', 'private analytics storage exists');
 select columns_are(
@@ -173,41 +173,59 @@ select is(
   'Live sharing clicks retain their server-side event time without activity data'
 );
 
-select throws_ok(
+create temporary table analytics_count_before_invalid as
+select count(*) as event_count
+from private.analytics_events;
+
+create temporary table analytics_rate_before_invalid as
+select request_count
+from private.shared_activity_rate_limits
+where identifier_hash = private.shared_activity_request_identifier()
+  and operation = 'analytics';
+
+select lives_ok(
   $$select public.record_analytics_event('expense_with_amount_42', 'local', '0123456789abcdef0123456789abcdef')$$,
-  '22023',
-  'invalid_analytics_event',
-  'unapproved event names are rejected'
+  'unapproved event names are rejected without rolling back the throttle'
 );
-select throws_ok(
+select lives_ok(
   $$select public.record_analytics_event('expense_added', 'private_activity_ABC123', '0123456789abcdef0123456789abcdef')$$,
-  '22023',
-  'invalid_analytics_surface',
-  'unapproved surfaces are rejected'
+  'unapproved surfaces are rejected without rolling back the throttle'
 );
-select throws_ok(
+select lives_ok(
   $$select public.record_analytics_event('expense_added', 'live', 'secret-live-capability')$$,
-  '22023',
-  'invalid_analytics_session',
-  'non-session identifiers are rejected'
+  'non-session identifiers are rejected without rolling back the throttle'
 );
-select throws_ok(
+select lives_ok(
   $$select public.record_analytics_event('expense_added', 'live', '0123456789abcdef0123456789abcdef', 'en-US')$$,
-  '22023',
-  'invalid_analytics_locale',
-  'unapproved locales are rejected'
+  'unapproved locales are rejected without rolling back the throttle'
 );
-select throws_ok(
+select lives_ok(
   $$select public.record_analytics_event('currency_selected', 'local', '0123456789abcdef0123456789abcdef', 'en', 'BTC')$$,
-  '22023',
-  'invalid_analytics_currency',
-  'unsupported currencies are rejected'
+  'unsupported currencies are rejected without rolling back the throttle'
 );
-select throws_ok(
+select lives_ok(
   $$select public.record_analytics_event('expense_added', 'local', '0123456789abcdef0123456789abcdef', 'en', 'USD')$$,
-  '22023',
-  'invalid_analytics_currency',
-  'currency metadata is rejected for unrelated events'
+  'currency metadata is rejected for unrelated events without rolling back the throttle'
+);
+select is(
+  (select count(*) from private.analytics_events),
+  (select event_count from analytics_count_before_invalid),
+  'invalid analytics input never writes an event'
+);
+select is(
+  (
+    select request_count
+    from private.shared_activity_rate_limits
+    where identifier_hash = private.shared_activity_request_identifier()
+      and operation = 'analytics'
+  ),
+  (select request_count + 6 from analytics_rate_before_invalid),
+  'every invalid analytics request consumes rate-limit budget'
+);
+select is(
+  current_setting('response.status', true),
+  '400',
+  'invalid analytics input preserves the bad-request HTTP status'
 );
 
 select is(
@@ -341,10 +359,15 @@ select is(
     select octet_length(identifier_hash)
     from private.shared_activity_rate_limits
     where operation = 'analytics'
-      and identifier_hash = extensions.digest('203.0.113.20', 'sha256')
+      and identifier_hash = private.shared_activity_request_identifier()
   ),
   32,
-  'analytics throttling stores only a one-way client identifier hash'
+  'analytics throttling stores only a fixed-length pseudonymous identifier'
+);
+select isnt(
+  private.shared_activity_request_identifier(),
+  extensions.digest('203.0.113.20', 'sha256'),
+  'analytics request identifiers are protected with the database-secret pepper'
 );
 
 select * from finish();

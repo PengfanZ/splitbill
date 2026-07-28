@@ -99,11 +99,23 @@ describe('live activity API client', () => {
     ['PT409', 409, 'conflict'],
     ['P0002', 404, 'not-found'],
     ['22023', 400, 'invalid-input'],
+    ['', 404, 'not-found'],
+    ['', 400, 'invalid-input'],
     ['rate_limit_exceeded', 429, 'rate-limit'],
     ['XX000', 500, 'backend'],
   ] as const)('maps backend code %s with status %s to %s', async (code, status, kind) => {
     fetcher.mockResolvedValue(response({ code, message: `backend ${code}` }, status))
     const client = createLiveActivityClient({ supabaseUrl: 'https://project.supabase.co', publishableKey: 'key' }, fetcher)
+    await expectApiError(client.load(credentials), kind)
+  })
+
+  it.each([
+    [404, 'not-found'],
+    [400, 'invalid-input'],
+  ] as const)('maps an empty committed rejection with status %s to %s', async (status, kind) => {
+    fetcher.mockResolvedValue(response([], status))
+    const client = createLiveActivityClient({ supabaseUrl: 'https://project.supabase.co', publishableKey: 'key' }, fetcher)
+
     await expectApiError(client.load(credentials), kind)
   })
 

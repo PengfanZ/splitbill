@@ -22,6 +22,8 @@ Create a project in [Supabase](https://supabase.com/dashboard), then record:
 - the project URL;
 - the publishable client key.
 
+In **Integrations → Data API → Settings**, disable automatic exposure for new tables and functions when that option is available. Tally grants access only to its reviewed public RPC wrappers; application tables stay in the unexposed `private` schema. The migrations also remove anonymous default privileges for objects owned by the migration role.
+
 Generate a personal access token from [Supabase account tokens](https://supabase.com/dashboard/account/tokens). The token and database password are deployment secrets; the project URL, project reference, and publishable key are intentionally safe client configuration.
 
 Do not make production schema changes in the Dashboard. All schema changes must be committed under `supabase/migrations/` and released by CI, following [Supabase's migration workflow](https://supabase.com/docs/guides/deployment/database-migrations).
@@ -83,12 +85,12 @@ The workflow can also be started manually from `main` with **Run workflow**.
 ## Operational requirements
 
 - Backend activities expire 90 days after their last successful update and expired rows are removed incrementally during new activity creation. Each browser that opened the activity keeps its latest full snapshot locally until the person removes it or clears site data; after confirmed backend expiration, that saved copy can continue as a local activity and start a new Live session.
-- Create, load, and update RPCs are rate-limited per hashed client IP. Review API/database logs and tune limits from observed traffic.
+- Create, load, update, and analytics RPCs are rate-limited per secret-peppered identifier derived from the client IP. Rejected requests consume the same budget as successful requests. Review API/database logs and tune limits from observed traffic.
 - First-party analytics events expire after 90 days and contain no URL, capability, identity, activity, or financial payload. Review aggregate usage with the queries in [ANALYTICS.md](ANALYTICS.md).
 - Free-tier projects should export regular off-site logical backups with `supabase db dump`. Paid projects provide daily backups; consider point-in-time recovery when the recovery objective warrants it. See [Supabase backups](https://supabase.com/docs/guides/platform/backups).
 - Review Security Advisor and Performance Advisor after every schema change.
 - If a capability URL leaks, treat the activity as compromised. Token rotation/revocation is a required follow-up before serving groups that need stronger access control.
-- If a custom Supabase API domain is introduced, add its origin to the `connect-src` policy in `index.html`.
+- If the Supabase project URL changes or a custom API domain is introduced, replace the exact allowed Supabase origin in the `connect-src` policy in `index.html`.
 
 ## Rollback
 

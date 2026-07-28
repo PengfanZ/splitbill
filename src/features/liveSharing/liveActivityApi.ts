@@ -51,6 +51,8 @@ function responseErrorKind(body: unknown, status: number): LiveActivityApiErrorK
   if (code === '40001') return 'conflict'
   if (code === 'P0002') return 'not-found'
   if (code === '22023') return 'invalid-input'
+  if (status === 404) return 'not-found'
+  if (status === 400) return 'invalid-input'
   return 'backend'
 }
 

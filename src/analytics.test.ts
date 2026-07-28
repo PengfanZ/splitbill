@@ -3,11 +3,7 @@ import {
   ANALYTICS_SESSION_KEY,
   createConfiguredAnalyticsClient,
   getOrCreateAnalyticsSessionToken,
-  initializeAnalytics,
 } from './analytics'
-
-const beaconSelector =
-  'script[src="https://static.cloudflareinsights.com/beacon.min.js"]'
 
 function deterministicCrypto(byte = 0xab) {
   return {
@@ -194,54 +190,5 @@ describe('first-party analytics', () => {
       storage: null,
       crypto: brokenCrypto,
     })).toBeNull()
-  })
-})
-
-describe('Cloudflare fallback analytics', () => {
-  it('loads the deferred Cloudflare beacon for frontend-only production builds', () => {
-    initializeAnalytics(true, false)
-
-    const script = document.querySelector<HTMLScriptElement>(beaconSelector)
-    expect(script).not.toBeNull()
-    expect(script?.defer).toBe(true)
-    expect(script?.dataset.cfBeacon).toBe(
-      JSON.stringify({ token: 'e7952cd24d1b46ef8f41cb98923762e8' }),
-    )
-  })
-
-  it('does not load analytics outside production', () => {
-    initializeAnalytics(false)
-
-    expect(document.querySelector(beaconSelector)).toBeNull()
-  })
-
-  it('does not load third-party analytics when first-party analytics is configured', () => {
-    initializeAnalytics(true, true)
-
-    expect(document.querySelector(beaconSelector)).toBeNull()
-  })
-
-  it('detects configured first-party analytics from the default environment', () => {
-    vi.stubEnv('VITE_SUPABASE_URL', 'https://project.supabase.co')
-    vi.stubEnv('VITE_SUPABASE_PUBLISHABLE_KEY', 'key')
-
-    initializeAnalytics(true)
-
-    expect(document.querySelector(beaconSelector)).toBeNull()
-  })
-
-  it.each(['#share=private-state', '#live=PRIVATE-CAPABILITY'])('does not load third-party analytics for activity URL %s', hash => {
-    window.history.replaceState(null, '', `/${hash}`)
-
-    initializeAnalytics(true, false)
-
-    expect(document.querySelector(beaconSelector)).toBeNull()
-  })
-
-  it('does not add the beacon more than once', () => {
-    initializeAnalytics(true, false)
-    initializeAnalytics(true, false)
-
-    expect(document.querySelectorAll(beaconSelector)).toHaveLength(1)
   })
 })

@@ -16,4 +16,6 @@ Local activities and identities are stored in browser `localStorage`. Live activ
 
 Anyone with a complete live URL can read and edit that activity. There are no accounts, participant-level permissions, token revocation, or audit trail in this release. Treat leaked URLs as compromised and avoid regulated or highly sensitive data.
 
+Anonymous RPCs use a secret-peppered request identifier for throttling, and expected invalid input consumes rate-limit budget without being stored. Shared snapshot URLs are decoded with strict compressed-input and expanded-output limits. The static host cannot set `frame-ancestors` headers, so the app also refuses to render interactive controls while embedded in another page.
+
 Reports involving capability leakage, RPC privilege escalation, rate-limit bypasses, browser storage exposure, exported summaries, dependency vulnerabilities, or deployment configuration are in scope. Never include a real live activity URL, database password, service-role key, or Supabase access token in a report.
