@@ -273,6 +273,55 @@ test('centers the create activity dialog on mobile and completes the flow', asyn
   await expect(page.getByRole('heading', { name: 'Centered weekend' })).toBeVisible()
 })
 
+test('keeps share and add expense together in the mobile action row', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('./')
+  await page.getByLabel('Display name').fill('Mobile Sharer')
+  await page.getByRole('button', { name: 'Continue' }).click()
+  await page.getByRole('button', { name: 'Create an activity' }).click()
+  await page.getByLabel('Activity name').fill('Aligned weekend')
+  await page.getByRole('button', { name: 'Create activity' }).click()
+
+  await page.getByRole('button', { name: 'Add expense' }).click()
+  await page.getByLabel('Description').fill('Lunch')
+  await page.getByRole('spinbutton', { name: 'Amount' }).fill('24')
+  await page.getByRole('button', { name: 'Save expense' }).click()
+
+  const actionRow = page.locator('.group-primary-actions')
+  await expect(actionRow.getByRole('button', { name: 'Add expense' })).toBeVisible()
+  await expect(actionRow.getByRole('button', { name: 'Share', exact: true })).toBeVisible()
+
+  const layout = await actionRow.evaluate(element => {
+    const buttons = Array.from(element.querySelectorAll('button')).map(button => {
+      const bounds = button.getBoundingClientRect()
+      return {
+        label: button.textContent?.trim(),
+        top: bounds.top,
+        right: bounds.right,
+        bottom: bounds.bottom,
+        left: bounds.left,
+        width: bounds.width,
+      }
+    })
+    return {
+      addExpense: buttons.find(button => button.label === 'Add expense'),
+      share: buttons.find(button => button.label === 'Share'),
+      viewportWidth: window.innerWidth,
+    }
+  })
+
+  expect(layout.addExpense).toBeDefined()
+  expect(layout.share).toBeDefined()
+  expect(Math.abs(layout.addExpense!.top - layout.share!.top)).toBeLessThanOrEqual(1)
+  expect(Math.abs(layout.addExpense!.bottom - layout.share!.bottom)).toBeLessThanOrEqual(1)
+  expect(layout.addExpense!.left).toBeGreaterThanOrEqual(20)
+  expect(layout.share!.right).toBeLessThanOrEqual(layout.viewportWidth - 20)
+  expect(layout.addExpense!.width).toBeGreaterThan(layout.share!.width)
+
+  await actionRow.getByRole('button', { name: 'Share', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: 'Share activity' })).toBeVisible()
+})
+
 test('centers compact mobile dialogs and keeps long forms as sheets', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 667 })
   await page.goto('./')

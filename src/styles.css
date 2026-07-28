@@ -502,10 +502,12 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
   .activity-currency--localized { width: 166px; }
   .currency-menu { right: auto; left: 0; }
   .group-share { width: 100%; align-items: flex-start; }
-  .group-actions { width: 100%; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; }
-  .group-context-actions, .group-primary-actions { display: contents; }
-  .group-actions .share-button { margin-left: auto; }
-  .group-primary-actions .confirm-button { flex: 1 0 100%; }
+  .group-actions { width: 100%; display: grid; gap: 12px; }
+  .group-context-actions { width: 100%; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 9px; }
+  .group-primary-actions { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; gap: 9px; }
+  .group-primary-actions:empty { display: none; }
+  .group-actions .share-button { grid-column: 2; grid-row: 1; margin: 0; }
+  .group-primary-actions .confirm-button { grid-column: 1; grid-row: 1; width: 100%; }
   .activity-feedback { text-align: left; }
   .activity-empty { min-height: 330px; padding-block: 34px; }
   .shared-preview { margin: 14px 18px 0; align-items: stretch; flex-direction: column; }
@@ -542,7 +544,6 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
   .settlement-row .row-copy { min-width: calc(100% - 96px); }
   .settlement-action { width: 100%; justify-content: flex-end; }
   .form-grid { grid-template-columns: 1fr; }
-  .group-actions { display: flex; }
   .shared-preview > div:last-child { grid-template-columns: 1fr; }
   .live-status-actions { grid-template-columns: 1fr; }
   .live-status-actions button:only-child { grid-column: auto; }
