@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(57);
+select plan(60);
 
 select has_table('private', 'analytics_events', 'private analytics storage exists');
 select columns_are(
@@ -171,6 +171,32 @@ select is(
   ),
   1::bigint,
   'Live sharing clicks retain their server-side event time without activity data'
+);
+
+select lives_ok(
+  $$select public.record_analytics_event('friend_added', 'local', '3456789abcdef0123456789abcdef012', 'en')$$,
+  'a successful friend addition is recorded'
+);
+select is(
+  (
+    select count(*)
+    from private.analytics_events
+    where event_name = 'friend_added'
+      and surface = 'local'
+      and currency is null
+      and occurred_at is not null
+  ),
+  1::bigint,
+  'friend additions retain only the approved anonymous event fields'
+);
+select is(
+  (
+    select events
+    from private.analytics_daily
+    where event_name = 'friend_added' and surface = 'local'
+  ),
+  1::bigint,
+  'daily analytics reports include successful friend additions'
 );
 
 create temporary table analytics_count_before_invalid as

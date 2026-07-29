@@ -139,6 +139,29 @@ describe('first-party analytics', () => {
     })
   })
 
+  it('records a friend addition without friend details or counts', () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
+    const client = createConfiguredAnalyticsClient({
+      VITE_SUPABASE_URL: 'https://project.supabase.co',
+      VITE_SUPABASE_PUBLISHABLE_KEY: 'publishable-key',
+    }, {
+      enabled: true,
+      fetcher,
+      storage: null,
+      crypto: deterministicCrypto(6),
+    })!
+
+    client.track('friend_added', 'live', 'en')
+
+    expect(JSON.parse(fetcher.mock.calls[0][1].body as string)).toEqual({
+      p_event_name: 'friend_added',
+      p_surface: 'live',
+      p_session_token: '06'.repeat(16),
+      p_locale: 'en',
+      p_currency: null,
+    })
+  })
+
   it('uses browser fetch, crypto, and session storage by default', () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
     Object.defineProperty(window, 'fetch', { configurable: true, value: fetcher })

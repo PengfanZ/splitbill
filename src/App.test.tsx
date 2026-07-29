@@ -795,6 +795,9 @@ describe('complete app workflows', () => {
     await user.type(screen.getByLabelText('Activity name'), 'Analytics trip')
     await user.type(screen.getByLabelText(/Add friends/), 'Maya')
     await user.click(screen.getByRole('button', { name: 'Create activity' }))
+    await user.click(screen.getAllByRole('button', { name: 'Add friend' })[0])
+    await user.type(screen.getByLabelText(/Friend names/), 'Jordan')
+    await user.click(screen.getByRole('button', { name: 'Add friends' }))
     await user.click(screen.getByRole('button', { name: 'Add expense' }))
     await user.type(screen.getByLabelText('Description'), 'Dinner')
     await user.type(screen.getByLabelText('Amount'), '20')
@@ -807,6 +810,8 @@ describe('complete app workflows', () => {
     expect(analyticsClient.track.mock.calls).toEqual([
       ['app_opened', 'local', 'en'],
       ['activity_created', 'local', 'en'],
+      ['friend_added', 'local', 'en'],
+      ['friend_added', 'local', 'en'],
       ['expense_added', 'local', 'en'],
       ['settlement_recorded', 'local', 'en'],
     ])
@@ -1674,7 +1679,8 @@ describe('complete app workflows', () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
     window.history.replaceState(null, '', `/${LIVE_ACTIVITY_HASH_PREFIX}${credentials.code}.${credentials.editToken}`)
-    const { unmount } = render(<App liveActivityClient={client} />)
+    const analyticsClient = { track: vi.fn() } satisfies AnalyticsClient
+    const { unmount } = render(<App analyticsClient={analyticsClient} liveActivityClient={client} />)
 
     expect(await screen.findByLabelText('Live activity')).toBeVisible()
     expect(await screen.findByText('Live · revision 1')).toBeVisible()
@@ -1692,6 +1698,7 @@ describe('complete app workflows', () => {
     await user.click(screen.getByRole('button', { name: 'Add friends' }))
     expect(await screen.findByText('Sam')).toBeVisible()
     expect(screen.getByText('Live · revision 2')).toBeVisible()
+    expect(analyticsClient.track).toHaveBeenCalledWith('friend_added', 'live', 'en')
 
     await user.click(screen.getByRole('button', { name: 'Add expense' }))
     await user.type(screen.getByLabelText('Description'), 'Parking')
@@ -1729,7 +1736,7 @@ describe('complete app workflows', () => {
 
     unmount()
     window.history.replaceState(null, '', '/')
-    render(<App liveActivityClient={client} />)
+    render(<App analyticsClient={analyticsClient} liveActivityClient={client} />)
     expect(await screen.findByText('Live · revision 5')).toBeVisible()
     expect(window.location.hash).toContain(`${LIVE_ACTIVITY_HASH_PREFIX}${credentials.code}.`)
 
@@ -1837,7 +1844,8 @@ describe('complete app workflows', () => {
     } satisfies LiveActivityClient
 
     window.history.replaceState(null, '', `/${LIVE_ACTIVITY_HASH_PREFIX}${credentials.code}.${credentials.editToken}`)
-    render(<App liveActivityClient={client} />)
+    const analyticsClient = { track: vi.fn() } satisfies AnalyticsClient
+    render(<App analyticsClient={analyticsClient} liveActivityClient={client} />)
     expect(await screen.findByText('Live · revision 1')).toBeVisible()
 
     await user.click(screen.getAllByRole('button', { name: 'Add friend' })[0])
@@ -1847,6 +1855,7 @@ describe('complete app workflows', () => {
     expect(await screen.findByText('Live sharing has ended')).toBeVisible()
     expect(screen.getByText('Dinner', { exact: true })).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Add expense' })).not.toBeInTheDocument()
+    expect(analyticsClient.track).not.toHaveBeenCalledWith('friend_added', 'live', 'en')
   })
 
   it('serializes saves from one live browser tab', async () => {

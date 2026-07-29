@@ -6,6 +6,7 @@ export const ANALYTICS_SESSION_KEY = 'tally:analytics-session:v1'
 export const ANALYTICS_EVENTS = [
   'app_opened',
   'activity_created',
+  'friend_added',
   'expense_added',
   'live_share_clicked',
   'live_activity_created',
