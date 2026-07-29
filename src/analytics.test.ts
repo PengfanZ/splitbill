@@ -170,7 +170,7 @@ describe('first-party analytics', () => {
       VITE_SUPABASE_PUBLISHABLE_KEY: 'key',
     }, { enabled: true })!
 
-    client.track('app_opened', 'snapshot', 'en')
+    client.track('app_opened', 'local', 'en')
 
     expect(fetcher).toHaveBeenCalledOnce()
     expect(sessionStorage.getItem(ANALYTICS_SESSION_KEY)).toMatch(/^[a-f0-9]{32}$/)

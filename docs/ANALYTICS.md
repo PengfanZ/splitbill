@@ -16,7 +16,7 @@ The browser may send only these event names:
 - `settlement_recorded`
 - `currency_selected`
 
-Each event also has exactly one surface (`local`, `live`, or `snapshot`) and one resolved app locale (`en` or `zh-CN`). `currency_selected` additionally includes one constrained ISO currency code from Tally’s supported list; every other event must omit it. The locale is the language Tally is currently displaying, including a saved manual choice; it is not a country, GPS coordinate, IP-derived location, or full browser-language fingerprint. The request contains a random 128-bit session token stored in browser session storage. The database stores only its SHA-256 hash, which supports within-session funnels without creating a persistent visitor profile.
+Each current event also has exactly one surface (`local` or `live`) and one resolved app locale (`en` or `zh-CN`). Historical rows from versions that supported URL snapshots may still contain the legacy `snapshot` surface. `currency_selected` additionally includes one constrained ISO currency code from Tally’s supported list; every other event must omit it. The locale is the language Tally is currently displaying, including a saved manual choice; it is not a country, GPS coordinate, IP-derived location, or full browser-language fingerprint. The request contains a random 128-bit session token stored in browser session storage. The database stores only its SHA-256 hash, which supports within-session funnels without creating a persistent visitor profile.
 
 Historical events and requests from older installed PWAs are stored as `unknown`. This avoids misclassifying legacy traffic as English while the new frontend version rolls out.
 

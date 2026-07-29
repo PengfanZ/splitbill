@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CURRENT_USER } from '../../domain/members'
-import { createSharedActivity } from '../sharing/shareActivityUrl'
+import { createSharedActivity } from '../sharing/sharedActivity'
 import {
   LIVE_ACTIVITY_MIRRORS_KEY,
   LIVE_ACTIVITY_TTL_MS,

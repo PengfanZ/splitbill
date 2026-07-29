@@ -1,7 +1,7 @@
 import { QueryClient } from '@tanstack/react-query'
 import { describe, expect, it, vi } from 'vitest'
 import { CURRENT_USER } from '../../domain/members'
-import { createSharedActivity } from '../sharing/shareActivityUrl'
+import { createSharedActivity } from '../sharing/sharedActivity'
 import type { LiveActivityRecord } from './liveActivityApi'
 import type { LiveActivityClient } from './liveActivityConfig'
 import {

@@ -20,8 +20,8 @@ import { LIVE_ACTIVITY_BOOKMARKS_KEY } from './features/liveSharing/useLiveActiv
 import { LIVE_ACTIVITY_MIRRORS_KEY, createLiveActivityMirror } from './features/liveSharing/useLiveActivityMirrors'
 import { LIVE_ACTIVITY_POLL_INTERVAL_MS } from './features/liveSharing/liveActivityQuery'
 import { buildShareSummary, createSummaryCard, exportActivitySummary, SHARE_MESSAGES, shareActivitySummary } from './features/sharing/shareActivity'
-import { SharedActivityIdentityModal } from './features/sharing/SharedActivityIdentityModal'
-import { createSharedActivity, encodeSharedActivity, LINK_SENDER, SHARE_HASH_PREFIX, type SharedActivity } from './features/sharing/shareActivityUrl'
+import { LiveActivityIdentityModal } from './features/sharing/LiveActivityIdentityModal'
+import { createSharedActivity, type SharedActivity } from './features/sharing/sharedActivity'
 import { LocalizationProvider } from './i18n/LocalizationContext'
 
 const maya: Member = { id: 'maya', name: 'Maya Chen', initials: 'MC', color: '#abc' }
@@ -47,16 +47,6 @@ const storedState = (overrides: Partial<PersistedState> = {}): PersistedState =>
   selectedGroupId: group.id,
   ...overrides,
 })
-
-function incompressibleText(length: number) {
-  let value = ''
-  let seed = 987_654_321
-  for (let index = 0; index < length; index += 1) {
-    seed = (Math.imul(seed, 1_664_525) + 1_013_904_223) >>> 0
-    value += String.fromCharCode(32 + (seed % 95))
-  }
-  return value
-}
 
 beforeEach(() => {
   vi.restoreAllMocks()
@@ -472,10 +462,9 @@ describe('small UI building blocks', () => {
     await user.click(screen.getByRole('button', { name: 'Add friend' }))
     expect(addFriend).toHaveBeenCalledOnce()
 
-    rerender(<GroupDashboard group={group} members={[CURRENT_USER, maya, jordan]} expenses={[expense()]} query="" activityFeedback="Summary copied." statusLabel="Live · revision 2" onShareSummary={share} onShareQr={shareQr} onShareLive={shareLive} onAddFriend={addFriend} onAddExpense={addExpense} onSettleUp={settleUp} onEditExpense={editExpense} onDeleteExpense={deleteExpense} />)
+    rerender(<GroupDashboard group={group} members={[CURRENT_USER, maya, jordan]} expenses={[expense()]} query="" activityFeedback="Summary copied." statusLabel="Local" onShareSummary={share} onShareLive={shareLive} onAddFriend={addFriend} onAddExpense={addExpense} onSettleUp={settleUp} onEditExpense={editExpense} onDeleteExpense={deleteExpense} />)
     expect(screen.getByRole('status')).toHaveTextContent('Summary copied.')
-    expect(screen.getByText('Live · revision 2')).toBeVisible()
-    await chooseShareAction(user, 'Show snapshot QR')
+    expect(screen.getByText('Local')).toBeVisible()
     await chooseShareAction(user, 'Start live activity')
     await chooseShareAction(user, 'Share balances only')
     await user.click(screen.getByRole('button', { name: 'Add friend' }))
@@ -485,10 +474,14 @@ describe('small UI building blocks', () => {
     expect(addFriend).toHaveBeenCalledTimes(2)
     expect(addExpense).toHaveBeenCalledOnce()
     expect(share).toHaveBeenCalledOnce()
-    expect(shareQr).toHaveBeenCalledOnce()
     expect(shareLive).toHaveBeenCalledOnce()
     expect(editExpense).toHaveBeenCalledWith(expect.objectContaining({ title: 'Dinner' }))
     expect(settleUp).toHaveBeenCalledWith(expect.objectContaining({ amount: 10 }))
+
+    rerender(<GroupDashboard group={group} members={[CURRENT_USER, maya, jordan]} expenses={[expense()]} query="" activityFeedback={null} statusLabel="Live · revision 2" onShareQr={shareQr} onCopyShareLink={vi.fn()} />)
+    expect(screen.getByText('Live · revision 2')).toBeVisible()
+    await chooseShareAction(user, 'Show live QR')
+    expect(shareQr).toHaveBeenCalledOnce()
 
     rerender(<GroupDashboard group={group} members={[CURRENT_USER, maya]} expenses={[]} query="" activityFeedback={null} onAddExpense={addExpense} />)
     expect(screen.getByText('No expenses yet')).toBeVisible()
@@ -501,7 +494,7 @@ describe('small UI building blocks', () => {
     expect(screen.queryByRole('button', { name: 'Add expense' })).not.toBeInTheDocument()
 
     rerender(<GroupDashboard group={group} members={[CURRENT_USER, maya]} expenses={[expense()]} query="" activityFeedback={null} readOnly />)
-    expect(screen.getByText('Read-only snapshot')).toBeVisible()
+    expect(screen.getByText('Read only')).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Share' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Add friend' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Edit Dinner' })).not.toBeInTheDocument()
@@ -703,32 +696,27 @@ describe('modals', () => {
     expect(onSave).not.toHaveBeenCalled()
   })
 
-  it('lets a shared-link recipient choose their participant identity', async () => {
+  it('lets a Live participant choose their identity for a local copy', async () => {
     const user = userEvent.setup()
     const onClose = vi.fn()
     const onSave = vi.fn()
-    const { container: sharedIdentityContainer, rerender, unmount } = render(<SharedActivityIdentityModal members={[LINK_SENDER, maya]} onClose={onClose} onSave={onSave} />)
+    const { container: sharedIdentityContainer, rerender, unmount } = render(<LiveActivityIdentityModal members={[CURRENT_USER, maya]} mode="live-copy" onClose={onClose} onSave={onSave} />)
 
     expect(sharedIdentityContainer.querySelector('.modal-backdrop')).toHaveClass('modal-backdrop--center')
     expect(screen.getByLabelText('Your participant')).toHaveValue('me')
     await user.selectOptions(screen.getByLabelText('Your participant'), maya.id)
-    await user.click(screen.getByRole('button', { name: 'Save my copy' }))
+    await user.click(screen.getByRole('button', { name: 'Create editable copy' }))
     expect(onSave).toHaveBeenCalledWith(maya.id)
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(onClose).toHaveBeenCalledOnce()
 
-    rerender(<SharedActivityIdentityModal members={[LINK_SENDER, maya]} mode="live-copy" onClose={onClose} onSave={onSave} />)
-    expect(screen.getByRole('heading', { name: 'Who are you in this copy?' })).toBeVisible()
-    expect(screen.getByText(/will not sync back/)).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Create editable copy' })).toBeEnabled()
-
-    rerender(<SharedActivityIdentityModal members={[LINK_SENDER, maya]} mode="live-recovery" onClose={onClose} onSave={onSave} />)
+    rerender(<LiveActivityIdentityModal members={[CURRENT_USER, maya]} mode="live-recovery" onClose={onClose} onSave={onSave} />)
     expect(screen.getByText(/Live session has ended/)).toBeVisible()
     expect(screen.getByRole('button', { name: 'Save editable activity' })).toBeEnabled()
 
     unmount()
-    const { container } = render(<SharedActivityIdentityModal members={[]} onClose={onClose} onSave={onSave} />)
-    expect(screen.getByRole('button', { name: 'Save my copy' })).toBeDisabled()
+    const { container } = render(<LiveActivityIdentityModal members={[]} mode="live-copy" onClose={onClose} onSave={onSave} />)
+    expect(screen.getByRole('button', { name: 'Create editable copy' })).toBeDisabled()
     fireEvent.submit(container.querySelector('form')!)
     expect(onSave).toHaveBeenCalledOnce()
   })
@@ -882,9 +870,9 @@ describe('complete app workflows', () => {
     await user.click(screen.getByRole('button', { name: 'Close' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
-    await chooseShareAction(user, 'Show snapshot QR')
-    expect(await screen.findByRole('dialog', { name: 'Scan to open Trip' })).toBeVisible()
-    await user.click(screen.getAllByRole('button', { name: 'Close' })[0])
+    await user.click(screen.getByRole('button', { name: 'Share' }))
+    expect(screen.getByRole('dialog', { name: 'Share activity' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Close' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Join activity' }))
@@ -925,20 +913,6 @@ describe('complete app workflows', () => {
     await chooseShareAction(user, 'Share balances only')
     expect(await screen.findByRole('status')).toHaveTextContent('Summary copied')
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Maya pays You $15.00'))
-
-    await chooseShareAction(user, 'Show snapshot QR')
-    expect(await screen.findByRole('dialog', { name: 'Scan to open Road trip' })).toBeVisible()
-    expect(screen.getByLabelText('Road trip shared activity QR code').querySelector('svg')).toBeTruthy()
-    await user.click(screen.getByRole('button', { name: 'Copy link' }))
-    expect(await screen.findByRole('status')).toHaveTextContent('Activity link copied')
-    expect(writeText).toHaveBeenLastCalledWith(expect.stringContaining('#share='))
-
-    const nativeShare = vi.fn().mockResolvedValue(undefined)
-    Object.defineProperty(navigator, 'share', { configurable: true, value: nativeShare })
-    await chooseShareAction(user, 'Show snapshot QR')
-    await user.click(await screen.findByRole('button', { name: 'Share link' }))
-    expect(nativeShare).toHaveBeenCalledWith(expect.objectContaining({ title: 'Road trip — Tally', text: 'View Road trip in Tally.', url: expect.stringContaining('#share=') }))
-    expect(await screen.findByRole('status')).toHaveTextContent('Activity link shared')
 
     await user.type(screen.getByRole('textbox', { name: 'Search expenses' }), 'zzz')
     expect(screen.getByText('No expenses match your search.')).toBeVisible()
@@ -994,43 +968,6 @@ describe('complete app workflows', () => {
     render(<App />)
     expect(screen.getByRole('button', { name: 'Activity currency, EUR' })).toBeVisible()
     expect(screen.getAllByText('€24.00').length).toBeGreaterThan(0)
-  })
-
-  it('guides oversized activities to the summary fallback instead of rendering an unreliable QR code', async () => {
-    const user = userEvent.setup()
-    const oversizedGroup = { ...group, name: incompressibleText(4_000) }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState({ groups: [oversizedGroup] })))
-    render(<App />)
-
-    await chooseShareAction(user, 'Show snapshot QR')
-    expect(await screen.findByRole('status')).toHaveTextContent('too large for a reliable QR code')
-    expect(screen.queryByText(/Scan to open/)).not.toBeInTheDocument()
-  })
-
-  it('copies a snapshot directly from the share menu and reports clipboard failures', async () => {
-    const user = userEvent.setup()
-    const writeText = vi.fn().mockResolvedValue(undefined)
-    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState()))
-    render(<App />)
-
-    await chooseShareAction(user, 'Copy snapshot link')
-    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('#share='))
-    expect(await screen.findByRole('status')).toHaveTextContent('Activity link copied')
-
-    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined })
-    await chooseShareAction(user, 'Copy snapshot link')
-    expect(await screen.findByRole('status')).toHaveTextContent('Could not share the activity link')
-  })
-
-  it('reports when a snapshot is too large for a copyable URL', async () => {
-    const user = userEvent.setup()
-    const oversizedGroup = { ...group, name: incompressibleText(14_000) }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState({ groups: [oversizedGroup] })))
-    render(<App />)
-
-    await chooseShareAction(user, 'Copy snapshot link')
-    expect(await screen.findByRole('status')).toHaveTextContent('too large for a reliable URL')
   })
 
   it('moves a pasted live link into the current app session and can reopen the same link', async () => {
@@ -1147,62 +1084,23 @@ describe('complete app workflows', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('opens URL state as read-only and saves an isolated local copy explicitly', async () => {
-    const user = userEvent.setup()
+  it('clears retired snapshot fragments without changing local data', async () => {
     const analyticsClient = { track: vi.fn() } satisfies AnalyticsClient
-    const sender = { ...CURRENT_USER, name: 'Alex', initials: 'A' }
-    const shared = createSharedActivity(group, [sender, maya, jordan], [expense()])
-    window.history.replaceState(null, '', `/${SHARE_HASH_PREFIX}${encodeSharedActivity(shared)}`)
-    const { unmount } = render(<App analyticsClient={analyticsClient} />)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState({ expenses: [expense()] })))
+    window.history.replaceState(null, '', '/#share=retired')
+    render(<App analyticsClient={analyticsClient} />)
 
-    expect(screen.getByLabelText('Shared activity preview')).toBeVisible()
     expect(screen.getByRole('heading', { name: 'Trip' })).toBeVisible()
-    expect(screen.getByText('Read-only snapshot')).toBeVisible()
-    expect(screen.getByText('Alex paid')).toBeVisible()
-    expect(screen.getByText('Alex is owed')).toBeVisible()
-    expect(screen.queryByRole('button', { name: 'Add expense' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Edit Dinner' })).not.toBeInTheDocument()
-    expect(parseState(localStorage.getItem(STORAGE_KEY)).groups).toHaveLength(0)
+    expect(screen.getByText('Dinner')).toBeVisible()
+    expect(screen.queryByText(/snapshot/i)).not.toBeInTheDocument()
+    expect(parseState(localStorage.getItem(STORAGE_KEY)).expenses).toHaveLength(1)
+    expect(analyticsClient.track).toHaveBeenCalledWith('app_opened', 'local', 'en')
+    await waitFor(() => expect(window.location.hash).toBe(''))
 
-    await user.click(screen.getByRole('button', { name: 'Save a local copy' }))
-    expect(screen.getByRole('dialog', { name: 'Who are you in this activity?' })).toBeVisible()
-    await user.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(screen.getByLabelText('Shared activity preview')).toBeVisible()
-    await user.click(screen.getByRole('button', { name: 'Save a local copy' }))
-    await user.selectOptions(screen.getByLabelText('Your participant'), maya.id)
-    await user.click(screen.getByRole('button', { name: 'Save my copy' }))
-    expect(screen.queryByLabelText('Shared activity preview')).not.toBeInTheDocument()
-    expect(window.location.hash).toBe('')
-    expect(screen.getByRole('button', { name: 'Add expense' })).toBeVisible()
-    expect(screen.getByText((_, node) => node?.textContent === 'Alex paidSplit equally · 3 people')).toBeVisible()
-    expect(screen.getByText('You owe Alex')).toBeVisible()
-    await waitFor(() => expect(parseState(localStorage.getItem(STORAGE_KEY)).groups).toHaveLength(1))
-    expect(analyticsClient.track).toHaveBeenCalledWith('app_opened', 'snapshot', 'en')
-    expect(analyticsClient.track).toHaveBeenCalledWith('activity_created', 'snapshot', 'en')
-
-    unmount()
-    localStorage.clear()
-    window.history.replaceState(null, '', `/${SHARE_HASH_PREFIX}${encodeSharedActivity(shared)}`)
-    render(<App />)
-    await user.click(screen.getByRole('button', { name: 'Back to my activities' }))
-    expect(screen.getByRole('heading', { name: 'Start your first activity' })).toBeVisible()
-    expect(window.location.hash).toBe('')
-  })
-
-  it('updates shared previews when an open tab receives a new URL fragment', () => {
-    const shared = createSharedActivity(group, [CURRENT_USER, maya, jordan], [expense()])
-    render(<App />)
-    expect(screen.getByRole('heading', { name: 'Start your first activity' })).toBeVisible()
-
-    window.history.replaceState(null, '', `/${SHARE_HASH_PREFIX}${encodeSharedActivity(shared)}`)
+    window.history.replaceState(null, '', '/#share=another-retired-link')
     fireEvent(window, new HashChangeEvent('hashchange'))
-    expect(screen.getByLabelText('Shared activity preview')).toBeVisible()
     expect(screen.getByRole('heading', { name: 'Trip' })).toBeVisible()
-
-    window.history.replaceState(null, '', '/')
-    fireEvent(window, new HashChangeEvent('hashchange'))
-    expect(screen.getByRole('heading', { name: 'Start your first activity' })).toBeVisible()
+    expect(window.location.hash).toBe('')
   })
 
   it('moves the creator into the live activity before later edits', async () => {

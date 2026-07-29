@@ -1,4 +1,4 @@
-import { isSharedActivity, type SharedActivity } from '../sharing/shareActivityUrl'
+import { isSharedActivity, type SharedActivity } from '../sharing/sharedActivity'
 import {
   isLiveActivityCredentials,
   type LiveActivityCredentials,

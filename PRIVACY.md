@@ -20,7 +20,7 @@ Anyone with the complete live URL can read and edit the activity. Share it only 
 
 The backend rate-limits requests using a secret-peppered one-way identifier derived from the client IP address; neither the raw address nor an unpeppered IP hash is stored in the application rate-limit table.
 
-Production records a small allowlist of first-party product events for both local and live workflows. Each event contains only an event name, a coarse `local`, `live`, or `snapshot` surface, a one-way hash of the session token, and the event time. Analytics never receives a page URL or fragment, activity code, edit token, participant identity, activity name, expense description, amount, balance, or activity snapshot. Event rows expire after 90 days. Browser roles can write through a validated, rate-limited RPC but cannot read analytics events or reports.
+Production records a small allowlist of first-party product events for both local and live workflows. Each current event contains only an event name, a coarse `local` or `live` surface, a one-way hash of the session token, and the event time; historical rows may retain the retired `snapshot` surface. Analytics never receives a page URL or fragment, activity code, edit token, participant identity, activity name, expense description, amount, balance, or activity state. Event rows expire after 90 days. Browser roles can write through a validated, rate-limited RPC but cannot read analytics events or reports.
 
 Tally does not load a third-party analytics beacon. A deployment without Supabase analytics configuration simply records no product analytics.
 

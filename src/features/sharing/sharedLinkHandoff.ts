@@ -1,12 +1,11 @@
 import { parseLiveActivityHash } from '../liveSharing/liveActivityLink'
-import { decodeSharedActivityHash } from './shareActivityUrl'
 
 type NavigatorWithStandalone = Navigator & { standalone?: boolean }
 
-export function extractSharedActivityHash(input: string, currentUrl = window.location.href) {
+export function extractLiveActivityHash(input: string, currentUrl = window.location.href) {
   try {
     const url = new URL(input.trim(), currentUrl)
-    return parseLiveActivityHash(url.hash) || decodeSharedActivityHash(url.hash) ? url.hash : null
+    return parseLiveActivityHash(url.hash) ? url.hash : null
   } catch {
     return null
   }

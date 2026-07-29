@@ -1,6 +1,6 @@
 import { loadBrowserStorageValue, saveBrowserStorageValue } from '../../data/browserStorage'
 import { usePersistentStorageState } from '../../hooks/usePersistentStorageState'
-import { isSharedActivity } from '../sharing/shareActivityUrl'
+import { isSharedActivity } from '../sharing/sharedActivity'
 import type { LiveActivityRecord } from './liveActivityApi'
 import { LIVE_ACTIVITY_CODE_PATTERN } from './liveActivityLink'
 

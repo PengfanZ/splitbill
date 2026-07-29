@@ -4,11 +4,11 @@ import { ModalShell } from '../../components/AppShell'
 import type { Member } from '../../domain/models'
 import { useLocalization } from '../../i18n/LocalizationContext'
 
-export type SharedActivityIdentityMode = 'snapshot' | 'live-copy' | 'live-recovery'
+export type LiveActivityIdentityMode = 'live-copy' | 'live-recovery'
 
-export function SharedActivityIdentityModal({ members, mode = 'snapshot', onClose, onSave }: {
+export function LiveActivityIdentityModal({ members, mode, onClose, onSave }: {
   members: Member[]
-  mode?: SharedActivityIdentityMode
+  mode: LiveActivityIdentityMode
   onClose: () => void
   onSave: (memberId: string) => void
 }) {
@@ -21,19 +21,12 @@ export function SharedActivityIdentityModal({ members, mode = 'snapshot', onClos
         explanation: t('live.copyExplanation'),
         save: t('live.copySave'),
       }
-    : mode === 'live-recovery'
-      ? {
-          eyebrow: t('live.recoverEyebrow'),
-          title: t('live.recoverTitle'),
-          explanation: t('live.recoverExplanation'),
-          save: t('live.recoverSave'),
-        }
-      : {
-          eyebrow: t('sharedIdentity.eyebrow'),
-          title: t('sharedIdentity.title'),
-          explanation: t('sharedIdentity.explanation'),
-          save: t('sharedIdentity.save'),
-        }
+    : {
+        eyebrow: t('live.recoverEyebrow'),
+        title: t('live.recoverTitle'),
+        explanation: t('live.recoverExplanation'),
+        save: t('live.recoverSave'),
+      }
 
   const submit = (event: FormEvent) => {
     event.preventDefault()

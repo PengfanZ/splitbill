@@ -2,7 +2,7 @@ import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/reac
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import type { PersistedState } from '../../domain/models'
 import { translate, type Translate } from '../../i18n/localization'
-import { decodeSharedActivityHash, getSharedActivitySender, type SharedActivity } from '../sharing/shareActivityUrl'
+import { getSharedActivitySender, type SharedActivity } from '../sharing/sharedActivity'
 import { LiveActivityApiError, type LiveActivityRecord } from './liveActivityApi'
 import { createConfiguredLiveActivityClient, type LiveActivityClient } from './liveActivityConfig'
 import {
@@ -35,7 +35,6 @@ export type LiveActivityConnectionState = 'opening' | 'connected' | 'cached' | '
 type UseLiveActivitySessionOptions = {
   initialSelectedGroupId: string | null
   liveActivityClient?: LiveActivityClient | null
-  onSharedActivityChange: (activity: SharedActivity | null) => void
   setPersistedState: Dispatch<SetStateAction<PersistedState>>
   t?: Translate
 }
@@ -61,7 +60,6 @@ export function liveActivityErrorMessage(error: unknown, t: Translate = englishT
 export function useLiveActivitySession({
   initialSelectedGroupId,
   liveActivityClient,
-  onSharedActivityChange,
   setPersistedState,
   t = englishT,
 }: UseLiveActivitySessionOptions) {
@@ -127,6 +125,10 @@ export function useLiveActivitySession({
   const mirror = mirroredGroupId ? mirrors[mirroredGroupId] ?? null : null
 
   useEffect(() => {
+    if (window.location.hash.startsWith('#share=')) clearLiveActivityHash()
+  }, [])
+
+  useEffect(() => {
     if (credentials && !parseLiveActivityHash(window.location.hash)) window.history.replaceState(null, '', buildLiveActivityUrl(credentials))
   }, [credentials])
 
@@ -142,18 +144,18 @@ export function useLiveActivitySession({
   }, [])
 
   useEffect(() => {
-    const syncSharedActivity = () => {
+    const syncLiveActivity = () => {
       const nextCredentials = parseLiveActivityHash(window.location.hash)
       if (nextCredentials) queryClient.removeQueries({ queryKey: liveActivityQueryKey(nextCredentials) })
+      else if (window.location.hash.startsWith('#share=')) clearLiveActivityHash()
       setCredentials(nextCredentials)
       setConnectionBlocked(false)
       setLiveEnded(false)
       setNotice(null)
-      onSharedActivityChange(nextCredentials ? null : decodeSharedActivityHash(window.location.hash))
     }
-    window.addEventListener('hashchange', syncSharedActivity)
-    return () => window.removeEventListener('hashchange', syncSharedActivity)
-  }, [onSharedActivityChange, queryClient])
+    window.addEventListener('hashchange', syncLiveActivity)
+    return () => window.removeEventListener('hashchange', syncLiveActivity)
+  }, [queryClient])
 
   useEffect(() => {
     if (!credentials) return

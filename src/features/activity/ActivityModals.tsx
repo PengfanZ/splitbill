@@ -6,7 +6,7 @@ import { createEqualShares, createExactShares, createExpenseTimestamp, createSet
 import { makeId } from '../../domain/members'
 import type { ActivityGroup, Expense, Member, Settlement, SplitMethod } from '../../domain/models'
 import { useLocalization } from '../../i18n/LocalizationContext'
-import { MAX_ACTIVITY_AMOUNT } from '../sharing/shareActivityUrl'
+import { MAX_ACTIVITY_AMOUNT } from '../sharing/sharedActivity'
 
 export function CreateGroupModal({ onClose, onCurrencySelect, onSave }: {
   onClose: () => void

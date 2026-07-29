@@ -65,7 +65,7 @@ export function LiveActivityStatusBanner({
         {notice && (cached || expired) ? <small role="status">{notice}</small> : null}
       </div>
       <div className="live-status-actions">
-        {!hasBookmark && onBack ? <button className="outline-button" onClick={onBack}>{t('shared.back')}</button> : null}
+        {!hasBookmark && onBack ? <button className="outline-button" onClick={onBack}>{t('live.back')}</button> : null}
         {(connected || cached || state === 'unavailable') && browserOnline && onRefresh ? (
           <button className="outline-button" onClick={onRefresh} disabled={refreshing}>
             <RefreshCw size={15} />{refreshing ? t('common.loading') : t(connected ? 'live.refresh' : 'live.retry')}

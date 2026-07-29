@@ -35,13 +35,11 @@ The production build generates an installable manifest, standard and maskable ic
 
 Same-origin precached assets are served by exact URL, with `Vary` ignored because every entry is a build-controlled immutable asset. Any same-origin request that is not already in the versioned precache goes to the network and is not added at runtime. Navigation falls back to the cached `index.html`, allowing browser-local activities from `localStorage` to render offline; live activities still require the network to load or synchronize. New service workers wait until existing app tabs close instead of forcing a reload that could interrupt an expense form.
 
-Safari does not reliably route ordinary HTTPS links into an installed Home Screen web app. Tally handles that boundary explicitly: a shared activity opened in a browser can copy its full fragment-bearing URL, and the installed app's **Join activity** flow validates the live capability or snapshot before applying only its fragment to the current PWA session. The capability remains client-side and is not placed in a query string or sent through an intermediate handoff service.
+Safari does not reliably route ordinary HTTPS links into an installed Home Screen web app. Tally handles that boundary explicitly: a Live activity opened in a browser can copy its full fragment-bearing URL, and the installed app's **Join activity** flow validates the Live capability before applying only its fragment to the current PWA session. The capability remains client-side and is not placed in a query string or sent through an intermediate handoff service.
 
-## URL-state sharing experiment
+## Sharing boundary
 
-`shareActivityUrl.ts` defines a versioned activity snapshot independent of the local-storage schema. New snapshots use an LZ-compressed `#share=z.…` payload, while the decoder retains compatibility with earlier base64url links. It bounds the incoming token and decoded payload before validating every member, expense, relationship, and split. Shared fragments open read-only and do not write to local storage; first-party measurement receives only the `snapshot` surface. Saving requires the recipient to choose their participant, remaps that participant to `me`, and creates new IDs for every other imported entity so copies cannot overwrite existing records.
-
-URL state is a transport rather than synchronization: every edit produces a new snapshot, and there is no canonical latest version or automatic conflict resolution.
+Tally does not encode complete activities into share URLs. A local activity can start a capability-protected Live session or export a PNG balance summary. Once Live, its short capability URL can be copied, shared through the device sheet, or rendered as a QR code. `src/features/sharing/sharedActivity.ts` defines the validated activity payload used by the Live backend and consistently remaps identities when a person explicitly duplicates a cached Live activity into an independent local copy.
 
 ## Live-sharing backend
 
@@ -63,4 +61,4 @@ Put financial calculations in pure domain helpers, browser APIs behind data or f
 
 Equal expenses store shares only for the selected participants. This keeps partial-group splits compatible with the existing expense schema and lets expense history display the participant count without a separate membership field.
 
-Settlement payments use the same transaction shape with `kind: "settlement"`: the payer is the person sending money and the single share belongs to the recipient. This lets the balance engine account for repayments without a parallel ledger. Spending summaries and exports exclude settlement amounts from total spending while preserving the payment in activity history, URL snapshots, and live Supabase state.
+Settlement payments use the same transaction shape with `kind: "settlement"`: the payer is the person sending money and the single share belongs to the recipient. This lets the balance engine account for repayments without a parallel ledger. Spending summaries and exports exclude settlement amounts from total spending while preserving the payment in local history, recovery copies, and Live Supabase state.
