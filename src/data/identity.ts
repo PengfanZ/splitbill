@@ -1,5 +1,6 @@
 import { CURRENT_USER, initialsFor } from '../domain/members'
 import type { Member } from '../domain/models'
+import { loadBrowserStorageValue, saveBrowserStorageValue } from './browserStorage'
 
 export const IDENTITY_KEY = 'tally:identity:v1'
 
@@ -32,18 +33,9 @@ export function parseIdentity(stored: string | null): Member | null {
 }
 
 export function loadIdentity() {
-  try {
-    return parseIdentity(localStorage.getItem(IDENTITY_KEY))
-  } catch {
-    return null
-  }
+  return loadBrowserStorageValue(IDENTITY_KEY, parseIdentity, null)
 }
 
 export function saveIdentity(identity: Member) {
-  try {
-    const serialized = JSON.stringify(identity)
-    if (localStorage.getItem(IDENTITY_KEY) !== serialized) localStorage.setItem(IDENTITY_KEY, serialized)
-  } catch {
-    // Keep the app usable when local storage is unavailable.
-  }
+  saveBrowserStorageValue(IDENTITY_KEY, identity)
 }

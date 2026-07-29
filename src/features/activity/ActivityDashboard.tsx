@@ -21,10 +21,20 @@ import { ActivityCurrencyControl } from './ActivityCurrencyControl'
 export function ActivitySummary({ expenses, currency = 'USD', currentUserLabel }: { expenses: Expense[]; currency?: CurrencyCode; currentUserLabel?: string }) {
   const { locale, t } = useLocalization()
   const userLabel = currentUserLabel ?? t('common.you')
-  const spending = spendingExpenses(expenses)
-  const total = spending.reduce((sum, expense) => sum + expense.amount, 0)
-  const paid = spending.reduce((sum, expense) => sum + (expense.payerId === 'me' ? expense.amount : 0), 0)
-  const balance = calculateMemberBalance('me', expenses)
+  const { balance, paid, total } = useMemo(() => {
+    const spending = spendingExpenses(expenses)
+    let total = 0
+    let paid = 0
+    for (const expense of spending) {
+      total += expense.amount
+      if (expense.payerId === 'me') paid += expense.amount
+    }
+    return {
+      balance: calculateMemberBalance('me', expenses),
+      paid,
+      total,
+    }
+  }, [expenses])
   const namedUser = currentUserLabel && currentUserLabel !== 'You' && currentUserLabel !== t('common.you')
   const balanceLabel = namedUser
     ? t(balance > 0 ? 'dashboard.memberIsOwed' : balance < 0 ? 'dashboard.memberOwesBalance' : 'dashboard.memberBalance', { name: currentUserLabel })
@@ -41,7 +51,7 @@ export function ActivitySummary({ expenses, currency = 'USD', currentUserLabel }
 
 export function SettlementDirections({ members, expenses, currency = 'USD', currentUserLabel, onSettleUp }: { members: Member[]; expenses: Expense[]; currency?: CurrencyCode; currentUserLabel?: string; onSettleUp?: (settlement: Settlement) => void }) {
   const { locale, t } = useLocalization()
-  const settlements = calculateSettlements(members, expenses)
+  const settlements = useMemo(() => calculateSettlements(members, expenses), [expenses, members])
   const currentUserOwes = currentUserLabel && currentUserLabel !== 'You' && currentUserLabel !== t('common.you')
     ? t('dashboard.memberOwes', { name: currentUserLabel })
     : t('dashboard.youOwe')
@@ -74,13 +84,13 @@ export function ExpenseList({ expenses, members, currency = 'USD', query, readOn
   const { locale, t, formatDateTime } = useLocalization()
   const memberMap = useMemo(() => new Map(members.map(member => [member.id, member])), [members])
   const normalizedQuery = query.toLowerCase()
-  const visible = expenses.filter(expense => {
+  const visible = useMemo(() => expenses.filter(expense => {
     if (expense.title.toLowerCase().includes(normalizedQuery)) return true
     if (!isSettlementPayment(expense)) return false
     const recipientId = getSettlementRecipientId(expense)
     return [memberMap.get(expense.payerId)?.name, recipientId ? memberMap.get(recipientId)?.name : undefined]
       .some(name => name?.toLowerCase().includes(normalizedQuery))
-  })
+  }), [expenses, memberMap, normalizedQuery])
 
   return (
     <section className="content-section activity-section">

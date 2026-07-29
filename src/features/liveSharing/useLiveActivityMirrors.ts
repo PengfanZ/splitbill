@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { loadBrowserStorageValue, saveBrowserStorageValue } from '../../data/browserStorage'
+import { usePersistentStorageState } from '../../hooks/usePersistentStorageState'
 import { isSharedActivity } from '../sharing/shareActivityUrl'
 import type { LiveActivityRecord } from './liveActivityApi'
 import { LIVE_ACTIVITY_CODE_PATTERN } from './liveActivityLink'
@@ -49,22 +50,11 @@ export function parseLiveActivityMirrors(stored: string | null): LiveActivityMir
 }
 
 export function loadLiveActivityMirrors(): LiveActivityMirrors {
-  try {
-    return parseLiveActivityMirrors(localStorage.getItem(LIVE_ACTIVITY_MIRRORS_KEY))
-  } catch {
-    return {}
-  }
+  return loadBrowserStorageValue(LIVE_ACTIVITY_MIRRORS_KEY, parseLiveActivityMirrors, {})
 }
 
 export function saveLiveActivityMirrors(mirrors: LiveActivityMirrors) {
-  try {
-    const serialized = JSON.stringify(mirrors)
-    if (localStorage.getItem(LIVE_ACTIVITY_MIRRORS_KEY) !== serialized) {
-      localStorage.setItem(LIVE_ACTIVITY_MIRRORS_KEY, serialized)
-    }
-  } catch {
-    // A Live activity remains usable online when browser storage is unavailable.
-  }
+  saveBrowserStorageValue(LIVE_ACTIVITY_MIRRORS_KEY, mirrors)
 }
 
 export function findLiveActivityMirrorGroupId(mirrors: LiveActivityMirrors, code: string) {
@@ -72,18 +62,10 @@ export function findLiveActivityMirrorGroupId(mirrors: LiveActivityMirrors, code
 }
 
 export function useLiveActivityMirrors() {
-  const [mirrors, setMirrors] = useState<LiveActivityMirrors>(() => loadLiveActivityMirrors())
-
-  useEffect(() => saveLiveActivityMirrors(mirrors), [mirrors])
-  useEffect(() => {
-    const syncAcrossTabs = (event: StorageEvent) => {
-      if (event.key === LIVE_ACTIVITY_MIRRORS_KEY) {
-        setMirrors(parseLiveActivityMirrors(event.newValue))
-      }
-    }
-    window.addEventListener('storage', syncAcrossTabs)
-    return () => window.removeEventListener('storage', syncAcrossTabs)
-  }, [])
-
-  return [mirrors, setMirrors] as const
+  return usePersistentStorageState({
+    key: LIVE_ACTIVITY_MIRRORS_KEY,
+    load: loadLiveActivityMirrors,
+    parse: parseLiveActivityMirrors,
+    save: saveLiveActivityMirrors,
+  })
 }

@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useMemo, useState } from 'react'
 import type { AnalyticsClient, AnalyticsSurface } from './analytics'
 import { FreshStart, Sidebar, Topbar } from './components/AppShell'
 import { createIdentity } from './data/identity'
@@ -7,7 +7,7 @@ import { EMPTY_STATE } from './data/storage'
 import { activityCurrency, currencyLabel, type CurrencyCode } from './domain/currency'
 import { isSettlementPayment, money, spendingExpenses } from './domain/expenses'
 import { CURRENT_USER } from './domain/members'
-import type { ActivityGroup, Expense, Member, Settlement } from './domain/models'
+import type { ActivityGroup, Expense, Settlement } from './domain/models'
 import { GroupDashboard } from './features/activity/ActivityDashboard'
 import { AddFriendModal, CreateGroupModal, ExpenseModal, SettleUpModal } from './features/activity/ActivityModals'
 import {
@@ -26,24 +26,19 @@ import {
 } from './features/activity/activityState'
 import { IdentityModal } from './features/identity/IdentityModal'
 import type { LiveActivityClient } from './features/liveSharing/liveActivityConfig'
-import { buildLiveActivityUrl, parseLiveActivityHash } from './features/liveSharing/liveActivityLink'
+import { parseLiveActivityHash } from './features/liveSharing/liveActivityLink'
 import { LiveActivityStatusBanner } from './features/liveSharing/LiveActivityStatusBanner'
 import { useLiveActivitySession } from './features/liveSharing/useLiveActivitySession'
-import { exportActivitySummary } from './features/sharing/shareActivity'
 import { BrowserToPwaHandoff, JoinActivityModal } from './features/sharing/JoinActivityModal'
-import { copyLink, shareLink, type LinkShareResult } from './features/sharing/shareLink'
 import { isStandalonePwa } from './features/sharing/sharedLinkHandoff'
 import { SharedActivityIdentityModal, type SharedActivityIdentityMode } from './features/sharing/SharedActivityIdentityModal'
 import {
   clearSharedActivityHash,
-  buildSharedActivityQrUrl,
-  buildSharedActivityUrl,
-  createSharedActivity,
   decodeSharedActivityHash,
   getSharedActivitySender,
   saveSharedActivityCopy,
-  type SharedActivity,
 } from './features/sharing/shareActivityUrl'
+import { useActivitySharing, type ActivityFeedback } from './features/sharing/useActivitySharing'
 import { usePersistedState } from './hooks/usePersistedState'
 import { useIdentity } from './hooks/useIdentity'
 import { useAppAnalytics } from './hooks/useAppAnalytics'
@@ -52,8 +47,6 @@ import { formatLocalizedList } from './i18n/localization'
 import { createAppQueryClient } from './queryClient'
 
 type ModalType = 'group' | 'friend' | 'expense' | 'settlement' | 'identity' | 'join' | 'shared-identity' | 'live-identity' | null
-type ActivityFeedback = { groupId: string; message: string } | null
-type QrShare = { activity: SharedActivity; url: string; mode: 'snapshot' | 'live'; activityCode?: string } | null
 type AppProps = {
   analyticsClient?: AnalyticsClient | null
   liveActivityClient?: LiveActivityClient | null
@@ -75,7 +68,6 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
   const [settlingDirection, setSettlingDirection] = useState<Settlement | null>(null)
   const [activityFeedback, setActivityFeedback] = useState<ActivityFeedback>(null)
-  const [qrShare, setQrShare] = useState<QrShare>(null)
   const [liveIdentityMode, setLiveIdentityMode] = useState<Extract<SharedActivityIdentityMode, 'live-copy' | 'live-recovery'> | null>(null)
   const selectedGroupIdAtLoad = state.selectedGroupId ?? state.groups[0]?.id ?? null
   const [sharedActivity, setSharedActivity] = useState(() => parseLiveActivityHash(window.location.hash) ? null : decodeSharedActivityHash(window.location.hash))
@@ -87,15 +79,30 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
     t,
   })
 
-  const selectedGroup = state.groups.find(group => group.id === state.selectedGroupId) ?? state.groups[0] ?? null
-  const currentUser = identity ?? { ...CURRENT_USER, name: t('common.you') }
-  const selectedMembers = selectedGroup
-    ? [currentUser, ...state.friends.filter(friend => selectedGroup.memberIds.includes(friend.id))]
-    : [currentUser]
-  const selectedExpenses = selectedGroup
-    ? state.expenses.filter(expense => expense.groupId === selectedGroup.id)
-    : []
-  const sharedMembers = sharedActivity ? [getSharedActivitySender(sharedActivity), ...sharedActivity.friends] : []
+  const selectedGroup = useMemo(
+    () => state.groups.find(group => group.id === state.selectedGroupId) ?? state.groups[0] ?? null,
+    [state.groups, state.selectedGroupId],
+  )
+  const currentUser = useMemo(
+    () => identity ?? { ...CURRENT_USER, name: t('common.you') },
+    [identity, t],
+  )
+  const selectedMembers = useMemo(
+    () => selectedGroup
+      ? [currentUser, ...state.friends.filter(friend => selectedGroup.memberIds.includes(friend.id))]
+      : [currentUser],
+    [currentUser, selectedGroup, state.friends],
+  )
+  const selectedExpenses = useMemo(
+    () => selectedGroup
+      ? state.expenses.filter(expense => expense.groupId === selectedGroup.id)
+      : [],
+    [selectedGroup, state.expenses],
+  )
+  const sharedMembers = useMemo(
+    () => sharedActivity ? [getSharedActivitySender(sharedActivity), ...sharedActivity.friends] : [],
+    [sharedActivity],
+  )
   const liveActivity = live.activity
   const liveSession = live.session
   const liveMembers = live.members
@@ -119,6 +126,16 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
     : sharedActivity
       ? 'snapshot'
       : 'local'
+  const sharing = useActivitySharing({
+    analyticsClient,
+    createLiveActivity: live.create,
+    locale,
+    notifyLive: live.notify,
+    onLiveActivityCreated: () => setSharedActivity(null),
+    setActivityFeedback,
+    t,
+  })
+  const qrShare = sharing.qrShare
 
   useAppAnalytics(analyticsClient, analyticsSurface, locale, liveSession?.record.code ?? null)
 
@@ -324,108 +341,6 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
     closeSettleUpModal()
   }
 
-  const shareGroup = async (group: ActivityGroup, members: Member[], expenses: Expense[]) => {
-    const result = await exportActivitySummary(group, members, expenses, locale)
-    const messageKeys = {
-      shared: 'feedback.summaryShared',
-      copied: 'feedback.summaryCopied',
-      downloaded: 'feedback.summaryDownloaded',
-      cancelled: 'feedback.cancelled',
-      failed: 'feedback.summaryFailed',
-    } as const
-    setActivityFeedback({ groupId: group.id, message: t(messageKeys[result]) })
-  }
-
-  const openShareQr = (group: ActivityGroup, members: Member[], expenses: Expense[]) => {
-    const activity = createSharedActivity(group, members, expenses)
-    try {
-      setQrShare({ activity, url: buildSharedActivityQrUrl(activity), mode: 'snapshot' })
-    } catch {
-      setActivityFeedback({ groupId: group.id, message: t('feedback.qrTooLarge') })
-    }
-  }
-
-  const copySnapshotLink = async (group: ActivityGroup, members: Member[], expenses: Expense[]) => {
-    try {
-      const result = await copyLink(buildSharedActivityUrl(createSharedActivity(group, members, expenses)))
-      setActivityFeedback({
-        groupId: group.id,
-        message: t(result === 'copied' ? 'feedback.snapshotCopied' : 'feedback.snapshotFailed'),
-      })
-    } catch {
-      setActivityFeedback({
-        groupId: group.id,
-        message: t('feedback.snapshotTooLarge'),
-      })
-    }
-  }
-
-  const openLiveShare = async (group: ActivityGroup, members: Member[], expenses: Expense[]) => {
-    analyticsClient?.track('live_share_clicked', 'local', locale)
-    setActivityFeedback({ groupId: group.id, message: t('live.creating') })
-    const activity = createSharedActivity(group, members, expenses)
-    const result = await live.create(activity, group.id)
-    if (!result.ok) {
-      setActivityFeedback({ groupId: group.id, message: result.message })
-      return
-    }
-    setSharedActivity(null)
-    setActivityFeedback(null)
-    analyticsClient?.track('live_activity_created', 'local', locale)
-    setQrShare({ activity, url: result.url, mode: 'live', activityCode: result.code })
-  }
-
-  const openCurrentLiveQr = (session: NonNullable<typeof live.session>) => {
-    setQrShare({
-      activity: session.record.snapshot,
-      url: buildLiveActivityUrl(session.credentials),
-      mode: 'live',
-      activityCode: session.record.code,
-    })
-  }
-
-  const copyCurrentLiveLink = async (session: NonNullable<typeof live.session>) => {
-    const result = await copyLink(buildLiveActivityUrl(session.credentials))
-    live.notify(t(result === 'copied' ? 'feedback.liveCopied' : 'feedback.liveCopyFailed'))
-  }
-
-  const reportQrShareResult = (share: NonNullable<QrShare>, result: LinkShareResult) => {
-    if (share.mode === 'live') {
-      const messages: Record<LinkShareResult, string> = {
-        shared: t('feedback.liveShared'),
-        copied: t('feedback.liveCopied'),
-        cancelled: t('feedback.cancelled'),
-        failed: t('feedback.liveShareFailed'),
-      }
-      live.notify(messages[result])
-    } else {
-      const messages: Record<LinkShareResult, string> = {
-        shared: t('feedback.snapshotShared'),
-        copied: t('feedback.snapshotCopied'),
-        cancelled: t('feedback.cancelled'),
-        failed: t('feedback.snapshotFailed'),
-      }
-      setActivityFeedback({ groupId: share.activity.group.id, message: messages[result] })
-    }
-    if (result === 'shared' || result === 'copied') setQrShare(null)
-  }
-
-  const shareQrLink = async (share: NonNullable<QrShare>) => {
-    const result = await shareLink(t('share.linkTitle', { name: share.activity.group.name }), share.url, share.mode === 'live'
-      ? t('share.liveLinkText', { name: share.activity.group.name })
-      : t('share.snapshotLinkText', { name: share.activity.group.name }))
-    reportQrShareResult(share, result)
-  }
-
-  const copyQrLink = async (share: NonNullable<QrShare>) => {
-    const result = await copyLink(share.url)
-    if (result === 'failed' && share.mode === 'live') {
-      live.notify(t('feedback.liveCopyFailed'))
-      return
-    }
-    reportQrShareResult(share, result)
-  }
-
   const deleteExpense = async (expense: Expense) => {
     const label = isSettlementPayment(expense) ? t('confirm.deleteSettlementLabel') : t('confirm.deleteExpenseLabel', { title: expense.title })
     if (!window.confirm(t('confirm.deleteExpense', { label }))) return
@@ -526,9 +441,9 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
                   ? t('dashboard.liveRevision', { revision: liveSession.record.revision })
                   : t('dashboard.savedRevision', { revision: live.mirror!.revision })}
                 onCurrencyChange={live.editable ? changeActivityCurrency : undefined}
-                onShareQr={live.editable && liveSession ? () => openCurrentLiveQr(liveSession) : undefined}
-                onCopyShareLink={live.editable && liveSession ? () => copyCurrentLiveLink(liveSession) : undefined}
-                onShareSummary={() => shareGroup(liveActivity.group, liveMembers, liveActivity.expenses)}
+                onShareQr={live.editable && liveSession ? () => sharing.openCurrentLiveQr(liveSession) : undefined}
+                onCopyShareLink={live.editable && liveSession ? () => sharing.copyCurrentLiveLink(liveSession) : undefined}
+                onShareSummary={() => sharing.shareGroup(liveActivity.group, liveMembers, liveActivity.expenses)}
                 onAddFriend={live.editable ? () => setModal('friend') : undefined}
                 onAddExpense={live.editable ? openNewExpense : undefined}
                 onSettleUp={live.editable ? openSettleUp : undefined}
@@ -562,10 +477,10 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
             activityFeedback={activityFeedback?.groupId === selectedGroup.id ? activityFeedback.message : null}
             currentUserLabel={currentUser.name}
             onCurrencyChange={changeActivityCurrency}
-            onShareSummary={() => shareGroup(selectedGroup, selectedMembers, selectedExpenses)}
-            onShareQr={() => openShareQr(selectedGroup, selectedMembers, selectedExpenses)}
-            onShareLive={() => openLiveShare(selectedGroup, selectedMembers, selectedExpenses)}
-            onCopyShareLink={() => copySnapshotLink(selectedGroup, selectedMembers, selectedExpenses)}
+            onShareSummary={() => sharing.shareGroup(selectedGroup, selectedMembers, selectedExpenses)}
+            onShareQr={() => sharing.openShareQr(selectedGroup, selectedMembers, selectedExpenses)}
+            onShareLive={() => sharing.openLiveShare(selectedGroup, selectedMembers, selectedExpenses)}
+            onCopyShareLink={() => sharing.copySnapshotLink(selectedGroup, selectedMembers, selectedExpenses)}
             onAddFriend={() => setModal('friend')}
             onAddExpense={openNewExpense}
             onSettleUp={openSettleUp}
@@ -594,7 +509,7 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
       {modal === 'shared-identity' && sharedActivity ? <SharedActivityIdentityModal members={sharedMembers} onClose={() => setModal(null)} onSave={viewerId => saveSharedActivity(sharedActivity, viewerId)} /> : null}
       {modal === 'live-identity' && liveActivity && liveIdentityMode ? <SharedActivityIdentityModal members={liveMembers} mode={liveIdentityMode} onClose={() => { setModal(null); setLiveIdentityMode(null) }} onSave={viewerId => saveLiveActivityCopy(liveActivity, liveIdentityMode, viewerId)} /> : null}
       {modal === 'join' ? <JoinActivityModal onClose={() => setModal(null)} onJoin={joinSharedActivity} /> : null}
-      {qrShare ? <Suspense fallback={null}><ShareActivityQrModal groupName={qrShare.activity.group.name} url={qrShare.url} mode={qrShare.mode} activityCode={qrShare.activityCode} onClose={() => setQrShare(null)} onCopy={() => copyQrLink(qrShare)} onShare={() => shareQrLink(qrShare)} /></Suspense> : null}
+      {qrShare ? <Suspense fallback={null}><ShareActivityQrModal groupName={qrShare.activity.group.name} url={qrShare.url} mode={qrShare.mode} activityCode={qrShare.activityCode} onClose={sharing.closeQrShare} onCopy={() => sharing.copyQrLink(qrShare)} onShare={() => sharing.shareQrLink(qrShare)} /></Suspense> : null}
       {changelogState.open ? <Suspense fallback={null}><ChangelogModal onClose={closeChangelog} /></Suspense> : null}
       {!identity || modal === 'identity' ? <IdentityModal initialName={identity?.name} onClose={identity ? () => setModal(null) : undefined} onSave={name => {
         if (!identity) {
