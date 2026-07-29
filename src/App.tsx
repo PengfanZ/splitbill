@@ -195,6 +195,7 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
   const createGroup = (name: string, friendNames: string[], currency: CurrencyCode) => {
     setState(current => createLocalActivity(current, name, friendNames, currency))
     analyticsClient?.track('activity_created', 'local', locale)
+    if (friendNames.length > 0) analyticsClient?.track('friend_added', 'local', locale)
     setModal(null)
   }
 
@@ -232,10 +233,14 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
         friends: [...liveActivity.friends, ...newFriends],
         group: { ...liveActivity.group, memberIds: [...liveActivity.group.memberIds, ...newFriends.map(friend => friend.id)] },
       }, addedFriendsFeedback, JSON.stringify(['add-friends', names]))
-      if (saved) setModal(null)
+      if (saved) {
+        analyticsClient?.track('friend_added', 'live', locale)
+        setModal(null)
+      }
       return
     }
     setState(current => addLocalFriends(current, activeGroup.id, names))
+    analyticsClient?.track('friend_added', 'local', locale)
     setActivityFeedback({ groupId: activeGroup.id, message: addedFriendsFeedback })
     setModal(null)
   }

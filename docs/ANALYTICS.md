@@ -8,6 +8,7 @@ The browser may send only these event names:
 
 - `app_opened`
 - `activity_created`
+- `friend_added`
 - `expense_added`
 - `live_share_clicked`
 - `live_activity_created`
@@ -28,6 +29,8 @@ Do not add arbitrary metadata to this contract. Analytics must never receive URL
 `public.record_analytics_event` is the only browser-callable database entry point. It validates the event, surface, locale, and session-token shape; applies hashed-IP throttling; hashes the session token; and inserts into `private.analytics_events`. Browser roles cannot read or write that table directly and cannot read `private.analytics_daily`, `private.analytics_hourly`, or `private.analytics_locale_daily`.
 
 Opening the app records its initial surface. Successful product actions are measured only after their local state update or live revision save succeeds. A failed expense or settlement save does not produce a success event. Currency selection is intentionally an interaction event: it records a deliberate change in either currency selector, even if the person later cancels activity creation or a live update cannot be saved.
+
+`friend_added` records one event after a successful friend-add action, including activity creation when at least one initial friend is supplied. Adding several friends in one submission still records one event. Failed Live saves do not count, and the request never includes friend names, IDs, or a friend count.
 
 `live_share_clicked` is also an intentional interaction event. It records when someone chooses **Start live activity**, before the backend request begins. Compare it with `live_activity_created` to distinguish sharing intent from successful Live activity creation. It contains no activity or link data.
 
@@ -136,6 +139,22 @@ where event_name = 'live_share_clicked'
 group by hour_of_day
 order by hour_of_day;
 ```
+
+To see how often people successfully add friends:
+
+```sql
+select
+  surface,
+  count(*)::bigint as additions,
+  count(distinct session_hash)::bigint as sessions
+from private.analytics_events
+where event_name = 'friend_added'
+  and occurred_at >= now() - interval '30 days'
+group by surface
+order by surface;
+```
+
+One submission can add several friends but counts as one addition event. Use `surface` to compare browser-local and Live activity additions.
 
 These are anonymous sessions, not authenticated users. One person can create multiple sessions, a selected UI language is not proof of physical location, and offline or self-hosted development use is not measured.
 
