@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, CircleDollarSign } from 'lucide-react'
 import { currencyLabel, currencySymbol, SUPPORTED_CURRENCIES, type CurrencyCode } from '../../domain/currency'
+import { useDismissibleMenu } from '../../hooks/useDismissibleMenu'
 import { useLocalization } from '../../i18n/LocalizationContext'
 
 export function ActivityCurrencyControl({ currency, locale, readOnly, onChange }: {
@@ -10,22 +10,17 @@ export function ActivityCurrencyControl({ currency, locale, readOnly, onChange }
   onChange?: (currency: CurrencyCode) => void
 }) {
   const { t } = useLocalization()
-  const [open, setOpen] = useState(false)
-  const rootRef = useRef<HTMLDivElement>(null)
-  const triggerRef = useRef<HTMLButtonElement>(null)
+  const {
+    closeAndFocusTrigger,
+    handleKeyDown,
+    open,
+    rootRef,
+    toggle,
+    triggerRef,
+  } = useDismissibleMenu()
   const localizedLabels = locale === 'zh-CN'
   const selectedLabel = currencyLabel(currency, locale)
   const value = `${selectedLabel} · ${currencySymbol(currency, locale)}`
-
-  useEffect(() => {
-    if (!open) return
-    const root = rootRef.current!
-    const closeOutside = (event: PointerEvent) => {
-      if (!event.composedPath().includes(root)) setOpen(false)
-    }
-    document.addEventListener('pointerdown', closeOutside)
-    return () => document.removeEventListener('pointerdown', closeOutside)
-  }, [open])
 
   if (!onChange || readOnly) {
     return (
@@ -38,16 +33,11 @@ export function ActivityCurrencyControl({ currency, locale, readOnly, onChange }
 
   const selectCurrency = (code: CurrencyCode) => {
     onChange(code)
-    setOpen(false)
-    triggerRef.current!.focus()
+    closeAndFocusTrigger()
   }
 
   return (
-    <div ref={rootRef} className="currency-picker" onKeyDown={event => {
-      if (event.key !== 'Escape') return
-      setOpen(false)
-      triggerRef.current!.focus()
-    }}>
+    <div ref={rootRef} className="currency-picker" onKeyDown={handleKeyDown}>
       <button
         ref={triggerRef}
         type="button"
@@ -55,7 +45,7 @@ export function ActivityCurrencyControl({ currency, locale, readOnly, onChange }
         aria-label={t('group.chooseCurrency', { currency: selectedLabel })}
         aria-haspopup="listbox"
         aria-expanded={open}
-        onClick={() => setOpen(current => !current)}
+        onClick={toggle}
       >
         <span className="activity-currency-icon"><CircleDollarSign size={18} /></span>
         <b>{value}</b>

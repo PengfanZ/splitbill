@@ -28,8 +28,8 @@ import {
   useLiveActivityMirrors,
 } from './useLiveActivityMirrors'
 
-type LiveSession = { credentials: LiveActivityCredentials; record: LiveActivityRecord }
-type CreateLiveActivityResult = { ok: true; code: string; url: string } | { ok: false; message: string }
+export type LiveSession = { credentials: LiveActivityCredentials; record: LiveActivityRecord }
+export type CreateLiveActivityResult = { ok: true; code: string; url: string } | { ok: false; message: string }
 export type LiveActivityConnectionState = 'opening' | 'connected' | 'cached' | 'expired' | 'unavailable'
 
 type UseLiveActivitySessionOptions = {

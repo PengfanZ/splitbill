@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, Languages } from 'lucide-react'
+import { useDismissibleMenu } from '../../hooks/useDismissibleMenu'
 import { useLocalization } from '../../i18n/LocalizationContext'
 import type { AppLocale, TranslationKey } from '../../i18n/localization'
 
@@ -17,34 +17,24 @@ export function LanguageControl({ locale, onChange }: {
   onChange: (locale: AppLocale) => void
 }) {
   const { t } = useLocalization()
-  const [open, setOpen] = useState(false)
-  const rootRef = useRef<HTMLDivElement>(null)
-  const triggerRef = useRef<HTMLButtonElement>(null)
+  const {
+    closeAndFocusTrigger,
+    handleKeyDown,
+    open,
+    rootRef,
+    toggle,
+    triggerRef,
+  } = useDismissibleMenu()
   const selectedOption = LANGUAGE_OPTIONS.find(option => option.locale === locale)!
   const selectedLabel = t(selectedOption.labelKey)
 
-  useEffect(() => {
-    if (!open) return
-    const root = rootRef.current!
-    const closeOutside = (event: PointerEvent) => {
-      if (!event.composedPath().includes(root)) setOpen(false)
-    }
-    document.addEventListener('pointerdown', closeOutside)
-    return () => document.removeEventListener('pointerdown', closeOutside)
-  }, [open])
-
   const selectLanguage = (nextLocale: AppLocale) => {
     onChange(nextLocale)
-    setOpen(false)
-    triggerRef.current!.focus()
+    closeAndFocusTrigger()
   }
 
   return (
-    <div ref={rootRef} className="language-picker" onKeyDown={event => {
-      if (event.key !== 'Escape') return
-      setOpen(false)
-      triggerRef.current!.focus()
-    }}>
+    <div ref={rootRef} className="language-picker" onKeyDown={handleKeyDown}>
       <button
         ref={triggerRef}
         type="button"
@@ -52,7 +42,7 @@ export function LanguageControl({ locale, onChange }: {
         aria-label={t('settings.chooseLanguage', { language: selectedLabel })}
         aria-haspopup="listbox"
         aria-expanded={open}
-        onClick={() => setOpen(current => !current)}
+        onClick={toggle}
       >
         <span className="language-trigger-icon"><Languages size={18} /></span>
         <span className="language-trigger-copy"><b>{selectedLabel}</b><small>{selectedOption.locale}</small></span>
