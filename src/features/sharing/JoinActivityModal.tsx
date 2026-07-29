@@ -3,7 +3,7 @@ import { ClipboardPaste, Link2, Smartphone } from 'lucide-react'
 import { ModalShell } from '../../components/AppShell'
 import { useLocalization } from '../../i18n/LocalizationContext'
 import { copyLink } from './shareLink'
-import { extractSharedActivityHash } from './sharedLinkHandoff'
+import { extractLiveActivityHash } from './sharedLinkHandoff'
 
 export function JoinActivityModal({ onClose, onJoin }: { onClose: () => void; onJoin: (hash: string) => void }) {
   const [link, setLink] = useState('')
@@ -25,7 +25,7 @@ export function JoinActivityModal({ onClose, onJoin }: { onClose: () => void; on
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault()
-    const hash = extractSharedActivityHash(link)
+    const hash = extractLiveActivityHash(link)
     if (!hash) {
       setError(t('join.invalid'))
       return

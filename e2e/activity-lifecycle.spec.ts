@@ -319,7 +319,11 @@ test('keeps share and add expense together in the mobile action row', async ({ p
   expect(layout.addExpense!.width).toBeGreaterThan(layout.share!.width)
 
   await actionRow.getByRole('button', { name: 'Share', exact: true }).click()
-  await expect(page.getByRole('dialog', { name: 'Share activity' })).toBeVisible()
+  const shareDialog = page.getByRole('dialog', { name: 'Share activity' })
+  await expect(shareDialog).toBeVisible()
+  await expect(shareDialog.getByRole('button', { name: 'Start live activity' })).toBeVisible()
+  await expect(shareDialog.getByRole('button', { name: /^Share balances only/ })).toBeVisible()
+  await expect(shareDialog.getByText(/snapshot/i)).toHaveCount(0)
 })
 
 test('centers compact mobile dialogs and keeps long forms as sheets', async ({ page }) => {
@@ -511,56 +515,6 @@ test('persists a selective equal split and deletes its activity safely', async (
   expect(browserErrors).toEqual([])
 })
 
-test('shares a QR destination that opens the same read-only activity on another device', async ({ page, context, browser }) => {
-  const browserErrors: string[] = []
-  page.on('console', message => {
-    if (message.type() === 'error') browserErrors.push(message.text())
-  })
-  page.on('pageerror', error => browserErrors.push(error.message))
-  await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: 'http://127.0.0.1:4173' })
-
-  await page.goto('./')
-  await page.getByLabel('Display name').fill('Alex')
-  await page.getByRole('button', { name: 'Continue' }).click()
-  await page.getByRole('button', { name: 'Create an activity' }).click()
-  await page.getByLabel('Activity name').fill('Weekend')
-  await page.getByLabel(/Add friends/).fill('Maya')
-  await page.getByRole('button', { name: 'Create activity' }).click()
-  await page.getByRole('button', { name: 'Add expense' }).click()
-  await page.getByLabel('Description').fill('Dinner')
-  await page.getByRole('spinbutton', { name: 'Amount' }).fill('40')
-  await page.getByRole('button', { name: 'Save expense' }).click()
-
-  await page.getByRole('button', { name: 'Share', exact: true }).click()
-  await page.getByRole('dialog', { name: 'Share activity' }).getByRole('button', { name: 'Show snapshot QR' }).click()
-  await expect(page.getByRole('dialog', { name: 'Scan to open Weekend' })).toBeVisible()
-  await expect(page.getByRole('img', { name: 'Weekend shared activity QR code' })).toBeVisible()
-  await page.getByRole('button', { name: 'Copy link' }).click()
-  const sharedUrl = await page.evaluate(() => navigator.clipboard.readText())
-  expect(sharedUrl).toContain('/splitbill/#share=z.')
-
-  const recipientContext = await browser.newContext()
-  await recipientContext.route('https://live-sharing.test/rest/v1/rpc/record_analytics_event', route => route.fulfill({
-    status: 204,
-    body: '',
-  }))
-  const recipientPage = await recipientContext.newPage()
-  recipientPage.on('console', message => {
-    if (message.type() === 'error') browserErrors.push(message.text())
-  })
-  recipientPage.on('pageerror', error => browserErrors.push(error.message))
-  await recipientPage.goto(sharedUrl)
-
-  await expect(recipientPage.getByLabel('Shared activity preview')).toBeVisible()
-  await expect(recipientPage.getByRole('heading', { name: 'Weekend' })).toBeVisible()
-  await expect(recipientPage.getByText('Read-only snapshot')).toBeVisible()
-  await expect(recipientPage.getByText('Dinner')).toBeVisible()
-  await expect(recipientPage.getByText('Alex paid', { exact: true })).toBeVisible()
-  await expect(recipientPage.getByRole('button', { name: 'Add expense' })).toHaveCount(0)
-  expect(browserErrors).toEqual([])
-  await recipientContext.close()
-})
-
 test('shares one editable backend activity across isolated browser sessions', async ({ page, context, browser }) => {
   const browserErrors: string[] = []
   const liveAnalyticsEvents: AnalyticsPayload[] = []
@@ -628,7 +582,11 @@ test('shares one editable backend activity across isolated browser sessions', as
   await page.getByRole('button', { name: 'Create activity' }).click()
   await page.getByRole('button', { name: 'Open Shared cabin activity' }).click()
   await page.getByRole('button', { name: 'Share', exact: true }).click()
-  await page.getByRole('dialog', { name: 'Share activity' }).getByRole('button', { name: 'Start live activity' }).click()
+  const shareDialog = page.getByRole('dialog', { name: 'Share activity' })
+  await expect(shareDialog.getByRole('button', { name: 'Start live activity' })).toBeVisible()
+  await expect(shareDialog.getByRole('button', { name: /^Share balances only/ })).toBeVisible()
+  await expect(shareDialog.getByText(/snapshot/i)).toHaveCount(0)
+  await shareDialog.getByRole('button', { name: 'Start live activity' }).click()
   await expect(page.getByRole('dialog', { name: 'Scan to join Shared cabin' })).toBeVisible()
   await expect.poll(() => liveAnalyticsEvents.map(event => event.p_event_name)).toContain('live_activity_created')
   const liveEventNames = liveAnalyticsEvents.map(event => event.p_event_name)

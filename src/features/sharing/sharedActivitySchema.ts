@@ -63,11 +63,6 @@ function validateActivityReferences(
   if (!valid) context.addIssue({ code: 'custom', message: 'Invalid activity references' })
 }
 
-export const legacySharedActivitySchema = z.object({
-  version: z.literal(1),
-  ...activityDataShape,
-}).passthrough().superRefine(validateActivityReferences)
-
 export const sharedActivitySchema = z.object({
   version: z.literal(2),
   sender: memberSchema.extend({ id: z.literal('me') }),

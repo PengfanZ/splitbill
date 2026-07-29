@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CURRENT_USER } from '../../domain/members'
 import type { ActivityGroup, Member } from '../../domain/models'
-import { createSharedActivity, type SharedActivity } from '../sharing/shareActivityUrl'
+import { createSharedActivity, type SharedActivity } from '../sharing/sharedActivity'
 import { createLiveActivityClient, LiveActivityApiError } from './liveActivityApi'
 
 const maya: Member = { id: 'maya', name: 'Maya', initials: 'M', color: '#abc' }

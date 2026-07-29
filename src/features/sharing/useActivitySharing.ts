@@ -6,18 +6,12 @@ import type { CreateLiveActivityResult, LiveSession } from '../liveSharing/useLi
 import { buildLiveActivityUrl } from '../liveSharing/liveActivityLink'
 import { exportActivitySummary, type ShareResult } from './shareActivity'
 import { copyLink, shareLink, type LinkShareResult } from './shareLink'
-import {
-  buildSharedActivityQrUrl,
-  buildSharedActivityUrl,
-  createSharedActivity,
-  type SharedActivity,
-} from './shareActivityUrl'
+import { createSharedActivity, type SharedActivity } from './sharedActivity'
 
 export type ActivityFeedback = { groupId: string; message: string } | null
 export type QrShare = {
-  activity: SharedActivity
+  groupName: string
   url: string
-  mode: 'snapshot' | 'live'
   activityCode?: string
 }
 
@@ -26,7 +20,6 @@ type ActivitySharingOptions = {
   createLiveActivity: (activity: SharedActivity, groupId: string) => Promise<CreateLiveActivityResult>
   locale: AppLocale
   notifyLive: (message: string) => void
-  onLiveActivityCreated: () => void
   setActivityFeedback: (feedback: ActivityFeedback) => void
   t: Translate
 }
@@ -46,19 +39,11 @@ const LIVE_QR_MESSAGE_KEYS = {
   failed: 'feedback.liveShareFailed',
 } satisfies Record<LinkShareResult, TranslationKey>
 
-const SNAPSHOT_QR_MESSAGE_KEYS = {
-  shared: 'feedback.snapshotShared',
-  copied: 'feedback.snapshotCopied',
-  cancelled: 'feedback.cancelled',
-  failed: 'feedback.snapshotFailed',
-} satisfies Record<LinkShareResult, TranslationKey>
-
 export function useActivitySharing({
   analyticsClient,
   createLiveActivity,
   locale,
   notifyLive,
-  onLiveActivityCreated,
   setActivityFeedback,
   t,
 }: ActivitySharingOptions) {
@@ -67,27 +52,6 @@ export function useActivitySharing({
   const shareGroup = async (group: ActivityGroup, members: Member[], expenses: Expense[]) => {
     const result = await exportActivitySummary(group, members, expenses, locale)
     setActivityFeedback({ groupId: group.id, message: t(SUMMARY_MESSAGE_KEYS[result]) })
-  }
-
-  const openShareQr = (group: ActivityGroup, members: Member[], expenses: Expense[]) => {
-    const activity = createSharedActivity(group, members, expenses)
-    try {
-      setQrShare({ activity, url: buildSharedActivityQrUrl(activity), mode: 'snapshot' })
-    } catch {
-      setActivityFeedback({ groupId: group.id, message: t('feedback.qrTooLarge') })
-    }
-  }
-
-  const copySnapshotLink = async (group: ActivityGroup, members: Member[], expenses: Expense[]) => {
-    try {
-      const result = await copyLink(buildSharedActivityUrl(createSharedActivity(group, members, expenses)))
-      setActivityFeedback({
-        groupId: group.id,
-        message: t(result === 'copied' ? 'feedback.snapshotCopied' : 'feedback.snapshotFailed'),
-      })
-    } catch {
-      setActivityFeedback({ groupId: group.id, message: t('feedback.snapshotTooLarge') })
-    }
   }
 
   const openLiveShare = async (group: ActivityGroup, members: Member[], expenses: Expense[]) => {
@@ -99,17 +63,15 @@ export function useActivitySharing({
       setActivityFeedback({ groupId: group.id, message: result.message })
       return
     }
-    onLiveActivityCreated()
     setActivityFeedback(null)
     analyticsClient?.track('live_activity_created', 'local', locale)
-    setQrShare({ activity, url: result.url, mode: 'live', activityCode: result.code })
+    setQrShare({ groupName: group.name, url: result.url, activityCode: result.code })
   }
 
   const openCurrentLiveQr = (session: LiveSession) => {
     setQrShare({
-      activity: session.record.snapshot,
+      groupName: session.record.snapshot.group.name,
       url: buildLiveActivityUrl(session.credentials),
-      mode: 'live',
       activityCode: session.record.code,
     })
   }
@@ -120,31 +82,22 @@ export function useActivitySharing({
   }
 
   const reportQrShareResult = (share: QrShare, result: LinkShareResult) => {
-    if (share.mode === 'live') {
-      notifyLive(t(LIVE_QR_MESSAGE_KEYS[result]))
-    } else {
-      setActivityFeedback({
-        groupId: share.activity.group.id,
-        message: t(SNAPSHOT_QR_MESSAGE_KEYS[result]),
-      })
-    }
+    notifyLive(t(LIVE_QR_MESSAGE_KEYS[result]))
     if (result === 'shared' || result === 'copied') setQrShare(null)
   }
 
   const shareQrLink = async (share: QrShare) => {
     const result = await shareLink(
-      t('share.linkTitle', { name: share.activity.group.name }),
+      t('share.linkTitle', { name: share.groupName }),
       share.url,
-      share.mode === 'live'
-        ? t('share.liveLinkText', { name: share.activity.group.name })
-        : t('share.snapshotLinkText', { name: share.activity.group.name }),
+      t('share.liveLinkText', { name: share.groupName }),
     )
     reportQrShareResult(share, result)
   }
 
   const copyQrLink = async (share: QrShare) => {
     const result = await copyLink(share.url)
-    if (result === 'failed' && share.mode === 'live') {
+    if (result === 'failed') {
       notifyLive(t('feedback.liveCopyFailed'))
       return
     }
@@ -155,10 +108,8 @@ export function useActivitySharing({
     closeQrShare: () => setQrShare(null),
     copyCurrentLiveLink,
     copyQrLink,
-    copySnapshotLink,
     openCurrentLiveQr,
     openLiveShare,
-    openShareQr,
     qrShare,
     shareGroup,
     shareQrLink,

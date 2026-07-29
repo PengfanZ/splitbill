@@ -16,7 +16,7 @@ export const ANALYTICS_EVENTS = [
 ] as const
 
 export type AnalyticsEvent = typeof ANALYTICS_EVENTS[number]
-export type AnalyticsSurface = 'local' | 'live' | 'snapshot'
+export type AnalyticsSurface = 'local' | 'live'
 
 export type AnalyticsClient = {
   track: (

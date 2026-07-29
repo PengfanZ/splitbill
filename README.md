@@ -10,17 +10,17 @@ On first use, Tally asks for a display name and stores that identity only in the
 
 Tally supports English and Simplified Chinese. It starts in Chinese when the browser language is Chinese or the device time zone is in mainland China; otherwise it starts in English. A manual choice in **Settings** is saved in the browser and always takes priority. Expense timestamps use the browser's IANA time zone, which is shown in Settings.
 
-Production uses privacy-preserving first-party analytics through Supabase for both browser-local and live activity workflows. Only allowlisted event names, a coarse `local`/`live`/`snapshot` surface, the resolved `en`/`zh-CN` UI locale, an allowlisted currency code for currency-selection events, and a one-way session hash are stored—never precise location, URLs, capability tokens, activity IDs, names, descriptions, amounts, or balances. Tally does not load a third-party analytics beacon. See [the analytics design](docs/ANALYTICS.md).
+Production uses privacy-preserving first-party analytics through Supabase for both browser-local and live activity workflows. Only allowlisted event names, a coarse `local`/`live` surface, the resolved `en`/`zh-CN` UI locale, an allowlisted currency code for currency-selection events, and a one-way session hash are stored—never precise location, URLs, capability tokens, activity IDs, names, descriptions, amounts, or balances. Tally does not load a third-party analytics beacon. See [the analytics design](docs/ANALYTICS.md).
 
 ## Sharing and live collaboration
 
-Tally supports two deliberately different sharing modes:
+Tally supports two deliberately different sharing choices:
 
-- **Share QR** creates a read-only snapshot compressed into the URL fragment. Recipients can inspect it or save an isolated local copy without changing the sender's activity.
-- **Share live** creates a short capability URL for one canonical activity in Supabase. Trusted recipients with the complete link can load and edit the same revision-checked data from different browsers.
-- **Share link** opens the device share sheet, with a separate copy-link fallback. If Safari opens the link outside the installed PWA, **Join activity** safely transfers the copied link into the existing Tally app session.
+- **Start live activity** creates a short capability URL for one canonical activity in Supabase. Trusted recipients with the complete link can load and edit the same revision-checked data from different browsers. The Live invite can be copied, opened from a QR code, or sent through the device share sheet.
+- **Share balances only** exports a PNG summary with totals and suggested payments without granting access to the activity.
+- If Safari opens a Live link outside the installed PWA, **Join activity** safely transfers the copied link into the existing Tally app session.
 
-Opening a snapshot never overwrites browser data, and Tally never loads third-party analytics. First-party measurement records only the coarse `snapshot` surface, never the fragment containing names and expense details. Live links keep their secret edit token in the fragment; Supabase stores only its SHA-256 hash. Every browser that successfully opens a live link keeps the latest full snapshot as a recovery copy, while Supabase remains the source of truth for as long as that Live session is available. See [the live sharing architecture](docs/LIVE_SHARING_EXPERIMENT.md) and [production deployment guide](docs/DEPLOYMENT.md).
+Live links keep their secret edit token in the fragment; Supabase stores only its SHA-256 hash. Every browser that successfully opens a Live link keeps the latest full activity state as a recovery copy, while Supabase remains the source of truth for as long as that Live session is available. Tally never loads third-party analytics. See [the live sharing architecture](docs/LIVE_SHARING_EXPERIMENT.md) and [production deployment guide](docs/DEPLOYMENT.md).
 
 [Try the live demo](https://pengfanz.github.io/splitbill/)
 
@@ -81,7 +81,7 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-Local activities and QR snapshots work without a backend. To develop live sharing as well, install a Docker-compatible runtime and the Supabase CLI dependencies included in this repository, then run:
+Local activities and PNG balance summaries work without a backend. To develop Live sharing as well, install a Docker-compatible runtime and the Supabase CLI dependencies included in this repository, then run:
 
 ```bash
 cp .env.example .env.local
@@ -124,7 +124,7 @@ src/
 │   ├── activity/              # Dashboard and expense workflows
 │   ├── identity/              # Browser-local participant identity
 │   ├── liveSharing/           # Capability links and backend synchronization
-│   └── sharing/               # QR snapshots and PNG exports
+│   └── sharing/               # Live-link handoff, QR invites, and PNG exports
 ├── hooks/                     # React lifecycle integrations
 ├── i18n/                      # Locale selection, translations, and time formatting
 ├── pwa/                       # Testable service-worker cache helpers

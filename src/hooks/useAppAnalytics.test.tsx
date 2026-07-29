@@ -19,7 +19,7 @@ describe('app analytics lifecycle', () => {
     const view = render(<Harness client={client} surface="local" code={null} />)
 
     expect(client.track).toHaveBeenCalledWith('app_opened', 'local', 'en')
-    view.rerender(<Harness client={client} surface="snapshot" locale="zh-CN" code="A1B2C3D4E5" />)
+    view.rerender(<Harness client={client} surface="live" locale="zh-CN" code="A1B2C3D4E5" />)
     expect(client.track).toHaveBeenCalledWith('live_activity_opened', 'live', 'zh-CN')
 
     view.rerender(<Harness client={client} surface="live" code="A1B2C3D4E5" />)
