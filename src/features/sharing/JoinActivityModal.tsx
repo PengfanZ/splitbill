@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ClipboardPaste, Link2, Smartphone } from 'lucide-react'
 import { ModalShell } from '../../components/AppShell'
+import { Button } from '../../components/Button'
 import { useLocalization } from '../../i18n/LocalizationContext'
 import { copyLink } from './shareLink'
 import { extractLiveActivityHash } from './sharedLinkHandoff'
@@ -39,7 +40,7 @@ export function JoinActivityModal({ onClose, onJoin }: { onClose: () => void; on
         <div className="split-note identity-note"><Smartphone size={18} /><span><b>{t('join.continueTitle')}</b><small>{t('join.continueText')}</small></span></div>
         <label>{t('join.link')}<textarea aria-label={t('join.link')} value={link} onChange={event => { setLink(event.target.value); setError(null) }} placeholder="https://pengfanz.github.io/splitbill/#live=…" autoFocus /></label>
         {error ? <p className="split-error" role="alert">{error}</p> : null}
-        <div className="modal-actions"><button type="button" className="outline-button qr-copy-button" onClick={pasteLink}><ClipboardPaste size={16} />{t('join.paste')}</button><button className="confirm-button qr-copy-button" type="submit"><Link2 size={16} />{t('join.open')}</button></div>
+        <div className="modal-actions"><Button className="qr-copy-button" onClick={pasteLink}><ClipboardPaste size={16} />{t('join.paste')}</Button><Button variant="primary" className="qr-copy-button" type="submit"><Link2 size={16} />{t('join.open')}</Button></div>
       </form>
     </ModalShell>
   )
@@ -57,7 +58,7 @@ export function BrowserToPwaHandoff({ url }: { url: string }) {
   return (
     <section className="pwa-handoff" aria-label={t('handoff.label')}>
       <div><Smartphone size={18} /><span><b>{t('handoff.title')}</b><small aria-live="polite">{t(messageKey)}</small></span></div>
-      <button type="button" className="outline-button" onClick={copyForApp}>{t('handoff.copy')}</button>
+      <Button onClick={copyForApp}>{t('handoff.copy')}</Button>
     </section>
   )
 }

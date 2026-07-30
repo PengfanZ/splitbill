@@ -1,5 +1,7 @@
-import { useEffect, type ReactNode } from 'react'
-import { ChevronRight, Copy, QrCode, Radio, Share2, X } from 'lucide-react'
+import { type ReactNode } from 'react'
+import { ChevronRight, Copy, QrCode, Radio, Share2 } from 'lucide-react'
+import { Button } from '../../components/Button'
+import { ModalShell } from '../../components/Dialog'
 import { useLocalization } from '../../i18n/LocalizationContext'
 
 type ShareAction = () => void | Promise<void>
@@ -66,23 +68,14 @@ export function ShareActivityMenu({ groupName, live = false, onClose, onCollabor
     void action()
   }
 
-  useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', closeOnEscape)
-    return () => window.removeEventListener('keydown', closeOnEscape)
-  }, [onClose])
-
   return (
-    <div className="share-menu-backdrop" role="presentation" onMouseDown={event => {
-      if (event.currentTarget === event.target) onClose()
-    }}>
-      <section className="share-menu" role="dialog" aria-modal="true" aria-labelledby="share-menu-title">
-        <header className="share-menu-header">
-          <div><h2 id="share-menu-title">{t('shareMenu.title')}</h2><p>{t('shareMenu.description', { name: groupName })}</p></div>
-          <button type="button" className="share-menu-close" aria-label={t('common.close')} onClick={onClose}><X size={20} /></button>
-        </header>
+    <ModalShell
+      title={t('shareMenu.title')}
+      description={t('shareMenu.description', { name: groupName })}
+      onClose={onClose}
+      size="wide"
+      bodyClassName="share-menu-body"
+    >
         <div className="share-menu-choices">
           {onCollaborateLive ? (
             <ShareChoice
@@ -107,8 +100,7 @@ export function ShareActivityMenu({ groupName, live = false, onClose, onCollabor
           ) : null}
         </div>
         {onShareSummary ? <div className="share-menu-other"><span>{t('shareMenu.otherTitle')}</span><ShareSummaryAction icon={<Share2 size={20} />} title={t('shareMenu.summary')} description={t('shareMenu.summaryHelp')} onClick={() => run(onShareSummary)} /></div> : null}
-        <button type="button" className="share-menu-cancel" onClick={onClose}>{t('common.cancel')}</button>
-      </section>
-    </div>
+        <Button className="share-menu-cancel" onClick={onClose}>{t('common.cancel')}</Button>
+    </ModalShell>
   )
 }

@@ -56,6 +56,7 @@ describe('happy paths', () => {
     expect(screen.getByText('Hotel')).toBeVisible()
 
     await user.click(screen.getByRole('button', { name: 'Delete Hotel' }))
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
 
     expect(within(summary).getByText('$120.00')).toBeVisible()
     expect(within(summary).getByText('+$50.00')).toBeVisible()
@@ -97,6 +98,7 @@ describe('happy paths', () => {
     }))
 
     await user.click(screen.getByRole('button', { name: 'Delete Maya payment to You' }))
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
     expect(screen.queryByText('Maya paid You')).not.toBeInTheDocument()
     expect(screen.getByText('Maya owes You').closest('.balance-row')).toHaveTextContent('$10.00')
     expect(within(summary).getByText('$240.00')).toBeVisible()
@@ -114,8 +116,10 @@ describe('happy paths', () => {
     await user.click(screen.getByRole('button', { name: 'Add expense' }))
     await user.type(screen.getByLabelText('Description'), 'Cabin')
     await user.type(screen.getByLabelText('Amount'), '100')
-    await user.selectOptions(screen.getByLabelText('Paid by'), 'Maya')
-    await user.selectOptions(screen.getByLabelText('Split method'), 'exact')
+    await user.click(screen.getByRole('button', { name: 'Paid by' }))
+    await user.click(screen.getByRole('option', { name: 'Maya' }))
+    await user.click(screen.getByRole('button', { name: 'Split method' }))
+    await user.click(screen.getByRole('option', { name: 'Exact amounts' }))
     await user.type(screen.getByLabelText('You share'), '60')
     await user.type(screen.getByLabelText('Maya share'), '40')
     await user.click(screen.getByRole('button', { name: 'Save expense' }))
@@ -164,7 +168,9 @@ describe('happy paths', () => {
     })
 
     await user.click(screen.getByRole('button', { name: 'Add expense' }))
+    await user.click(screen.getByRole('button', { name: 'Paid by' }))
     expect(screen.getByRole('option', { name: 'Jordan' })).toBeVisible()
+    await user.keyboard('{Escape}')
     await user.type(screen.getByLabelText('Description'), 'Parking')
     await user.type(screen.getByLabelText('Amount'), '30')
     await user.click(screen.getByRole('button', { name: 'Save expense' }))
@@ -291,7 +297,8 @@ describe('edge cases', () => {
 
     await user.type(screen.getByLabelText('Description'), 'Tiny split')
     await user.type(screen.getByLabelText('Amount'), '0.30')
-    await user.selectOptions(screen.getByLabelText('Split method'), 'exact')
+    await user.click(screen.getByRole('button', { name: 'Split method' }))
+    await user.click(screen.getByRole('option', { name: 'Exact amounts' }))
     await user.type(screen.getByLabelText('You share'), '0.10')
     await user.type(screen.getByLabelText('Maya share'), '0.20')
 

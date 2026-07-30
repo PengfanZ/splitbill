@@ -2,6 +2,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { lazy, Suspense, useMemo, useState } from 'react'
 import type { AnalyticsClient, AnalyticsSurface } from './analytics'
 import { FreshStart, Sidebar, Topbar } from './components/AppShell'
+import { ConfirmDialog } from './components/ConfirmDialog'
 import { createIdentity } from './data/identity'
 import { EMPTY_STATE } from './data/storage'
 import { activityCurrency, currencyLabel, type CurrencyCode } from './domain/currency'
@@ -48,6 +49,12 @@ type AppProps = {
   analyticsClient?: AnalyticsClient | null
   liveActivityClient?: LiveActivityClient | null
 }
+type ConfirmationRequest = {
+  confirmLabel: string
+  description: string
+  onConfirm: () => void | Promise<void>
+  title: string
+}
 
 const LiveActivityQrModal = lazy(() => import('./features/sharing/LiveActivityQrModal').then(module => ({ default: module.LiveActivityQrModal })))
 const ChangelogModal = lazy(() => import('./features/changelog/ChangelogModal').then(module => ({ default: module.ChangelogModal })))
@@ -66,6 +73,8 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
   const [settlingDirection, setSettlingDirection] = useState<Settlement | null>(null)
   const [activityFeedback, setActivityFeedback] = useState<ActivityFeedback>(null)
   const [liveIdentityMode, setLiveIdentityMode] = useState<LiveActivityIdentityMode | null>(null)
+  const [confirmation, setConfirmation] = useState<ConfirmationRequest | null>(null)
+  const [confirmationBusy, setConfirmationBusy] = useState(false)
   const selectedGroupIdAtLoad = state.selectedGroupId ?? state.groups[0]?.id ?? null
   const live = useLiveActivitySession({
     initialSelectedGroupId: selectedGroupIdAtLoad,
@@ -307,36 +316,64 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
     closeSettleUpModal()
   }
 
-  const deleteExpense = async (expense: Expense) => {
-    const label = isSettlementPayment(expense) ? t('confirm.deleteSettlementLabel') : t('confirm.deleteExpenseLabel', { title: expense.title })
-    if (!window.confirm(t('confirm.deleteExpense', { label }))) return
-    if (liveActivity) {
-      await live.save(
-        { ...liveActivity, expenses: liveActivity.expenses.filter(item => item.id !== expense.id) },
-        t('live.deletedExpense', { title: expense.title }),
-        JSON.stringify(['delete-expense', expense.id]),
-      )
-      return
+  const confirmRequest = async (request: ConfirmationRequest) => {
+    setConfirmationBusy(true)
+    try {
+      await request.onConfirm()
+      setConfirmation(null)
+    } finally {
+      setConfirmationBusy(false)
     }
-    setState(current => deleteLocalExpense(current, expense.id))
+  }
+
+  const deleteExpense = (expense: Expense) => {
+    const label = isSettlementPayment(expense) ? t('confirm.deleteSettlementLabel') : t('confirm.deleteExpenseLabel', { title: expense.title })
+    setConfirmation({
+      title: t('confirm.deleteExpenseTitle'),
+      description: t('confirm.deleteExpense', { label }),
+      confirmLabel: t('confirm.deleteAction'),
+      onConfirm: async () => {
+        if (liveActivity) {
+          await live.save(
+            { ...liveActivity, expenses: liveActivity.expenses.filter(item => item.id !== expense.id) },
+            t('live.deletedExpense', { title: expense.title }),
+            JSON.stringify(['delete-expense', expense.id]),
+          )
+          return
+        }
+        setState(current => deleteLocalExpense(current, expense.id))
+      },
+    })
   }
 
   const deleteActivity = (group: ActivityGroup) => {
-    if (!window.confirm(t('confirm.deleteActivity', { name: group.name }))) return
-    const deletingSelectedActivity = selectedGroup?.id === group.id
-    const deletingOpenLiveActivity = bookmarkedLiveGroupId === group.id
-    setState(current => deleteLocalActivity(current, group.id))
-    setActivityFeedback(null)
-    live.removeBookmark(group.id)
-    if (deletingOpenLiveActivity) closeLiveActivity()
-    if (deletingSelectedActivity) setQuery('')
+    setConfirmation({
+      title: t('confirm.deleteActivityTitle'),
+      description: t('confirm.deleteActivity', { name: group.name }),
+      confirmLabel: t('confirm.deleteAction'),
+      onConfirm: () => {
+        const deletingSelectedActivity = selectedGroup?.id === group.id
+        const deletingOpenLiveActivity = bookmarkedLiveGroupId === group.id
+        setState(current => deleteLocalActivity(current, group.id))
+        setActivityFeedback(null)
+        live.removeBookmark(group.id)
+        if (deletingOpenLiveActivity) closeLiveActivity()
+        if (deletingSelectedActivity) setQuery('')
+      },
+    })
   }
 
   const resetData = () => {
-    if (!window.confirm(t('confirm.reset'))) return
-    setState(EMPTY_STATE)
-    live.clearBookmarks()
-    setQuery('')
+    setConfirmation({
+      title: t('confirm.resetTitle'),
+      description: t('confirm.reset'),
+      confirmLabel: t('confirm.resetAction'),
+      onConfirm: () => {
+        setState(EMPTY_STATE)
+        live.clearBookmarks()
+        setQuery('')
+      },
+    })
   }
 
   return (
@@ -458,6 +495,16 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
       {modal === 'join' ? <JoinActivityModal onClose={() => setModal(null)} onJoin={joinSharedActivity} /> : null}
       {qrShare ? <Suspense fallback={null}><LiveActivityQrModal groupName={qrShare.groupName} url={qrShare.url} activityCode={qrShare.activityCode} onClose={sharing.closeQrShare} onCopy={() => sharing.copyQrLink(qrShare)} onShare={() => sharing.shareQrLink(qrShare)} /></Suspense> : null}
       {changelogState.open ? <Suspense fallback={null}><ChangelogModal onClose={closeChangelog} /></Suspense> : null}
+      {confirmation ? (
+        <ConfirmDialog
+          title={confirmation.title}
+          description={confirmation.description}
+          confirmLabel={confirmation.confirmLabel}
+          busy={confirmationBusy}
+          onCancel={() => setConfirmation(null)}
+          onConfirm={() => confirmRequest(confirmation)}
+        />
+      ) : null}
       {!identity || modal === 'identity' ? <IdentityModal initialName={identity?.name} onClose={identity ? () => setModal(null) : undefined} onSave={name => {
         if (!identity) {
           markLatestChangelogSeen()

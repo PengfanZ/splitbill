@@ -1,6 +1,6 @@
-import { Check, ChevronDown, CircleDollarSign } from 'lucide-react'
+import { CircleDollarSign } from 'lucide-react'
+import { SelectMenu, type SelectMenuOption } from '../../components/SelectMenu'
 import { currencyLabel, currencySymbol, SUPPORTED_CURRENCIES, type CurrencyCode } from '../../domain/currency'
-import { useDismissibleMenu } from '../../hooks/useDismissibleMenu'
 import { useLocalization } from '../../i18n/LocalizationContext'
 
 export function ActivityCurrencyControl({ currency, locale, readOnly, onChange }: {
@@ -10,14 +10,6 @@ export function ActivityCurrencyControl({ currency, locale, readOnly, onChange }
   onChange?: (currency: CurrencyCode) => void
 }) {
   const { t } = useLocalization()
-  const {
-    closeAndFocusTrigger,
-    handleKeyDown,
-    open,
-    rootRef,
-    toggle,
-    triggerRef,
-  } = useDismissibleMenu()
   const localizedLabels = locale === 'zh-CN'
   const selectedLabel = currencyLabel(currency, locale)
   const value = `${selectedLabel} · ${currencySymbol(currency, locale)}`
@@ -31,52 +23,32 @@ export function ActivityCurrencyControl({ currency, locale, readOnly, onChange }
     )
   }
 
-  const selectCurrency = (code: CurrencyCode) => {
-    onChange(code)
-    closeAndFocusTrigger()
-  }
+  const options: ReadonlyArray<SelectMenuOption<CurrencyCode>> = SUPPORTED_CURRENCIES.map(code => ({
+    value: code,
+    label: currencyLabel(code, locale),
+    detail: code,
+    leading: currencySymbol(code, locale),
+    searchText: `${currencyLabel(code, locale)} ${code}`,
+  }))
 
   return (
-    <div ref={rootRef} className="currency-picker" onKeyDown={handleKeyDown}>
-      <button
-        ref={triggerRef}
-        type="button"
-        className={`activity-currency${localizedLabels ? ' activity-currency--localized' : ''}`}
-        aria-label={t('group.chooseCurrency', { currency: selectedLabel })}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        onClick={toggle}
-      >
-        <span className="activity-currency-icon"><CircleDollarSign size={18} /></span>
-        <b>{value}</b>
-        <ChevronDown className={open ? 'currency-chevron currency-chevron--open' : 'currency-chevron'} size={15} aria-hidden="true" />
-      </button>
-      {open ? (
-        <div className={`currency-menu${localizedLabels ? ' currency-menu--localized' : ''}`} role="listbox" aria-label={t('group.currencyMenu')}>
-          <div className="currency-menu-heading"><span>{t('group.currency')}</span><small>{t('group.currencyHelp')}</small></div>
-          <div className="currency-options">
-            {SUPPORTED_CURRENCIES.map(code => {
-              const selected = code === currency
-              const label = currencyLabel(code, locale)
-              return (
-                <button
-                  type="button"
-                  role="option"
-                  aria-label={label}
-                  aria-selected={selected}
-                  className={selected ? 'currency-option currency-option--selected' : 'currency-option'}
-                  key={code}
-                  onClick={() => selectCurrency(code)}
-                >
-                  <span>{currencySymbol(code, locale)}</span>
-                  <b>{label}</b>
-                  {selected ? <Check size={16} aria-hidden="true" /> : null}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      ) : null}
-    </div>
+    <SelectMenu
+      value={currency}
+      options={options}
+      onChange={onChange}
+      ariaLabel={t('group.chooseCurrency', { currency: selectedLabel })}
+      menuLabel={t('group.currencyMenu')}
+      title={t('group.currency')}
+      description={t('group.currencyHelp')}
+      variant="compact"
+      align="end"
+      className={`activity-currency${localizedLabels ? ' activity-currency--localized' : ''}`}
+      renderValue={() => (
+        <>
+          <span className="activity-currency-icon"><CircleDollarSign size={18} /></span>
+          <b>{value}</b>
+        </>
+      )}
+    />
   )
 }

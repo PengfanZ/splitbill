@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Globe2, UserRound } from 'lucide-react'
 import { ModalShell } from '../../components/AppShell'
+import { Button } from '../../components/Button'
 import { useLocalization } from '../../i18n/LocalizationContext'
 import { LanguageControl } from './LanguageControl'
 
@@ -26,7 +27,7 @@ export function IdentityModal({ initialName = '', onClose, onSave }: {
         <div className="language-field"><span>{t('settings.language')}</span><LanguageControl locale={locale} onChange={setLocale} /></div>
         <div className="split-note identity-note"><Globe2 size={18} /><span><b>{t('settings.regionTitle')}</b><small>{t('settings.timeZone', { timeZone })}</small></span></div>
         <div className="split-note identity-note"><UserRound size={18} /><span><b>{t('identity.storedLocally')}</b><small>{t('identity.explanation')}</small></span></div>
-        <div className="modal-actions modal-actions--single"><button className="confirm-button" type="submit">{t(initialName ? 'identity.saveName' : 'identity.continue')}</button></div>
+        <div className="modal-actions modal-actions--single"><Button variant="primary" type="submit">{t(initialName ? 'identity.saveName' : 'identity.continue')}</Button></div>
       </form>
     </ModalShell>
   )

@@ -6,6 +6,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { ModalShell } from '../../components/AppShell'
+import { Button } from '../../components/Button'
 import { useLocalization } from '../../i18n/LocalizationContext'
 import {
   CHANGELOG_ENTRIES,
@@ -52,9 +53,9 @@ export function ChangelogModal({ onClose }: { onClose: () => void }) {
             </ul>
           </article>
         ))}
-        <button className="confirm-button changelog-confirm" onClick={onClose}>
+        <Button variant="primary" className="changelog-confirm" onClick={onClose}>
           {t('changelog.confirm')}
-        </button>
+        </Button>
       </div>
     </ModalShell>
   )

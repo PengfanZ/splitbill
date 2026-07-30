@@ -5,6 +5,7 @@ import {
   History,
   RefreshCw,
 } from 'lucide-react'
+import { Button } from '../../components/Button'
 import { useLocalization } from '../../i18n/LocalizationContext'
 import type { LiveActivityConnectionState } from './useLiveActivitySession'
 
@@ -65,21 +66,21 @@ export function LiveActivityStatusBanner({
         {notice && (cached || expired) ? <small role="status">{notice}</small> : null}
       </div>
       <div className="live-status-actions">
-        {!hasBookmark && onBack ? <button className="outline-button" onClick={onBack}>{t('live.back')}</button> : null}
+        {!hasBookmark && onBack ? <Button onClick={onBack}>{t('live.back')}</Button> : null}
         {(connected || cached || state === 'unavailable') && browserOnline && onRefresh ? (
-          <button className="outline-button" onClick={onRefresh} disabled={refreshing}>
+          <Button onClick={onRefresh} disabled={refreshing}>
             <RefreshCw size={15} />{refreshing ? t('common.loading') : t(connected ? 'live.refresh' : 'live.retry')}
-          </button>
+          </Button>
         ) : null}
         {cached && onDuplicate ? (
-          <button className="confirm-button" onClick={onDuplicate}>
+          <Button variant="primary" onClick={onDuplicate}>
             <CopyPlus size={15} />{t('live.duplicate')}
-          </button>
+          </Button>
         ) : null}
         {expired && onContinueLocally ? (
-          <button className="confirm-button" onClick={onContinueLocally}>
+          <Button variant="primary" onClick={onContinueLocally}>
             <CopyPlus size={15} />{t('live.continueLocally')}
-          </button>
+          </Button>
         ) : null}
       </div>
     </section>

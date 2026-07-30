@@ -58,7 +58,6 @@ beforeEach(() => {
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined })
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
-  vi.spyOn(window, 'confirm').mockReturnValue(true)
 })
 
 function mockCanvas(blob: Blob | null = new Blob(['png'], { type: 'image/png' })) {
@@ -83,6 +82,15 @@ async function chooseShareAction(user: UserEvent, actionName: string) {
 async function chooseActivityCurrency(user: UserEvent, currentCurrency: string, nextCurrency: string) {
   await user.click(screen.getByRole('button', { name: `Activity currency, ${currentCurrency}` }))
   await user.click(screen.getByRole('option', { name: nextCurrency }))
+}
+
+async function chooseSelectOption(user: UserEvent, label: string | RegExp, option: string) {
+  await user.click(screen.getByRole('button', { name: label }))
+  await user.click(screen.getByRole('option', { name: option }))
+}
+
+async function confirmDialogAction(user: UserEvent, action: 'Delete' | 'Reset data') {
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: action }))
 }
 
 describe('state and formatting helpers', () => {
@@ -541,13 +549,17 @@ describe('modals', () => {
       </LocalizationProvider>,
     )
 
-    const currency = screen.getByLabelText(/活动币种/)
+    const currency = screen.getByRole('button', { name: /活动币种/ })
     expect(currency).toHaveValue('CNY')
-    expect(screen.getByRole('option', { name: '人民币 (¥)' })).toBeVisible()
-    expect(screen.getByRole('option', { name: '美元 ($)' })).toBeVisible()
-    expect(screen.queryByRole('option', { name: 'CNY (¥)' })).not.toBeInTheDocument()
+    await user.click(currency)
+    expect(screen.getByRole('option', { name: '人民币' })).toBeVisible()
+    expect(screen.getByRole('option', { name: '美元' })).toBeVisible()
+    expect(screen.queryByRole('option', { name: 'CNY' })).not.toBeInTheDocument()
 
-    await user.selectOptions(currency, 'USD')
+    await user.click(screen.getByRole('option', { name: '人民币' }))
+    expect(onCurrencySelect).not.toHaveBeenCalled()
+    await user.click(currency)
+    await user.click(screen.getByRole('option', { name: '美元' }))
     expect(onCurrencySelect).toHaveBeenCalledWith('USD')
     await user.type(screen.getByLabelText('活动名称'), '纽约旅行')
     await user.click(screen.getByRole('button', { name: '创建活动' }))
@@ -584,7 +596,7 @@ describe('modals', () => {
     expect(onSave).not.toHaveBeenCalled()
     await user.type(screen.getByLabelText('Description'), 'Lunch')
     await user.type(screen.getByLabelText('Amount'), '10')
-    await user.selectOptions(screen.getByLabelText('Paid by'), 'maya')
+    await chooseSelectOption(user, 'Paid by', 'Maya Chen')
     expect(screen.getByText('3 of 3 selected')).toBeVisible()
     expect(screen.getByText('$3.33')).toBeVisible()
     await user.click(screen.getByLabelText('Include Jordan in equal split'))
@@ -640,7 +652,7 @@ describe('modals', () => {
     render(<ExpenseModal group={group} members={[CURRENT_USER, maya]} onClose={vi.fn()} onSave={onSave} />)
     await user.type(screen.getByLabelText('Description'), 'Hotel')
     await user.type(screen.getByLabelText('Amount'), '20')
-    await user.selectOptions(screen.getByLabelText('Split method'), 'exact')
+    await chooseSelectOption(user, 'Split method', 'Exact amounts')
     expect(screen.getByText('$20.00 left')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Save expense' })).toBeDisabled()
     await user.type(screen.getByLabelText('You share'), '25')
@@ -668,8 +680,8 @@ describe('modals', () => {
     expect(screen.getByRole('heading', { name: 'Edit expense' })).toBeVisible()
     expect(screen.getByLabelText('Description')).toHaveValue('Hotel')
     expect(screen.getByLabelText('Amount')).toHaveValue(30)
-    expect(screen.getByLabelText('Paid by')).toHaveValue('maya')
-    expect(screen.getByLabelText('Split method')).toHaveValue('exact')
+    expect(screen.getByRole('button', { name: 'Paid by' })).toHaveValue('maya')
+    expect(screen.getByRole('button', { name: 'Split method' })).toHaveValue('exact')
     expect(screen.getByLabelText('You share')).toHaveValue(10)
     expect(screen.getByLabelText('Maya Chen share')).toHaveValue(20)
     expect(screen.getByLabelText('Jordan share')).toHaveValue(null)
@@ -703,8 +715,8 @@ describe('modals', () => {
     const { container: sharedIdentityContainer, rerender, unmount } = render(<LiveActivityIdentityModal members={[CURRENT_USER, maya]} mode="live-copy" onClose={onClose} onSave={onSave} />)
 
     expect(sharedIdentityContainer.querySelector('.modal-backdrop')).toHaveClass('modal-backdrop--center')
-    expect(screen.getByLabelText('Your participant')).toHaveValue('me')
-    await user.selectOptions(screen.getByLabelText('Your participant'), maya.id)
+    expect(screen.getByRole('button', { name: 'Your participant' })).toHaveValue('me')
+    await chooseSelectOption(user, 'Your participant', 'Maya Chen')
     await user.click(screen.getByRole('button', { name: 'Create editable copy' }))
     expect(onSave).toHaveBeenCalledWith(maya.id)
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
@@ -918,16 +930,20 @@ describe('complete app workflows', () => {
     expect(screen.getByText('No expenses match your search.')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Clear search' }))
 
-    vi.mocked(window.confirm).mockReturnValueOnce(false).mockReturnValueOnce(true)
     await user.click(screen.getByRole('button', { name: 'Delete Gas' }))
+    expect(screen.getByRole('dialog', { name: 'Delete this record?' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(screen.getByText('Gas')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Delete Gas' }))
+    await confirmDialogAction(user, 'Delete')
     expect(screen.queryByText('Gas')).not.toBeInTheDocument()
 
-    vi.mocked(window.confirm).mockReturnValueOnce(false).mockReturnValueOnce(true)
     await user.click(screen.getByRole('button', { name: 'Reset local data' }))
+    expect(screen.getByRole('dialog', { name: 'Reset local data?' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(screen.getByRole('heading', { name: 'Road trip' })).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Reset local data' }))
+    await confirmDialogAction(user, 'Reset data')
     expect(screen.getByRole('heading', { name: 'Start your first activity' })).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Join from a link' }))
     expect(screen.getByRole('dialog', { name: 'Join a shared activity' })).toBeVisible()
@@ -941,8 +957,7 @@ describe('complete app workflows', () => {
 
     await user.click(screen.getByRole('button', { name: 'Create an activity' }))
     await user.type(screen.getByLabelText('Activity name'), 'Shanghai trip')
-    await user.selectOptions(screen.getByLabelText(/Activity currency/), 'CNY')
-    fireEvent.change(screen.getByLabelText(/Activity currency/), { target: { value: 'CNY' } })
+    await chooseSelectOption(user, /Activity currency/, 'CNY')
     await user.click(screen.getByRole('button', { name: 'Create activity' }))
     expect(screen.getByRole('button', { name: 'Activity currency, CNY' })).toBeVisible()
     expect(screen.getByText('No expenses yet')).toBeVisible()
@@ -1037,10 +1052,11 @@ describe('complete app workflows', () => {
     }))
     render(<App />)
 
-    vi.mocked(window.confirm).mockReturnValueOnce(false).mockReturnValue(true)
     await user.click(screen.getByRole('button', { name: 'Delete Cabin activity' }))
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(screen.getByRole('button', { name: 'Delete Cabin activity' })).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Delete Cabin activity' }))
+    await confirmDialogAction(user, 'Delete')
     expect(screen.getByRole('heading', { name: 'Trip' })).toBeVisible()
     await waitFor(() => {
       const saved = parseState(localStorage.getItem(STORAGE_KEY))
@@ -1053,6 +1069,7 @@ describe('complete app workflows', () => {
 
     await user.type(screen.getByRole('textbox', { name: 'Search expenses' }), 'dinner')
     await user.click(screen.getByRole('button', { name: 'Delete Trip activity' }))
+    await confirmDialogAction(user, 'Delete')
     expect(screen.getByRole('heading', { name: 'Home' })).toBeVisible()
     expect(screen.getByRole('textbox', { name: 'Search expenses' })).toHaveValue('')
     await waitFor(() => {
@@ -1064,6 +1081,7 @@ describe('complete app workflows', () => {
     })
 
     await user.click(screen.getByRole('button', { name: 'Delete Home activity' }))
+    await confirmDialogAction(user, 'Delete')
     expect(screen.getByRole('heading', { name: 'Start your first activity' })).toBeVisible()
     await waitFor(() => expect(parseState(localStorage.getItem(STORAGE_KEY))).toEqual(EMPTY_STATE))
   })
@@ -1613,6 +1631,7 @@ describe('complete app workflows', () => {
     expect(screen.getByText('Live · revision 4')).toBeVisible()
 
     await user.click(screen.getByRole('button', { name: 'Delete Parking' }))
+    await confirmDialogAction(user, 'Delete')
     await waitFor(() => expect(screen.queryByText('Parking')).not.toBeInTheDocument())
     expect(screen.getByText('Live · revision 5')).toBeVisible()
 
@@ -1639,6 +1658,7 @@ describe('complete app workflows', () => {
     expect(window.location.hash).toContain(`${LIVE_ACTIVITY_HASH_PREFIX}${credentials.code}.`)
 
     await user.click(screen.getByRole('button', { name: 'Delete Trip activity' }))
+    await confirmDialogAction(user, 'Delete')
     expect(await screen.findByRole('heading', { name: 'Start your first activity' })).toBeVisible()
     expect(window.location.hash).toBe('')
     expect(JSON.parse(localStorage.getItem(LIVE_ACTIVITY_BOOKMARKS_KEY)!)).toEqual({})

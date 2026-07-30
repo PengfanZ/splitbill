@@ -221,7 +221,8 @@ test('keeps an activity currency across expenses, changes, and reloads', async (
   await page.getByRole('button', { name: 'Continue' }).click()
   await page.getByRole('button', { name: 'Create an activity' }).click()
   await page.getByLabel('Activity name').fill('Europe trip')
-  await page.getByLabel(/Activity currency/).selectOption('EUR')
+  await page.getByRole('button', { name: /Activity currency/ }).click()
+  await page.getByRole('option', { name: 'EUR' }).click()
   await page.getByLabel(/Add friends/).fill('Maya')
   await page.getByRole('button', { name: 'Create activity' }).click()
 
@@ -318,12 +319,29 @@ test('keeps share and add expense together in the mobile action row', async ({ p
   expect(layout.share!.right).toBeLessThanOrEqual(layout.viewportWidth - 20)
   expect(layout.addExpense!.width).toBeGreaterThan(layout.share!.width)
 
+  const touchTargets = [
+    page.getByRole('button', { name: 'Open navigation' }),
+    page.getByRole('button', { name: 'Settings' }),
+    page.getByRole('button', { name: 'Edit Lunch' }),
+    page.getByRole('button', { name: 'Delete Lunch' }),
+    actionRow.getByRole('button', { name: 'Add expense' }),
+    actionRow.getByRole('button', { name: 'Share', exact: true }),
+  ]
+  for (const target of touchTargets) {
+    const bounds = await target.boundingBox()
+    expect(bounds?.width).toBeGreaterThanOrEqual(44)
+    expect(bounds?.height).toBeGreaterThanOrEqual(44)
+  }
+
   await actionRow.getByRole('button', { name: 'Share', exact: true }).click()
   const shareDialog = page.getByRole('dialog', { name: 'Share activity' })
   await expect(shareDialog).toBeVisible()
   await expect(shareDialog.getByRole('button', { name: 'Start live activity' })).toBeVisible()
   await expect(shareDialog.getByRole('button', { name: /^Share balances only/ })).toBeVisible()
   await expect(shareDialog.getByText(/snapshot/i)).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(shareDialog).toHaveCount(0)
+  await expect(actionRow.getByRole('button', { name: 'Share', exact: true })).toBeFocused()
 })
 
 test('centers compact mobile dialogs and keeps long forms as sheets', async ({ page }) => {
@@ -336,6 +354,10 @@ test('centers compact mobile dialogs and keeps long forms as sheets', async ({ p
 
   await page.getByRole('button', { name: 'Create an activity' }).click()
   await expect(page.locator('.modal-backdrop')).toHaveClass(/modal-backdrop--center/)
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog', { name: 'What are you sharing?' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Create an activity' })).toBeFocused()
+  await page.getByRole('button', { name: 'Create an activity' }).click()
   await page.getByLabel('Activity name').fill('Modal weekend')
   await page.getByLabel(/Add friends/).fill('Maya')
   await page.getByRole('button', { name: 'Create activity' }).click()
@@ -413,7 +435,8 @@ test('tracks local outcomes without sending local activity data or loading third
   await page.getByRole('button', { name: 'Continue' }).click()
   await page.getByRole('button', { name: 'Create an activity' }).click()
   await page.getByLabel('Activity name').fill('Secret local weekend')
-  await page.getByLabel(/Activity currency/).selectOption('CNY')
+  await page.getByRole('button', { name: /Activity currency/ }).click()
+  await page.getByRole('option', { name: 'CNY' }).click()
   await page.getByRole('button', { name: 'Create activity' }).click()
   await page.getByRole('button', { name: 'Add friend' }).click()
   await page.getByLabel(/Friend names/).fill('Private Friend')
@@ -504,12 +527,14 @@ test('persists a selective equal split and deletes its activity safely', async (
   await page.getByRole('button', { name: 'Open navigation' }).click()
   await expect(page.getByRole('button', { name: 'Delete Weekend activity' })).toBeVisible()
 
-  page.once('dialog', dialog => dialog.dismiss())
   await page.getByRole('button', { name: 'Delete Weekend activity' }).click()
+  const confirmation = page.getByRole('dialog', { name: 'Delete this activity?' })
+  await expect(confirmation).toContainText('This cannot be undone')
+  await confirmation.getByRole('button', { name: 'Cancel' }).click()
   await expect(page.getByRole('heading', { name: 'Weekend' })).toBeVisible()
 
-  page.once('dialog', dialog => dialog.accept())
   await page.getByRole('button', { name: 'Delete Weekend activity' }).click()
+  await page.getByRole('dialog', { name: 'Delete this activity?' }).getByRole('button', { name: 'Delete' }).click()
   await expect(page.getByRole('heading', { name: 'Start your first activity' })).toBeVisible()
   await expect(page.getByText('No activities yet.')).toBeVisible()
   expect(browserErrors).toEqual([])

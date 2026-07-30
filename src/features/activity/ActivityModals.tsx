@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { ArrowRight, CircleDollarSign, Pencil, Users } from 'lucide-react'
 import { Avatar, ModalShell } from '../../components/AppShell'
+import { Button } from '../../components/Button'
+import { SelectMenu, type SelectMenuOption } from '../../components/SelectMenu'
 import { activityCurrency, currencyLabel, currencySymbol, defaultCurrencyForLocale, SUPPORTED_CURRENCIES, type CurrencyCode } from '../../domain/currency'
 import { createEqualShares, createExactShares, createExpenseTimestamp, createSettlementPayment, money } from '../../domain/expenses'
 import { makeId } from '../../domain/members'
@@ -17,6 +19,12 @@ export function CreateGroupModal({ onClose, onCurrencySelect, onSave }: {
   const [friends, setFriends] = useState('')
   const { locale, t } = useLocalization()
   const [currency, setCurrency] = useState<CurrencyCode>(() => defaultCurrencyForLocale(locale))
+  const currencyOptions: ReadonlyArray<SelectMenuOption<CurrencyCode>> = SUPPORTED_CURRENCIES.map(code => ({
+    value: code,
+    label: currencyLabel(code, locale),
+    detail: `${code} · ${currencySymbol(code, locale)}`,
+    leading: currencySymbol(code, locale),
+  }))
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -34,10 +42,10 @@ export function CreateGroupModal({ onClose, onCurrencySelect, onSave }: {
     <ModalShell eyebrow={t('group.newEyebrow')} title={t('group.newTitle')} onClose={onClose} mobilePlacement="center">
       <form onSubmit={submit}>
         <label>{t('group.name')}<input autoFocus value={name} onChange={event => setName(event.target.value)} placeholder={t('group.namePlaceholder')} required /></label>
-        <label>{t('group.currency')} <small>{t('group.currencyHelp')}</small><select value={currency} onChange={event => selectCurrency(event.target.value as CurrencyCode)}>{SUPPORTED_CURRENCIES.map(code => <option key={code} value={code}>{currencyLabel(code, locale)} ({currencySymbol(code, locale)})</option>)}</select></label>
+        <label>{t('group.currency')} <small>{t('group.currencyHelp')}</small><SelectMenu value={currency} options={currencyOptions} onChange={selectCurrency} ariaLabel={t('group.chooseCurrency', { currency: currencyLabel(currency, locale) })} menuLabel={t('group.currencyMenu')} /></label>
         <label>{t('group.addFriends')} <small>{t('group.addFriendsHelp')}</small><textarea value={friends} onChange={event => setFriends(event.target.value)} placeholder={t('group.addFriendsPlaceholder')} rows={3} /></label>
         <div className="split-note"><Users size={18} /><span>{t('group.included')}</span></div>
-        <div className="modal-actions"><button type="button" className="outline-button" onClick={onClose}>{t('common.cancel')}</button><button className="confirm-button" type="submit">{t('group.create')}</button></div>
+        <div className="modal-actions"><Button onClick={onClose}>{t('common.cancel')}</Button><Button variant="primary" type="submit">{t('group.create')}</Button></div>
       </form>
     </ModalShell>
   )
@@ -59,7 +67,7 @@ export function AddFriendModal({ existingExpenseCount, onClose, onSave, saving =
       <form onSubmit={submit}>
         <label>{t('friend.names')} <small>{t('friend.namesHelp')}</small><textarea autoFocus value={names} onChange={event => setNames(event.target.value)} placeholder={t('friend.namesPlaceholder')} rows={3} required /></label>
         {existingExpenseCount ? <div className="split-note future-note"><Users size={18} /><span><b>{t('friend.futureOnly')}</b><small>{t(existingExpenseCount === 1 ? 'friend.existingOne' : 'friend.existingMany', { count: existingExpenseCount })}</small></span></div> : null}
-        <div className="modal-actions"><button type="button" className="outline-button" onClick={onClose}>{t('common.cancel')}</button><button className="confirm-button" type="submit" disabled={saving}>{t('friend.add')}</button></div>
+        <div className="modal-actions"><Button onClick={onClose}>{t('common.cancel')}</Button><Button variant="primary" type="submit" disabled={saving}>{t('friend.add')}</Button></div>
       </form>
     </ModalShell>
   )
@@ -97,7 +105,7 @@ export function SettleUpModal({ group, settlement, onClose, onSave, saving = fal
         <label>{t('settlement.amount')} <small>{t('settlement.suggestedAmount', { amount: money(settlement.amount, currency, locale) })}</small><span className="modal-amount"><i>{currencySymbol(currency, locale)}</i><input autoFocus aria-label={t('settlement.amount')} value={amount} onChange={event => setAmount(event.target.value)} type="number" min="0.01" max={settlement.amount.toFixed(2)} step="0.01" required /></span></label>
         {valid ? null : <small className="split-error" role="alert">{t('settlement.invalid', { minimum: money(0.01, currency, locale), amount: money(settlement.amount, currency, locale) })}</small>}
         <div className="split-note settlement-note"><CircleDollarSign size={18} /><span>{t('settlement.note')}</span></div>
-        <div className="modal-actions"><button type="button" className="outline-button" onClick={onClose}>{t('common.cancel')}</button><button className="confirm-button" type="submit" disabled={!valid || saving}>{t('settlement.record')}</button></div>
+        <div className="modal-actions"><Button onClick={onClose}>{t('common.cancel')}</Button><Button variant="primary" type="submit" disabled={!valid || saving}>{t('settlement.record')}</Button></div>
       </form>
     </ModalShell>
   )
@@ -117,6 +125,15 @@ export function ExpenseModal({ group, members, expense, onClose, onSave, saving 
   const [amount, setAmount] = useState(expense ? expense.amount.toString() : '')
   const [payerId, setPayerId] = useState(expense?.payerId ?? 'me')
   const [method, setMethod] = useState<SplitMethod>(expense?.splitMethod ?? 'equal')
+  const payerOptions: ReadonlyArray<SelectMenuOption<string>> = members.map(member => ({
+    value: member.id,
+    label: member.name,
+    leading: <Avatar member={member} size="sm" />,
+  }))
+  const methodOptions: ReadonlyArray<SelectMenuOption<SplitMethod>> = [
+    { value: 'equal', label: t('expense.equally') },
+    { value: 'exact', label: t('expense.exactAmounts') },
+  ]
   const [equalParticipantIds, setEqualParticipantIds] = useState<string[]>(() => {
     if (expense?.splitMethod !== 'equal') return members.map(member => member.id)
     const savedParticipantIds = new Set(Object.keys(expense.shares))
@@ -164,8 +181,8 @@ export function ExpenseModal({ group, members, expense, onClose, onSave, saving 
         <label>{t('expense.description')}<input autoFocus value={title} onChange={event => setTitle(event.target.value)} placeholder={t('expense.descriptionPlaceholder')} maxLength={200} required /></label>
         <label>{t('expense.amount')}<span className="modal-amount"><i>{currencySymbol(currency, locale)}</i><input aria-label={t('expense.amount')} value={amount} onChange={event => setAmount(event.target.value)} type="number" min="0.01" max={MAX_ACTIVITY_AMOUNT} step="0.01" placeholder="0.00" required /></span></label>
         <div className="form-grid">
-          <label>{t('expense.paidBy')}<select value={payerId} onChange={event => setPayerId(event.target.value)}>{members.map(member => <option value={member.id} key={member.id}>{member.name}</option>)}</select></label>
-          <label>{t('expense.splitMethod')}<select value={method} onChange={event => setMethod(event.target.value as SplitMethod)}><option value="equal">{t('expense.equally')}</option><option value="exact">{t('expense.exactAmounts')}</option></select></label>
+          <label>{t('expense.paidBy')}<SelectMenu value={payerId} options={payerOptions} onChange={setPayerId} ariaLabel={t('expense.paidBy')} menuLabel={t('expense.paidBy')} /></label>
+          <label>{t('expense.splitMethod')}<SelectMenu value={method} options={methodOptions} onChange={setMethod} ariaLabel={t('expense.splitMethod')} menuLabel={t('expense.splitMethod')} /></label>
         </div>
         {method === 'equal' ? (
           <div className="equal-splits">
@@ -196,7 +213,7 @@ export function ExpenseModal({ group, members, expense, onClose, onSave, saving 
           </div>
         )}
         {expense ? <div className="split-note edit-note"><Pencil size={17} /><span>{method === 'equal' ? t('expense.editEqualNote') : t('expense.editExactNote', { count: members.length })}</span></div> : null}
-        <div className="modal-actions"><button type="button" className="outline-button" onClick={onClose}>{t('common.cancel')}</button><button className="confirm-button" type="submit" disabled={!splitValid || saving}>{t(expense ? 'expense.saveChanges' : 'expense.save')}</button></div>
+        <div className="modal-actions"><Button onClick={onClose}>{t('common.cancel')}</Button><Button variant="primary" type="submit" disabled={!splitValid || saving}>{t(expense ? 'expense.saveChanges' : 'expense.save')}</Button></div>
       </form>
     </ModalShell>
   )

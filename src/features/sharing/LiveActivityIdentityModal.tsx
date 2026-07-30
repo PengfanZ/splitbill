@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { UserRoundCheck } from 'lucide-react'
 import { ModalShell } from '../../components/AppShell'
+import { Button } from '../../components/Button'
+import { SelectMenu } from '../../components/SelectMenu'
 import type { Member } from '../../domain/models'
 import { useLocalization } from '../../i18n/LocalizationContext'
 
@@ -37,9 +39,9 @@ export function LiveActivityIdentityModal({ members, mode, onClose, onSave }: {
   return (
     <ModalShell eyebrow={copy.eyebrow} title={copy.title} onClose={onClose} mobilePlacement="center">
       <form onSubmit={submit}>
-        <label>{t('sharedIdentity.participant')}<select aria-label={t('sharedIdentity.participant')} autoFocus value={memberId} onChange={event => setMemberId(event.target.value)}>{members.map(member => <option value={member.id} key={member.id}>{member.name}</option>)}</select></label>
+        <label>{t('sharedIdentity.participant')}<SelectMenu autoFocus value={memberId} options={members.map(member => ({ value: member.id, label: member.name }))} onChange={setMemberId} ariaLabel={t('sharedIdentity.participant')} menuLabel={t('sharedIdentity.participant')} /></label>
         <div className="split-note identity-note"><UserRoundCheck size={18} /><span><b>{t('sharedIdentity.becomesYou')}</b><small>{copy.explanation}</small></span></div>
-        <div className="modal-actions"><button type="button" className="outline-button" onClick={onClose}>{t('common.cancel')}</button><button className="confirm-button" type="submit" disabled={!memberId}>{copy.save}</button></div>
+        <div className="modal-actions"><Button onClick={onClose}>{t('common.cancel')}</Button><Button variant="primary" type="submit" disabled={!memberId}>{copy.save}</Button></div>
       </form>
     </ModalShell>
   )

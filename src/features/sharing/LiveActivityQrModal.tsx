@@ -1,6 +1,7 @@
 import { Copy, ScanQrCode, Share2, ShieldCheck } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { ModalShell } from '../../components/AppShell'
+import { Button } from '../../components/Button'
 import { useLocalization } from '../../i18n/LocalizationContext'
 
 export function LiveActivityQrModal({ groupName, url, activityCode, onClose, onCopy, onShare }: {
@@ -28,7 +29,7 @@ export function LiveActivityQrModal({ groupName, url, activityCode, onClose, onC
         </div>
         <div className="qr-instructions"><ScanQrCode size={20} /><span><b>{t('qr.scanPhone')}</b><small>{t('qr.liveDescription')}</small></span></div>
         <div className="split-note qr-privacy"><ShieldCheck size={18} /><span><b>{t('qr.livePrivacyTitle')}</b><small>{t('qr.livePrivacyText')}</small></span></div>
-        <div className="modal-actions"><button type="button" className="outline-button qr-copy-button" onClick={onCopy}><Copy size={16} />{t('qr.copy')}</button><button type="button" className="confirm-button qr-copy-button" onClick={onShare}><Share2 size={16} />{t('qr.share')}</button></div>
+        <div className="modal-actions"><Button className="qr-copy-button" onClick={onCopy}><Copy size={16} />{t('qr.copy')}</Button><Button variant="primary" className="qr-copy-button" onClick={onShare}><Share2 size={16} />{t('qr.share')}</Button></div>
       </div>
     </ModalShell>
   )

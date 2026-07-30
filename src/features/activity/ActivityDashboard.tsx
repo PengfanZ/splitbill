@@ -10,6 +10,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { Avatar } from '../../components/AppShell'
+import { Button, IconButton } from '../../components/Button'
 import { activityCurrency, type CurrencyCode } from '../../domain/currency'
 import { calculateMemberBalance, calculateSettlements, getSettlementRecipientId, isSettlementPayment, money, spendingExpenses } from '../../domain/expenses'
 import { CURRENT_USER } from '../../domain/members'
@@ -64,7 +65,7 @@ export function SettlementDirections({ members, expenses, currency = 'USD', curr
           <div className="balance-row settlement-row" key={`${settlement.from.id}-${settlement.to.id}`}>
             <span className="settlement-avatars"><Avatar member={settlement.from} /><i>→</i><Avatar member={settlement.to} /></span>
             <span className="row-copy"><b>{settlement.from.id === 'me' ? `${currentUserOwes} ${settlement.to.name}` : t('dashboard.owesPerson', { from: settlement.from.name, to: settlement.to.name })}</b><small>{t('dashboard.suggestedPayment')}</small></span>
-            <span className="settlement-action"><strong>{money(settlement.amount, currency, locale)}</strong>{onSettleUp ? <button type="button" className="settle-up-button" onClick={() => onSettleUp(settlement)}>{t('dashboard.settleUp')}</button> : null}</span>
+            <span className="settlement-action"><strong>{money(settlement.amount, currency, locale)}</strong>{onSettleUp ? <Button className="settle-up-button" onClick={() => onSettleUp(settlement)}>{t('dashboard.settleUp')}</Button> : null}</span>
           </div>
         )) : <div className="all-settled"><span><Check size={18} /></span><div><b>{t('dashboard.everyoneSettled')}</b><p>{t('dashboard.addExpensePrompt')}</p></div></div>}
       </div>
@@ -115,10 +116,10 @@ export function ExpenseList({ expenses, members, currency = 'USD', query, readOn
               <span className="expense-amount"><b>{money(expense.amount, currency, locale)}</b><small>{timestampLabel}</small></span>
               {readOnly ? null : (
                 <span className="expense-actions">
-                  {settlementPayment ? null : <button className="expense-edit" type="button" aria-label={t('dashboard.editExpense', { title: expense.title })} title={t('dashboard.editExpenseTitle')} onClick={() => onEditExpense?.(expense)}><Pencil size={15} /></button>}
-                  <button className="expense-delete" type="button" aria-label={settlementPayment
+                  {settlementPayment ? null : <IconButton className="expense-edit" tone="success" label={t('dashboard.editExpense', { title: expense.title })} title={t('dashboard.editExpenseTitle')} onClick={() => onEditExpense?.(expense)}><Pencil size={15} /></IconButton>}
+                  <IconButton className="expense-delete" tone="danger" label={settlementPayment
                     ? t('dashboard.deletePayment', { payer: payer.name, recipient: settlementRecipient?.name ?? unknown })
-                    : t('dashboard.deleteExpense', { title: expense.title })} title={t(settlementPayment ? 'dashboard.deleteSettlementTitle' : 'dashboard.deleteExpenseTitle')} onClick={() => onDeleteExpense?.(expense)}><Trash2 size={16} /></button>
+                    : t('dashboard.deleteExpense', { title: expense.title })} title={t(settlementPayment ? 'dashboard.deleteSettlementTitle' : 'dashboard.deleteExpenseTitle')} onClick={() => onDeleteExpense?.(expense)}><Trash2 size={16} /></IconButton>
                 </span>
               )}
             </div>
@@ -136,7 +137,7 @@ export function MembersRail({ members, readOnly = false, onAddFriend }: { member
       <section className="members-panel">
         <div className="rail-heading"><h2>{t('dashboard.people')}</h2><span>{members.length}</span></div>
         <div className="member-list">{members.map(member => <div className="member-row" key={member.id}><Avatar member={member} size="sm" /><b>{member.name}</b>{member.id === 'me' ? <Check size={15} aria-label={t('dashboard.currentIdentity')} /> : null}</div>)}</div>
-        {readOnly ? null : <button className="outline-button add-friend-button" onClick={onAddFriend}><Plus size={16} />{t('dashboard.addFriend')}</button>}
+        {readOnly ? null : <Button className="add-friend-button" onClick={onAddFriend}><Plus size={16} />{t('dashboard.addFriend')}</Button>}
       </section>
     </aside>
   )
@@ -181,8 +182,8 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
                 {readOnly ? <span className="read-only-badge">{readOnlyLabel ?? t('dashboard.readOnly')}</span> : null}
               </div>
               <div className="group-primary-actions">
-                {!readOnly && canShare ? <button className="outline-button share-button" onClick={() => setShareMenuOpen(true)}><Share2 size={16} />{t('dashboard.share')}</button> : null}
-                {!readOnly && hasExpenses && onAddExpense ? <button className="confirm-button" onClick={onAddExpense}><Plus size={17} />{t('dashboard.addExpense')}</button> : null}
+                {!readOnly && canShare ? <Button className="share-button" onClick={() => setShareMenuOpen(true)}><Share2 size={16} />{t('dashboard.share')}</Button> : null}
+                {!readOnly && hasExpenses && onAddExpense ? <Button variant="primary" onClick={onAddExpense}><Plus size={17} />{t('dashboard.addExpense')}</Button> : null}
               </div>
             </div>
             {activityFeedback ? <span className="activity-feedback" role="status">{activityFeedback}</span> : null}
@@ -199,7 +200,7 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
             <span><ReceiptText size={25} /></span>
             <h2>{t('dashboard.emptyTitle')}</h2>
             <p>{t('dashboard.emptyText')}</p>
-            {!readOnly && onAddExpense ? <button className="confirm-button" onClick={onAddExpense}><Plus size={17} />{t('dashboard.addExpense')}</button> : null}
+            {!readOnly && onAddExpense ? <Button variant="primary" onClick={onAddExpense}><Plus size={17} />{t('dashboard.addExpense')}</Button> : null}
           </section>
         )}
       </div>

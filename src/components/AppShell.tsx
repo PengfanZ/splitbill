@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import {
   ChevronRight,
   Github,
@@ -14,6 +14,9 @@ import {
 } from 'lucide-react'
 import type { ActivityGroup, Member } from '../domain/models'
 import { useLocalization } from '../i18n/LocalizationContext'
+import { Button, IconButton } from './Button'
+
+export { ModalShell } from './Dialog'
 
 const EMPTY_LIVE_ACTIVITY_CODES: Record<string, string> = {}
 
@@ -38,15 +41,15 @@ export function Sidebar({ groups, selectedId, liveActivityCodes = EMPTY_LIVE_ACT
 
   return (
     <>
-      <button className="mobile-menu" aria-label={t('nav.open')} onClick={() => setMobileOpen(true)}><Menu /></button>
+      <IconButton className="mobile-menu" label={t('nav.open')} onClick={() => setMobileOpen(true)}><Menu /></IconButton>
       <aside className={`sidebar ${mobileOpen ? 'sidebar--open' : ''}`}>
         <div className="sidebar-top">
           <div className="brand">Tally<span>.</span></div>
-          <button className="sidebar-close" aria-label={t('nav.close')} onClick={() => setMobileOpen(false)}><X /></button>
+          <IconButton className="sidebar-close" label={t('nav.close')} onClick={() => setMobileOpen(false)}><X /></IconButton>
         </div>
         <div className="sidebar-actions">
-          <button className="add-button" onClick={() => { onCreate(); setMobileOpen(false) }}><Plus size={20} />{t('nav.newActivity')}</button>
-          <button className="outline-button join-button" onClick={() => { onJoin(); setMobileOpen(false) }}><Link2 size={17} />{t('nav.joinActivity')}</button>
+          <Button variant="primary" className="add-button" onClick={() => { onCreate(); setMobileOpen(false) }}><Plus size={20} />{t('nav.newActivity')}</Button>
+          <Button className="join-button" onClick={() => { onJoin(); setMobileOpen(false) }}><Link2 size={17} />{t('nav.joinActivity')}</Button>
         </div>
         <div className="group-section">
           <p className="section-label">{t('nav.yourActivities')}</p>
@@ -59,7 +62,7 @@ export function Sidebar({ groups, selectedId, liveActivityCodes = EMPTY_LIVE_ACT
                   : t('nav.memberCount', { count: group.memberIds.length, unit: t(group.memberIds.length === 1 ? 'common.person' : 'common.people') })}</small></span>
                 <ChevronRight size={15} />
               </button>
-              <button className="group-delete" aria-label={t('nav.deleteActivity', { name: group.name })} title={t('nav.deleteActivityTitle')} onClick={() => onDelete(group)}><Trash2 size={15} /></button>
+              <IconButton className="group-delete" tone="danger" label={t('nav.deleteActivity', { name: group.name })} title={t('nav.deleteActivityTitle')} onClick={() => onDelete(group)}><Trash2 size={15} /></IconButton>
             </div>
           )) : <p className="sidebar-empty">{t('nav.noActivities')}</p>}
         </div>
@@ -91,8 +94,8 @@ export function Topbar({ query, setQuery, onSettings, activityName, activityDeta
     <header className="topbar">
       {activityName ? <div className={`topbar-context${mobileSearchOpen ? ' topbar-context--hidden' : ''}`}><span>{activityEmoji}</span><div><b>{activityName}</b>{activityDetail ? <small>{activityDetail}</small> : null}</div></div> : null}
       <div className={`search-box${mobileSearchOpen ? ' search-box--mobile-open' : ''}`}><Search size={18} /><input aria-label={t('topbar.searchLabel')} placeholder={t('topbar.searchPlaceholder')} value={query} onChange={event => setQuery(event.target.value)} />{query || mobileSearchOpen ? <button onClick={() => { setQuery(''); setMobileSearchOpen(false) }} aria-label={query ? t('topbar.clearSearch') : t('topbar.closeSearch')}><X size={16} /></button> : null}</div>
-      <button className="icon-button mobile-search-toggle" aria-label={t('topbar.openSearch')} onClick={() => setMobileSearchOpen(true)}><Search size={20} /></button>
-      <button className="icon-button" aria-label={t('topbar.settings')} onClick={onSettings}><Settings size={20} /></button>
+      <IconButton className="mobile-search-toggle" label={t('topbar.openSearch')} onClick={() => setMobileSearchOpen(true)}><Search size={20} /></IconButton>
+      <IconButton label={t('topbar.settings')} onClick={onSettings}><Settings size={20} /></IconButton>
     </header>
   )
 }
@@ -105,26 +108,8 @@ export function FreshStart({ onCreate, onJoin }: { onCreate: () => void; onJoin:
       <p className="fresh-kicker">{t('fresh.kicker')}</p>
       <h1>{t('fresh.title')}</h1>
       <p>{t('fresh.description')}</p>
-      <div className="fresh-actions"><button className="confirm-button fresh-button" onClick={onCreate}><Plus size={18} />{t('fresh.create')}</button><button className="outline-button fresh-button" onClick={onJoin}><Link2 size={17} />{t('fresh.join')}</button></div>
+      <div className="fresh-actions"><Button variant="primary" className="fresh-button" onClick={onCreate}><Plus size={18} />{t('fresh.create')}</Button><Button className="fresh-button" onClick={onJoin}><Link2 size={17} />{t('fresh.join')}</Button></div>
       <div className="fresh-steps"><span><b>1</b>{t('fresh.stepName')}</span><span><b>2</b>{t('fresh.stepFriends')}</span><span><b>3</b>{t('fresh.stepSplit')}</span></div>
     </main>
-  )
-}
-
-export function ModalShell({ eyebrow, title, onClose, children, mobilePlacement = 'sheet' }: {
-  eyebrow: string
-  title: string
-  onClose?: () => void
-  children: ReactNode
-  mobilePlacement?: 'sheet' | 'center'
-}) {
-  const { t } = useLocalization()
-  return (
-    <div className={`modal-backdrop modal-backdrop--${mobilePlacement}`} role="presentation" onMouseDown={event => { if (onClose && event.currentTarget === event.target) onClose() }}>
-      <section className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-        <div className="modal-header"><div><span>{eyebrow}</span><h2 id="modal-title">{title}</h2></div>{onClose ? <button aria-label={t('common.close')} onClick={onClose}><X size={20} /></button> : null}</div>
-        <div className="modal-body">{children}</div>
-      </section>
-    </div>
   )
 }

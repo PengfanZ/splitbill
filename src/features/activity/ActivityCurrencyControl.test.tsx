@@ -43,7 +43,7 @@ describe('ActivityCurrencyControl', () => {
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
 
     await user.click(trigger)
-    fireEvent.pointerDown(document.body)
+    fireEvent.mouseDown(document.body)
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
   })
 
