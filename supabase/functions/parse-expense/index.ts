@@ -13,6 +13,7 @@ export default {
         if (error) throw error
         return data === true
       },
+      reportProviderFailure: failure => console.warn('AI provider request failed', failure),
     })
   )),
 }

@@ -166,3 +166,22 @@ test('explains a legacy unsafe-model response without calling the model unavaila
   await expect(error).toContainText('Tally could not turn that into a reliable draft.')
   await expect(error).not.toContainText('unavailable')
 })
+
+test('identifies an upstream model failure instead of blaming the expense description', async ({ page }) => {
+  await page.route('https://live-sharing.test/functions/v1/parse-expense', route => route.fulfill({
+    status: 503,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      code: 'model_unavailable',
+      message: 'The configured AI models could not respond.',
+    }),
+  }))
+
+  await createPreviewActivity(page)
+  await page.getByLabel('Expense description').fill('Maya paid $30 for dinner, split between everyone')
+  await page.getByRole('button', { name: 'Create draft' }).click()
+
+  const error = page.getByRole('alert')
+  await expect(error).toContainText('free AI model and its low-cost backup both failed')
+  await expect(error).not.toContainText('Restate the total amount')
+})

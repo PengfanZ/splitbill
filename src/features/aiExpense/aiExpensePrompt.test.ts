@@ -4,7 +4,9 @@ import { AiExpenseContractError } from './aiExpenseContract'
 import {
   AI_EXPENSE_JSON_SCHEMA,
   buildOpenRouterRequest,
+  DEFAULT_OPENROUTER_FALLBACK_MODEL,
   DEFAULT_OPENROUTER_MODEL,
+  getOpenRouterFailure,
   parseOpenRouterModelOutput,
 } from './aiExpensePrompt'
 
@@ -29,9 +31,15 @@ const output = {
 describe('OpenRouter expense prompt', () => {
   it('builds a strict, privacy-conscious request with a pinned free default', () => {
     const built = buildOpenRouterRequest(request)
-    expect(built.model).toBe(DEFAULT_OPENROUTER_MODEL)
+    expect(built.models).toEqual([DEFAULT_OPENROUTER_MODEL, DEFAULT_OPENROUTER_FALLBACK_MODEL])
     expect(built.response_format.json_schema).toMatchObject({ strict: true, schema: AI_EXPENSE_JSON_SCHEMA })
-    expect(built.provider).toEqual({ allow_fallbacks: false, data_collection: 'deny', require_parameters: true })
+    expect(built.provider).toEqual({
+      allow_fallbacks: true,
+      data_collection: 'deny',
+      preferred_max_latency: { p90: 3 },
+      require_parameters: true,
+      sort: { by: 'price', partition: 'none' },
+    })
     expect(built).not.toHaveProperty('reasoning')
     expect(built.max_tokens).toBe(700)
     expect(built.messages[0].content).toContain('untrusted data')
@@ -46,7 +54,11 @@ describe('OpenRouter expense prompt', () => {
       expenseDescription: request.text,
       clarificationContext: null,
     })
-    expect(buildOpenRouterRequest(request, 'google/gemma-free').model).toBe('google/gemma-free')
+    expect(buildOpenRouterRequest(request, 'google/gemma-free').models).toEqual([
+      'google/gemma-free',
+      DEFAULT_OPENROUTER_FALLBACK_MODEL,
+    ])
+    expect(buildOpenRouterRequest(request, 'same-model', 'same-model').models).toEqual(['same-model'])
 
     const clarified = buildOpenRouterRequest({
       ...request,
@@ -56,6 +68,21 @@ describe('OpenRouter expense prompt', () => {
       question: 'Who paid?',
       answer: 'Maya paid',
     })
+  })
+
+  it('extracts typed provider failures from top-level and completed-response errors', () => {
+    expect(getOpenRouterFailure({
+      error: { code: 502, metadata: { error_type: 'provider_unavailable' } },
+    })).toEqual({ status: 502, errorType: 'provider_unavailable' })
+    expect(getOpenRouterFailure({
+      choices: [{ error: { code: 503 } }],
+    })).toEqual({ status: 503, errorType: null })
+    expect(getOpenRouterFailure({ error: { code: 'unknown', metadata: null } })).toEqual({
+      status: null,
+      errorType: null,
+    })
+    expect(getOpenRouterFailure(null)).toBeNull()
+    expect(getOpenRouterFailure({ choices: [] })).toBeNull()
   })
 
   it('parses a structured model response', () => {

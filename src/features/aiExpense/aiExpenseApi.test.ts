@@ -107,6 +107,17 @@ describe('AI expense API client', () => {
     await expect(client.parse(request)).rejects.toMatchObject({ kind: 'invalid-input' })
   })
 
+  it.each([
+    ['model_unavailable', 'model-unavailable'],
+    ['provider_error', 'model-unavailable'],
+    ['provider_unavailable', 'model-unavailable'],
+    ['provider_payment_required', 'credits'],
+  ] as const)('maps backend code %s to %s', async (code, kind) => {
+    fetcher.mockResolvedValue(response({ code, message: 'Safe backend message' }, 503))
+    const client = createAiExpenseClient({ supabaseUrl: 'https://project.supabase.co', publishableKey: 'key' }, fetcher)
+    await expect(client.parse(request)).rejects.toMatchObject({ kind })
+  })
+
   it('uses a safe fallback for an unstructured backend error', async () => {
     fetcher.mockResolvedValue(response(null, 500))
     const client = createAiExpenseClient({ supabaseUrl: 'https://project.supabase.co', publishableKey: 'key' }, fetcher)

@@ -6,6 +6,7 @@ import {
 } from './aiExpenseContract.ts'
 
 export const DEFAULT_OPENROUTER_MODEL = 'google/gemma-4-26b-a4b-it:free'
+export const DEFAULT_OPENROUTER_FALLBACK_MODEL = 'google/gemini-2.5-flash-lite'
 
 export const AI_EXPENSE_JSON_SCHEMA = {
   type: 'object',
@@ -63,9 +64,14 @@ Rules:
 - Write clarificationQuestion in the description's language. For mixed-language text, use its dominant language; when the language is unclear, use interfaceLocale.
 - Return only the requested structured output.`
 
-export function buildOpenRouterRequest(request: AiExpenseRequest, model = DEFAULT_OPENROUTER_MODEL) {
+export function buildOpenRouterRequest(
+  request: AiExpenseRequest,
+  model = DEFAULT_OPENROUTER_MODEL,
+  fallbackModel = DEFAULT_OPENROUTER_FALLBACK_MODEL,
+) {
+  const models = model === fallbackModel ? [model] : [model, fallbackModel]
   return {
-    model,
+    models,
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
       {
@@ -88,9 +94,11 @@ export function buildOpenRouterRequest(request: AiExpenseRequest, model = DEFAUL
       },
     },
     provider: {
-      allow_fallbacks: false,
+      allow_fallbacks: true,
       data_collection: 'deny',
+      preferred_max_latency: { p90: 3 },
       require_parameters: true,
+      sort: { by: 'price', partition: 'none' },
     },
     temperature: 0,
     max_tokens: 700,
@@ -99,6 +107,25 @@ export function buildOpenRouterRequest(request: AiExpenseRequest, model = DEFAUL
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+export type OpenRouterFailure = {
+  status: number | null
+  errorType: string | null
+}
+
+export function getOpenRouterFailure(value: unknown): OpenRouterFailure | null {
+  if (!isRecord(value)) return null
+  const firstChoice = Array.isArray(value.choices) ? value.choices[0] : null
+  const error = isRecord(value.error)
+    ? value.error
+    : isRecord(firstChoice) && isRecord(firstChoice.error) ? firstChoice.error : null
+  if (!error) return null
+  const metadata = isRecord(error.metadata) ? error.metadata : null
+  return {
+    status: typeof error.code === 'number' ? error.code : null,
+    errorType: metadata && typeof metadata.error_type === 'string' ? metadata.error_type : null,
+  }
 }
 
 export function parseOpenRouterModelOutput(value: unknown): AiExpenseModelOutput {

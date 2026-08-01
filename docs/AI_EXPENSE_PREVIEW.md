@@ -19,7 +19,7 @@ Do not add `VITE_AI_EXPENSE_ENABLED` to the GitHub Pages production environment.
 2. The OpenRouter key exists only in the Supabase Edge Function.
 3. Tiny, clearly incomplete category-only descriptions receive a deterministic, localized clarification before any provider request or quota consumption.
 4. Substantive descriptions in any language, dialect, shorthand, or mixed language go to the model; language-specific regexes never block them.
-5. The Edge Function accepts a publishable client request, checks a server-only rate limit, pins one free model, disables provider fallback, and requests no provider data collection.
+5. The Edge Function accepts a publishable client request, checks a server-only rate limit, prefers the cheapest model that meets a three-second p90 latency target, and requests no provider data collection.
 6. A strict JSON Schema constrains the model response.
 7. Titles and clarification questions follow the description's language, with the interface locale used only as a fallback.
 8. Zod and deterministic business rules reject unknown members, invalid cents, duplicate participants, and exact splits that do not equal the total.
@@ -30,7 +30,9 @@ This does not use RAG: there is no external knowledge to retrieve. Reliability c
 
 ## Model and cost control
 
-The initial model is pinned to `google/gemma-4-26b-a4b-it:free`, a non-reasoning free model that currently advertises structured-output support. Override it with `OPENROUTER_MODEL` only after running the same evaluation examples and browser flow. Automatic provider fallback is disabled, so a genuine model outage produces a clear retry/manual-entry message rather than silently switching to a paid or differently behaving model. A successful provider response that does not satisfy the expense contract is treated as an incomplete conversation: the user receives a localized prompt to restate the amount, payer, and participants. The request has a bounded timeout so a busy free endpoint falls back to manual entry instead of leaving the user waiting indefinitely.
+The candidate models are pinned to `google/gemma-4-26b-a4b-it:free` and `google/gemini-2.5-flash-lite`. OpenRouter prefers the cheapest eligible route whose recent p90 latency is at most three seconds, while keeping slower routes available as fallbacks. This lets the free model win when it is healthy and responsive, but permits the low-cost model to protect the interactive experience. OpenRouter charges only for the model that ultimately responds. Override either candidate with `OPENROUTER_MODEL` or `OPENROUTER_FALLBACK_MODEL` only after running the same evaluation examples and browser flow.
+
+A successful provider response that does not satisfy the expense contract is treated as an incomplete conversation: the user receives a localized prompt to restate the amount, payer, and participants. A genuine upstream failure is logged without the expense text and shown as a model-specific retry/manual-entry message. The request has a bounded timeout so an unavailable route cannot leave the user waiting indefinitely.
 
 The server allows 30 AI draft requests per normalized client identifier per 10-minute window. OpenRouter account limits remain the hard cost ceiling. Start with a preview-only key and the smallest available limit; never reuse a broad personal key.
 
@@ -76,6 +78,7 @@ Create a dedicated Supabase preview project. Apply this branch’s migrations an
 AI_EXPENSE_ENABLED=true
 OPENROUTER_API_KEY=<preview-only key>
 OPENROUTER_MODEL=google/gemma-4-26b-a4b-it:free
+OPENROUTER_FALLBACK_MODEL=google/gemini-2.5-flash-lite
 ```
 
 Keep the production project reference out of the preview deployment environment. The database function `consume_ai_expense_quota` is executable only by the service role used inside the Edge Function; browser clients cannot call it directly.

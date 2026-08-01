@@ -4,7 +4,9 @@ import {
 } from './aiExpenseContract.ts'
 import {
   buildOpenRouterRequest,
+  DEFAULT_OPENROUTER_FALLBACK_MODEL,
   DEFAULT_OPENROUTER_MODEL,
+  getOpenRouterFailure,
   parseOpenRouterModelOutput,
 } from './aiExpensePrompt.ts'
 import {
@@ -18,6 +20,11 @@ export type ParseExpenseHandlerDependencies = {
   consumeQuota: (identifier: string) => Promise<boolean>
   fetcher?: Fetcher
   getEnvironment: (name: string) => string | undefined
+  reportProviderFailure?: (failure: {
+    models: string[]
+    status: number
+    errorType: string | null
+  }) => void
 }
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
@@ -30,11 +37,29 @@ function jsonError(status: number, code: string, message: string) {
   })
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 function requestIdentifier(request: Request) {
   const forwarded = request.headers.get('cf-connecting-ip')
     ?? request.headers.get('x-forwarded-for')?.split(',')[0]
     ?? 'unknown-client'
   return forwarded.trim().slice(0, 200) || 'unknown-client'
+}
+
+function providerFailureResponse(status: number, errorType: string | null) {
+  if (status === 402 || errorType === 'payment_required') {
+    return jsonError(503, 'provider_payment_required', 'AI provider credits are currently unavailable.')
+  }
+  if (status === 429 || errorType === 'rate_limit_exceeded') {
+    return jsonError(429, 'provider_rate_limit', 'The configured AI models are busy. Try again shortly.')
+  }
+  if ([408, 502, 503, 504].includes(status)
+    || ['provider_overloaded', 'provider_unavailable', 'timeout'].includes(errorType ?? '')) {
+    return jsonError(503, 'model_unavailable', 'The configured AI models could not respond.')
+  }
+  return jsonError(502, 'provider_error', 'The AI provider could not create a draft.')
 }
 
 export async function handleParseExpenseRequest(
@@ -82,6 +107,9 @@ export async function handleParseExpenseRequest(
   }
 
   const model = dependencies.getEnvironment('OPENROUTER_MODEL')?.trim() || DEFAULT_OPENROUTER_MODEL
+  const fallbackModel = dependencies.getEnvironment('OPENROUTER_FALLBACK_MODEL')?.trim()
+    || DEFAULT_OPENROUTER_FALLBACK_MODEL
+  const models = model === fallbackModel ? [model] : [model, fallbackModel]
   let providerResponse: Response
   try {
     providerResponse = await (dependencies.fetcher ?? fetch)(OPENROUTER_URL, {
@@ -92,31 +120,38 @@ export async function handleParseExpenseRequest(
         'http-referer': 'https://pengfanz.github.io/splitbill/',
         'x-title': 'Tally AI expense preview',
       },
-      body: JSON.stringify(buildOpenRouterRequest(parsedRequest, model)),
+      body: JSON.stringify(buildOpenRouterRequest(parsedRequest, model, fallbackModel)),
       signal: AbortSignal.timeout(20_000),
     })
   } catch {
+    dependencies.reportProviderFailure?.({ models, status: 503, errorType: 'network' })
     return jsonError(503, 'provider_unavailable', 'The AI provider could not be reached.')
-  }
-
-  if (providerResponse.status === 429) {
-    return jsonError(429, 'provider_rate_limit', 'The free AI model is busy. Try again shortly.')
-  }
-  if (!providerResponse.ok) {
-    return jsonError(502, 'provider_error', 'The AI provider could not create a draft.')
   }
 
   let providerPayload: unknown
   try {
     providerPayload = await providerResponse.json()
   } catch {
+    dependencies.reportProviderFailure?.({ models, status: providerResponse.status, errorType: 'unreadable_response' })
     return jsonError(502, 'provider_error', 'The AI provider returned unreadable data.')
   }
+
+  const embeddedFailure = getOpenRouterFailure(providerPayload)
+  if (!providerResponse.ok || embeddedFailure) {
+    const status = embeddedFailure?.status ?? providerResponse.status
+    const errorType = embeddedFailure?.errorType ?? null
+    dependencies.reportProviderFailure?.({ models, status, errorType })
+    return providerFailureResponse(status, errorType)
+  }
+
+  const actualModel = isRecord(providerPayload) && typeof providerPayload.model === 'string'
+    ? providerPayload.model
+    : model
 
   try {
     const modelOutput = parseOpenRouterModelOutput(providerPayload)
     const result = normalizeAiExpenseModelOutput(modelOutput, parsedRequest)
-    return Response.json({ result, model }, {
+    return Response.json({ result, model: actualModel }, {
       headers: { 'cache-control': 'no-store' },
     })
   } catch {
@@ -125,7 +160,7 @@ export async function handleParseExpenseRequest(
         status: 'needs_clarification',
         question: getAiExpenseRecoveryQuestion(parsedRequest),
       },
-      model,
+      model: actualModel,
     }, { headers: { 'cache-control': 'no-store' } })
   }
 }

@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { AiExpenseModelOutput } from './aiExpenseContract'
-import { DEFAULT_OPENROUTER_MODEL } from './aiExpensePrompt'
+import {
+  DEFAULT_OPENROUTER_FALLBACK_MODEL,
+  DEFAULT_OPENROUTER_MODEL,
+} from './aiExpensePrompt'
 import { handleParseExpenseRequest, type ParseExpenseHandlerDependencies } from './parseExpenseHandler'
 
 const requestBody = {
@@ -44,6 +47,7 @@ function dependencies(overrides: Partial<ParseExpenseHandlerDependencies> = {}) 
     consumeQuota: vi.fn().mockResolvedValue(true),
     fetcher: vi.fn().mockResolvedValue(providerResponse()),
     getEnvironment: vi.fn((name: string) => environment[name]),
+    reportProviderFailure: vi.fn(),
     ...overrides,
   } satisfies ParseExpenseHandlerDependencies
 }
@@ -128,7 +132,7 @@ describe('parse expense Edge Function handler', () => {
     expect(deps.fetcher).not.toHaveBeenCalled()
   })
 
-  it('returns a validated draft and sends no provider fallback request', async () => {
+  it('returns a validated draft and sends a free-first, low-cost fallback request', async () => {
     const fetcher = vi.fn().mockResolvedValue(providerResponse())
     const response = await handleParseExpenseRequest(request(), dependencies({ fetcher }))
     expect(response.status).toBe(200)
@@ -147,7 +151,9 @@ describe('parse expense Edge Function handler', () => {
     })
     const init = fetcher.mock.calls[0][1] as RequestInit
     const body = JSON.parse(init.body as string)
-    expect(body.provider).toMatchObject({ allow_fallbacks: false, data_collection: 'deny' })
+    expect(body.models).toEqual([DEFAULT_OPENROUTER_MODEL, DEFAULT_OPENROUTER_FALLBACK_MODEL])
+    expect(body).not.toHaveProperty('model')
+    expect(body.provider).toMatchObject({ allow_fallbacks: true, data_collection: 'deny' })
     expect(init.headers).toMatchObject({ authorization: 'Bearer secret-key' })
     expect(init.signal).toBeInstanceOf(AbortSignal)
   })
@@ -161,45 +167,108 @@ describe('parse expense Edge Function handler', () => {
     vi.unstubAllGlobals()
   })
 
-  it('uses a configured model and supports safe clarification results', async () => {
+  it('uses configured primary and fallback models and reports the model that answered', async () => {
     const clarification = { ...output, status: 'needs_clarification', clarificationQuestion: 'Who paid?' }
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      model: 'google/paid-backup',
+      choices: [{ message: { content: JSON.stringify(clarification) } }],
+    })))
     const response = await handleParseExpenseRequest(request(), dependencies({
       getEnvironment: name => ({
         AI_EXPENSE_ENABLED: 'true',
         OPENROUTER_API_KEY: 'secret-key',
         OPENROUTER_MODEL: 'google/gemma-free',
+        OPENROUTER_FALLBACK_MODEL: 'google/paid-backup',
       })[name],
-      fetcher: vi.fn().mockResolvedValue(providerResponse(clarification)),
+      fetcher,
     }))
     expect(await response.json()).toEqual({
       result: { status: 'needs_clarification', question: 'Who paid?' },
-      model: 'google/gemma-free',
+      model: 'google/paid-backup',
     })
+    const body = JSON.parse((fetcher.mock.calls[0][1] as RequestInit).body as string)
+    expect(body.models).toEqual(['google/gemma-free', 'google/paid-backup'])
+  })
+
+  it('deduplicates identical configured primary and fallback models', async () => {
+    const fetcher = vi.fn().mockResolvedValue(providerResponse())
+    await handleParseExpenseRequest(request(), dependencies({
+      getEnvironment: name => ({
+        AI_EXPENSE_ENABLED: 'true',
+        OPENROUTER_API_KEY: 'secret-key',
+        OPENROUTER_MODEL: 'one-model',
+        OPENROUTER_FALLBACK_MODEL: 'one-model',
+      })[name],
+      fetcher,
+    }))
+    const body = JSON.parse((fetcher.mock.calls[0][1] as RequestInit).body as string)
+    expect(body.models).toEqual(['one-model'])
   })
 
   it.each([
+    [402, 'provider_payment_required', 503],
     [429, 'provider_rate_limit', 429],
     [500, 'provider_error', 502],
+    [502, 'model_unavailable', 503],
+    [503, 'model_unavailable', 503],
+    [504, 'model_unavailable', 503],
   ])('maps provider status %s to %s', async (providerStatus, code, expectedStatus) => {
+    const reportProviderFailure = vi.fn()
     const response = await handleParseExpenseRequest(request(), dependencies({
       fetcher: vi.fn().mockResolvedValue(new Response('{}', { status: providerStatus })),
+      reportProviderFailure,
     }))
     expect(response.status).toBe(expectedStatus)
     expect(await response.json()).toMatchObject({ code })
+    expect(reportProviderFailure).toHaveBeenCalledWith({
+      models: [DEFAULT_OPENROUTER_MODEL, DEFAULT_OPENROUTER_FALLBACK_MODEL],
+      status: providerStatus,
+      errorType: null,
+    })
+  })
+
+  it('recognizes provider failures embedded in an HTTP 200 completion', async () => {
+    const reportProviderFailure = vi.fn()
+    const response = await handleParseExpenseRequest(request(), dependencies({
+      fetcher: vi.fn().mockResolvedValue(new Response(JSON.stringify({
+        choices: [{
+          finish_reason: 'error',
+          error: {
+            code: 502,
+            message: 'secret upstream detail',
+            metadata: { error_type: 'provider_unavailable' },
+          },
+        }],
+      }))),
+      reportProviderFailure,
+    }))
+    expect(response.status).toBe(503)
+    expect(await response.json()).toMatchObject({ code: 'model_unavailable' })
+    expect(reportProviderFailure).toHaveBeenCalledWith(expect.objectContaining({
+      status: 502,
+      errorType: 'provider_unavailable',
+    }))
+    expect(JSON.stringify(reportProviderFailure.mock.calls)).not.toContain('secret upstream detail')
   })
 
   it('handles provider network and unreadable response failures without leaking content', async () => {
+    const networkReporter = vi.fn()
     const unavailable = await handleParseExpenseRequest(request(), dependencies({
       fetcher: vi.fn().mockRejectedValue(new Error('secret provider detail')),
+      reportProviderFailure: networkReporter,
     }))
     expect(unavailable.status).toBe(503)
     expect(await unavailable.text()).not.toContain('secret provider detail')
+    expect(networkReporter).toHaveBeenCalledWith(expect.objectContaining({ errorType: 'network' }))
 
+    const unreadableReporter = vi.fn()
     const unreadable = await handleParseExpenseRequest(request(), dependencies({
       fetcher: vi.fn().mockResolvedValue(new Response('{', { status: 200 })),
+      reportProviderFailure: unreadableReporter,
     }))
     expect(unreadable.status).toBe(502)
     expect(await unreadable.json()).toMatchObject({ code: 'provider_error' })
+    expect(unreadableReporter).toHaveBeenCalledWith(expect.objectContaining({ errorType: 'unreadable_response' }))
 
   })
 

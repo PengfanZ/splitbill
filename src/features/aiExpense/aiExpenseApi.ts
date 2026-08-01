@@ -9,6 +9,8 @@ export type AiExpenseApiErrorKind =
   | 'configuration'
   | 'invalid-input'
   | 'rate-limit'
+  | 'model-unavailable'
+  | 'credits'
   | 'unavailable'
   | 'network'
   | 'invalid-response'
@@ -37,6 +39,8 @@ function errorKind(status: number, payload: unknown): AiExpenseApiErrorKind {
   const code = isRecord(payload) && typeof payload.code === 'string' ? payload.code : ''
   if (status === 400 || status === 413 || status === 422 || code === 'invalid_model_response') return 'invalid-input'
   if (status === 429) return 'rate-limit'
+  if (code === 'provider_payment_required') return 'credits'
+  if (['model_unavailable', 'provider_error', 'provider_unavailable'].includes(code)) return 'model-unavailable'
   return 'unavailable'
 }
 
