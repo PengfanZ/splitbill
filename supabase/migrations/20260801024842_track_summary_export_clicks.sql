@@ -1,3 +1,4 @@
+-- Keep the migration version aligned with the migration recorded by Supabase.
 alter table private.analytics_events
   drop constraint analytics_events_event_name_check;
 
