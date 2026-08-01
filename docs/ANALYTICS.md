@@ -44,54 +44,109 @@ from private.analytics_daily
 order by event_day desc, event_name, surface;
 ```
 
-The Home report's **SplitBill - App Usage Summary** block uses a table instead of a chart so the current usage is immediately readable. `Today` follows the Eastern calendar day; the weekly and monthly rows are rolling 7- and 30-day windows:
+The Home report's **SplitBill - App Usage Summary** block uses a table instead of a chart so the current usage and trend are immediately readable. `Today` follows the Eastern calendar day. The weekly and monthly rows compare rolling 7- and 30-day windows with the immediately preceding windows of the same length:
 
 ```sql
-with usage as (
+with boundaries as (
+  select
+    now() as current_end,
+    now() - interval '7 days' as week_start,
+    now() - interval '14 days' as previous_week_start,
+    now() - interval '30 days' as month_start,
+    now() - interval '60 days' as previous_month_start,
+    (
+      date_trunc('day', now() at time zone 'America/New_York')
+      at time zone 'America/New_York'
+    ) as today_start
+),
+usage as (
   select
     count(distinct session_hash) filter (
-      where occurred_at >= (
-        date_trunc('day', now() at time zone 'America/New_York')
-        at time zone 'America/New_York'
-      )
+      where occurred_at >= today_start and occurred_at < current_end
     )::bigint as sessions_today,
     count(*) filter (
-      where occurred_at >= (
-        date_trunc('day', now() at time zone 'America/New_York')
-        at time zone 'America/New_York'
-      )
+      where occurred_at >= today_start and occurred_at < current_end
     )::bigint as opens_today,
     count(distinct session_hash) filter (
-      where occurred_at >= now() - interval '7 days'
+      where occurred_at >= week_start and occurred_at < current_end
     )::bigint as sessions_week,
-    count(*) filter (
-      where occurred_at >= now() - interval '7 days'
-    )::bigint as opens_week,
     count(distinct session_hash) filter (
-      where occurred_at >= now() - interval '30 days'
-    )::bigint as sessions_month,
+      where occurred_at >= previous_week_start and occurred_at < week_start
+    )::bigint as sessions_previous_week,
     count(*) filter (
-      where occurred_at >= now() - interval '30 days'
-    )::bigint as opens_month
-  from private.analytics_events
+      where occurred_at >= week_start and occurred_at < current_end
+    )::bigint as opens_week,
+    count(*) filter (
+      where occurred_at >= previous_week_start and occurred_at < week_start
+    )::bigint as opens_previous_week,
+    count(distinct session_hash) filter (
+      where occurred_at >= month_start and occurred_at < current_end
+    )::bigint as sessions_month,
+    count(distinct session_hash) filter (
+      where occurred_at >= previous_month_start and occurred_at < month_start
+    )::bigint as sessions_previous_month,
+    count(*) filter (
+      where occurred_at >= month_start and occurred_at < current_end
+    )::bigint as opens_month,
+    count(*) filter (
+      where occurred_at >= previous_month_start and occurred_at < month_start
+    )::bigint as opens_previous_month
+  from private.analytics_events, boundaries
   where event_name = 'app_opened'
-    and occurred_at >= now() - interval '30 days'
+    and occurred_at >= previous_month_start
+    and occurred_at < current_end
 )
 select
   period as "Period",
-  sessions as "Sessions",
-  opens as "App opens"
+  sessions_display as "Sessions vs prior",
+  opens_display as "App opens vs prior"
 from usage
 cross join lateral (
   values
-    (1, 'Today', sessions_today, opens_today),
-    (2, 'Last 7 days', sessions_week, opens_week),
-    (3, 'Last 30 days', sessions_month, opens_month)
-) as summary(sort_order, period, sessions, opens)
+    (1, 'Today', sessions_today::text, opens_today::text),
+    (
+      2,
+      'Last 7 days',
+      concat(
+        sessions_week,
+        case
+          when sessions_previous_week = 0 then ' · new'
+          when sessions_week > sessions_previous_week then ' ↑' || round(100.0 * (sessions_week - sessions_previous_week) / sessions_previous_week)::int || '%'
+          when sessions_week < sessions_previous_week then ' ↓' || abs(round(100.0 * (sessions_week - sessions_previous_week) / sessions_previous_week)::int) || '%'
+          else ' →0%'
+        end
+      ),
+      concat(
+        opens_week,
+        case
+          when opens_previous_week = 0 then ' · new'
+          when opens_week > opens_previous_week then ' ↑' || round(100.0 * (opens_week - opens_previous_week) / opens_previous_week)::int || '%'
+          when opens_week < opens_previous_week then ' ↓' || abs(round(100.0 * (opens_week - opens_previous_week) / opens_previous_week)::int) || '%'
+          else ' →0%'
+        end
+      )
+    ),
+    (
+      3,
+      'Last 30 days',
+      case
+        when sessions_previous_month = 0 then sessions_month || ' · no prior data'
+        when sessions_month > sessions_previous_month then sessions_month || ' ↑' || round(100.0 * (sessions_month - sessions_previous_month) / sessions_previous_month)::int || '%'
+        when sessions_month < sessions_previous_month then sessions_month || ' ↓' || abs(round(100.0 * (sessions_month - sessions_previous_month) / sessions_previous_month)::int) || '%'
+        else sessions_month || ' →0%'
+      end,
+      case
+        when opens_previous_month = 0 then opens_month || ' · no prior data'
+        when opens_month > opens_previous_month then opens_month || ' ↑' || round(100.0 * (opens_month - opens_previous_month) / opens_previous_month)::int || '%'
+        when opens_month < opens_previous_month then opens_month || ' ↓' || abs(round(100.0 * (opens_month - opens_previous_month) / opens_previous_month)::int) || '%'
+        else opens_month || ' →0%'
+      end
+    )
+) as summary(sort_order, period, sessions_display, opens_display)
 order by sort_order;
 ```
 
-Use the report block's **As table** setting. Do not label these values as users: `session_hash` identifies an anonymous browser session, and one person can create more than one session.
+Use the report block's **As table** setting. An upward arrow means growth against the preceding equivalent window, a downward arrow means decline, and `no prior data` means tracking has not yet collected a complete comparison window. Do not label these values as users: `session_hash` identifies an anonymous browser session, and one person can create more than one session.
 
 For a chronological hourly usage chart, query the UTC hourly aggregate and convert the label to the reporting timezone. This example uses Eastern Time; replace `America/New_York` with `Asia/Shanghai` for China time:
 
