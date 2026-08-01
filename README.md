@@ -106,7 +106,8 @@ After the local stack starts, replace `your-publishable-key` in `.env.local` wit
 | `npm run test:all` | Run coverage plus the Playwright integration suite |
 | `npm run test:behavior` | Run focused happy-path and edge-case scenarios |
 | `npm run test:coverage` | Run all tests and enforce 100% coverage |
-| `npm run test:e2e` | Build the GitHub Pages bundle and run the Chromium integration suite |
+| `npm run test:e2e` | Run the stable and AI-preview Chromium integration suites |
+| `npm run test:e2e:ai` | Run only the AI expense preview browser flow |
 | `npm run typecheck` | Type-check every TypeScript and TSX file without emitting output |
 | `npm run build:pages` | Build the static artifact with the GitHub Pages base path |
 | `npm run build` | Build a root-hosted production artifact |
@@ -122,6 +123,7 @@ src/
 ├── domain/                    # Models and pure financial logic
 ├── features/
 │   ├── activity/              # Dashboard and expense workflows
+│   ├── aiExpense/             # Preview-only conversational expense drafting
 │   ├── identity/              # Browser-local participant identity
 │   ├── liveSharing/           # Capability links and backend synchronization
 │   └── sharing/               # Live-link handoff, QR invites, and PNG exports
@@ -157,6 +159,8 @@ The complete contract is documented in [TESTING.md](TESTING.md).
 ## Deployment
 
 Every pull request is type-checked, linted, tested, and built by GitHub Actions. A successful `main` release applies pending Supabase migrations before publishing the configured frontend artifact to GitHub Pages. Follow [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the one-time environment setup and release procedure.
+
+The experimental conversational expense flow is isolated from production on `codex/ai-expense-entry`. Its model, privacy, testing, synchronization, and separate deployment instructions live in [docs/AI_EXPENSE_PREVIEW.md](docs/AI_EXPENSE_PREVIEW.md).
 
 ## Contributing
 

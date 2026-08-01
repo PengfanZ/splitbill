@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { ArrowRight, CircleDollarSign, Pencil, Users } from 'lucide-react'
+import { ArrowRight, CircleDollarSign, Pencil, Sparkles, Users } from 'lucide-react'
 import { Avatar, ModalShell } from '../../components/AppShell'
 import { Button } from '../../components/Button'
 import { SelectMenu, type SelectMenuOption } from '../../components/SelectMenu'
@@ -8,6 +8,9 @@ import { createEqualShares, createExactShares, createExpenseTimestamp, createSet
 import { makeId } from '../../domain/members'
 import type { ActivityGroup, Expense, Member, Settlement, SplitMethod } from '../../domain/models'
 import { useLocalization } from '../../i18n/LocalizationContext'
+import { AiExpenseComposer } from '../aiExpense/AiExpenseComposer'
+import type { AiExpenseClient } from '../aiExpense/aiExpenseApi'
+import type { AiExpenseReadyDraft } from '../aiExpense/aiExpenseContract'
 import { MAX_ACTIVITY_AMOUNT } from '../sharing/sharedActivity'
 
 export function CreateGroupModal({ onClose, onCurrencySelect, onSave }: {
@@ -111,10 +114,11 @@ export function SettleUpModal({ group, settlement, onClose, onSave, saving = fal
   )
 }
 
-export function ExpenseModal({ group, members, expense, onClose, onSave, saving = false }: {
+export function ExpenseModal({ group, members, expense, aiExpenseClient = null, onClose, onSave, saving = false }: {
   group: ActivityGroup
   members: Member[]
   expense?: Expense
+  aiExpenseClient?: AiExpenseClient | null
   onClose: () => void
   onSave: (expense: Expense) => void
   saving?: boolean
@@ -125,6 +129,9 @@ export function ExpenseModal({ group, members, expense, onClose, onSave, saving 
   const [amount, setAmount] = useState(expense ? expense.amount.toString() : '')
   const [payerId, setPayerId] = useState(expense?.payerId ?? 'me')
   const [method, setMethod] = useState<SplitMethod>(expense?.splitMethod ?? 'equal')
+  const aiAvailable = Boolean(aiExpenseClient && !expense)
+  const [entryMode, setEntryMode] = useState<'ai' | 'manual'>(() => aiAvailable ? 'ai' : 'manual')
+  const [aiDraftApplied, setAiDraftApplied] = useState(false)
   const payerOptions: ReadonlyArray<SelectMenuOption<string>> = members.map(member => ({
     value: member.id,
     label: member.name,
@@ -155,6 +162,21 @@ export function ExpenseModal({ group, members, expense, onClose, onSave, saving 
       : [...current, memberId])
   }
 
+  const applyAiDraft = (draft: AiExpenseReadyDraft) => {
+    const exactSharesById = new Map(draft.exactSharesCents.map(share => [share.memberId, share.amountCents]))
+    setTitle(draft.title)
+    setAmount(String(draft.amountCents / 100))
+    setPayerId(draft.payerId)
+    setMethod(draft.splitMethod)
+    setEqualParticipantIds(draft.participantIds)
+    setExactShares(Object.fromEntries(members.map(member => {
+      const cents = exactSharesById.get(member.id)
+      return [member.id, cents ? String(cents / 100) : '']
+    })))
+    setAiDraftApplied(true)
+    setEntryMode('manual')
+  }
+
   const submit = (event: FormEvent) => {
     event.preventDefault()
     if (!title.trim() || numericAmount <= 0 || !splitValid) return
@@ -177,7 +199,22 @@ export function ExpenseModal({ group, members, expense, onClose, onSave, saving 
 
   return (
     <ModalShell eyebrow={group.name} title={t(expense ? 'expense.editTitle' : 'expense.addTitle')} onClose={onClose}>
-      <form onSubmit={submit}>
+      {aiAvailable ? (
+        <div className="expense-entry-tabs" role="tablist" aria-label={t('expense.entryMethod')}>
+          <button type="button" role="tab" aria-selected={entryMode === 'ai'} className={entryMode === 'ai' ? 'active' : ''} onClick={() => setEntryMode('ai')}><Sparkles size={15} />{t('expense.aiTab')}</button>
+          <button type="button" role="tab" aria-selected={entryMode === 'manual'} className={entryMode === 'manual' ? 'active' : ''} onClick={() => setEntryMode('manual')}><Pencil size={15} />{t('expense.manualTab')}</button>
+        </div>
+      ) : null}
+      {aiAvailable && entryMode === 'ai' && aiExpenseClient ? (
+        <AiExpenseComposer
+          client={aiExpenseClient}
+          currency={currency}
+          members={members}
+          onClose={onClose}
+          onDraft={applyAiDraft}
+        />
+      ) : <form onSubmit={submit}>
+        {aiDraftApplied ? <div className="split-note ai-draft-note" role="status"><Sparkles size={18} /><span><b>{t('expense.aiDraftReady')}</b><small>{t('expense.aiDraftReview')}</small></span></div> : null}
         <label>{t('expense.description')}<input autoFocus value={title} onChange={event => setTitle(event.target.value)} placeholder={t('expense.descriptionPlaceholder')} maxLength={200} required /></label>
         <label>{t('expense.amount')}<span className="modal-amount"><i>{currencySymbol(currency, locale)}</i><input aria-label={t('expense.amount')} value={amount} onChange={event => setAmount(event.target.value)} type="number" min="0.01" max={MAX_ACTIVITY_AMOUNT} step="0.01" placeholder="0.00" required /></span></label>
         <div className="form-grid">
@@ -214,7 +251,7 @@ export function ExpenseModal({ group, members, expense, onClose, onSave, saving 
         )}
         {expense ? <div className="split-note edit-note"><Pencil size={17} /><span>{method === 'equal' ? t('expense.editEqualNote') : t('expense.editExactNote', { count: members.length })}</span></div> : null}
         <div className="modal-actions"><Button onClick={onClose}>{t('common.cancel')}</Button><Button variant="primary" type="submit" disabled={!splitValid || saving}>{t(expense ? 'expense.saveChanges' : 'expense.save')}</Button></div>
-      </form>
+      </form>}
     </ModalShell>
   )
 }

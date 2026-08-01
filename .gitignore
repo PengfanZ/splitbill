@@ -5,6 +5,8 @@
 /test-results
 /.env*
 !/.env.example
+/supabase/functions/.env*
+!/supabase/functions/.env.example
 *.tsbuildinfo
 npm-debug.log*
 .DS_Store

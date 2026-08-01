@@ -29,7 +29,8 @@
     "test:behavior": "vitest run src/behavior.test.tsx",
     "test:backend": "supabase test db",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "playwright test",
+    "test:e2e": "playwright test && playwright test --config=playwright.ai.config.ts",
+    "test:e2e:ai": "playwright test --config=playwright.ai.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

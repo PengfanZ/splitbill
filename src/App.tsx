@@ -9,6 +9,7 @@ import { activityCurrency, currencyLabel, type CurrencyCode } from './domain/cur
 import { isSettlementPayment, money, spendingExpenses } from './domain/expenses'
 import { CURRENT_USER } from './domain/members'
 import type { ActivityGroup, Expense, Settlement } from './domain/models'
+import type { AiExpenseClient } from './features/aiExpense/aiExpenseApi'
 import { GroupDashboard } from './features/activity/ActivityDashboard'
 import { AddFriendModal, CreateGroupModal, ExpenseModal, SettleUpModal } from './features/activity/ActivityModals'
 import {
@@ -46,6 +47,7 @@ import { createAppQueryClient } from './queryClient'
 
 type ModalType = 'group' | 'friend' | 'expense' | 'settlement' | 'identity' | 'join' | 'live-identity' | null
 type AppProps = {
+  aiExpenseClient?: AiExpenseClient | null
   analyticsClient?: AnalyticsClient | null
   liveActivityClient?: LiveActivityClient | null
 }
@@ -59,7 +61,7 @@ type ConfirmationRequest = {
 const LiveActivityQrModal = lazy(() => import('./features/sharing/LiveActivityQrModal').then(module => ({ default: module.LiveActivityQrModal })))
 const ChangelogModal = lazy(() => import('./features/changelog/ChangelogModal').then(module => ({ default: module.ChangelogModal })))
 
-function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps = {}) {
+function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, liveActivityClient }: AppProps = {}) {
   const [state, setState] = usePersistedState()
   const [identity, setIdentity] = useIdentity()
   const [changelogState, setChangelogState] = useState(() => {
@@ -485,6 +487,7 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
           group={activeGroup}
           members={activeMembers}
           expense={editingExpense ?? undefined}
+          aiExpenseClient={aiExpenseClient}
           onClose={closeExpenseModal}
           onSave={editingExpense ? updateExpense : addExpense}
           saving={live.saving || liveEditBlocked}
