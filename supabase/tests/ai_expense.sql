@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(10);
+select plan(15);
 
 select has_function(
   'public',
@@ -59,6 +59,66 @@ select is(
   ),
   31,
   'AI quota usage is retained without storing the raw identifier'
+);
+
+select is(
+  (
+    select request_count
+    from private.shared_activity_rate_limits
+    where operation = 'ai-expense-daily'
+  ),
+  31,
+  'the daily quota counts the same provider attempts'
+);
+
+select is(
+  public.consume_ai_expense_quota('preview-daily-client-203.0.113.41'),
+  true,
+  'a separate client starts inside the daily quota'
+);
+
+update private.shared_activity_rate_limits
+set request_count = 99
+where operation = 'ai-expense-daily'
+  and identifier_hash = extensions.hmac(
+    convert_to('preview-daily-client-203.0.113.41', 'UTF8'),
+    (
+      select secret
+      from private.security_secrets
+      where name = 'request_identifier_pepper'
+    ),
+    'sha256'
+  );
+
+select is(
+  public.consume_ai_expense_quota('preview-daily-client-203.0.113.41'),
+  true,
+  'request one hundred is inside the daily quota'
+);
+
+select is(
+  public.consume_ai_expense_quota('preview-daily-client-203.0.113.41'),
+  false,
+  'request one hundred one is rejected by the daily quota'
+);
+
+select is(
+  (
+    select request_count
+    from private.shared_activity_rate_limits
+    where operation = 'ai-expense-daily'
+      and identifier_hash = extensions.hmac(
+        convert_to('preview-daily-client-203.0.113.41', 'UTF8'),
+        (
+          select secret
+          from private.security_secrets
+          where name = 'request_identifier_pepper'
+        ),
+        'sha256'
+      )
+  ),
+  101,
+  'rejected daily requests remain counted'
 );
 
 select * from finish();

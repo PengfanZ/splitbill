@@ -34,7 +34,7 @@ The candidate models are pinned to `google/gemma-4-26b-a4b-it:free` and `google/
 
 A successful provider response that does not satisfy the expense contract is treated as an incomplete conversation: the user receives a localized prompt to restate the amount, payer, and participants. A genuine upstream failure is logged without the expense text and shown as a model-specific retry/manual-entry message. The request has a bounded timeout so an unavailable route cannot leave the user waiting indefinitely.
 
-The server allows 30 AI draft requests per normalized client identifier per 10-minute window. OpenRouter account limits remain the hard cost ceiling. Start with a preview-only key and the smallest available limit; never reuse a broad personal key.
+The server allows 30 AI draft requests per normalized client identifier per 10-minute window and 100 per day. Both counters are consumed before the provider call, including provider failures, and the stricter limit wins. OpenRouter account limits remain the hard cost ceiling. Start with a preview-only key and the smallest available limit; never reuse a broad personal key.
 
 ## Local setup
 
