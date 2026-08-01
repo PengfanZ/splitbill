@@ -46,7 +46,7 @@ describe('OpenRouter expense prompt', () => {
     expect(built.messages[0].content).toContain('any language')
     expect(built.messages[0].content).toContain("description's language")
     expect(built.messages[0].content).toContain('one continuous conversation')
-    expect(built.messages[0].content).toContain('Never ask again')
+    expect(built.messages[0].content).toContain('never ask again')
     expect(built.messages[0].content).toContain('vague, unrelated to one expense')
     expect(built.messages[0].content).toContain('Never use status "ready"')
     expect(JSON.parse(built.messages[1].content)).toEqual({
@@ -54,8 +54,8 @@ describe('OpenRouter expense prompt', () => {
       interfaceLocale: 'en',
       members: request.members,
       expenseDescription: request.text,
-      clarificationHistory: [],
     })
+    expect(built.messages).toHaveLength(2)
     expect(buildOpenRouterRequest(request, 'google/gemma-free').models).toEqual([
       'google/gemma-free',
       DEFAULT_OPENROUTER_FALLBACK_MODEL,
@@ -69,16 +69,19 @@ describe('OpenRouter expense prompt', () => {
         { question: 'Who shared it?', answer: 'Maya and Alex' },
       ],
     })
-    expect(JSON.parse(clarified.messages[1].content).clarificationHistory).toEqual([
-      { question: 'Who paid?', answer: 'Maya paid' },
-      { question: 'Who shared it?', answer: 'Maya and Alex' },
+    expect(clarified.messages.slice(2)).toEqual([
+      { role: 'assistant', content: 'Who paid?' },
+      { role: 'user', content: 'Maya paid' },
+      { role: 'assistant', content: 'Who shared it?' },
+      { role: 'user', content: 'Maya and Alex' },
     ])
     const legacy = buildOpenRouterRequest({
       ...request,
       clarification: { question: 'Who paid?', answer: 'Maya paid' },
     })
-    expect(JSON.parse(legacy.messages[1].content).clarificationHistory).toEqual([
-      { question: 'Who paid?', answer: 'Maya paid' },
+    expect(legacy.messages.slice(2)).toEqual([
+      { role: 'assistant', content: 'Who paid?' },
+      { role: 'user', content: 'Maya paid' },
     ])
   })
 
