@@ -5,6 +5,8 @@ import { MAX_ACTIVITY_AMOUNT, MAX_ACTIVITY_FRIENDS } from '../sharing/sharedActi
 
 export const AI_EXPENSE_TEXT_MAX_LENGTH = 1_000
 export const AI_EXPENSE_TITLE_MAX_LENGTH = 200
+export const AI_EXPENSE_CLARIFICATION_MAX_LENGTH = 240
+export const AI_EXPENSE_ANSWER_MAX_LENGTH = 200
 export const AI_EXPENSE_MAX_MEMBERS = MAX_ACTIVITY_FRIENDS + 1
 export const AI_EXPENSE_MAX_AMOUNT_CENTS = MAX_ACTIVITY_AMOUNT * 100
 
@@ -13,11 +15,17 @@ const memberSchema = z.object({
   name: z.string().trim().min(1).max(100),
 }).strict()
 
+const clarificationContextSchema = z.object({
+  question: z.string().trim().min(1).max(AI_EXPENSE_CLARIFICATION_MAX_LENGTH),
+  answer: z.string().trim().min(1).max(AI_EXPENSE_ANSWER_MAX_LENGTH),
+}).strict()
+
 export const aiExpenseRequestSchema = z.object({
   text: z.string().trim().min(3).max(AI_EXPENSE_TEXT_MAX_LENGTH),
   locale: z.enum(SUPPORTED_LOCALES),
   currency: z.enum(SUPPORTED_CURRENCIES),
   members: z.array(memberSchema).min(1).max(AI_EXPENSE_MAX_MEMBERS),
+  clarification: clarificationContextSchema.optional(),
 }).strict().superRefine((request, context) => {
   const ids = new Set<string>()
   for (const member of request.members) {
@@ -65,7 +73,7 @@ const readyDraftSchema = z.object({
 
 const clarificationSchema = z.object({
   status: z.literal('needs_clarification'),
-  question: z.string().trim().min(1).max(240),
+  question: z.string().trim().min(1).max(AI_EXPENSE_CLARIFICATION_MAX_LENGTH),
 }).strict()
 
 export const aiExpenseResultSchema = z.discriminatedUnion('status', [
@@ -115,7 +123,7 @@ export function normalizeAiExpenseModelOutput(
 
   if (output.status === 'needs_clarification') {
     const question = output.clarificationQuestion?.trim() ?? ''
-    if (!question || question.length > 240) {
+    if (!question || question.length > AI_EXPENSE_CLARIFICATION_MAX_LENGTH) {
       throw new AiExpenseContractError('The model requested clarification without a usable question.')
     }
     return { status: 'needs_clarification', question }

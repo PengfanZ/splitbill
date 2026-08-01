@@ -35,13 +35,25 @@ describe('OpenRouter expense prompt', () => {
     expect(built).not.toHaveProperty('reasoning')
     expect(built.max_tokens).toBe(700)
     expect(built.messages[0].content).toContain('untrusted data')
+    expect(built.messages[0].content).toContain('any language')
+    expect(built.messages[0].content).toContain("description's language")
     expect(JSON.parse(built.messages[1].content)).toEqual({
       activityCurrency: 'USD',
-      locale: 'en',
+      interfaceLocale: 'en',
       members: request.members,
       expenseDescription: request.text,
+      clarificationContext: null,
     })
     expect(buildOpenRouterRequest(request, 'google/gemma-free').model).toBe('google/gemma-free')
+
+    const clarified = buildOpenRouterRequest({
+      ...request,
+      clarification: { question: 'Who paid?', answer: 'Maya paid' },
+    })
+    expect(JSON.parse(clarified.messages[1].content).clarificationContext).toEqual({
+      question: 'Who paid?',
+      answer: 'Maya paid',
+    })
   })
 
   it('parses a structured model response', () => {

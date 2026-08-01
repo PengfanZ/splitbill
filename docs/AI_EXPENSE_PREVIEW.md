@@ -15,14 +15,16 @@ Do not add `VITE_AI_EXPENSE_ENABLED` to the GitHub Pages production environment.
 
 ## Why this design is safe to trial
 
-1. The browser sends only the description, current currency, resolved locale, and the current activity’s member IDs and names.
+1. The browser sends only the description, any clarification answer, current currency, resolved interface locale, and the current activity’s member IDs and names.
 2. The OpenRouter key exists only in the Supabase Edge Function.
-3. Clearly incomplete descriptions receive a deterministic, localized clarification before any provider request or quota consumption.
-4. The Edge Function accepts a publishable client request, checks a server-only rate limit, pins one free model, disables provider fallback, and requests no provider data collection.
-5. A strict JSON Schema constrains the model response.
-6. Zod and deterministic business rules reject unknown members, invalid cents, duplicate participants, and exact splits that do not equal the total.
-7. Remaining ambiguity becomes one clarification question instead of a guess.
-8. A valid result only pre-fills the existing expense form. The user remains the final validator and saver.
+3. Tiny, clearly incomplete category-only descriptions receive a deterministic, localized clarification before any provider request or quota consumption.
+4. Substantive descriptions in any language, dialect, shorthand, or mixed language go to the model; language-specific regexes never block them.
+5. The Edge Function accepts a publishable client request, checks a server-only rate limit, pins one free model, disables provider fallback, and requests no provider data collection.
+6. A strict JSON Schema constrains the model response.
+7. Titles and clarification questions follow the description's language, with the interface locale used only as a fallback.
+8. Zod and deterministic business rules reject unknown members, invalid cents, duplicate participants, and exact splits that do not equal the total.
+9. Remaining ambiguity becomes one clarification question instead of a guess.
+10. A valid result only pre-fills the existing expense form. The user remains the final validator and saver.
 
 This does not use RAG: there is no external knowledge to retrieve. Reliability comes from narrowly scoped context, structured output, deterministic validation, clarification, and explicit human review.
 

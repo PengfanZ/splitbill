@@ -64,16 +64,21 @@ describe('AI expense composer', () => {
     const parse = vi.fn().mockResolvedValue(draft)
     const { onDraft } = renderComposer({ parse })
 
-    await user.type(screen.getByLabelText('Expense description'), 'Dinner was $30, split with me and Maya')
+    await user.type(screen.getByLabelText('Expense description'), 'dinner')
     await user.click(screen.getByRole('button', { name: /Create draft/ }))
-    expect(await screen.findByText('Who paid?')).toBeVisible()
+    expect(await screen.findByText('Please add the total amount, who paid, and who should be included in the split.')).toBeVisible()
     expect(parse).not.toHaveBeenCalled()
-    await user.type(screen.getByLabelText('Your answer'), 'Maya paid')
+    await user.type(screen.getByLabelText('Your answer'), 'Maya paid $30, split with me and Maya')
     await user.click(screen.getByRole('button', { name: /Update draft/ }))
     expect(onDraft).toHaveBeenCalledWith(draft)
     expect(parse).toHaveBeenCalledOnce()
-    expect(parse.mock.calls[0][0].text).toContain('Clarification question: Who paid?')
-    expect(parse.mock.calls[0][0].text).toContain('User answer: Maya paid')
+    expect(parse.mock.calls[0][0]).toMatchObject({
+      text: 'dinner',
+      clarification: {
+        question: 'Please add the total amount, who paid, and who should be included in the split.',
+        answer: 'Maya paid $30, split with me and Maya',
+      },
+    })
   })
 
   it('keeps a safe model clarification when a complete sentence is still ambiguous', async () => {
@@ -98,11 +103,11 @@ describe('AI expense composer', () => {
     const parse = vi.fn()
     renderComposer({ parse })
     const description = screen.getByLabelText('Expense description')
-    await user.type(description, 'Dinner was $30, split with me and Maya')
+    await user.type(description, 'dinner')
     await user.click(screen.getByRole('button', { name: /Create draft/ }))
-    expect(await screen.findByText('Who paid?')).toBeVisible()
+    expect(await screen.findByText('Please add the total amount, who paid, and who should be included in the split.')).toBeVisible()
     await user.type(description, ' Maya paid')
-    expect(screen.queryByText('Who paid?')).not.toBeInTheDocument()
+    expect(screen.queryByText('Please add the total amount, who paid, and who should be included in the split.')).not.toBeInTheDocument()
   })
 
   it.each([

@@ -6,7 +6,9 @@ import type { Member } from '../../domain/models'
 import { useLocalization } from '../../i18n/LocalizationContext'
 import { AiExpenseApiError, type AiExpenseClient } from './aiExpenseApi'
 import {
+  AI_EXPENSE_ANSWER_MAX_LENGTH,
   AI_EXPENSE_TEXT_MAX_LENGTH,
+  type AiExpenseRequest,
   type AiExpenseReadyDraft,
 } from './aiExpenseContract'
 import { getAiExpensePreflightQuestion } from './aiExpensePreflight'
@@ -38,13 +40,14 @@ export function AiExpenseComposer({
   const [errorKey, setErrorKey] = useState<ReturnType<typeof errorTranslationKey> | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const parse = async (description: string) => {
+  const parse = async (description: string, clarificationContext?: AiExpenseRequest['clarification']) => {
     setErrorKey(null)
     const request = {
       text: description,
       currency,
       locale,
       members: members.map(member => ({ id: member.id, name: member.name })),
+      ...(clarificationContext ? { clarification: clarificationContext } : {}),
     }
     const preflightQuestion = getAiExpensePreflightQuestion(request)
     if (preflightQuestion) {
@@ -70,9 +73,8 @@ export function AiExpenseComposer({
   }
 
   const submitDescription = () => parse(text.trim())
-  const submitClarification = () => {
-    const clarified = `${text.trim()}\nClarification question: ${clarification}\nUser answer: ${answer.trim()}`
-    void parse(clarified.slice(0, AI_EXPENSE_TEXT_MAX_LENGTH))
+  const submitClarification = (question: string) => {
+    void parse(text.trim(), { question, answer: answer.trim() })
   }
 
   return (
@@ -104,7 +106,7 @@ export function AiExpenseComposer({
       {clarification ? (
         <div className="ai-clarification" role="status">
           <span><b>{t('expense.aiClarification')}</b><p>{clarification}</p></span>
-          <label>{t('expense.aiAnswer')}<input value={answer} onChange={event => setAnswer(event.target.value)} maxLength={200} /></label>
+          <label>{t('expense.aiAnswer')}<input value={answer} onChange={event => setAnswer(event.target.value)} maxLength={AI_EXPENSE_ANSWER_MAX_LENGTH} /></label>
         </div>
       ) : null}
 
@@ -123,7 +125,7 @@ export function AiExpenseComposer({
       <div className="modal-actions">
         <Button onClick={onClose}>{t('common.cancel')}</Button>
         {clarification ? (
-          <Button variant="primary" onClick={submitClarification} disabled={loading || !answer.trim()}>
+          <Button variant="primary" onClick={() => submitClarification(clarification)} disabled={loading || !answer.trim()}>
             {loading ? t('expense.aiWorking') : t('expense.aiContinue')}<ArrowRight size={16} />
           </Button>
         ) : (

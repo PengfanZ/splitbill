@@ -18,11 +18,33 @@ async function createPreviewActivity(page: Page) {
   await page.getByRole('button', { name: 'Add expense' }).click()
 }
 
-test('clarifies an incomplete description without making an AI request', async ({ page }) => {
+test('clarifies an incomplete description locally, then sends structured follow-up context', async ({ page }) => {
   let aiRequests = 0
-  await page.route('https://live-sharing.test/functions/v1/parse-expense', route => {
+  await page.route('https://live-sharing.test/functions/v1/parse-expense', async route => {
     aiRequests += 1
-    return route.abort()
+    const body = route.request().postDataJSON()
+    expect(body).toMatchObject({
+      text: 'dinner',
+      clarification: {
+        question: 'Please add the total amount, who paid, and who should be included in the split.',
+        answer: 'Maya paid $30 and split it with me',
+      },
+    })
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        result: {
+          status: 'ready',
+          title: 'Dinner',
+          amountCents: 3_000,
+          payerId: body.members[1].id,
+          splitMethod: 'equal',
+          participantIds: body.members.map((member: { id: string }) => member.id),
+          exactSharesCents: [],
+        },
+      }),
+    })
   })
 
   await createPreviewActivity(page)
@@ -34,6 +56,11 @@ test('clarifies an incomplete description without making an AI request', async (
   )
   await expect(page.getByLabel('Your answer')).toBeEditable()
   expect(aiRequests).toBe(0)
+
+  await page.getByLabel('Your answer').fill('Maya paid $30 and split it with me')
+  await page.getByRole('button', { name: 'Update draft' }).click()
+  await expect(page.getByRole('status')).toContainText('AI draft ready')
+  expect(aiRequests).toBe(1)
 })
 
 test('turns a description into a reviewable draft before the user saves it', async ({ page }) => {
@@ -84,5 +111,39 @@ test('turns a description into a reviewable draft before the user saves it', asy
   await page.getByRole('button', { name: 'Save expense' }).click()
   await expect(page.getByText('Dinner', { exact: true })).toBeVisible()
   await expect(page.locator('.expense-amount b')).toHaveText('$36.00')
+  expect(aiRequests).toBe(1)
+})
+
+test('sends a substantive non-English description to the model without an English-only gate', async ({ page }) => {
+  let aiRequests = 0
+  await page.route('https://live-sharing.test/functions/v1/parse-expense', async route => {
+    aiRequests += 1
+    const body = route.request().postDataJSON()
+    expect(body.text).toBe('Maya pagó 36 € por la cena y lo dividimos entre Maya y yo')
+    expect(body.locale).toBe('en')
+    expect(body).not.toHaveProperty('clarification')
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        result: {
+          status: 'ready',
+          title: 'Cena',
+          amountCents: 3_600,
+          payerId: body.members[1].id,
+          splitMethod: 'equal',
+          participantIds: body.members.map((member: { id: string }) => member.id),
+          exactSharesCents: [],
+        },
+      }),
+    })
+  })
+
+  await createPreviewActivity(page)
+  await page.getByLabel('Expense description').fill('Maya pagó 36 € por la cena y lo dividimos entre Maya y yo')
+  await page.getByRole('button', { name: 'Create draft' }).click()
+
+  await expect(page.getByRole('status')).toContainText('AI draft ready')
+  await expect(page.getByLabel('Description')).toHaveValue('Cena')
   expect(aiRequests).toBe(1)
 })

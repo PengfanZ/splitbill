@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   AI_EXPENSE_MAX_AMOUNT_CENTS,
   AI_EXPENSE_MAX_MEMBERS,
+  AI_EXPENSE_ANSWER_MAX_LENGTH,
+  AI_EXPENSE_CLARIFICATION_MAX_LENGTH,
   AI_EXPENSE_TEXT_MAX_LENGTH,
   AI_EXPENSE_TITLE_MAX_LENGTH,
   AiExpenseContractError,
@@ -51,6 +53,10 @@ describe('AI expense contract', () => {
     })).toMatchObject({ status: 'ready', title: 'Dinner' })
     expect(parseAiExpenseResult({ status: 'needs_clarification', question: 'Who paid?' }))
       .toEqual({ status: 'needs_clarification', question: 'Who paid?' })
+    expect(parseAiExpenseRequest({
+      ...request,
+      clarification: { question: '  Who paid? ', answer: ' Maya paid. ' },
+    }).clarification).toEqual({ question: 'Who paid?', answer: 'Maya paid.' })
   })
 
   it.each([
@@ -64,6 +70,9 @@ describe('AI expense contract', () => {
     { ...request, members: [{ id: 'me', name: 'Alex' }, { id: 'me', name: 'Other Alex' }] },
     { ...request, members: [{ id: '', name: 'Alex' }] },
     { ...request, members: [{ id: 'me', name: '' }] },
+    { ...request, clarification: { question: '', answer: 'Maya' } },
+    { ...request, clarification: { question: 'x'.repeat(AI_EXPENSE_CLARIFICATION_MAX_LENGTH + 1), answer: 'Maya' } },
+    { ...request, clarification: { question: 'Who paid?', answer: 'x'.repeat(AI_EXPENSE_ANSWER_MAX_LENGTH + 1) } },
   ])('rejects an invalid request: %j', invalidRequest => {
     expectContractError(() => parseAiExpenseRequest(invalidRequest))
   })
