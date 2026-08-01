@@ -8,6 +8,7 @@ import {
   DEFAULT_OPENROUTER_MODEL,
   parseOpenRouterModelOutput,
 } from './aiExpensePrompt.ts'
+import { getAiExpensePreflightQuestion } from './aiExpensePreflight.ts'
 
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 
@@ -62,6 +63,14 @@ export async function handleParseExpenseRequest(
     return jsonError(400, 'invalid_request', 'Describe one expense using the current activity members.')
   }
 
+  const preflightQuestion = getAiExpensePreflightQuestion(parsedRequest)
+  if (preflightQuestion) {
+    return Response.json({
+      result: { status: 'needs_clarification', question: preflightQuestion },
+      model: null,
+    }, { headers: { 'cache-control': 'no-store' } })
+  }
+
   try {
     if (!await dependencies.consumeQuota(requestIdentifier(request))) {
       return jsonError(429, 'rate_limit_exceeded', 'Too many AI requests. Try again in a few minutes.')
@@ -82,7 +91,7 @@ export async function handleParseExpenseRequest(
         'x-title': 'Tally AI expense preview',
       },
       body: JSON.stringify(buildOpenRouterRequest(parsedRequest, model)),
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(15_000),
     })
   } catch {
     return jsonError(503, 'provider_unavailable', 'The AI provider could not be reached.')

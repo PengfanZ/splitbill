@@ -17,17 +17,18 @@ Do not add `VITE_AI_EXPENSE_ENABLED` to the GitHub Pages production environment.
 
 1. The browser sends only the description, current currency, resolved locale, and the current activity’s member IDs and names.
 2. The OpenRouter key exists only in the Supabase Edge Function.
-3. The Edge Function accepts a publishable client request, checks a server-only rate limit, pins one free model, disables provider fallback, and requests no provider data collection.
-4. A strict JSON Schema constrains the model response.
-5. Zod and deterministic business rules reject unknown members, invalid cents, duplicate participants, and exact splits that do not equal the total.
-6. Ambiguous input becomes one clarification question instead of a guess.
-7. A valid result only pre-fills the existing expense form. The user remains the final validator and saver.
+3. Clearly incomplete descriptions receive a deterministic, localized clarification before any provider request or quota consumption.
+4. The Edge Function accepts a publishable client request, checks a server-only rate limit, pins one free model, disables provider fallback, and requests no provider data collection.
+5. A strict JSON Schema constrains the model response.
+6. Zod and deterministic business rules reject unknown members, invalid cents, duplicate participants, and exact splits that do not equal the total.
+7. Remaining ambiguity becomes one clarification question instead of a guess.
+8. A valid result only pre-fills the existing expense form. The user remains the final validator and saver.
 
 This does not use RAG: there is no external knowledge to retrieve. Reliability comes from narrowly scoped context, structured output, deterministic validation, clarification, and explicit human review.
 
 ## Model and cost control
 
-The initial model is pinned to `google/gemma-4-26b-a4b-it:free`, a non-reasoning free model that currently advertises structured-output support. Override it with `OPENROUTER_MODEL` only after running the same evaluation examples and browser flow. Automatic provider fallback is disabled, so a model outage produces a clear retry/manual-entry message rather than silently switching to a paid or differently behaving model.
+The initial model is pinned to `google/gemma-4-26b-a4b-it:free`, a non-reasoning free model that currently advertises structured-output support. Override it with `OPENROUTER_MODEL` only after running the same evaluation examples and browser flow. Automatic provider fallback is disabled, so a model outage produces a clear retry/manual-entry message rather than silently switching to a paid or differently behaving model. Provider routing prefers the lowest recent latency, and the request has a bounded timeout so a busy free endpoint falls back to manual entry instead of leaving the user waiting indefinitely.
 
 The server allows 30 AI draft requests per normalized client identifier per 10-minute window. OpenRouter account limits remain the hard cost ceiling. Start with a preview-only key and the smallest available limit; never reuse a broad personal key.
 

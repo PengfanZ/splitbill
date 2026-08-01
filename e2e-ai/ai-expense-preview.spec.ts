@@ -1,10 +1,39 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 
 test.beforeEach(async ({ context }) => {
   await context.route('https://live-sharing.test/rest/v1/rpc/record_analytics_event', route => route.fulfill({
     status: 204,
     body: '',
   }))
+})
+
+async function createPreviewActivity(page: Page) {
+  await page.goto('./')
+  await page.getByLabel('Display name').fill('Preview Tester')
+  await page.getByRole('button', { name: 'Continue' }).click()
+  await page.getByRole('button', { name: 'Create an activity' }).click()
+  await page.getByLabel('Activity name').fill('AI preview dinner')
+  await page.getByLabel(/Add friends/).fill('Maya')
+  await page.getByRole('button', { name: 'Create activity' }).click()
+  await page.getByRole('button', { name: 'Add expense' }).click()
+}
+
+test('clarifies an incomplete description without making an AI request', async ({ page }) => {
+  let aiRequests = 0
+  await page.route('https://live-sharing.test/functions/v1/parse-expense', route => {
+    aiRequests += 1
+    return route.abort()
+  })
+
+  await createPreviewActivity(page)
+  await page.getByLabel('Expense description').fill('dinner')
+  await page.getByRole('button', { name: 'Create draft' }).click()
+
+  await expect(page.getByRole('status')).toContainText(
+    'Please add the total amount, who paid, and who should be included in the split.',
+  )
+  await expect(page.getByLabel('Your answer')).toBeEditable()
+  expect(aiRequests).toBe(0)
 })
 
 test('turns a description into a reviewable draft before the user saves it', async ({ page }) => {
@@ -40,15 +69,7 @@ test('turns a description into a reviewable draft before the user saves it', asy
     })
   })
 
-  await page.goto('./')
-  await page.getByLabel('Display name').fill('Preview Tester')
-  await page.getByRole('button', { name: 'Continue' }).click()
-  await page.getByRole('button', { name: 'Create an activity' }).click()
-  await page.getByLabel('Activity name').fill('AI preview dinner')
-  await page.getByLabel(/Add friends/).fill('Maya')
-  await page.getByRole('button', { name: 'Create activity' }).click()
-
-  await page.getByRole('button', { name: 'Add expense' }).click()
+  await createPreviewActivity(page)
   await expect(page.getByRole('tab', { name: 'Describe with AI' })).toHaveAttribute('aria-selected', 'true')
   await page.getByLabel('Expense description').fill('Maya paid $36 for dinner, split between Maya and me')
   await page.getByRole('button', { name: 'Create draft' }).click()

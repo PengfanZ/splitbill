@@ -9,6 +9,7 @@ import {
   AI_EXPENSE_TEXT_MAX_LENGTH,
   type AiExpenseReadyDraft,
 } from './aiExpenseContract'
+import { getAiExpensePreflightQuestion } from './aiExpensePreflight'
 
 function errorTranslationKey(error: unknown) {
   if (!(error instanceof AiExpenseApiError)) return 'expense.aiError'
@@ -38,15 +39,23 @@ export function AiExpenseComposer({
   const [loading, setLoading] = useState(false)
 
   const parse = async (description: string) => {
-    setLoading(true)
     setErrorKey(null)
+    const request = {
+      text: description,
+      currency,
+      locale,
+      members: members.map(member => ({ id: member.id, name: member.name })),
+    }
+    const preflightQuestion = getAiExpensePreflightQuestion(request)
+    if (preflightQuestion) {
+      setClarification(preflightQuestion)
+      setAnswer('')
+      return
+    }
+
+    setLoading(true)
     try {
-      const result = await client.parse({
-        text: description,
-        currency,
-        locale,
-        members: members.map(member => ({ id: member.id, name: member.name })),
-      })
+      const result = await client.parse(request)
       if (result.status === 'needs_clarification') {
         setClarification(result.question)
         setAnswer('')

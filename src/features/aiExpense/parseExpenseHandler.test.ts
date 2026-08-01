@@ -111,6 +111,23 @@ describe('parse expense Edge Function handler', () => {
     expect(await response.json()).toMatchObject({ code: 'rate_limit_unavailable' })
   })
 
+  it('returns an instant clarification before consuming quota or calling the provider', async () => {
+    const deps = dependencies()
+    const response = await handleParseExpenseRequest(request({ ...requestBody, text: 'dinner' }), deps)
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(await response.json()).toEqual({
+      result: {
+        status: 'needs_clarification',
+        question: 'Please add the total amount, who paid, and who should be included in the split.',
+      },
+      model: null,
+    })
+    expect(deps.consumeQuota).not.toHaveBeenCalled()
+    expect(deps.fetcher).not.toHaveBeenCalled()
+  })
+
   it('returns a validated draft and sends no provider fallback request', async () => {
     const fetcher = vi.fn().mockResolvedValue(providerResponse())
     const response = await handleParseExpenseRequest(request(), dependencies({ fetcher }))
@@ -130,7 +147,7 @@ describe('parse expense Edge Function handler', () => {
     })
     const init = fetcher.mock.calls[0][1] as RequestInit
     const body = JSON.parse(init.body as string)
-    expect(body.provider).toMatchObject({ allow_fallbacks: false, data_collection: 'deny' })
+    expect(body.provider).toMatchObject({ allow_fallbacks: false, data_collection: 'deny', sort: 'latency' })
     expect(init.headers).toMatchObject({ authorization: 'Bearer secret-key' })
     expect(init.signal).toBeInstanceOf(AbortSignal)
   })

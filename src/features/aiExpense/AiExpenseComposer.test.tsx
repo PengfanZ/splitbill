@@ -59,29 +59,46 @@ describe('AI expense composer', () => {
     })
   })
 
-  it('asks one clarification and submits the answer with bounded context', async () => {
+  it('asks an instant clarification and calls AI only after the missing detail is supplied', async () => {
     const user = userEvent.setup()
-    const parse = vi.fn()
-      .mockResolvedValueOnce({ status: 'needs_clarification', question: 'Who paid?' })
-      .mockResolvedValueOnce(draft)
+    const parse = vi.fn().mockResolvedValue(draft)
     const { onDraft } = renderComposer({ parse })
 
-    await user.type(screen.getByLabelText('Expense description'), 'Dinner was $30')
+    await user.type(screen.getByLabelText('Expense description'), 'Dinner was $30, split with me and Maya')
     await user.click(screen.getByRole('button', { name: /Create draft/ }))
     expect(await screen.findByText('Who paid?')).toBeVisible()
+    expect(parse).not.toHaveBeenCalled()
     await user.type(screen.getByLabelText('Your answer'), 'Maya paid')
     await user.click(screen.getByRole('button', { name: /Update draft/ }))
     expect(onDraft).toHaveBeenCalledWith(draft)
-    expect(parse.mock.calls[1][0].text).toContain('Clarification question: Who paid?')
-    expect(parse.mock.calls[1][0].text).toContain('User answer: Maya paid')
+    expect(parse).toHaveBeenCalledOnce()
+    expect(parse.mock.calls[0][0].text).toContain('Clarification question: Who paid?')
+    expect(parse.mock.calls[0][0].text).toContain('User answer: Maya paid')
+  })
+
+  it('keeps a safe model clarification when a complete sentence is still ambiguous', async () => {
+    const user = userEvent.setup()
+    const parse = vi.fn()
+      .mockResolvedValueOnce({ status: 'needs_clarification', question: 'Which Maya did you mean?' })
+      .mockResolvedValueOnce(draft)
+    const { onDraft } = renderComposer({ parse })
+
+    await user.type(screen.getByLabelText('Expense description'), 'Maya paid $30, split with me')
+    await user.click(screen.getByRole('button', { name: /Create draft/ }))
+    expect(await screen.findByText('Which Maya did you mean?')).toBeVisible()
+    await user.type(screen.getByLabelText('Your answer'), 'The Maya in this activity')
+    await user.click(screen.getByRole('button', { name: /Update draft/ }))
+
+    expect(parse).toHaveBeenCalledTimes(2)
+    expect(onDraft).toHaveBeenCalledWith(draft)
   })
 
   it('clears clarification when the original description changes', async () => {
     const user = userEvent.setup()
-    const parse = vi.fn().mockResolvedValue({ status: 'needs_clarification', question: 'Who paid?' })
+    const parse = vi.fn()
     renderComposer({ parse })
     const description = screen.getByLabelText('Expense description')
-    await user.type(description, 'Dinner was $30')
+    await user.type(description, 'Dinner was $30, split with me and Maya')
     await user.click(screen.getByRole('button', { name: /Create draft/ }))
     expect(await screen.findByText('Who paid?')).toBeVisible()
     await user.type(description, ' Maya paid')
@@ -96,7 +113,7 @@ describe('AI expense composer', () => {
   ])('shows a safe, actionable error for %s', async (error, expected) => {
     const user = userEvent.setup()
     renderComposer({ parse: vi.fn().mockRejectedValue(error) })
-    await user.type(screen.getByLabelText('Expense description'), 'Maya paid $30')
+    await user.type(screen.getByLabelText('Expense description'), 'Maya paid $30, split with me')
     await user.click(screen.getByRole('button', { name: /Create draft/ }))
     expect(await screen.findByRole('alert')).toHaveTextContent(expected)
     await user.click(screen.getByRole('button', { name: 'Dismiss' }))
