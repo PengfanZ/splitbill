@@ -447,7 +447,15 @@ test('tracks local outcomes without sending local activity data or loading third
   await page.getByRole('spinbutton', { name: 'Amount' }).fill('42.37')
   await page.getByRole('button', { name: 'Save expense' }).click()
 
-  await expect.poll(() => events.length).toBe(6)
+  await page.getByRole('button', { name: 'Share' }).click()
+  const summaryDownload = page.waitForEvent('download')
+  await page
+    .getByRole('dialog', { name: 'Share activity' })
+    .getByRole('button', { name: /^Share balances only/ })
+    .click()
+  await summaryDownload
+
+  await expect.poll(() => events.length).toBe(7)
   const sessionTokens = new Set(events.map(event => event.p_session_token))
   expect(events.map(({ p_event_name, p_surface, p_locale, p_currency }) => ({ p_event_name, p_surface, p_locale, p_currency }))).toEqual([
     { p_event_name: 'app_opened', p_surface: 'local', p_locale: 'en', p_currency: null },
@@ -456,6 +464,7 @@ test('tracks local outcomes without sending local activity data or loading third
     { p_event_name: 'friend_added', p_surface: 'local', p_locale: 'en', p_currency: null },
     { p_event_name: 'currency_selected', p_surface: 'local', p_locale: 'en', p_currency: 'EUR' },
     { p_event_name: 'expense_added', p_surface: 'local', p_locale: 'en', p_currency: null },
+    { p_event_name: 'summary_export_clicked', p_surface: 'local', p_locale: 'en', p_currency: null },
   ])
   expect(sessionTokens.size).toBe(1)
   expect([...sessionTokens][0]).toMatch(/^[a-f0-9]{32}$/)

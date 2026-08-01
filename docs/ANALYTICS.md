@@ -10,6 +10,7 @@ The browser may send only these event names:
 - `activity_created`
 - `friend_added`
 - `expense_added`
+- `summary_export_clicked`
 - `live_share_clicked`
 - `live_activity_created`
 - `live_activity_opened`
@@ -33,6 +34,8 @@ Opening the app records its initial surface. Successful product actions are meas
 `friend_added` records one event after a successful friend-add action, including activity creation when at least one initial friend is supplied. Adding several friends in one submission still records one event. Failed Live saves do not count, and the request never includes friend names, IDs, or a friend count.
 
 `live_share_clicked` is also an intentional interaction event. It records when someone chooses **Start live activity**, before the backend request begins. Compare it with `live_activity_created` to distinguish sharing intent from successful Live activity creation. It contains no activity or link data.
+
+`summary_export_clicked` records when someone chooses **Share balances only**, before PNG generation or any share, download, or clipboard fallback begins. It measures export intent rather than successful delivery and contains no activity name, participants, expenses, balances, or generated image data.
 
 ## Reports in Supabase
 
@@ -259,6 +262,54 @@ order by surface;
 ```
 
 One submission can add several friends but counts as one addition event. Use `surface` to compare browser-local and Live activity additions.
+
+To see balance-summary export frequency without exposing activity content:
+
+```sql
+with usage as (
+  select
+    count(*) filter (
+      where occurred_at >= (
+        date_trunc('day', now() at time zone 'America/New_York')
+        at time zone 'America/New_York'
+      )
+    )::bigint as today_clicks,
+    count(distinct session_hash) filter (
+      where occurred_at >= (
+        date_trunc('day', now() at time zone 'America/New_York')
+        at time zone 'America/New_York'
+      )
+    )::bigint as today_sessions,
+    count(*) filter (
+      where occurred_at >= now() - interval '7 days'
+    )::bigint as week_clicks,
+    count(distinct session_hash) filter (
+      where occurred_at >= now() - interval '7 days'
+    )::bigint as week_sessions,
+    count(*) filter (
+      where occurred_at >= now() - interval '30 days'
+    )::bigint as month_clicks,
+    count(distinct session_hash) filter (
+      where occurred_at >= now() - interval '30 days'
+    )::bigint as month_sessions
+  from private.analytics_events
+  where event_name = 'summary_export_clicked'
+)
+select
+  period as "Period",
+  clicks as "Export clicks",
+  sessions as "Sessions"
+from usage
+cross join lateral (
+  values
+    (1, 'Today', today_clicks, today_sessions),
+    (2, 'Last 7 days', week_clicks, week_sessions),
+    (3, 'Last 30 days', month_clicks, month_sessions)
+) as periods(sort_order, period, clicks, sessions)
+order by sort_order;
+```
+
+The saved **SplitBill - Summary Export Clicks** block in the **Home** report uses this text-first view. Repeated clicks count separately, while `Sessions` deduplicates the anonymous browser session within each period. This intentionally measures the action the person chose, even when native sharing is cancelled or image generation falls back to copied text.
 
 These are anonymous sessions, not authenticated users. One person can create multiple sessions, a selected UI language is not proof of physical location, and offline or self-hosted development use is not measured.
 

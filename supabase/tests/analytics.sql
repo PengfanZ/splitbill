@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(60);
+select plan(63);
 
 select has_table('private', 'analytics_events', 'private analytics storage exists');
 select columns_are(
@@ -197,6 +197,33 @@ select is(
   ),
   1::bigint,
   'daily analytics reports include successful friend additions'
+);
+
+select lives_ok(
+  $$select public.record_analytics_event('summary_export_clicked', 'live', '456789abcdef0123456789abcdef0123', 'zh-CN')$$,
+  'a balance-summary export click is recorded'
+);
+select is(
+  (
+    select count(*)
+    from private.analytics_events
+    where event_name = 'summary_export_clicked'
+      and surface = 'live'
+      and locale = 'zh-CN'
+      and currency is null
+      and occurred_at is not null
+  ),
+  1::bigint,
+  'summary export clicks retain only approved anonymous event fields'
+);
+select is(
+  (
+    select events
+    from private.analytics_daily
+    where event_name = 'summary_export_clicked' and surface = 'live'
+  ),
+  1::bigint,
+  'daily analytics reports include summary export clicks'
 );
 
 create temporary table analytics_count_before_invalid as

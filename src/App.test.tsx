@@ -894,9 +894,10 @@ describe('complete app workflows', () => {
 
   it('creates an activity, adds people and expenses, searches, deletes, and resets', async () => {
     const user = userEvent.setup()
+    const analyticsClient = { track: vi.fn() } satisfies AnalyticsClient
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
-    render(<App />)
+    render(<App analyticsClient={analyticsClient} />)
     await user.click(screen.getByRole('button', { name: 'Create an activity' }))
     await user.type(screen.getByLabelText('Activity name'), 'Road trip')
     await user.type(screen.getByLabelText(/Add friends/), 'Maya')
@@ -925,6 +926,7 @@ describe('complete app workflows', () => {
     await chooseShareAction(user, 'Share balances only')
     expect(await screen.findByRole('status')).toHaveTextContent('Summary copied')
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Maya pays You $15.00'))
+    expect(analyticsClient.track).toHaveBeenCalledWith('summary_export_clicked', 'local', 'en')
 
     await user.type(screen.getByRole('textbox', { name: 'Search expenses' }), 'zzz')
     expect(screen.getByText('No expenses match your search.')).toBeVisible()
@@ -1641,6 +1643,7 @@ describe('complete app workflows', () => {
     expect(screen.getAllByRole('status').some(status => status.textContent?.includes('Anyone with it can edit'))).toBe(true)
 
     await chooseShareAction(user, 'Share balances only')
+    expect(analyticsClient.track).toHaveBeenCalledWith('summary_export_clicked', 'live', 'en')
 
     await user.click(screen.getByRole('button', { name: 'Refresh latest' }))
     expect(await screen.findByText('Latest changes loaded.')).toBeVisible()

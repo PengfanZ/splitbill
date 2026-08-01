@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { AnalyticsClient } from '../../analytics'
+import type { AnalyticsClient, AnalyticsSurface } from '../../analytics'
 import type { ActivityGroup, Expense, Member } from '../../domain/models'
 import type { AppLocale, Translate, TranslationKey } from '../../i18n/localization'
 import type { CreateLiveActivityResult, LiveSession } from '../liveSharing/useLiveActivitySession'
@@ -49,7 +49,13 @@ export function useActivitySharing({
 }: ActivitySharingOptions) {
   const [qrShare, setQrShare] = useState<QrShare | null>(null)
 
-  const shareGroup = async (group: ActivityGroup, members: Member[], expenses: Expense[]) => {
+  const shareGroup = async (
+    group: ActivityGroup,
+    members: Member[],
+    expenses: Expense[],
+    surface: AnalyticsSurface,
+  ) => {
+    analyticsClient?.track('summary_export_clicked', surface, locale)
     const result = await exportActivitySummary(group, members, expenses, locale)
     setActivityFeedback({ groupId: group.id, message: t(SUMMARY_MESSAGE_KEYS[result]) })
   }

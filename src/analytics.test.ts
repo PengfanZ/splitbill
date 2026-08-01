@@ -162,6 +162,29 @@ describe('first-party analytics', () => {
     })
   })
 
+  it('records summary export intent without activity or image content', () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
+    const client = createConfiguredAnalyticsClient({
+      VITE_SUPABASE_URL: 'https://project.supabase.co',
+      VITE_SUPABASE_PUBLISHABLE_KEY: 'publishable-key',
+    }, {
+      enabled: true,
+      fetcher,
+      storage: null,
+      crypto: deterministicCrypto(7),
+    })!
+
+    client.track('summary_export_clicked', 'local', 'zh-CN')
+
+    expect(JSON.parse(fetcher.mock.calls[0][1].body as string)).toEqual({
+      p_event_name: 'summary_export_clicked',
+      p_surface: 'local',
+      p_session_token: '07'.repeat(16),
+      p_locale: 'zh-CN',
+      p_currency: null,
+    })
+  })
+
   it('uses browser fetch, crypto, and session storage by default', () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
     Object.defineProperty(window, 'fetch', { configurable: true, value: fetcher })

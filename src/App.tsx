@@ -446,7 +446,7 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
                 onCurrencyChange={live.editable ? changeActivityCurrency : undefined}
                 onShareQr={live.editable && liveSession ? () => sharing.openCurrentLiveQr(liveSession) : undefined}
                 onCopyShareLink={live.editable && liveSession ? () => sharing.copyCurrentLiveLink(liveSession) : undefined}
-                onShareSummary={() => sharing.shareGroup(liveActivity.group, liveMembers, liveActivity.expenses)}
+                onShareSummary={() => sharing.shareGroup(liveActivity.group, liveMembers, liveActivity.expenses, 'live')}
                 onAddFriend={live.editable ? () => setModal('friend') : undefined}
                 onAddExpense={live.editable ? openNewExpense : undefined}
                 onSettleUp={live.editable ? openSettleUp : undefined}
@@ -464,7 +464,7 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
             activityFeedback={activityFeedback?.groupId === selectedGroup.id ? activityFeedback.message : null}
             currentUserLabel={currentUser.name}
             onCurrencyChange={changeActivityCurrency}
-            onShareSummary={() => sharing.shareGroup(selectedGroup, selectedMembers, selectedExpenses)}
+            onShareSummary={() => sharing.shareGroup(selectedGroup, selectedMembers, selectedExpenses, 'local')}
             onShareLive={() => sharing.openLiveShare(selectedGroup, selectedMembers, selectedExpenses)}
             onAddFriend={() => setModal('friend')}
             onAddExpense={openNewExpense}
