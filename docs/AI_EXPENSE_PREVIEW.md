@@ -27,7 +27,7 @@ This does not use RAG: there is no external knowledge to retrieve. Reliability c
 
 ## Model and cost control
 
-The initial model is pinned to `openai/gpt-oss-20b:free`. Override it with `OPENROUTER_MODEL` only after running the same evaluation examples and browser flow. Automatic provider fallback is disabled, so a model outage produces a clear retry/manual-entry message rather than silently switching to a paid or differently behaving model.
+The initial model is pinned to `google/gemma-4-26b-a4b-it:free`, a non-reasoning free model that currently advertises structured-output support. Override it with `OPENROUTER_MODEL` only after running the same evaluation examples and browser flow. Automatic provider fallback is disabled, so a model outage produces a clear retry/manual-entry message rather than silently switching to a paid or differently behaving model.
 
 The server allows 30 AI draft requests per normalized client identifier per 10-minute window. OpenRouter account limits remain the hard cost ceiling. Start with a preview-only key and the smallest available limit; never reuse a broad personal key.
 
@@ -72,7 +72,7 @@ Create a dedicated Supabase preview project. Apply this branch’s migrations an
 ```text
 AI_EXPENSE_ENABLED=true
 OPENROUTER_API_KEY=<preview-only key>
-OPENROUTER_MODEL=openai/gpt-oss-20b:free
+OPENROUTER_MODEL=google/gemma-4-26b-a4b-it:free
 ```
 
 Keep the production project reference out of the preview deployment environment. The database function `consume_ai_expense_quota` is executable only by the service role used inside the Edge Function; browser clients cannot call it directly.

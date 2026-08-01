@@ -35,7 +35,7 @@ test('turns a description into a reviewable draft before the user saves it', asy
           participantIds: request.postDataJSON().members.map((member: { id: string }) => member.id),
           exactSharesCents: [],
         },
-        model: 'openai/gpt-oss-20b:free',
+        model: 'google/gemma-4-26b-a4b-it:free',
       }),
     })
   })

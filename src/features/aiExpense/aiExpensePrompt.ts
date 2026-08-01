@@ -5,7 +5,7 @@ import {
   AiExpenseContractError,
 } from './aiExpenseContract.ts'
 
-export const DEFAULT_OPENROUTER_MODEL = 'openai/gpt-oss-20b:free'
+export const DEFAULT_OPENROUTER_MODEL = 'google/gemma-4-26b-a4b-it:free'
 
 export const AI_EXPENSE_JSON_SCHEMA = {
   type: 'object',
@@ -86,7 +86,7 @@ export function buildOpenRouterRequest(request: AiExpenseRequest, model = DEFAUL
       require_parameters: true,
     },
     temperature: 0,
-    max_tokens: 500,
+    max_tokens: 700,
   }
 }
 
