@@ -36,13 +36,62 @@ Opening the app records its initial surface. Successful product actions are meas
 
 ## Reports in Supabase
 
-Run reports from **Supabase Dashboard → SQL Editor**. The daily aggregate is the default operational view:
+Create saved report queries in **Supabase Dashboard → SQL Editor**, then add them to the custom **Observability → Home** report. The daily aggregate is the default operational view:
 
 ```sql
 select event_day, event_name, surface, events, sessions
 from private.analytics_daily
 order by event_day desc, event_name, surface;
 ```
+
+The Home report's **SplitBill - App Usage Summary** block uses a table instead of a chart so the current usage is immediately readable. `Today` follows the Eastern calendar day; the weekly and monthly rows are rolling 7- and 30-day windows:
+
+```sql
+with usage as (
+  select
+    count(distinct session_hash) filter (
+      where occurred_at >= (
+        date_trunc('day', now() at time zone 'America/New_York')
+        at time zone 'America/New_York'
+      )
+    )::bigint as sessions_today,
+    count(*) filter (
+      where occurred_at >= (
+        date_trunc('day', now() at time zone 'America/New_York')
+        at time zone 'America/New_York'
+      )
+    )::bigint as opens_today,
+    count(distinct session_hash) filter (
+      where occurred_at >= now() - interval '7 days'
+    )::bigint as sessions_week,
+    count(*) filter (
+      where occurred_at >= now() - interval '7 days'
+    )::bigint as opens_week,
+    count(distinct session_hash) filter (
+      where occurred_at >= now() - interval '30 days'
+    )::bigint as sessions_month,
+    count(*) filter (
+      where occurred_at >= now() - interval '30 days'
+    )::bigint as opens_month
+  from private.analytics_events
+  where event_name = 'app_opened'
+    and occurred_at >= now() - interval '30 days'
+)
+select
+  period as "Period",
+  sessions as "Sessions",
+  opens as "App opens"
+from usage
+cross join lateral (
+  values
+    (1, 'Today', sessions_today, opens_today),
+    (2, 'Last 7 days', sessions_week, opens_week),
+    (3, 'Last 30 days', sessions_month, opens_month)
+) as summary(sort_order, period, sessions, opens)
+order by sort_order;
+```
+
+Use the report block's **As table** setting. Do not label these values as users: `session_hash` identifies an anonymous browser session, and one person can create more than one session.
 
 For a chronological hourly usage chart, query the UTC hourly aggregate and convert the label to the reporting timezone. This example uses Eastern Time; replace `America/New_York` with `Asia/Shanghai` for China time:
 
