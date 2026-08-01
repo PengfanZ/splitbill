@@ -6,11 +6,13 @@ import {
   buildOpenRouterRequest,
   DEFAULT_OPENROUTER_FALLBACK_MODEL,
   DEFAULT_OPENROUTER_MODEL,
+  DEFAULT_OPENROUTER_VOICE_MODEL,
   getOpenRouterFailure,
   parseOpenRouterModelOutput,
 } from './aiExpensePrompt'
 
 const request: AiExpenseRequest = {
+  inputMode: 'text',
   text: 'Maya paid $20 for lunch',
   locale: 'en',
   currency: 'USD',
@@ -49,7 +51,9 @@ describe('OpenRouter expense prompt', () => {
     expect(built.messages[0].content).toContain('never ask again')
     expect(built.messages[0].content).toContain('vague, unrelated to one expense')
     expect(built.messages[0].content).toContain('Never use status "ready"')
-    expect(JSON.parse(built.messages[1].content)).toEqual({
+    const initialContent = built.messages[1].content
+    if (typeof initialContent !== 'string') throw new Error('Expected text content')
+    expect(JSON.parse(initialContent)).toEqual({
       activityCurrency: 'USD',
       interfaceLocale: 'en',
       members: request.members,
@@ -82,6 +86,27 @@ describe('OpenRouter expense prompt', () => {
     expect(legacy.messages.slice(2)).toEqual([
       { role: 'assistant', content: 'Who paid?' },
       { role: 'user', content: 'Maya paid' },
+    ])
+
+    const voice = buildOpenRouterRequest({
+      inputMode: 'voice',
+      audio: { data: 'A'.repeat(64), format: 'wav', durationSeconds: 1 },
+      locale: 'en',
+      currency: 'USD',
+      members: request.members,
+    })
+    expect(voice.models).toEqual([DEFAULT_OPENROUTER_VOICE_MODEL])
+    expect(voice.messages[1].content).toEqual([
+      {
+        type: 'text',
+        text: JSON.stringify({
+          activityCurrency: 'USD',
+          interfaceLocale: 'en',
+          members: request.members,
+          expenseDescription: 'The expense is described in the attached audio.',
+        }),
+      },
+      { type: 'input_audio', input_audio: { data: 'A'.repeat(64), format: 'wav' } },
     ])
   })
 

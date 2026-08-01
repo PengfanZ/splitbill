@@ -3,8 +3,14 @@ import type { AiExpenseModelOutput } from './aiExpenseContract'
 import {
   DEFAULT_OPENROUTER_FALLBACK_MODEL,
   DEFAULT_OPENROUTER_MODEL,
+  DEFAULT_OPENROUTER_VOICE_MODEL,
 } from './aiExpensePrompt'
-import { handleParseExpenseRequest, type ParseExpenseHandlerDependencies } from './parseExpenseHandler'
+import {
+  AI_EXPENSE_CORS_HEADERS,
+  handleParseExpenseRequest,
+  type ParseExpenseHandlerDependencies,
+} from './parseExpenseHandler'
+import { encodePcm16Wav } from './voiceRecording'
 
 const requestBody = {
   text: 'Maya paid $30 for dinner, split with me',
@@ -22,6 +28,26 @@ const output: AiExpenseModelOutput = {
   participantIds: ['me', 'maya'],
   exactSharesCents: [],
   clarificationQuestion: null,
+}
+
+function bytesToBase64(bytes: Uint8Array) {
+  let binary = ''
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000))
+  }
+  return btoa(binary)
+}
+
+const voiceBody = {
+  inputMode: 'voice',
+  audio: {
+    data: bytesToBase64(encodePcm16Wav(new Float32Array(16_000))),
+    format: 'wav',
+    durationSeconds: 1,
+  },
+  locale: 'en',
+  currency: 'USD',
+  members: requestBody.members,
 }
 
 function providerResponse(modelOutput: unknown = output, status = 200) {
@@ -53,6 +79,13 @@ function dependencies(overrides: Partial<ParseExpenseHandlerDependencies> = {}) 
 }
 
 describe('parse expense Edge Function handler', () => {
+  it('allows the client input-mode header in browser preflight requests', () => {
+    expect(AI_EXPENSE_CORS_HEADERS).toEqual({
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': expect.stringContaining('x-tally-input-mode'),
+    })
+  })
+
   it('rejects unsupported methods and oversized requests before using secrets', async () => {
     const deps = dependencies()
     const getResponse = await handleParseExpenseRequest(new Request('https://example.com', { method: 'GET' }), deps)
@@ -63,6 +96,17 @@ describe('parse expense Edge Function handler', () => {
     expect(largeResponse.status).toBe(413)
     expect(await largeResponse.json()).toMatchObject({ code: 'request_too_large' })
     expect(deps.consumeQuota).not.toHaveBeenCalled()
+
+    const streamedLargeResponse = await handleParseExpenseRequest(request({
+      ...requestBody,
+      text: 'x'.repeat(33 * 1024),
+    }), deps)
+    expect(streamedLargeResponse.status).toBe(413)
+
+    const invalidModeResponse = await handleParseExpenseRequest(request(requestBody, {
+      'x-tally-input-mode': 'video',
+    }), deps)
+    expect(invalidModeResponse.status).toBe(400)
   })
 
   it('fails closed when disabled or missing its server-side key', async () => {
@@ -84,6 +128,50 @@ describe('parse expense Edge Function handler', () => {
     const invalid = await handleParseExpenseRequest(request({ ...requestBody, members: [] }), deps)
     expect(invalid.status).toBe(400)
     expect(await invalid.json()).toMatchObject({ code: 'invalid_request' })
+    expect((await handleParseExpenseRequest(new Request('https://example.com', { method: 'POST' }), deps)).status).toBe(400)
+    expect((await handleParseExpenseRequest(request(requestBody, { 'x-tally-input-mode': 'voice' }), deps)).status).toBe(400)
+  })
+
+  it('validates voice audio, consumes the voice quota, and uses the audio-capable model', async () => {
+    const deps = dependencies()
+    const response = await handleParseExpenseRequest(request(voiceBody, {
+      'x-tally-input-mode': 'voice',
+      'cf-connecting-ip': '203.0.113.9',
+    }), deps)
+    expect(response.status).toBe(200)
+    expect(deps.consumeQuota).toHaveBeenCalledWith('203.0.113.9', 'voice')
+    const init = vi.mocked(deps.fetcher! as ReturnType<typeof vi.fn>).mock.calls[0][1] as RequestInit
+    const body = JSON.parse(init.body as string)
+    expect(body.models).toEqual([DEFAULT_OPENROUTER_VOICE_MODEL])
+    expect(body.messages[1].content[1]).toMatchObject({
+      type: 'input_audio',
+      input_audio: { format: 'wav' },
+    })
+    expect(body.messages[1].content[1].input_audio).not.toHaveProperty('durationSeconds')
+
+    const customFetcher = vi.fn().mockResolvedValue(providerResponse())
+    await handleParseExpenseRequest(request(voiceBody, { 'x-tally-input-mode': 'voice' }), dependencies({
+      getEnvironment: name => ({
+        AI_EXPENSE_ENABLED: 'true',
+        OPENROUTER_API_KEY: 'secret-key',
+        OPENROUTER_VOICE_MODEL: 'google/voice-primary',
+        OPENROUTER_VOICE_FALLBACK_MODEL: 'google/voice-backup',
+      })[name],
+      fetcher: customFetcher,
+    }))
+    expect(JSON.parse((customFetcher.mock.calls[0][1] as RequestInit).body as string).models)
+      .toEqual(['google/voice-primary', 'google/voice-backup'])
+  })
+
+  it('rejects malformed voice audio before quota or model usage', async () => {
+    const deps = dependencies()
+    const response = await handleParseExpenseRequest(request({
+      ...voiceBody,
+      audio: { ...voiceBody.audio, data: 'A'.repeat(64) },
+    }, { 'x-tally-input-mode': 'voice' }), deps)
+    expect(response.status).toBe(400)
+    expect(deps.consumeQuota).not.toHaveBeenCalled()
+    expect(deps.fetcher).not.toHaveBeenCalled()
   })
 
   it('enforces the server quota using a normalized client identifier', async () => {
@@ -92,19 +180,19 @@ describe('parse expense Edge Function handler', () => {
       'cf-connecting-ip': ' 203.0.113.8 ',
     }), dependencies({ consumeQuota }))
     expect(response.status).toBe(429)
-    expect(consumeQuota).toHaveBeenCalledWith('203.0.113.8')
+    expect(consumeQuota).toHaveBeenCalledWith('203.0.113.8', 'text')
 
     const forwardedQuota = vi.fn().mockResolvedValue(false)
     await handleParseExpenseRequest(request(requestBody, { 'x-forwarded-for': '198.51.100.4, 10.0.0.1' }), dependencies({ consumeQuota: forwardedQuota }))
-    expect(forwardedQuota).toHaveBeenCalledWith('198.51.100.4')
+    expect(forwardedQuota).toHaveBeenCalledWith('198.51.100.4', 'text')
 
     const unknownQuota = vi.fn().mockResolvedValue(false)
     await handleParseExpenseRequest(request(), dependencies({ consumeQuota: unknownQuota }))
-    expect(unknownQuota).toHaveBeenCalledWith('unknown-client')
+    expect(unknownQuota).toHaveBeenCalledWith('unknown-client', 'text')
 
     const blankQuota = vi.fn().mockResolvedValue(false)
     await handleParseExpenseRequest(request(requestBody, { 'cf-connecting-ip': ' ' }), dependencies({ consumeQuota: blankQuota }))
-    expect(blankQuota).toHaveBeenCalledWith('unknown-client')
+    expect(blankQuota).toHaveBeenCalledWith('unknown-client', 'text')
   })
 
   it('fails closed when the quota service is unavailable', async () => {

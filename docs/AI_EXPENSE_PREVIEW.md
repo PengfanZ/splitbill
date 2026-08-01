@@ -1,6 +1,6 @@
 # Conversational expense entry preview
 
-This experiment converts a short description such as “Maya paid $36 for dinner, split between Maya and me” into a reviewable expense draft. It does not save anything until the user checks the normal expense form and chooses **Save expense**.
+This experiment keeps manual expense entry as the default and adds two optional shortcuts: a typed description or a voice recording. Both produce a reviewable expense draft and save nothing until the user checks the normal expense form and chooses **Save expense**.
 
 ## Release boundary
 
@@ -15,7 +15,7 @@ Do not add `VITE_AI_EXPENSE_ENABLED` to the GitHub Pages production environment.
 
 ## Why this design is safe to trial
 
-1. The browser sends only the description, any clarification answer, current currency, resolved interface locale, and the current activity’s member IDs and names.
+1. The browser sends only the typed description or temporary recording, any clarification answer, current currency, resolved interface locale, and the current activity’s member IDs and names. Voice is converted locally to mono 16 kHz PCM WAV, capped at 60 seconds, and never stored by Tally.
 2. The OpenRouter key exists only in the Supabase Edge Function.
 3. Tiny, clearly incomplete category-only descriptions receive a deterministic, localized clarification before any provider request or quota consumption.
 4. Substantive descriptions in any language, dialect, shorthand, or mixed language go to the model; language-specific regexes never block them.
@@ -30,11 +30,11 @@ This does not use RAG: there is no external knowledge to retrieve. Reliability c
 
 ## Model and cost control
 
-The candidate models are pinned to `google/gemma-4-26b-a4b-it:free` and `google/gemini-2.5-flash-lite`. OpenRouter prefers the cheapest eligible route whose recent p90 latency is at most three seconds, while keeping slower routes available as fallbacks. This lets the free model win when it is healthy and responsive, but permits the low-cost model to protect the interactive experience. OpenRouter charges only for the model that ultimately responds. Override either candidate with `OPENROUTER_MODEL` or `OPENROUTER_FALLBACK_MODEL` only after running the same evaluation examples and browser flow.
+Typed descriptions use the candidates `google/gemma-4-26b-a4b-it:free` and `google/gemini-2.5-flash-lite`. OpenRouter prefers the cheapest eligible route whose recent p90 latency is at most three seconds, while keeping slower routes available as fallbacks. Voice goes directly to the audio-capable `google/gemini-2.5-flash-lite`, avoiding a separate transcription request. Override it with `OPENROUTER_VOICE_MODEL` only after running the same multilingual voice and browser checks.
 
 A successful provider response that does not satisfy the expense contract is treated as an incomplete conversation: the user receives a localized prompt to restate the amount, payer, and participants. A genuine upstream failure is logged without the expense text and shown as a model-specific retry/manual-entry message. The request has a bounded timeout so an unavailable route cannot leave the user waiting indefinitely.
 
-The server allows 30 AI draft requests per normalized client identifier per 10-minute window and 100 per day. Both counters are consumed before the provider call, including provider failures, and the stricter limit wins. OpenRouter account limits remain the hard cost ceiling. Start with a preview-only key and the smallest available limit; never reuse a broad personal key.
+The server maintains separate cost budgets per normalized client identifier. Text allows 30 requests per 10 minutes and 100 per day; voice allows 10 per 10 minutes and 25 per day. Counters are consumed before the provider call, including provider failures, and the stricter limit wins. OpenRouter account limits remain the hard cost ceiling. Use a preview-only key with a deliberately small limit, but leave enough unused budget for OpenRouter to authorize one worst-case voice request; an almost-exhausted `$0.01` key can reject a recording before the model runs. Never reuse a broad personal key.
 
 ## Local setup
 
@@ -79,9 +79,12 @@ AI_EXPENSE_ENABLED=true
 OPENROUTER_API_KEY=<preview-only key>
 OPENROUTER_MODEL=google/gemma-4-26b-a4b-it:free
 OPENROUTER_FALLBACK_MODEL=google/gemini-2.5-flash-lite
+OPENROUTER_VOICE_MODEL=google/gemini-2.5-flash-lite
 ```
 
 Keep the production project reference out of the preview deployment environment. The database function `consume_ai_expense_quota` is executable only by the service role used inside the Edge Function; browser clients cannot call it directly.
+
+If voice recording stops normally but the app reports that its AI budget was reached, check the preview key—not only the account balance—in OpenRouter's **API Keys** page. The key's own cumulative credit limit may be lower than the account balance. Raise that preview-only cap intentionally, then run one short voice request and confirm its cost in OpenRouter Logs.
 
 ### 2. Frontend
 

@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import type { AiExpenseRequest } from './aiExpenseContract'
+import type { TextAiExpenseRequest } from './aiExpenseContract'
 import {
   getAiExpensePreflightQuestion,
   getAiExpenseRecoveryQuestion,
 } from './aiExpensePreflight'
 
-const request: AiExpenseRequest = {
+const request: TextAiExpenseRequest = {
+  inputMode: 'text',
   text: 'Maya paid $30 for dinner, split with me',
   locale: 'en',
   currency: 'USD',

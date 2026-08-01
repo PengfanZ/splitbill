@@ -82,6 +82,7 @@ export function createAiExpenseClient(
           headers: {
             apikey: publishableKey,
             'content-type': 'application/json',
+            'x-tally-input-mode': validRequest.inputMode,
           },
           cache: 'no-store',
           credentials: 'omit',

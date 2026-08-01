@@ -10,6 +10,11 @@ export const AI_EXPENSE_ANSWER_MAX_LENGTH = 200
 export const AI_EXPENSE_MAX_CLARIFICATIONS = 4
 export const AI_EXPENSE_MAX_MEMBERS = MAX_ACTIVITY_FRIENDS + 1
 export const AI_EXPENSE_MAX_AMOUNT_CENTS = MAX_ACTIVITY_AMOUNT * 100
+export const AI_EXPENSE_AUDIO_SAMPLE_RATE = 16_000
+export const AI_EXPENSE_AUDIO_MAX_SECONDS = 60
+export const AI_EXPENSE_AUDIO_MAX_BYTES = 44
+  + AI_EXPENSE_AUDIO_SAMPLE_RATE * 2 * AI_EXPENSE_AUDIO_MAX_SECONDS
+export const AI_EXPENSE_AUDIO_BASE64_MAX_LENGTH = Math.ceil(AI_EXPENSE_AUDIO_MAX_BYTES / 3) * 4
 
 const memberSchema = z.object({
   id: z.string().trim().min(1).max(100),
@@ -21,14 +26,36 @@ const clarificationContextSchema = z.object({
   answer: z.string().trim().min(1).max(AI_EXPENSE_ANSWER_MAX_LENGTH),
 }).strict()
 
-export const aiExpenseRequestSchema = z.object({
-  text: z.string().trim().min(3).max(AI_EXPENSE_TEXT_MAX_LENGTH),
+const requestContextSchema = z.object({
   locale: z.enum(SUPPORTED_LOCALES),
   currency: z.enum(SUPPORTED_CURRENCIES),
   members: z.array(memberSchema).min(1).max(AI_EXPENSE_MAX_MEMBERS),
   clarification: clarificationContextSchema.optional(),
   clarifications: z.array(clarificationContextSchema).min(1).max(AI_EXPENSE_MAX_CLARIFICATIONS).optional(),
-}).strict().superRefine((request, context) => {
+})
+
+const textExpenseRequestSchema = requestContextSchema.extend({
+  inputMode: z.literal('text'),
+  text: z.string().trim().min(3).max(AI_EXPENSE_TEXT_MAX_LENGTH),
+}).strict()
+
+const voiceExpenseRequestSchema = requestContextSchema.extend({
+  inputMode: z.literal('voice'),
+  audio: z.object({
+    data: z.string()
+      .min(64)
+      .max(AI_EXPENSE_AUDIO_BASE64_MAX_LENGTH)
+      .regex(/^[A-Za-z0-9+/]+={0,2}$/)
+      .refine(value => value.length % 4 === 0),
+    format: z.literal('wav'),
+    durationSeconds: z.number().positive().max(AI_EXPENSE_AUDIO_MAX_SECONDS),
+  }).strict(),
+}).strict()
+
+const normalizedRequestSchema = z.discriminatedUnion('inputMode', [
+  textExpenseRequestSchema,
+  voiceExpenseRequestSchema,
+]).superRefine((request, context) => {
   if (request.clarification && request.clarifications) {
     context.addIssue({
       code: 'custom',
@@ -51,8 +78,19 @@ export const aiExpenseRequestSchema = z.object({
   }
 })
 
+export const aiExpenseRequestSchema = z.preprocess(value => {
+  if (typeof value !== 'object' || value === null || Array.isArray(value) || 'inputMode' in value) return value
+  return { ...value, inputMode: 'text' }
+}, normalizedRequestSchema)
+
 export type AiExpenseRequest = z.infer<typeof aiExpenseRequestSchema>
+export type TextAiExpenseRequest = Extract<AiExpenseRequest, { inputMode: 'text' }>
+export type VoiceAiExpenseRequest = Extract<AiExpenseRequest, { inputMode: 'voice' }>
 export type AiExpenseClarification = z.infer<typeof clarificationContextSchema>
+
+export function isVoiceAiExpenseRequest(request: AiExpenseRequest): request is VoiceAiExpenseRequest {
+  return request.inputMode === 'voice'
+}
 
 export function getAiExpenseClarifications(request: AiExpenseRequest): AiExpenseClarification[] {
   if (request.clarifications) return request.clarifications

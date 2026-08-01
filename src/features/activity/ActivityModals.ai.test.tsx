@@ -43,7 +43,9 @@ describe('AI-assisted expense modal', () => {
     })
     const { onSave } = renderModal({ parse })
 
-    expect(screen.getByRole('tab', { name: 'Describe with AI' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'Enter manually' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByLabelText('Description')).toBeVisible()
+    await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))
     await user.type(screen.getByLabelText('Expense description'), 'Maya paid $30.01 for dinner with me')
     await user.click(screen.getByRole('button', { name: /Create draft/ }))
 
@@ -81,6 +83,7 @@ describe('AI-assisted expense modal', () => {
         ],
       }),
     })
+    await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))
     await user.type(screen.getByLabelText('Expense description'), 'I paid $30 for tickets; I owe $10 and Maya owes $20')
     await user.click(screen.getByRole('button', { name: /Create draft/ }))
 
@@ -98,6 +101,10 @@ describe('AI-assisted expense modal', () => {
     const user = userEvent.setup()
     const client: AiExpenseClient = { parse: vi.fn() }
     const { rerender } = renderModal(client)
+    expect(screen.getByLabelText('Description')).toBeVisible()
+    expect(screen.getByRole('tab', { name: 'Speak' })).toHaveAttribute('aria-selected', 'false')
+    await user.click(screen.getByRole('tab', { name: 'Speak' }))
+    expect(screen.getByText('Describe the expense out loud')).toBeVisible()
     await user.click(screen.getByRole('tab', { name: 'Enter manually' }))
     expect(screen.getByLabelText('Description')).toBeVisible()
     await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))

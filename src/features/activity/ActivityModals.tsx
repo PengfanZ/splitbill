@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { ArrowRight, CircleDollarSign, Pencil, Sparkles, Users } from 'lucide-react'
+import { ArrowRight, CircleDollarSign, Mic, Pencil, Sparkles, Users } from 'lucide-react'
 import { Avatar, ModalShell } from '../../components/AppShell'
 import { Button } from '../../components/Button'
 import { SelectMenu, type SelectMenuOption } from '../../components/SelectMenu'
@@ -9,6 +9,7 @@ import { makeId } from '../../domain/members'
 import type { ActivityGroup, Expense, Member, Settlement, SplitMethod } from '../../domain/models'
 import { useLocalization } from '../../i18n/LocalizationContext'
 import { AiExpenseComposer } from '../aiExpense/AiExpenseComposer'
+import { VoiceExpenseComposer } from '../aiExpense/VoiceExpenseComposer'
 import type { AiExpenseClient } from '../aiExpense/aiExpenseApi'
 import type { AiExpenseReadyDraft } from '../aiExpense/aiExpenseContract'
 import { MAX_ACTIVITY_AMOUNT } from '../sharing/sharedActivity'
@@ -130,7 +131,7 @@ export function ExpenseModal({ group, members, expense, aiExpenseClient = null, 
   const [payerId, setPayerId] = useState(expense?.payerId ?? 'me')
   const [method, setMethod] = useState<SplitMethod>(expense?.splitMethod ?? 'equal')
   const aiAvailable = Boolean(aiExpenseClient && !expense)
-  const [entryMode, setEntryMode] = useState<'ai' | 'manual'>(() => aiAvailable ? 'ai' : 'manual')
+  const [entryMode, setEntryMode] = useState<'manual' | 'ai-text' | 'ai-voice'>('manual')
   const [aiDraftApplied, setAiDraftApplied] = useState(false)
   const payerOptions: ReadonlyArray<SelectMenuOption<string>> = members.map(member => ({
     value: member.id,
@@ -201,12 +202,21 @@ export function ExpenseModal({ group, members, expense, aiExpenseClient = null, 
     <ModalShell eyebrow={group.name} title={t(expense ? 'expense.editTitle' : 'expense.addTitle')} onClose={onClose}>
       {aiAvailable ? (
         <div className="expense-entry-tabs" role="tablist" aria-label={t('expense.entryMethod')}>
-          <button type="button" role="tab" aria-selected={entryMode === 'ai'} className={entryMode === 'ai' ? 'active' : ''} onClick={() => setEntryMode('ai')}><Sparkles size={15} />{t('expense.aiTab')}</button>
           <button type="button" role="tab" aria-selected={entryMode === 'manual'} className={entryMode === 'manual' ? 'active' : ''} onClick={() => setEntryMode('manual')}><Pencil size={15} />{t('expense.manualTab')}</button>
+          <button type="button" role="tab" aria-selected={entryMode === 'ai-text'} className={entryMode === 'ai-text' ? 'active' : ''} onClick={() => setEntryMode('ai-text')}><Sparkles size={15} />{t('expense.aiTab')}</button>
+          <button type="button" role="tab" aria-selected={entryMode === 'ai-voice'} className={entryMode === 'ai-voice' ? 'active' : ''} onClick={() => setEntryMode('ai-voice')}><Mic size={15} />{t('expense.voiceTab')}</button>
         </div>
       ) : null}
-      {aiAvailable && entryMode === 'ai' && aiExpenseClient ? (
+      {aiAvailable && entryMode === 'ai-text' && aiExpenseClient ? (
         <AiExpenseComposer
+          client={aiExpenseClient}
+          currency={currency}
+          members={members}
+          onClose={onClose}
+          onDraft={applyAiDraft}
+        />
+      ) : aiAvailable && entryMode === 'ai-voice' && aiExpenseClient ? (
+        <VoiceExpenseComposer
           client={aiExpenseClient}
           currency={currency}
           members={members}

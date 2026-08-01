@@ -5,8 +5,10 @@ import {
   createAiExpenseClient,
   createConfiguredAiExpenseClient,
 } from './aiExpenseApi'
+import { AI_EXPENSE_CORS_HEADERS } from './parseExpenseHandler'
 
 const request: AiExpenseRequest = {
+  inputMode: 'text',
   text: 'Maya paid $20 for lunch',
   locale: 'en',
   currency: 'USD',
@@ -54,13 +56,55 @@ describe('AI expense API client', () => {
       headers: {
         apikey: 'publishable-key',
         'content-type': 'application/json',
+        'x-tally-input-mode': 'text',
       },
       cache: 'no-store',
       credentials: 'omit',
       referrerPolicy: 'no-referrer',
       signal: expect.any(AbortSignal),
-      body: JSON.stringify(request),
+      body: JSON.stringify({
+        locale: request.locale,
+        currency: request.currency,
+        members: request.members,
+        inputMode: 'text',
+        text: request.text,
+      }),
     }))
+    const requestHeaders = Object.keys(fetcher.mock.calls[0][1]?.headers as Record<string, string>)
+    const allowedHeaders = AI_EXPENSE_CORS_HEADERS['Access-Control-Allow-Headers']
+      .split(',')
+      .map(header => header.trim().toLowerCase())
+    expect(allowedHeaders).toEqual(expect.arrayContaining(requestHeaders.map(header => header.toLowerCase())))
+  })
+
+  it('sends voice input through the distinct server path', async () => {
+    fetcher.mockResolvedValue(response({ result: readyResult }))
+    const client = createAiExpenseClient({
+      supabaseUrl: 'https://preview.supabase.co',
+      publishableKey: 'publishable-key',
+    }, fetcher)
+    const voiceRequest = {
+      inputMode: 'voice' as const,
+      audio: { data: 'A'.repeat(64), format: 'wav' as const, durationSeconds: 1 },
+      locale: 'en' as const,
+      currency: 'USD' as const,
+      members: request.members,
+    }
+
+    await expect(client.parse(voiceRequest)).resolves.toEqual(readyResult)
+    expect(fetcher).toHaveBeenCalledWith(
+      'https://preview.supabase.co/functions/v1/parse-expense',
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'x-tally-input-mode': 'voice' }),
+        body: JSON.stringify({
+          locale: 'en',
+          currency: 'USD',
+          members: request.members,
+          inputMode: 'voice',
+          audio: voiceRequest.audio,
+        }),
+      }),
+    )
   })
 
   it.each([

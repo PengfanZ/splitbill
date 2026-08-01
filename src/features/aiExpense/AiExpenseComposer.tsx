@@ -46,6 +46,7 @@ export function AiExpenseComposer({
   const parse = async (description: string, history: AiExpenseClarification[] = clarificationHistory) => {
     setErrorKey(null)
     const request = {
+      inputMode: 'text' as const,
       text: description,
       currency,
       locale,

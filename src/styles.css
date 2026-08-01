@@ -184,7 +184,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .select-menu-option--selected .select-menu-option-leading { background: #dcece3; color: var(--green); }
 .modal-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; margin-top: 4px; }
 .modal-actions--single { grid-template-columns: 1fr; }
-.expense-entry-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 17px; padding: 4px; border: 1px solid #d8d2ca; border-radius: 11px; background: #eee9e2; }
+.expense-entry-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-bottom: 17px; padding: 4px; border: 1px solid #d8d2ca; border-radius: 11px; background: #eee9e2; }
 .expense-entry-tabs button { min-height: 38px; border: 0; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 7px; background: transparent; color: var(--muted); font-size: 11px; font-weight: 700; }
 .expense-entry-tabs button.active { background: white; color: var(--ink); box-shadow: 0 2px 8px rgba(34, 29, 25, .08); }
 .expense-entry-tabs button:first-child.active { color: var(--green); }
@@ -207,6 +207,20 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .ai-draft-note span { display: grid; gap: 3px; }
 .ai-draft-note b { color: var(--green); font-size: 12px; }
 .ai-draft-note small { color: var(--muted); font-size: 10px; line-height: 1.4; }
+.voice-expense-composer { min-height: 340px; }
+.voice-recorder { min-height: 180px; display: grid; justify-items: center; align-content: center; gap: 9px; border: 1px solid #ddd6cd; border-radius: 16px; background: #f7f3ee; text-align: center; }
+.voice-recorder b { color: var(--ink); font-size: 12px; }
+.voice-recorder small { color: var(--muted); font-size: 10px; }
+.voice-record-button { width: 96px; height: 96px; border: 0; border-radius: 50%; display: grid; place-items: center; background: var(--coral); color: white; box-shadow: 0 12px 28px rgba(243, 87, 75, .25); transition: transform .16s ease, box-shadow .16s ease; }
+.voice-record-button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 15px 32px rgba(243, 87, 75, .3); }
+.voice-record-button:focus-visible { outline: 3px solid rgba(243, 87, 75, .28); outline-offset: 4px; }
+.voice-record-button:disabled { opacity: .58; cursor: wait; }
+.voice-record-button.requesting { animation: voice-pulse 1.4s ease-in-out infinite; }
+.voice-record-button.recording { background: #b53d35; animation: voice-pulse 1.4s ease-in-out infinite; }
+.voice-request-cancel { border: 0; padding: 3px 7px; background: transparent; color: var(--muted); font: inherit; font-size: 10px; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.voice-request-cancel:hover { color: var(--ink); }
+.voice-request-cancel:focus-visible { border-radius: 4px; outline: 2px solid rgba(243, 87, 75, .35); outline-offset: 2px; }
+@keyframes voice-pulse { 50% { box-shadow: 0 0 0 12px rgba(243, 87, 75, .12), 0 12px 28px rgba(243, 87, 75, .25); } }
 .qr-share { display: grid; gap: 16px; }
 .qr-code { width: min(100%, 312px); margin: 0 auto; padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: white; box-shadow: 0 12px 30px rgba(34, 29, 25, .08); }
 .qr-code svg { display: block; width: 100%; height: auto; }
@@ -434,6 +448,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 @media (max-width: 520px) {
   .equal-member-list { grid-template-columns: 1fr; }
+  .expense-entry-tabs button { gap: 5px; padding-inline: 5px; font-size: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-record-button.recording, .voice-record-button.requesting { animation: none; }
 }
 
 @media (max-width: 720px) {

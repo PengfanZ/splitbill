@@ -1,13 +1,17 @@
 import { expect, test, type Page } from '@playwright/test'
 
-test.beforeEach(async ({ context }) => {
-  await context.route('https://live-sharing.test/rest/v1/rpc/record_analytics_event', route => route.fulfill({
+const aiPreviewURL = 'http://127.0.0.1:4184'
+const aiExpenseEndpoint = `${aiPreviewURL}/functions/v1/parse-expense`
+
+test.beforeEach(async ({ context }, testInfo) => {
+  if (testInfo.title === 'completes a real browser CORS preflight for voice entry') return
+  await context.route(`${aiPreviewURL}/rest/v1/rpc/record_analytics_event`, route => route.fulfill({
     status: 204,
     body: '',
   }))
 })
 
-async function createPreviewActivity(page: Page) {
+async function createPreviewActivity(page: Page, entryMode: 'text' | 'manual' = 'text') {
   await page.goto('./')
   await page.getByLabel('Display name').fill('Preview Tester')
   await page.getByRole('button', { name: 'Continue' }).click()
@@ -16,11 +20,64 @@ async function createPreviewActivity(page: Page) {
   await page.getByLabel(/Add friends/).fill('Maya')
   await page.getByRole('button', { name: 'Create activity' }).click()
   await page.getByRole('button', { name: 'Add expense' }).click()
+  if (entryMode === 'text') await page.getByRole('tab', { name: 'Describe with AI' }).click()
 }
+
+async function enableFakeVoiceRecording(page: Page, permissionGranted = true) {
+  await page.addInitScript((granted: boolean) => {
+    const track = { stop() {} }
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: granted
+          ? async () => ({ getTracks: () => [track] })
+          : async () => { throw new DOMException('Denied', 'NotAllowedError') },
+      },
+    })
+    class FakeAudioContext {
+      async decodeAudioData() {
+        return {
+          numberOfChannels: 1,
+          length: 16_000,
+          sampleRate: 16_000,
+          getChannelData: () => new Float32Array(16_000),
+        }
+      }
+      async close() {}
+    }
+    class FakeMediaRecorder {
+      static isTypeSupported() { return true }
+      state: RecordingState = 'inactive'
+      mimeType: string
+      ondataavailable: ((event: { data: Blob }) => void) | null = null
+      onstop: (() => void) | null = null
+      onerror: (() => void) | null = null
+      constructor(_stream: MediaStream, options?: MediaRecorderOptions) {
+        this.mimeType = options?.mimeType ?? 'audio/webm'
+      }
+      start() { this.state = 'recording' }
+      stop() {
+        this.state = 'inactive'
+        this.ondataavailable?.({ data: new Blob(['recording']) })
+        this.onstop?.()
+      }
+    }
+    Object.defineProperty(window, 'AudioContext', { configurable: true, value: FakeAudioContext })
+    Object.defineProperty(window, 'MediaRecorder', { configurable: true, value: FakeMediaRecorder })
+  }, permissionGranted)
+}
+
+test('keeps manual expense entry first while offering text and voice alternatives', async ({ page }) => {
+  await createPreviewActivity(page, 'manual')
+  await expect(page.getByRole('tab', { name: 'Enter manually' })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByLabel('Description')).toBeVisible()
+  await expect(page.getByRole('tab', { name: 'Describe with AI' })).toHaveAttribute('aria-selected', 'false')
+  await expect(page.getByRole('tab', { name: 'Speak' })).toHaveAttribute('aria-selected', 'false')
+})
 
 test('clarifies an incomplete description locally, then sends structured follow-up context', async ({ page }) => {
   let aiRequests = 0
-  await page.route('https://live-sharing.test/functions/v1/parse-expense', async route => {
+  await page.route(aiExpenseEndpoint, async route => {
     aiRequests += 1
     const body = route.request().postDataJSON()
     expect(body).toMatchObject({
@@ -65,7 +122,7 @@ test('clarifies an incomplete description locally, then sends structured follow-
 
 test('retains earlier answers across multiple model follow-up questions', async ({ page }) => {
   const requests: Array<Record<string, unknown>> = []
-  await page.route('https://live-sharing.test/functions/v1/parse-expense', async route => {
+  await page.route(aiExpenseEndpoint, async route => {
     const body = route.request().postDataJSON()
     requests.push(body)
     const members = body.members as Array<{ id: string; name: string }>
@@ -118,7 +175,7 @@ test('retains earlier answers across multiple model follow-up questions', async 
 
 test('turns a description into a reviewable draft before the user saves it', async ({ page }) => {
   let aiRequests = 0
-  await page.route('https://live-sharing.test/functions/v1/parse-expense', async route => {
+  await page.route(aiExpenseEndpoint, async route => {
     aiRequests += 1
     const request = route.request()
     expect(request.method()).toBe('POST')
@@ -169,7 +226,7 @@ test('turns a description into a reviewable draft before the user saves it', asy
 
 test('sends a substantive non-English description to the model without an English-only gate', async ({ page }) => {
   let aiRequests = 0
-  await page.route('https://live-sharing.test/functions/v1/parse-expense', async route => {
+  await page.route(aiExpenseEndpoint, async route => {
     aiRequests += 1
     const body = route.request().postDataJSON()
     expect(body.text).toBe('Maya pagó 36 € por la cena y lo dividimos entre Maya y yo')
@@ -202,7 +259,7 @@ test('sends a substantive non-English description to the model without an Englis
 })
 
 test('explains a legacy unsafe-model response without calling the model unavailable', async ({ page }) => {
-  await page.route('https://live-sharing.test/functions/v1/parse-expense', route => route.fulfill({
+  await page.route(aiExpenseEndpoint, route => route.fulfill({
     status: 502,
     contentType: 'application/json',
     body: JSON.stringify({
@@ -221,7 +278,7 @@ test('explains a legacy unsafe-model response without calling the model unavaila
 })
 
 test('identifies an upstream model failure instead of blaming the expense description', async ({ page }) => {
-  await page.route('https://live-sharing.test/functions/v1/parse-expense', route => route.fulfill({
+  await page.route(aiExpenseEndpoint, route => route.fulfill({
     status: 503,
     contentType: 'application/json',
     body: JSON.stringify({
@@ -237,4 +294,95 @@ test('identifies an upstream model failure instead of blaming the expense descri
   const error = page.getByRole('alert')
   await expect(error).toContainText('free AI model and its low-cost backup both failed')
   await expect(error).not.toContainText('Restate the total amount')
+})
+
+test('turns a short voice recording into the same reviewable expense draft', async ({ page }) => {
+  await enableFakeVoiceRecording(page)
+  let aiRequests = 0
+  await page.route(aiExpenseEndpoint, async route => {
+    aiRequests += 1
+    const request = route.request()
+    const body = request.postDataJSON()
+    expect(request.headers()['x-tally-input-mode']).toBe('voice')
+    expect(body).toMatchObject({
+      inputMode: 'voice',
+      audio: { format: 'wav', durationSeconds: 1 },
+      currency: 'USD',
+    })
+    expect(body).not.toHaveProperty('text')
+    expect(body.audio.data).toMatch(/^UklGR/)
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        result: {
+          status: 'ready',
+          title: 'Voice dinner',
+          amountCents: 4_200,
+          payerId: body.members[1].id,
+          splitMethod: 'equal',
+          participantIds: body.members.map((member: { id: string }) => member.id),
+          exactSharesCents: [],
+        },
+      }),
+    })
+  })
+
+  await createPreviewActivity(page, 'manual')
+  await page.getByRole('tab', { name: 'Speak' }).click()
+  await page.getByRole('button', { name: 'Start recording' }).click()
+  await expect(page.getByText('Listening… tap to stop')).toBeVisible()
+  await page.getByRole('button', { name: 'Stop recording' }).click()
+
+  await expect(page.getByRole('status')).toContainText('AI draft ready')
+  await expect(page.getByLabel('Description')).toHaveValue('Voice dinner')
+  await expect(page.getByRole('spinbutton', { name: 'Amount' })).toHaveValue('42')
+  expect(aiRequests).toBe(1)
+})
+
+test('completes a real browser CORS preflight for voice entry', async ({ page }) => {
+  await enableFakeVoiceRecording(page)
+  await createPreviewActivity(page, 'manual')
+  await page.getByRole('tab', { name: 'Speak' }).click()
+  await page.getByRole('button', { name: 'Start recording' }).click()
+  await page.getByRole('button', { name: 'Stop recording' }).click()
+
+  await expect(page.getByRole('status')).toContainText('AI draft ready')
+  await expect(page.getByLabel('Description')).toHaveValue('Voice CORS dinner')
+  await expect(page.getByRole('spinbutton', { name: 'Amount' })).toHaveValue('42')
+})
+
+test('explains denied microphone permission and leaves manual entry available', async ({ page }) => {
+  await enableFakeVoiceRecording(page, false)
+  await createPreviewActivity(page, 'manual')
+  await page.getByRole('tab', { name: 'Speak' }).click()
+  await page.getByRole('button', { name: 'Start recording' }).click()
+  await expect(page.getByRole('alert')).toContainText('Microphone access was not granted')
+  await page.getByRole('tab', { name: 'Enter manually' }).click()
+  await expect(page.getByLabel('Description')).toBeEditable()
+})
+
+test('recovers immediately when a browser leaves microphone permission pending', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: () => new Promise<MediaStream>(() => undefined) },
+    })
+    Object.defineProperty(window, 'MediaRecorder', {
+      configurable: true,
+      value: class FakeMediaRecorder {},
+    })
+  })
+  await createPreviewActivity(page, 'manual')
+  await page.getByRole('tab', { name: 'Speak' }).click()
+  await page.getByRole('button', { name: 'Start recording' }).click()
+
+  await expect(page.getByText('Starting microphone…')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Starting microphone…' })).toBeDisabled()
+  await page.getByRole('button', { name: 'Cancel microphone request' }).click()
+
+  await expect(page.getByRole('button', { name: 'Start recording' })).toBeEnabled()
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await page.getByRole('tab', { name: 'Enter manually' }).click()
+  await expect(page.getByLabel('Description')).toBeEditable()
 })

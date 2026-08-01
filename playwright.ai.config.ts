@@ -1,6 +1,7 @@
 import { defineConfig } from '@playwright/test'
 
 const baseURL = 'http://127.0.0.1:4174/splitbill/'
+const aiPreviewURL = 'http://127.0.0.1:4184'
 
 export default defineConfig({
   testDir: './e2e-ai',
@@ -19,16 +20,24 @@ export default defineConfig({
     video: 'retain-on-failure',
     viewport: { width: 390, height: 844 },
   },
-  webServer: {
-    command: 'npm run build:pages && npm run preview -- --host 127.0.0.1 --port 4174 --base=/splitbill/',
-    env: {
-      ...process.env,
-      VITE_AI_EXPENSE_ENABLED: 'true',
-      VITE_SUPABASE_URL: 'https://live-sharing.test',
-      VITE_SUPABASE_PUBLISHABLE_KEY: 'test-publishable-key',
+  webServer: [
+    {
+      command: 'node --experimental-strip-types e2e-ai/ai-preview-server.ts',
+      url: `${aiPreviewURL}/health`,
+      reuseExistingServer: false,
+      timeout: 30_000,
     },
-    url: baseURL,
-    reuseExistingServer: false,
-    timeout: 120_000,
-  },
+    {
+      command: 'npm run build:pages && npm run preview -- --host 127.0.0.1 --port 4174 --base=/splitbill/',
+      env: {
+        ...process.env,
+        VITE_AI_EXPENSE_ENABLED: 'true',
+        VITE_SUPABASE_URL: aiPreviewURL,
+        VITE_SUPABASE_PUBLISHABLE_KEY: 'test-publishable-key',
+      },
+      url: baseURL,
+      reuseExistingServer: false,
+      timeout: 120_000,
+    },
+  ],
 })

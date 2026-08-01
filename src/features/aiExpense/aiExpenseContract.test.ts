@@ -9,6 +9,7 @@ import {
   AI_EXPENSE_TITLE_MAX_LENGTH,
   AiExpenseContractError,
   getAiExpenseClarifications,
+  isVoiceAiExpenseRequest,
   normalizeAiExpenseModelOutput,
   parseAiExpenseRequest,
   parseAiExpenseResult,
@@ -17,6 +18,7 @@ import {
 } from './aiExpenseContract'
 
 const request: AiExpenseRequest = {
+  inputMode: 'text',
   text: 'Maya paid $30 for dinner, split with me',
   locale: 'en',
   currency: 'USD',
@@ -75,6 +77,21 @@ describe('AI expense contract', () => {
       ...request,
       clarification: { question: 'Who paid?', answer: 'Maya' },
     })).toEqual([{ question: 'Who paid?', answer: 'Maya' }])
+    expect(parseAiExpenseRequest({
+      text: request.text,
+      locale: request.locale,
+      currency: request.currency,
+      members: request.members,
+    })).toEqual(request)
+    const voice = parseAiExpenseRequest({
+      inputMode: 'voice',
+      audio: { data: 'A'.repeat(64), format: 'wav', durationSeconds: 1 },
+      locale: 'en',
+      currency: 'USD',
+      members: request.members,
+    })
+    expect(isVoiceAiExpenseRequest(voice)).toBe(true)
+    expect(isVoiceAiExpenseRequest(request)).toBe(false)
   })
 
   it.each([
@@ -98,6 +115,10 @@ describe('AI expense contract', () => {
       clarification: { question: 'Who paid?', answer: 'Maya' },
       clarifications: [{ question: 'Who shared?', answer: 'Alex' }],
     },
+    { ...request, inputMode: 'voice', text: undefined, audio: { data: 'not base64!', format: 'wav', durationSeconds: 1 } },
+    { ...request, inputMode: 'voice', text: undefined, audio: { data: 'A'.repeat(64), format: 'mp3', durationSeconds: 1 } },
+    { ...request, inputMode: 'voice', text: undefined, audio: { data: 'A'.repeat(64), format: 'wav', durationSeconds: 61 } },
+    { ...request, inputMode: 'unknown' },
   ])('rejects an invalid request: %j', invalidRequest => {
     expectContractError(() => parseAiExpenseRequest(invalidRequest))
   })

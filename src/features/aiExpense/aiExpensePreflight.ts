@@ -1,6 +1,7 @@
 import {
   getAiExpenseClarifications,
   type AiExpenseRequest,
+  type TextAiExpenseRequest,
 } from './aiExpenseContract.ts'
 
 type MissingDetail = 'amount' | 'payer' | 'participants'
@@ -19,7 +20,7 @@ function includesMemberName(text: string, members: AiExpenseRequest['members']) 
   })
 }
 
-function isObviouslyVague(request: AiExpenseRequest) {
+function isObviouslyVague(request: TextAiExpenseRequest) {
   if (getAiExpenseClarifications(request).length > 0) return false
   const text = request.text.trim().normalize('NFKC')
   if (AMOUNT_SIGNAL_PATTERN.test(text) || includesMemberName(text, request.members)) return false
@@ -48,7 +49,7 @@ export function getAiExpenseRecoveryQuestion(request: AiExpenseRequest) {
     : 'I could not determine this expense safely. Please add the total amount, who paid, and who should be included in the split.'
 }
 
-export function getAiExpensePreflightQuestion(request: AiExpenseRequest): string | null {
+export function getAiExpensePreflightQuestion(request: TextAiExpenseRequest): string | null {
   if (!isObviouslyVague(request)) return null
   const missing: MissingDetail[] = request.members.length > 1
     ? ['amount', 'payer', 'participants']

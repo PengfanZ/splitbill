@@ -52,6 +52,7 @@ describe('AI expense composer', () => {
     expect(await screen.findByText('Tell Tally what happened')).toBeVisible()
     expect(onDraft).toHaveBeenCalledWith(draft)
     expect(parse).toHaveBeenCalledWith({
+      inputMode: 'text',
       text: 'Maya paid $30 for dinner, split with me',
       locale: 'en',
       currency: 'USD',
