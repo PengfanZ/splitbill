@@ -91,7 +91,7 @@ export async function handleParseExpenseRequest(
         'x-title': 'Tally AI expense preview',
       },
       body: JSON.stringify(buildOpenRouterRequest(parsedRequest, model)),
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(20_000),
     })
   } catch {
     return jsonError(503, 'provider_unavailable', 'The AI provider could not be reached.')

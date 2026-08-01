@@ -45,7 +45,7 @@ export function createAiExpenseClient(
 ) {
   const supabaseUrl = configuration.supabaseUrl.trim().replace(/\/+$/, '')
   const publishableKey = configuration.publishableKey.trim()
-  const requestTimeoutMs = configuration.requestTimeoutMs ?? 18_000
+  const requestTimeoutMs = configuration.requestTimeoutMs ?? 23_000
   let parsedUrl: URL
   try {
     parsedUrl = new URL(supabaseUrl)

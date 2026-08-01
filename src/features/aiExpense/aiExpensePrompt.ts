@@ -84,7 +84,6 @@ export function buildOpenRouterRequest(request: AiExpenseRequest, model = DEFAUL
       allow_fallbacks: false,
       data_collection: 'deny',
       require_parameters: true,
-      sort: 'latency',
     },
     temperature: 0,
     max_tokens: 700,

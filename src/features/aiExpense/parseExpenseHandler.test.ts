@@ -147,7 +147,7 @@ describe('parse expense Edge Function handler', () => {
     })
     const init = fetcher.mock.calls[0][1] as RequestInit
     const body = JSON.parse(init.body as string)
-    expect(body.provider).toMatchObject({ allow_fallbacks: false, data_collection: 'deny', sort: 'latency' })
+    expect(body.provider).toMatchObject({ allow_fallbacks: false, data_collection: 'deny' })
     expect(init.headers).toMatchObject({ authorization: 'Bearer secret-key' })
     expect(init.signal).toBeInstanceOf(AbortSignal)
   })

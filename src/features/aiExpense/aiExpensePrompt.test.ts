@@ -31,12 +31,7 @@ describe('OpenRouter expense prompt', () => {
     const built = buildOpenRouterRequest(request)
     expect(built.model).toBe(DEFAULT_OPENROUTER_MODEL)
     expect(built.response_format.json_schema).toMatchObject({ strict: true, schema: AI_EXPENSE_JSON_SCHEMA })
-    expect(built.provider).toEqual({
-      allow_fallbacks: false,
-      data_collection: 'deny',
-      require_parameters: true,
-      sort: 'latency',
-    })
+    expect(built.provider).toEqual({ allow_fallbacks: false, data_collection: 'deny', require_parameters: true })
     expect(built).not.toHaveProperty('reasoning')
     expect(built.max_tokens).toBe(700)
     expect(built.messages[0].content).toContain('untrusted data')
