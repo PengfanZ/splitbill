@@ -11,7 +11,7 @@ test.beforeEach(async ({ context }, testInfo) => {
   }))
 })
 
-async function createPreviewActivity(page: Page, entryMode: 'text' | 'manual' = 'text') {
+async function createPreviewActivityHome(page: Page) {
   await page.goto('./')
   await page.getByLabel('Display name').fill('Preview Tester')
   await page.getByRole('button', { name: 'Continue' }).click()
@@ -19,6 +19,10 @@ async function createPreviewActivity(page: Page, entryMode: 'text' | 'manual' = 
   await page.getByLabel('Activity name').fill('AI preview dinner')
   await page.getByLabel(/Add friends/).fill('Maya')
   await page.getByRole('button', { name: 'Create activity' }).click()
+}
+
+async function createPreviewActivity(page: Page, entryMode: 'text' | 'manual' = 'text') {
+  await createPreviewActivityHome(page)
   await page.getByRole('button', { name: 'Add expense' }).click()
   if (entryMode === 'text') await page.getByRole('tab', { name: 'Describe with AI' }).click()
 }
@@ -82,6 +86,7 @@ test('clarifies an incomplete description locally, then sends structured follow-
     const body = route.request().postDataJSON()
     expect(body).toMatchObject({
       text: 'dinner',
+      viewerMemberId: 'me',
       clarifications: [{
         question: 'Please add the total amount, who paid, and who should be included in the split.',
         answer: 'Maya paid $30 and split it with me',
@@ -183,6 +188,7 @@ test('turns a description into a reviewable draft before the user saves it', asy
     expect(request.postDataJSON()).toMatchObject({
       text: 'Maya paid $36 for dinner, split between Maya and me',
       currency: 'USD',
+      viewerMemberId: 'me',
       members: [
         { id: 'me', name: 'Preview Tester' },
         { name: 'Maya' },
@@ -308,6 +314,7 @@ test('turns a short voice recording into the same reviewable expense draft', asy
       inputMode: 'voice',
       audio: { format: 'wav', durationSeconds: 1 },
       currency: 'USD',
+      viewerMemberId: 'me',
     })
     expect(body).not.toHaveProperty('text')
     expect(body.audio.data).toMatch(/^UklGR/)
@@ -338,6 +345,46 @@ test('turns a short voice recording into the same reviewable expense draft', asy
   await expect(page.getByLabel('Description')).toHaveValue('Voice dinner')
   await expect(page.getByRole('spinbutton', { name: 'Amount' })).toHaveValue('42')
   expect(aiRequests).toBe(1)
+})
+
+test('maps first-person AI entry to the participant selected on this browser', async ({ page }) => {
+  let selectedMemberId = ''
+  await page.route(aiExpenseEndpoint, async route => {
+    const body = route.request().postDataJSON()
+    selectedMemberId = body.members.find((member: { name: string }) => member.name === 'Maya').id
+    expect(body).toMatchObject({
+      text: 'I paid $18 for coffee with Preview Tester',
+      viewerMemberId: selectedMemberId,
+    })
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        result: {
+          status: 'ready',
+          title: 'Coffee',
+          amountCents: 1_800,
+          payerId: selectedMemberId,
+          splitMethod: 'equal',
+          participantIds: body.members.map((member: { id: string }) => member.id),
+          exactSharesCents: [],
+        },
+      }),
+    })
+  })
+
+  await createPreviewActivityHome(page)
+  await page.getByRole('button', { name: 'Selected identity: Preview Tester' }).click()
+  await page.getByRole('option', { name: 'Maya' }).click()
+  await expect(page.getByRole('button', { name: 'Selected identity: Maya' })).toBeVisible()
+  await page.getByRole('button', { name: 'Add expense' }).click()
+  await page.getByRole('tab', { name: 'Describe with AI' }).click()
+  await page.getByLabel('Expense description').fill('I paid $18 for coffee with Preview Tester')
+  await page.getByRole('button', { name: 'Create draft' }).click()
+
+  await expect(page.getByRole('status')).toContainText('AI draft ready')
+  await expect(page.getByRole('button', { name: 'Paid by' })).toContainText('Maya')
+  expect(selectedMemberId).not.toBe('')
 })
 
 test('completes a real browser CORS preflight for voice entry', async ({ page }) => {

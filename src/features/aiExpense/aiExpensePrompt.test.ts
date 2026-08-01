@@ -17,6 +17,7 @@ const request: AiExpenseRequest = {
   locale: 'en',
   currency: 'USD',
   members: [{ id: 'maya', name: 'Maya' }],
+  viewerMemberId: 'maya',
 }
 
 const output = {
@@ -46,6 +47,7 @@ describe('OpenRouter expense prompt', () => {
     expect(built.max_tokens).toBe(700)
     expect(built.messages[0].content).toContain('untrusted data')
     expect(built.messages[0].content).toContain('any language')
+    expect(built.messages[0].content).toContain('currentMemberId identifies who is speaking')
     expect(built.messages[0].content).toContain("description's language")
     expect(built.messages[0].content).toContain('one continuous conversation')
     expect(built.messages[0].content).toContain('never ask again')
@@ -57,6 +59,7 @@ describe('OpenRouter expense prompt', () => {
       activityCurrency: 'USD',
       interfaceLocale: 'en',
       members: request.members,
+      currentMemberId: 'maya',
       expenseDescription: request.text,
     })
     expect(built.messages).toHaveLength(2)
@@ -65,6 +68,10 @@ describe('OpenRouter expense prompt', () => {
       DEFAULT_OPENROUTER_FALLBACK_MODEL,
     ])
     expect(buildOpenRouterRequest(request, 'same-model', 'same-model').models).toEqual(['same-model'])
+    const withoutViewer = buildOpenRouterRequest({ ...request, viewerMemberId: undefined })
+    const withoutViewerContent = withoutViewer.messages[1].content
+    if (typeof withoutViewerContent !== 'string') throw new Error('Expected text content')
+    expect(JSON.parse(withoutViewerContent)).toMatchObject({ currentMemberId: null })
 
     const clarified = buildOpenRouterRequest({
       ...request,
@@ -94,6 +101,7 @@ describe('OpenRouter expense prompt', () => {
       locale: 'en',
       currency: 'USD',
       members: request.members,
+      viewerMemberId: 'maya',
     })
     expect(voice.models).toEqual([DEFAULT_OPENROUTER_VOICE_MODEL])
     expect(voice.messages[1].content).toEqual([
@@ -103,6 +111,7 @@ describe('OpenRouter expense prompt', () => {
           activityCurrency: 'USD',
           interfaceLocale: 'en',
           members: request.members,
+          currentMemberId: 'maya',
           expenseDescription: 'The expense is described in the attached audio.',
         }),
       },

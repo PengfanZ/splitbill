@@ -30,6 +30,7 @@ const requestContextSchema = z.object({
   locale: z.enum(SUPPORTED_LOCALES),
   currency: z.enum(SUPPORTED_CURRENCIES),
   members: z.array(memberSchema).min(1).max(AI_EXPENSE_MAX_MEMBERS),
+  viewerMemberId: z.string().trim().min(1).max(100).optional(),
   clarification: clarificationContextSchema.optional(),
   clarifications: z.array(clarificationContextSchema).min(1).max(AI_EXPENSE_MAX_CLARIFICATIONS).optional(),
 })
@@ -75,6 +76,13 @@ const normalizedRequestSchema = z.discriminatedUnion('inputMode', [
       return
     }
     ids.add(member.id)
+  }
+  if (request.viewerMemberId && !ids.has(request.viewerMemberId)) {
+    context.addIssue({
+      code: 'custom',
+      message: 'The current participant must belong to the activity.',
+      path: ['viewerMemberId'],
+    })
   }
 })
 

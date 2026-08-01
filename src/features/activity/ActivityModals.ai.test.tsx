@@ -50,6 +50,7 @@ describe('AI-assisted expense modal', () => {
     await user.click(screen.getByRole('button', { name: /Create draft/ }))
 
     expect(await screen.findByText('AI draft ready')).toBeVisible()
+    expect(parse).toHaveBeenCalledWith(expect.objectContaining({ viewerMemberId: 'me' }))
     expect(screen.getByRole('tab', { name: 'Enter manually' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByLabelText('Description')).toHaveValue('Dinner')
     expect(screen.getByLabelText('Amount')).toHaveValue(30.01)
@@ -127,5 +128,104 @@ describe('AI-assisted expense modal', () => {
     )
     expect(screen.queryByRole('tab', { name: 'Describe with AI' })).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Edit expense' })).toBeVisible()
+  })
+
+  it('requires and forwards the participant selected on this browser', async () => {
+    const user = userEvent.setup()
+    const parse = vi.fn().mockResolvedValue({
+      status: 'ready',
+      title: 'Coffee',
+      amountCents: 1800,
+      payerId: 'maya',
+      splitMethod: 'equal',
+      participantIds: ['maya', 'jordan'],
+      exactSharesCents: [],
+    })
+    const onCurrentMemberChange = vi.fn()
+    const rendered = render(
+      <LocalizationProvider>
+        <ExpenseModal
+          group={group}
+          members={members}
+          aiExpenseClient={{ parse }}
+          currentMemberId={null}
+          onCurrentMemberChange={onCurrentMemberChange}
+          onClose={vi.fn()}
+          onSave={vi.fn()}
+        />
+      </LocalizationProvider>,
+    )
+
+    await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))
+    expect(screen.getByText('Choose who you are so Tally knows who “I” means.')).toBeVisible()
+    expect(screen.queryByLabelText('Expense description')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Choose who you are' }))
+    await user.click(screen.getByRole('option', { name: 'Maya' }))
+    expect(onCurrentMemberChange).toHaveBeenCalledWith('maya')
+
+    rendered.rerender(
+      <LocalizationProvider>
+        <ExpenseModal
+          group={group}
+          members={members}
+          aiExpenseClient={{ parse }}
+          currentMemberId="maya"
+          onCurrentMemberChange={onCurrentMemberChange}
+          onClose={vi.fn()}
+          onSave={vi.fn()}
+        />
+      </LocalizationProvider>,
+    )
+    await user.type(screen.getByLabelText('Expense description'), 'I paid $18 for coffee with Jordan')
+    await user.click(screen.getByRole('button', { name: /Create draft/ }))
+    expect(parse).toHaveBeenCalledWith(expect.objectContaining({
+      text: 'I paid $18 for coffee with Jordan',
+      viewerMemberId: 'maya',
+    }))
+  })
+
+  it('uses the selected participant as the default payer for a new manual expense', () => {
+    const selected = render(
+      <LocalizationProvider>
+        <ExpenseModal
+          group={group}
+          members={members}
+          aiExpenseClient={{ parse: vi.fn() }}
+          currentMemberId="maya"
+          onCurrentMemberChange={vi.fn()}
+          onClose={vi.fn()}
+          onSave={vi.fn()}
+        />
+      </LocalizationProvider>,
+    )
+
+    expect(screen.getByRole('button', { name: 'Paid by' })).toHaveValue('maya')
+    selected.unmount()
+
+    const firstMember = render(
+      <LocalizationProvider>
+        <ExpenseModal
+          group={group}
+          members={[maya]}
+          currentMemberId={null}
+          onClose={vi.fn()}
+          onSave={vi.fn()}
+        />
+      </LocalizationProvider>,
+    )
+    expect(screen.getByRole('button', { name: 'Paid by' })).toHaveValue('maya')
+    firstMember.unmount()
+
+    expect(() => render(
+      <LocalizationProvider>
+        <ExpenseModal
+          group={group}
+          members={[]}
+          currentMemberId={null}
+          onClose={vi.fn()}
+          onSave={vi.fn()}
+        />
+      </LocalizationProvider>,
+    )).not.toThrow()
   })
 })

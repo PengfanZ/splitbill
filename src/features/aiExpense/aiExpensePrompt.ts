@@ -57,6 +57,8 @@ Rules:
 - Treat the complete message history as one continuous conversation. Preserve every fact supplied earlier and never ask again for a detail already answered.
 - When the latest clarification completes the missing details, return status "ready" immediately.
 - Use only the supplied member IDs. Never invent a member or currency.
+- currentMemberId identifies who is speaking. Resolve first-person references such as “I”, “me”, “my”, “我”, and their equivalents in any language to that exact member ID.
+- If currentMemberId is absent and the description uses a first-person reference that affects the payer or participants, ask for clarification instead of guessing.
 - amountCents is the total amount in the activity currency, converted to integer minor units.
 - Use status "needs_clarification" whenever the payer, amount, or intended participants are ambiguous or missing.
 - Also use status "needs_clarification" when the description is vague, unrelated to one expense, or cannot produce a safe draft without guessing.
@@ -84,6 +86,7 @@ export function buildOpenRouterRequest(
     activityCurrency: request.currency,
     interfaceLocale: request.locale,
     members: request.members,
+    currentMemberId: request.viewerMemberId ?? null,
   }
   const initialContent: MessageContent = isVoiceAiExpenseRequest(request)
     ? [

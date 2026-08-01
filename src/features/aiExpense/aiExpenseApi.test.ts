@@ -13,6 +13,7 @@ const request: AiExpenseRequest = {
   locale: 'en',
   currency: 'USD',
   members: [{ id: 'maya', name: 'Maya' }],
+  viewerMemberId: 'maya',
 }
 
 const readyResult = {
@@ -66,6 +67,7 @@ describe('AI expense API client', () => {
         locale: request.locale,
         currency: request.currency,
         members: request.members,
+        viewerMemberId: 'maya',
         inputMode: 'text',
         text: request.text,
       }),
@@ -89,6 +91,7 @@ describe('AI expense API client', () => {
       locale: 'en' as const,
       currency: 'USD' as const,
       members: request.members,
+      viewerMemberId: 'maya',
     }
 
     await expect(client.parse(voiceRequest)).resolves.toEqual(readyResult)
@@ -100,6 +103,7 @@ describe('AI expense API client', () => {
           locale: 'en',
           currency: 'USD',
           members: request.members,
+          viewerMemberId: 'maya',
           inputMode: 'voice',
           audio: voiceRequest.audio,
         }),

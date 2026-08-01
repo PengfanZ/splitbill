@@ -299,6 +299,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .group-share { display: flex; flex-direction: column; align-items: flex-end; gap: 7px; }
 .group-actions { display: grid; justify-items: end; gap: 9px; }
 .group-context-actions, .group-primary-actions { display: flex; align-items: center; justify-content: flex-end; gap: 9px; }
+.activity-identity-control { width: 230px; min-height: 44px; border-color: #d5cec5; background: rgba(255, 255, 255, .52); box-shadow: 0 1px 0 rgba(38, 35, 31, .03); }
+.activity-identity-control:hover { background: rgba(255, 255, 255, .78); }
+.activity-identity-control .select-menu-leading { width: 30px; height: 30px; border-radius: 8px; background: #dcece3; color: var(--green); }
+.ai-identity-control-row { margin-bottom: 17px; }
+.ai-identity-control-row .activity-identity-control { width: 100%; min-height: 47px; background: white; }
+.ai-identity-required { margin-bottom: 17px; border-color: #cddfd4; background: #eef6f1; }
 .group-actions button { display: flex; align-items: center; justify-content: center; gap: 7px; padding-inline: 13px; }
 .group-actions .share-button { min-width: 92px; }
 .activity-feedback { color: var(--green); font-size: 11px; font-weight: 600; max-width: 470px; text-align: right; line-height: 1.4; }
@@ -507,6 +513,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .group-share { width: 100%; align-items: flex-start; }
   .group-actions { width: 100%; display: grid; gap: 12px; }
   .group-context-actions { width: 100%; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 9px; }
+  .activity-identity-control { width: min(178px, 100%); }
   .group-primary-actions { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; gap: 9px; }
   .group-primary-actions:empty { display: none; }
   .group-actions .share-button { grid-column: 2; grid-row: 1; margin: 0; }

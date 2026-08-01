@@ -3,6 +3,7 @@ import { lazy, Suspense, useMemo, useState } from 'react'
 import type { AnalyticsClient, AnalyticsSurface } from './analytics'
 import { FreshStart, Sidebar, Topbar } from './components/AppShell'
 import { ConfirmDialog } from './components/ConfirmDialog'
+import { removeActivityIdentity, selectActivityIdentity } from './data/activityIdentity'
 import { createIdentity } from './data/identity'
 import { EMPTY_STATE } from './data/storage'
 import { activityCurrency, currencyLabel, type CurrencyCode } from './domain/currency'
@@ -41,6 +42,7 @@ import { useActivitySharing, type ActivityFeedback } from './features/sharing/us
 import { usePersistedState } from './hooks/usePersistedState'
 import { useIdentity } from './hooks/useIdentity'
 import { useAppAnalytics } from './hooks/useAppAnalytics'
+import { useActivityIdentitySelections } from './hooks/useActivityIdentitySelections'
 import { LocalizationProvider, useLocalization } from './i18n/LocalizationContext'
 import { formatLocalizedList } from './i18n/localization'
 import { createAppQueryClient } from './queryClient'
@@ -64,6 +66,7 @@ const ChangelogModal = lazy(() => import('./features/changelog/ChangelogModal').
 function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, liveActivityClient }: AppProps = {}) {
   const [state, setState] = usePersistedState()
   const [identity, setIdentity] = useIdentity()
+  const [activityIdentities, setActivityIdentities] = useActivityIdentitySelections()
   const [changelogState, setChangelogState] = useState(() => {
     const seen = hasSeenLatestChangelog()
     return { open: Boolean(identity) && !seen, unread: !seen }
@@ -111,6 +114,20 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, liveActi
   const activeGroup = liveActivity?.group ?? selectedGroup
   const activeMembers = liveActivity ? liveMembers : selectedMembers
   const activeExpenses = liveActivity?.expenses ?? selectedExpenses
+  const activeIdentityScope = activeGroup
+    ? live.credentials ? `live:${live.credentials.code}` : `local:${activeGroup.id}`
+    : null
+  const activeMemberId = useMemo(() => {
+    if (!activeIdentityScope) return null
+    const savedMemberId = activityIdentities[activeIdentityScope]
+    if (savedMemberId && activeMembers.some(member => member.id === savedMemberId)) return savedMemberId
+    if (!liveActivity) return 'me'
+    const identityName = identity?.name.trim().toLocaleLowerCase()
+    if (!identityName) return null
+    const matchingMembers = activeMembers.filter(member => member.name.trim().toLocaleLowerCase() === identityName)
+    return matchingMembers.length === 1 ? matchingMembers[0].id : null
+  }, [activeIdentityScope, activeMembers, activityIdentities, identity?.name, liveActivity])
+  const activeMember = activeMembers.find(member => member.id === activeMemberId) ?? null
   const liveEditBlocked = Boolean(live.credentials && !live.editable)
   const displayedGroup = liveActivity?.group ?? selectedGroup
   const displayedMemberCount = liveActivity
@@ -131,6 +148,10 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, liveActi
     t,
   })
   const qrShare = sharing.qrShare
+
+  const changeActiveMember = activeIdentityScope
+    ? (memberId: string) => setActivityIdentities(current => selectActivityIdentity(current, activeIdentityScope, memberId))
+    : undefined
 
   useAppAnalytics(analyticsClient, analyticsSurface, locale, liveSession?.record.code ?? null)
 
@@ -357,6 +378,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, liveActi
         const deletingSelectedActivity = selectedGroup?.id === group.id
         const deletingOpenLiveActivity = bookmarkedLiveGroupId === group.id
         setState(current => deleteLocalActivity(current, group.id))
+        setActivityIdentities(current => removeActivityIdentity(current, `local:${group.id}`))
         setActivityFeedback(null)
         live.removeBookmark(group.id)
         if (deletingOpenLiveActivity) closeLiveActivity()
@@ -372,6 +394,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, liveActi
       confirmLabel: t('confirm.resetAction'),
       onConfirm: () => {
         setState(EMPTY_STATE)
+        setActivityIdentities({})
         live.clearBookmarks()
         setQuery('')
       },
@@ -441,7 +464,9 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, liveActi
                 activityFeedback={null}
                 readOnly={!live.editable}
                 readOnlyLabel={t('dashboard.editingPaused')}
-                currentUserLabel={getSharedActivitySender(liveActivity).name}
+                currentMemberId={activeMemberId}
+                currentUserLabel={activeMember?.name ?? getSharedActivitySender(liveActivity).name}
+                onCurrentMemberChange={changeActiveMember}
                 statusLabel={live.connectionState === 'connected' && liveSession
                   ? t('dashboard.liveRevision', { revision: liveSession.record.revision })
                   : t('dashboard.savedRevision', { revision: live.mirror!.revision })}
@@ -464,7 +489,9 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, liveActi
             expenses={selectedExpenses}
             query={query}
             activityFeedback={activityFeedback?.groupId === selectedGroup.id ? activityFeedback.message : null}
-            currentUserLabel={currentUser.name}
+            currentMemberId={activeMemberId}
+            currentUserLabel={activeMember!.name}
+            onCurrentMemberChange={changeActiveMember}
             onCurrencyChange={changeActivityCurrency}
             onShareSummary={() => sharing.shareGroup(selectedGroup, selectedMembers, selectedExpenses, 'local')}
             onShareLive={() => sharing.openLiveShare(selectedGroup, selectedMembers, selectedExpenses)}
@@ -488,6 +515,8 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, liveActi
           members={activeMembers}
           expense={editingExpense ?? undefined}
           aiExpenseClient={aiExpenseClient}
+          currentMemberId={activeMemberId}
+          onCurrentMemberChange={changeActiveMember}
           onClose={closeExpenseModal}
           onSave={editingExpense ? updateExpense : addExpense}
           saving={live.saving || liveEditBlocked}

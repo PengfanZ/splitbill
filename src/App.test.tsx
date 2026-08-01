@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import type { AnalyticsClient } from './analytics'
 import { Avatar, FreshStart, ModalShell, Sidebar, Topbar } from './components/AppShell'
+import { ACTIVITY_IDENTITY_KEY } from './data/activityIdentity'
 import { IDENTITY_KEY } from './data/identity'
 import { EMPTY_STATE, loadState, parseState, saveState, STORAGE_KEY } from './data/storage'
 import { CURRENT_USER } from './domain/members'
@@ -52,6 +53,7 @@ beforeEach(() => {
   vi.restoreAllMocks()
   window.history.replaceState(null, '', '/')
   localStorage.setItem(IDENTITY_KEY, JSON.stringify(CURRENT_USER))
+  localStorage.removeItem(ACTIVITY_IDENTITY_KEY)
   localStorage.setItem(CHANGELOG_SEEN_STORAGE_KEY, LATEST_CHANGELOG_ID)
   Object.defineProperty(navigator, 'share', { configurable: true, value: undefined })
   Object.defineProperty(navigator, 'canShare', { configurable: true, value: undefined })
@@ -386,6 +388,12 @@ describe('small UI building blocks', () => {
     expect(screen.getByText('Alex owes')).toBeVisible()
     rerender(<ActivitySummary expenses={[]} currentUserLabel="Alex" />)
     expect(screen.getByText('Alex balance')).toBeVisible()
+    rerender(<ActivitySummary expenses={[expense()]} currentMemberId="maya" currentUserLabel="Maya Chen" />)
+    expect(screen.getByText('Maya Chen owes')).toBeVisible()
+    expect(screen.getByText('−$10.00')).toHaveClass('negative')
+    rerender(<ActivitySummary expenses={[expense()]} currentMemberId={null} />)
+    expect(screen.getAllByText('Choose who you are')).toHaveLength(2)
+    expect(screen.getAllByText('—')).toHaveLength(2)
   })
 
   it('calculates settlement directions for multiple debtors and the current user', () => {
@@ -397,6 +405,8 @@ describe('small UI building blocks', () => {
     expect(screen.getByText('Jordan owes You')).toBeVisible()
     rerender(<SettlementDirections members={members} expenses={[expense({ amount: 20, payerId: 'maya', shares: { me: 20, maya: 0, jordan: 0 } })]} />)
     expect(screen.getByText('You owe Maya Chen')).toBeVisible()
+    rerender(<SettlementDirections members={members} expenses={[expense()]} currentMemberId="maya" currentUserLabel="Maya Chen" />)
+    expect(screen.getByText('Maya Chen owes You')).toBeVisible()
     rerender(<SettlementDirections members={members} expenses={[
       expense({ id: 'a', amount: 10, payerId: 'me', shares: { jordan: 10 } }),
       expense({ id: 'b', amount: 20, payerId: 'maya', shares: { jordan: 20 } }),
@@ -469,6 +479,9 @@ describe('small UI building blocks', () => {
     expect(screen.getByLabelText('Current local identity')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Add friend' }))
     expect(addFriend).toHaveBeenCalledOnce()
+
+    rerender(<MembersRail members={[CURRENT_USER, maya]} currentMemberId="maya" onAddFriend={addFriend} />)
+    expect(screen.getByLabelText('Current local identity').closest('.member-row')).toHaveTextContent('Maya Chen')
 
     rerender(<GroupDashboard group={group} members={[CURRENT_USER, maya, jordan]} expenses={[expense()]} query="" activityFeedback="Summary copied." statusLabel="Local" onShareSummary={share} onShareLive={shareLive} onAddFriend={addFriend} onAddExpense={addExpense} onSettleUp={settleUp} onEditExpense={editExpense} onDeleteExpense={deleteExpense} />)
     expect(screen.getByRole('status')).toHaveTextContent('Summary copied.')
@@ -1012,6 +1025,69 @@ describe('complete app workflows', () => {
     await user.click(screen.getByRole('button', { name: 'Open activity' }))
     await waitFor(() => expect(client.load).toHaveBeenCalledTimes(2))
     expect(screen.getByText('Live · revision 1')).toBeVisible()
+  })
+
+  it('keeps a Live participant identity local and sends it with first-person AI entry', async () => {
+    const user = userEvent.setup()
+    const credentials = { code: 'A1B2C3D4E5', editToken: 'a'.repeat(64) }
+    const snapshot = createSharedActivity(group, [CURRENT_USER, maya, jordan], [expense()])
+    const client = {
+      create: vi.fn(),
+      load: vi.fn().mockResolvedValue({ code: credentials.code, revision: 1, snapshot, updatedAt: '2026-07-14T01:00:00.000Z' }),
+      poll: vi.fn(),
+      update: vi.fn(),
+    } satisfies LiveActivityClient
+    const parse = vi.fn().mockResolvedValue({
+      status: 'ready',
+      title: 'Coffee',
+      amountCents: 1800,
+      payerId: 'maya',
+      splitMethod: 'equal',
+      participantIds: ['maya', 'jordan'],
+      exactSharesCents: [],
+    })
+    localStorage.setItem(IDENTITY_KEY, JSON.stringify({ ...CURRENT_USER, name: 'Guest browser' }))
+    const liveUrl = buildLiveActivityUrl(credentials, 'https://pengfanz.github.io/splitbill/')
+    window.history.replaceState(null, '', new URL(liveUrl).hash)
+
+    render(<App liveActivityClient={client} aiExpenseClient={{ parse }} />)
+    expect(await screen.findByText('Live · revision 1')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Choose who you are' })).toBeVisible()
+    await chooseSelectOption(user, 'Choose who you are', 'Maya Chen')
+    expect(screen.getByRole('button', { name: 'Selected identity: Maya Chen' })).toBeVisible()
+    expect(JSON.parse(localStorage.getItem(ACTIVITY_IDENTITY_KEY)!)).toEqual({
+      'live:A1B2C3D4E5': 'maya',
+    })
+    expect(snapshot.friends).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'maya', name: 'Maya Chen' }),
+    ]))
+
+    await user.click(screen.getByRole('button', { name: 'Add expense' }))
+    await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))
+    await user.type(screen.getByLabelText('Expense description'), 'I paid $18 for coffee with Jordan')
+    await user.click(screen.getByRole('button', { name: /Create draft/ }))
+    await waitFor(() => expect(parse).toHaveBeenCalledWith(expect.objectContaining({
+      viewerMemberId: 'maya',
+      text: 'I paid $18 for coffee with Jordan',
+    })))
+  })
+
+  it('does not infer a Live participant before a new browser creates its local profile', async () => {
+    const credentials = { code: 'A1B2C3D4E5', editToken: 'a'.repeat(64) }
+    const snapshot = createSharedActivity(group, [CURRENT_USER, maya, jordan], [expense()])
+    const client = {
+      create: vi.fn(),
+      load: vi.fn().mockResolvedValue({ code: credentials.code, revision: 1, snapshot, updatedAt: '2026-07-14T01:00:00.000Z' }),
+      poll: vi.fn(),
+      update: vi.fn(),
+    } satisfies LiveActivityClient
+    localStorage.removeItem(IDENTITY_KEY)
+    window.history.replaceState(null, '', new URL(buildLiveActivityUrl(credentials, 'https://pengfanz.github.io/splitbill/')).hash)
+
+    render(<App liveActivityClient={client} />)
+    expect(await screen.findByRole('heading', { name: 'What should we call you?' })).toBeVisible()
+    await waitFor(() => expect(client.load).toHaveBeenCalledOnce())
+    expect(screen.getByRole('button', { name: 'Choose who you are', hidden: true })).toBeInTheDocument()
   })
 
   it('selects another activity and synchronizes matching storage events', async () => {
@@ -1603,6 +1679,8 @@ describe('complete app workflows', () => {
     expect(await screen.findByLabelText('Live activity')).toBeVisible()
     expect(await screen.findByText('Live · revision 1')).toBeVisible()
     expect(screen.queryByText('Activity creator')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Choose who you are' })).toBeVisible()
+    await chooseSelectOption(user, 'Choose who you are', 'Alex')
     expect(screen.getByText('Alex is owed')).toBeVisible()
     await waitFor(() => expect(JSON.parse(localStorage.getItem(LIVE_ACTIVITY_BOOKMARKS_KEY)!)).toEqual({
       'live-a1b2c3d4e5': credentials,

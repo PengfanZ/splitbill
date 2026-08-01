@@ -36,6 +36,8 @@ A successful provider response that does not satisfy the expense contract is tre
 
 The server maintains separate cost budgets per normalized client identifier. Text allows 30 requests per 10 minutes and 100 per day; voice allows 10 per 10 minutes and 25 per day. Counters are consumed before the provider call, including provider failures, and the stricter limit wins. OpenRouter account limits remain the hard cost ceiling. Use a preview-only key with a deliberately small limit, but leave enough unused budget for OpenRouter to authorize one worst-case voice request; an almost-exhausted `$0.01` key can reject a recording before the model runs. Never reuse a broad personal key.
 
+Each browser also keeps an activity-scoped participant selection. The selected member ID is sent with text and voice requests as `viewerMemberId`, allowing first-person phrases such as “I paid” or “我付的” to resolve to an existing activity member. This selection stays in local storage and is never written into the shared activity snapshot, so collaborators can choose independently on each browser.
+
 ## Local setup
 
 ```bash

@@ -26,12 +26,14 @@ export function AiExpenseComposer({
   client,
   currency,
   members,
+  viewerMemberId,
   onClose,
   onDraft,
 }: {
   client: AiExpenseClient
   currency: CurrencyCode
   members: Member[]
+  viewerMemberId: string
   onClose: () => void
   onDraft: (draft: AiExpenseReadyDraft) => void
 }) {
@@ -51,6 +53,7 @@ export function AiExpenseComposer({
       currency,
       locale,
       members: members.map(member => ({ id: member.id, name: member.name })),
+      viewerMemberId,
       ...(history.length > 0 ? { clarifications: history } : {}),
     }
     const preflightQuestion = getAiExpensePreflightQuestion(request)

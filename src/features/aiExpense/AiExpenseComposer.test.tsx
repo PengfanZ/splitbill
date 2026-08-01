@@ -28,7 +28,7 @@ function renderComposer(client: AiExpenseClient, onDraft = vi.fn(), onClose = vi
     onClose,
     ...render(
       <LocalizationProvider>
-        <AiExpenseComposer client={client} currency="USD" members={members} onClose={onClose} onDraft={onDraft} />
+        <AiExpenseComposer client={client} currency="USD" members={members} viewerMemberId="me" onClose={onClose} onDraft={onDraft} />
       </LocalizationProvider>,
     ),
   }
@@ -57,6 +57,7 @@ describe('AI expense composer', () => {
       locale: 'en',
       currency: 'USD',
       members: [{ id: 'me', name: 'Alex' }, { id: 'maya', name: 'Maya' }],
+      viewerMemberId: 'me',
     })
   })
 

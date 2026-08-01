@@ -17,6 +17,7 @@ const requestBody = {
   locale: 'en',
   currency: 'USD',
   members: [{ id: 'me', name: 'Alex' }, { id: 'maya', name: 'Maya' }],
+  viewerMemberId: 'me',
 }
 
 const output: AiExpenseModelOutput = {
@@ -48,6 +49,7 @@ const voiceBody = {
   locale: 'en',
   currency: 'USD',
   members: requestBody.members,
+  viewerMemberId: 'me',
 }
 
 function providerResponse(modelOutput: unknown = output, status = 200) {
@@ -240,6 +242,7 @@ describe('parse expense Edge Function handler', () => {
     const init = fetcher.mock.calls[0][1] as RequestInit
     const body = JSON.parse(init.body as string)
     expect(body.models).toEqual([DEFAULT_OPENROUTER_MODEL, DEFAULT_OPENROUTER_FALLBACK_MODEL])
+    expect(JSON.parse(body.messages[1].content)).toMatchObject({ currentMemberId: 'me' })
     expect(body).not.toHaveProperty('model')
     expect(body.provider).toMatchObject({ allow_fallbacks: true, data_collection: 'deny' })
     expect(init.headers).toMatchObject({ authorization: 'Bearer secret-key' })

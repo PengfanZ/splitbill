@@ -26,6 +26,7 @@ const request: AiExpenseRequest = {
     { id: 'me', name: 'Alex' },
     { id: 'maya', name: 'Maya' },
   ],
+  viewerMemberId: 'me',
 }
 
 const equalOutput: AiExpenseModelOutput = {
@@ -82,7 +83,13 @@ describe('AI expense contract', () => {
       locale: request.locale,
       currency: request.currency,
       members: request.members,
-    })).toEqual(request)
+    })).toEqual({
+      inputMode: 'text',
+      text: request.text,
+      locale: request.locale,
+      currency: request.currency,
+      members: request.members,
+    })
     const voice = parseAiExpenseRequest({
       inputMode: 'voice',
       audio: { data: 'A'.repeat(64), format: 'wav', durationSeconds: 1 },
@@ -105,6 +112,7 @@ describe('AI expense contract', () => {
     { ...request, members: [{ id: 'me', name: 'Alex' }, { id: 'me', name: 'Other Alex' }] },
     { ...request, members: [{ id: '', name: 'Alex' }] },
     { ...request, members: [{ id: 'me', name: '' }] },
+    { ...request, viewerMemberId: 'unknown' },
     { ...request, clarification: { question: '', answer: 'Maya' } },
     { ...request, clarification: { question: 'x'.repeat(AI_EXPENSE_CLARIFICATION_MAX_LENGTH + 1), answer: 'Maya' } },
     { ...request, clarification: { question: 'Who paid?', answer: 'x'.repeat(AI_EXPENSE_ANSWER_MAX_LENGTH + 1) } },

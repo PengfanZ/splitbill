@@ -86,6 +86,7 @@ function renderComposer(client: AiExpenseClient, onDraft = vi.fn(), onClose = vi
           client={client}
           currency="USD"
           members={members}
+          viewerMemberId="me"
           onClose={onClose}
           onDraft={onDraft}
         />
@@ -142,6 +143,7 @@ describe('voice expense composer', () => {
       currency: 'USD',
       locale: 'en',
       members: [{ id: 'me', name: 'Alex' }, { id: 'maya', name: 'Maya' }],
+      viewerMemberId: 'me',
     })
   })
 
@@ -161,6 +163,7 @@ describe('voice expense composer', () => {
             client={{ parse: vi.fn().mockResolvedValue(draft) }}
             currency="USD"
             members={members}
+            viewerMemberId="me"
             onClose={vi.fn()}
             onDraft={vi.fn()}
           />

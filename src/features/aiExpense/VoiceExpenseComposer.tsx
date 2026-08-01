@@ -50,12 +50,14 @@ export function VoiceExpenseComposer({
   client,
   currency,
   members,
+  viewerMemberId,
   onClose,
   onDraft,
 }: {
   client: AiExpenseClient
   currency: CurrencyCode
   members: Member[]
+  viewerMemberId: string
   onClose: () => void
   onDraft: (draft: AiExpenseReadyDraft) => void
 }) {
@@ -103,6 +105,7 @@ export function VoiceExpenseComposer({
         currency,
         locale,
         members: members.map(member => ({ id: member.id, name: member.name })),
+        viewerMemberId,
         ...(history.length > 0 ? { clarifications: history } : {}),
       })
       if (!mountedRef.current) return

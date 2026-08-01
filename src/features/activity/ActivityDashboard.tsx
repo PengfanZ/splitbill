@@ -18,8 +18,9 @@ import type { ActivityGroup, Expense, Member, Settlement } from '../../domain/mo
 import { useLocalization } from '../../i18n/LocalizationContext'
 import { ShareActivityMenu } from '../sharing/ShareActivityMenu'
 import { ActivityCurrencyControl } from './ActivityCurrencyControl'
+import { ActivityIdentityControl } from './ActivityIdentityControl'
 
-export function ActivitySummary({ expenses, currency = 'USD', currentUserLabel }: { expenses: Expense[]; currency?: CurrencyCode; currentUserLabel?: string }) {
+export function ActivitySummary({ expenses, currency = 'USD', currentMemberId = 'me', currentUserLabel }: { expenses: Expense[]; currency?: CurrencyCode; currentMemberId?: string | null; currentUserLabel?: string }) {
   const { locale, t } = useLocalization()
   const userLabel = currentUserLabel ?? t('common.you')
   const { balance, paid, total } = useMemo(() => {
@@ -28,29 +29,41 @@ export function ActivitySummary({ expenses, currency = 'USD', currentUserLabel }
     let paid = 0
     for (const expense of spending) {
       total += expense.amount
-      if (expense.payerId === 'me') paid += expense.amount
+      if (currentMemberId && expense.payerId === currentMemberId) paid += expense.amount
     }
     return {
-      balance: calculateMemberBalance('me', expenses),
+      balance: currentMemberId ? calculateMemberBalance(currentMemberId, expenses) : 0,
       paid,
       total,
     }
-  }, [expenses])
+  }, [currentMemberId, expenses])
   const namedUser = currentUserLabel && currentUserLabel !== 'You' && currentUserLabel !== t('common.you')
-  const balanceLabel = namedUser
+  const balanceLabel = !currentMemberId
+    ? t('activityIdentity.choose')
+    : namedUser
     ? t(balance > 0 ? 'dashboard.memberIsOwed' : balance < 0 ? 'dashboard.memberOwesBalance' : 'dashboard.memberBalance', { name: currentUserLabel })
     : t('dashboard.yourBalance')
+  const paidLabel = currentMemberId
+    ? t('dashboard.paid', { name: userLabel })
+    : t('activityIdentity.choose')
+  const paidAmount = currentMemberId ? money(paid, currency, locale) : '—'
+  const balanceTone = currentMemberId
+    ? balance > 0 ? 'positive' : balance < 0 ? 'negative' : 'settled'
+    : ''
+  const balanceAmount = currentMemberId
+    ? `${balance > 0 ? '+' : balance < 0 ? '−' : ''}${money(balance, currency, locale)}`
+    : '—'
 
   return (
     <div className="summary" aria-label={t('dashboard.summaryLabel')}>
       <div aria-label={t('dashboard.totalSpent')}><span>{t('dashboard.totalSpent')}</span><strong>{money(total, currency, locale)}</strong></div>
-      <div aria-label={t('dashboard.paid', { name: userLabel })}><span>{t('dashboard.paid', { name: userLabel })}</span><strong>{money(paid, currency, locale)}</strong></div>
-      <div aria-label={balanceLabel}><span>{balanceLabel}</span><strong className={balance > 0 ? 'positive' : balance < 0 ? 'negative' : 'settled'}>{balance > 0 ? '+' : balance < 0 ? '−' : ''}{money(balance, currency, locale)}</strong></div>
+      <div aria-label={paidLabel}><span>{paidLabel}</span><strong>{paidAmount}</strong></div>
+      <div aria-label={balanceLabel}><span>{balanceLabel}</span><strong className={balanceTone}>{balanceAmount}</strong></div>
     </div>
   )
 }
 
-export function SettlementDirections({ members, expenses, currency = 'USD', currentUserLabel, onSettleUp }: { members: Member[]; expenses: Expense[]; currency?: CurrencyCode; currentUserLabel?: string; onSettleUp?: (settlement: Settlement) => void }) {
+export function SettlementDirections({ members, expenses, currency = 'USD', currentMemberId = 'me', currentUserLabel, onSettleUp }: { members: Member[]; expenses: Expense[]; currency?: CurrencyCode; currentMemberId?: string | null; currentUserLabel?: string; onSettleUp?: (settlement: Settlement) => void }) {
   const { locale, t } = useLocalization()
   const settlements = useMemo(() => calculateSettlements(members, expenses), [expenses, members])
   const currentUserOwes = currentUserLabel && currentUserLabel !== 'You' && currentUserLabel !== t('common.you')
@@ -64,7 +77,7 @@ export function SettlementDirections({ members, expenses, currency = 'USD', curr
         {settlements.length ? settlements.map(settlement => (
           <div className="balance-row settlement-row" key={`${settlement.from.id}-${settlement.to.id}`}>
             <span className="settlement-avatars"><Avatar member={settlement.from} /><i>→</i><Avatar member={settlement.to} /></span>
-            <span className="row-copy"><b>{settlement.from.id === 'me' ? `${currentUserOwes} ${settlement.to.name}` : t('dashboard.owesPerson', { from: settlement.from.name, to: settlement.to.name })}</b><small>{t('dashboard.suggestedPayment')}</small></span>
+            <span className="row-copy"><b>{currentMemberId && settlement.from.id === currentMemberId ? `${currentUserOwes} ${settlement.to.name}` : t('dashboard.owesPerson', { from: settlement.from.name, to: settlement.to.name })}</b><small>{t('dashboard.suggestedPayment')}</small></span>
             <span className="settlement-action"><strong>{money(settlement.amount, currency, locale)}</strong>{onSettleUp ? <Button className="settle-up-button" onClick={() => onSettleUp(settlement)}>{t('dashboard.settleUp')}</Button> : null}</span>
           </div>
         )) : <div className="all-settled"><span><Check size={18} /></span><div><b>{t('dashboard.everyoneSettled')}</b><p>{t('dashboard.addExpensePrompt')}</p></div></div>}
@@ -130,20 +143,20 @@ export function ExpenseList({ expenses, members, currency = 'USD', query, readOn
   )
 }
 
-export function MembersRail({ members, readOnly = false, onAddFriend }: { members: Member[]; readOnly?: boolean; onAddFriend?: () => void }) {
+export function MembersRail({ members, currentMemberId = 'me', readOnly = false, onAddFriend }: { members: Member[]; currentMemberId?: string | null; readOnly?: boolean; onAddFriend?: () => void }) {
   const { t } = useLocalization()
   return (
     <aside className="right-rail activity-rail">
       <section className="members-panel">
         <div className="rail-heading"><h2>{t('dashboard.people')}</h2><span>{members.length}</span></div>
-        <div className="member-list">{members.map(member => <div className="member-row" key={member.id}><Avatar member={member} size="sm" /><b>{member.name}</b>{member.id === 'me' ? <Check size={15} aria-label={t('dashboard.currentIdentity')} /> : null}</div>)}</div>
+        <div className="member-list">{members.map(member => <div className="member-row" key={member.id}><Avatar member={member} size="sm" /><b>{member.name}</b>{member.id === currentMemberId ? <Check size={15} aria-label={t('dashboard.currentIdentity')} /> : null}</div>)}</div>
         {readOnly ? null : <Button className="add-friend-button" onClick={onAddFriend}><Plus size={16} />{t('dashboard.addFriend')}</Button>}
       </section>
     </aside>
   )
 }
 
-export function GroupDashboard({ group, members, expenses, query, activityFeedback, readOnly = false, readOnlyLabel, currentUserLabel = 'You', statusLabel, onCurrencyChange, onShareSummary, onShareQr, onShareLive, onCopyShareLink, onAddFriend, onAddExpense, onSettleUp, onEditExpense, onDeleteExpense }: {
+export function GroupDashboard({ group, members, expenses, query, activityFeedback, readOnly = false, readOnlyLabel, currentMemberId = 'me', currentUserLabel = 'You', statusLabel, onCurrentMemberChange, onCurrencyChange, onShareSummary, onShareQr, onShareLive, onCopyShareLink, onAddFriend, onAddExpense, onSettleUp, onEditExpense, onDeleteExpense }: {
   group: ActivityGroup
   members: Member[]
   expenses: Expense[]
@@ -151,8 +164,10 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
   activityFeedback: string | null
   readOnly?: boolean
   readOnlyLabel?: string
+  currentMemberId?: string | null
   currentUserLabel?: string
   statusLabel?: string
+  onCurrentMemberChange?: (memberId: string) => void
   onCurrencyChange?: (currency: CurrencyCode) => void
   onShareSummary?: () => void
   onShareQr?: () => void
@@ -178,6 +193,7 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
             <div className="group-actions">
               <div className="group-context-actions">
                 {statusLabel ? <span className="read-only-badge live-badge"><Radio size={14} />{statusLabel}</span> : null}
+                {onCurrentMemberChange ? <ActivityIdentityControl memberId={currentMemberId} members={members} onChange={onCurrentMemberChange} /> : null}
                 <ActivityCurrencyControl currency={currency} locale={locale} readOnly={readOnly} onChange={onCurrencyChange} />
                 {readOnly ? <span className="read-only-badge">{readOnlyLabel ?? t('dashboard.readOnly')}</span> : null}
               </div>
@@ -191,8 +207,8 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
         </header>
         {hasExpenses ? (
           <>
-            <ActivitySummary expenses={expenses} currency={currency} currentUserLabel={currentUserLabel} />
-            <SettlementDirections members={members} expenses={expenses} currency={currency} currentUserLabel={currentUserLabel} onSettleUp={readOnly ? undefined : onSettleUp} />
+            <ActivitySummary expenses={expenses} currency={currency} currentMemberId={currentMemberId} currentUserLabel={currentUserLabel} />
+            <SettlementDirections members={members} expenses={expenses} currency={currency} currentMemberId={currentMemberId} currentUserLabel={currentUserLabel} onSettleUp={readOnly ? undefined : onSettleUp} />
             <ExpenseList expenses={expenses} members={members} currency={currency} query={query} readOnly={readOnly} onEditExpense={onEditExpense} onDeleteExpense={onDeleteExpense} />
           </>
         ) : (
@@ -204,7 +220,7 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
           </section>
         )}
       </div>
-      <MembersRail members={members} readOnly={readOnly} onAddFriend={onAddFriend} />
+      <MembersRail members={members} currentMemberId={currentMemberId} readOnly={readOnly} onAddFriend={onAddFriend} />
       {shareMenuOpen ? <ShareActivityMenu
         groupName={group.name}
         live={Boolean(onCopyShareLink && !onShareLive)}
