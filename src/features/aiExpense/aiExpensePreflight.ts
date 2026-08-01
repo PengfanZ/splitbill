@@ -1,4 +1,7 @@
-import type { AiExpenseRequest } from './aiExpenseContract'
+import {
+  getAiExpenseClarifications,
+  type AiExpenseRequest,
+} from './aiExpenseContract.ts'
 
 type MissingDetail = 'amount' | 'payer' | 'participants'
 
@@ -17,7 +20,7 @@ function includesMemberName(text: string, members: AiExpenseRequest['members']) 
 }
 
 function isObviouslyVague(request: AiExpenseRequest) {
-  if (request.clarification) return false
+  if (getAiExpenseClarifications(request).length > 0) return false
   const text = request.text.trim().normalize('NFKC')
   if (AMOUNT_SIGNAL_PATTERN.test(text) || includesMemberName(text, request.members)) return false
   return Array.from(text).length <= MAX_OBVIOUSLY_VAGUE_CODE_POINTS
@@ -34,12 +37,13 @@ function chineseQuestion(missing: MissingDetail[]) {
 }
 
 export function getAiExpenseRecoveryQuestion(request: AiExpenseRequest) {
+  const hasClarifications = getAiExpenseClarifications(request).length > 0
   if (request.locale === 'zh-CN') {
-    return request.clarification
+    return hasClarifications
       ? '还是无法生成可靠的草稿。请用一句话重新说明总金额、付款人，以及哪些人参与分摊。'
       : '我还不能确定这笔支出的细节。请补充总金额、付款人，以及哪些人参与分摊。'
   }
-  return request.clarification
+  return hasClarifications
     ? 'I still could not create a reliable draft. Please rewrite the complete expense in one sentence, including the total amount, who paid, and who should share it.'
     : 'I could not determine this expense safely. Please add the total amount, who paid, and who should be included in the split.'
 }

@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   AI_EXPENSE_MAX_AMOUNT_CENTS,
+  AI_EXPENSE_MAX_CLARIFICATIONS,
   AI_EXPENSE_MAX_MEMBERS,
   AI_EXPENSE_ANSWER_MAX_LENGTH,
   AI_EXPENSE_CLARIFICATION_MAX_LENGTH,
   AI_EXPENSE_TEXT_MAX_LENGTH,
   AI_EXPENSE_TITLE_MAX_LENGTH,
   AiExpenseContractError,
+  getAiExpenseClarifications,
   normalizeAiExpenseModelOutput,
   parseAiExpenseRequest,
   parseAiExpenseResult,
@@ -57,6 +59,22 @@ describe('AI expense contract', () => {
       ...request,
       clarification: { question: '  Who paid? ', answer: ' Maya paid. ' },
     }).clarification).toEqual({ question: 'Who paid?', answer: 'Maya paid.' })
+    const withHistory = parseAiExpenseRequest({
+      ...request,
+      clarifications: [
+        { question: '  Who paid? ', answer: ' Maya paid. ' },
+        { question: ' Who shared it? ', answer: ' Alex and Maya. ' },
+      ],
+    })
+    expect(getAiExpenseClarifications(withHistory)).toEqual([
+      { question: 'Who paid?', answer: 'Maya paid.' },
+      { question: 'Who shared it?', answer: 'Alex and Maya.' },
+    ])
+    expect(getAiExpenseClarifications(request)).toEqual([])
+    expect(getAiExpenseClarifications({
+      ...request,
+      clarification: { question: 'Who paid?', answer: 'Maya' },
+    })).toEqual([{ question: 'Who paid?', answer: 'Maya' }])
   })
 
   it.each([
@@ -73,6 +91,13 @@ describe('AI expense contract', () => {
     { ...request, clarification: { question: '', answer: 'Maya' } },
     { ...request, clarification: { question: 'x'.repeat(AI_EXPENSE_CLARIFICATION_MAX_LENGTH + 1), answer: 'Maya' } },
     { ...request, clarification: { question: 'Who paid?', answer: 'x'.repeat(AI_EXPENSE_ANSWER_MAX_LENGTH + 1) } },
+    { ...request, clarifications: [] },
+    { ...request, clarifications: Array.from({ length: AI_EXPENSE_MAX_CLARIFICATIONS + 1 }, () => ({ question: 'Who?', answer: 'Maya' })) },
+    {
+      ...request,
+      clarification: { question: 'Who paid?', answer: 'Maya' },
+      clarifications: [{ question: 'Who shared?', answer: 'Alex' }],
+    },
   ])('rejects an invalid request: %j', invalidRequest => {
     expectContractError(() => parseAiExpenseRequest(invalidRequest))
   })

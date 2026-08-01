@@ -74,27 +74,42 @@ describe('AI expense composer', () => {
     expect(parse).toHaveBeenCalledOnce()
     expect(parse.mock.calls[0][0]).toMatchObject({
       text: 'dinner',
-      clarification: {
+      clarifications: [{
         question: 'Please add the total amount, who paid, and who should be included in the split.',
         answer: 'Maya paid $30, split with me and Maya',
-      },
+      }],
     })
   })
 
-  it('keeps a safe model clarification when a complete sentence is still ambiguous', async () => {
+  it('keeps every prior answer when the model needs more than one clarification', async () => {
     const user = userEvent.setup()
     const parse = vi.fn()
-      .mockResolvedValueOnce({ status: 'needs_clarification', question: 'Which Maya did you mean?' })
+      .mockResolvedValueOnce({ status: 'needs_clarification', question: 'Who paid?' })
+      .mockResolvedValueOnce({ status: 'needs_clarification', question: 'Who should share it?' })
       .mockResolvedValueOnce(draft)
     const { onDraft } = renderComposer({ parse })
 
-    await user.type(screen.getByLabelText('Expense description'), 'Maya paid $30, split with me')
+    await user.type(screen.getByLabelText('Expense description'), 'Dinner was $30')
     await user.click(screen.getByRole('button', { name: /Create draft/ }))
-    expect(await screen.findByText('Which Maya did you mean?')).toBeVisible()
-    await user.type(screen.getByLabelText('Your answer'), 'The Maya in this activity')
+    expect(await screen.findByText('Who paid?')).toBeVisible()
+    await user.type(screen.getByLabelText('Your answer'), 'Maya paid')
+    await user.click(screen.getByRole('button', { name: /Update draft/ }))
+    expect(await screen.findByText('Who should share it?')).toBeVisible()
+    await user.type(screen.getByLabelText('Your answer'), 'Alex and Maya')
     await user.click(screen.getByRole('button', { name: /Update draft/ }))
 
-    expect(parse).toHaveBeenCalledTimes(2)
+    expect(parse).toHaveBeenCalledTimes(3)
+    expect(parse).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      text: 'Dinner was $30',
+      clarifications: [{ question: 'Who paid?', answer: 'Maya paid' }],
+    }))
+    expect(parse).toHaveBeenNthCalledWith(3, expect.objectContaining({
+      text: 'Dinner was $30',
+      clarifications: [
+        { question: 'Who paid?', answer: 'Maya paid' },
+        { question: 'Who should share it?', answer: 'Alex and Maya' },
+      ],
+    }))
     expect(onDraft).toHaveBeenCalledWith(draft)
   })
 

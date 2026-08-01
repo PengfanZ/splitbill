@@ -25,10 +25,10 @@ test('clarifies an incomplete description locally, then sends structured follow-
     const body = route.request().postDataJSON()
     expect(body).toMatchObject({
       text: 'dinner',
-      clarification: {
+      clarifications: [{
         question: 'Please add the total amount, who paid, and who should be included in the split.',
         answer: 'Maya paid $30 and split it with me',
-      },
+      }],
     })
     await route.fulfill({
       status: 200,
@@ -61,6 +61,59 @@ test('clarifies an incomplete description locally, then sends structured follow-
   await page.getByRole('button', { name: 'Update draft' }).click()
   await expect(page.getByRole('status')).toContainText('AI draft ready')
   expect(aiRequests).toBe(1)
+})
+
+test('retains earlier answers across multiple model follow-up questions', async ({ page }) => {
+  const requests: Array<Record<string, unknown>> = []
+  await page.route('https://live-sharing.test/functions/v1/parse-expense', async route => {
+    const body = route.request().postDataJSON()
+    requests.push(body)
+    const members = body.members as Array<{ id: string; name: string }>
+    const result = requests.length === 1
+      ? { status: 'needs_clarification', question: 'Who paid?' }
+      : requests.length === 2
+        ? { status: 'needs_clarification', question: 'Who should share it?' }
+        : {
+            status: 'ready',
+            title: 'Dinner',
+            amountCents: 3_000,
+            payerId: members[1].id,
+            splitMethod: 'equal',
+            participantIds: members.map(member => member.id),
+            exactSharesCents: [],
+          }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ result }),
+    })
+  })
+
+  await createPreviewActivity(page)
+  await page.getByLabel('Expense description').fill('Dinner was $30')
+  await page.getByRole('button', { name: 'Create draft' }).click()
+  await expect(page.getByRole('status')).toContainText('Who paid?')
+
+  await page.getByLabel('Your answer').fill('Maya paid')
+  await page.getByRole('button', { name: 'Update draft' }).click()
+  await expect(page.getByRole('status')).toContainText('Who should share it?')
+
+  await page.getByLabel('Your answer').fill('Preview Tester and Maya')
+  await page.getByRole('button', { name: 'Update draft' }).click()
+  await expect(page.getByRole('status')).toContainText('AI draft ready')
+
+  expect(requests).toHaveLength(3)
+  expect(requests[1]).toMatchObject({
+    text: 'Dinner was $30',
+    clarifications: [{ question: 'Who paid?', answer: 'Maya paid' }],
+  })
+  expect(requests[2]).toMatchObject({
+    text: 'Dinner was $30',
+    clarifications: [
+      { question: 'Who paid?', answer: 'Maya paid' },
+      { question: 'Who should share it?', answer: 'Preview Tester and Maya' },
+    ],
+  })
 })
 
 test('turns a description into a reviewable draft before the user saves it', async ({ page }) => {

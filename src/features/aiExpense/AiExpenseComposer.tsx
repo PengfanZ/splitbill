@@ -8,7 +8,7 @@ import { AiExpenseApiError, type AiExpenseClient } from './aiExpenseApi'
 import {
   AI_EXPENSE_ANSWER_MAX_LENGTH,
   AI_EXPENSE_TEXT_MAX_LENGTH,
-  type AiExpenseRequest,
+  type AiExpenseClarification,
   type AiExpenseReadyDraft,
 } from './aiExpenseContract'
 import { getAiExpensePreflightQuestion } from './aiExpensePreflight'
@@ -38,21 +38,23 @@ export function AiExpenseComposer({
   const { locale, t } = useLocalization()
   const [text, setText] = useState('')
   const [clarification, setClarification] = useState<string | null>(null)
+  const [clarificationHistory, setClarificationHistory] = useState<AiExpenseClarification[]>([])
   const [answer, setAnswer] = useState('')
   const [errorKey, setErrorKey] = useState<ReturnType<typeof errorTranslationKey> | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const parse = async (description: string, clarificationContext?: AiExpenseRequest['clarification']) => {
+  const parse = async (description: string, history: AiExpenseClarification[] = clarificationHistory) => {
     setErrorKey(null)
     const request = {
       text: description,
       currency,
       locale,
       members: members.map(member => ({ id: member.id, name: member.name })),
-      ...(clarificationContext ? { clarification: clarificationContext } : {}),
+      ...(history.length > 0 ? { clarifications: history } : {}),
     }
     const preflightQuestion = getAiExpensePreflightQuestion(request)
     if (preflightQuestion) {
+      setClarificationHistory(history)
       setClarification(preflightQuestion)
       setAnswer('')
       return
@@ -62,6 +64,7 @@ export function AiExpenseComposer({
     try {
       const result = await client.parse(request)
       if (result.status === 'needs_clarification') {
+        setClarificationHistory(history)
         setClarification(result.question)
         setAnswer('')
         return
@@ -74,9 +77,9 @@ export function AiExpenseComposer({
     }
   }
 
-  const submitDescription = () => parse(text.trim())
+  const submitDescription = () => parse(text.trim(), [])
   const submitClarification = (question: string) => {
-    void parse(text.trim(), { question, answer: answer.trim() })
+    void parse(text.trim(), [...clarificationHistory, { question, answer: answer.trim() }])
   }
 
   return (
@@ -98,6 +101,7 @@ export function AiExpenseComposer({
           onChange={event => {
             setText(event.target.value)
             setClarification(null)
+            setClarificationHistory([])
             setAnswer('')
             setErrorKey(null)
           }}

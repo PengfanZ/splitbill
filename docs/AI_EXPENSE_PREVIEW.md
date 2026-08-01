@@ -23,7 +23,7 @@ Do not add `VITE_AI_EXPENSE_ENABLED` to the GitHub Pages production environment.
 6. A strict JSON Schema constrains the model response.
 7. Titles and clarification questions follow the description's language, with the interface locale used only as a fallback.
 8. Zod and deterministic business rules reject unknown members, invalid cents, duplicate participants, and exact splits that do not equal the total.
-9. Remaining ambiguity—and any model output that cannot be normalized safely—becomes one clarification question instead of a guess or a misleading provider-outage error.
+9. Remaining ambiguity becomes a clarification question, and every answer is appended to a bounded structured history so later turns cannot forget earlier details.
 10. A valid result only pre-fills the existing expense form. The user remains the final validator and saver.
 
 This does not use RAG: there is no external knowledge to retrieve. Reliability comes from narrowly scoped context, structured output, deterministic validation, clarification, and explicit human review.

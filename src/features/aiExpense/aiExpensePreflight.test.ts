@@ -63,10 +63,15 @@ describe('AI expense preflight', () => {
     expect(getAiExpensePreflightQuestion({
       ...request,
       text: 'dinner',
-      clarification: {
+      clarifications: [{
         question: 'Please add the missing details.',
         answer: 'Maya paid $30 and split it with Alex.',
-      },
+      }],
+    })).toBeNull()
+    expect(getAiExpensePreflightQuestion({
+      ...request,
+      text: 'dinner',
+      clarification: { question: 'Legacy question', answer: 'Legacy answer' },
     })).toBeNull()
   })
 
@@ -93,7 +98,7 @@ describe('AI expense preflight', () => {
     expect(getAiExpenseRecoveryQuestion({
       ...request,
       locale: 'zh-CN',
-      clarification: { question: '谁付款？', answer: '小明' },
+      clarifications: [{ question: '谁付款？', answer: '小明' }],
     })).toContain('用一句话重新说明')
   })
 })

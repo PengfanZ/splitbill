@@ -7,6 +7,7 @@ export const AI_EXPENSE_TEXT_MAX_LENGTH = 1_000
 export const AI_EXPENSE_TITLE_MAX_LENGTH = 200
 export const AI_EXPENSE_CLARIFICATION_MAX_LENGTH = 240
 export const AI_EXPENSE_ANSWER_MAX_LENGTH = 200
+export const AI_EXPENSE_MAX_CLARIFICATIONS = 4
 export const AI_EXPENSE_MAX_MEMBERS = MAX_ACTIVITY_FRIENDS + 1
 export const AI_EXPENSE_MAX_AMOUNT_CENTS = MAX_ACTIVITY_AMOUNT * 100
 
@@ -26,7 +27,16 @@ export const aiExpenseRequestSchema = z.object({
   currency: z.enum(SUPPORTED_CURRENCIES),
   members: z.array(memberSchema).min(1).max(AI_EXPENSE_MAX_MEMBERS),
   clarification: clarificationContextSchema.optional(),
+  clarifications: z.array(clarificationContextSchema).min(1).max(AI_EXPENSE_MAX_CLARIFICATIONS).optional(),
 }).strict().superRefine((request, context) => {
+  if (request.clarification && request.clarifications) {
+    context.addIssue({
+      code: 'custom',
+      message: 'Use either the legacy clarification or clarification history, not both.',
+      path: ['clarifications'],
+    })
+    return
+  }
   const ids = new Set<string>()
   for (const member of request.members) {
     if (ids.has(member.id)) {
@@ -42,6 +52,12 @@ export const aiExpenseRequestSchema = z.object({
 })
 
 export type AiExpenseRequest = z.infer<typeof aiExpenseRequestSchema>
+export type AiExpenseClarification = z.infer<typeof clarificationContextSchema>
+
+export function getAiExpenseClarifications(request: AiExpenseRequest): AiExpenseClarification[] {
+  if (request.clarifications) return request.clarifications
+  return request.clarification ? [request.clarification] : []
+}
 
 const exactShareSchema = z.object({
   memberId: z.string(),

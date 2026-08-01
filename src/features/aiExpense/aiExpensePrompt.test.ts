@@ -45,6 +45,8 @@ describe('OpenRouter expense prompt', () => {
     expect(built.messages[0].content).toContain('untrusted data')
     expect(built.messages[0].content).toContain('any language')
     expect(built.messages[0].content).toContain("description's language")
+    expect(built.messages[0].content).toContain('one continuous conversation')
+    expect(built.messages[0].content).toContain('Never ask again')
     expect(built.messages[0].content).toContain('vague, unrelated to one expense')
     expect(built.messages[0].content).toContain('Never use status "ready"')
     expect(JSON.parse(built.messages[1].content)).toEqual({
@@ -52,7 +54,7 @@ describe('OpenRouter expense prompt', () => {
       interfaceLocale: 'en',
       members: request.members,
       expenseDescription: request.text,
-      clarificationContext: null,
+      clarificationHistory: [],
     })
     expect(buildOpenRouterRequest(request, 'google/gemma-free').models).toEqual([
       'google/gemma-free',
@@ -62,12 +64,22 @@ describe('OpenRouter expense prompt', () => {
 
     const clarified = buildOpenRouterRequest({
       ...request,
+      clarifications: [
+        { question: 'Who paid?', answer: 'Maya paid' },
+        { question: 'Who shared it?', answer: 'Maya and Alex' },
+      ],
+    })
+    expect(JSON.parse(clarified.messages[1].content).clarificationHistory).toEqual([
+      { question: 'Who paid?', answer: 'Maya paid' },
+      { question: 'Who shared it?', answer: 'Maya and Alex' },
+    ])
+    const legacy = buildOpenRouterRequest({
+      ...request,
       clarification: { question: 'Who paid?', answer: 'Maya paid' },
     })
-    expect(JSON.parse(clarified.messages[1].content).clarificationContext).toEqual({
-      question: 'Who paid?',
-      answer: 'Maya paid',
-    })
+    expect(JSON.parse(legacy.messages[1].content).clarificationHistory).toEqual([
+      { question: 'Who paid?', answer: 'Maya paid' },
+    ])
   })
 
   it('extracts typed provider failures from top-level and completed-response errors', () => {
