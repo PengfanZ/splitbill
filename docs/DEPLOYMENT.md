@@ -90,7 +90,7 @@ The workflow can also be started manually from `main` with **Run workflow**.
 - Free-tier projects should export regular off-site logical backups with `supabase db dump`. Paid projects provide daily backups; consider point-in-time recovery when the recovery objective warrants it. See [Supabase backups](https://supabase.com/docs/guides/platform/backups).
 - Review Security Advisor and Performance Advisor after every schema change.
 - If a capability URL leaks, treat the activity as compromised. Token rotation/revocation is a required follow-up before serving groups that need stronger access control.
-- If the Supabase project URL changes or a custom API domain is introduced, replace the exact allowed Supabase origin in the `connect-src` policy in `index.html`.
+- The build derives the exact Supabase `connect-src` origin from `VITE_SUPABASE_URL`. Missing or unsafe values fall back to the production origin, so preview deployments can use an isolated Supabase project without weakening the policy.
 
 ## Rollback
 
