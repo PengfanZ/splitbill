@@ -147,3 +147,22 @@ test('sends a substantive non-English description to the model without an Englis
   await expect(page.getByLabel('Description')).toHaveValue('Cena')
   expect(aiRequests).toBe(1)
 })
+
+test('explains a legacy unsafe-model response without calling the model unavailable', async ({ page }) => {
+  await page.route('https://live-sharing.test/functions/v1/parse-expense', route => route.fulfill({
+    status: 502,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      code: 'invalid_model_response',
+      message: 'The AI response could not be safely converted into an expense.',
+    }),
+  }))
+
+  await createPreviewActivity(page)
+  await page.getByLabel('Expense description').fill('Something happened with dinner and the group')
+  await page.getByRole('button', { name: 'Create draft' }).click()
+
+  const error = page.getByRole('alert')
+  await expect(error).toContainText('Tally could not turn that into a reliable draft.')
+  await expect(error).not.toContainText('unavailable')
+})

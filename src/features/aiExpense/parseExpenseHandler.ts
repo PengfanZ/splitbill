@@ -1,14 +1,16 @@
 import {
   normalizeAiExpenseModelOutput,
   parseAiExpenseRequest,
-  AiExpenseContractError,
 } from './aiExpenseContract.ts'
 import {
   buildOpenRouterRequest,
   DEFAULT_OPENROUTER_MODEL,
   parseOpenRouterModelOutput,
 } from './aiExpensePrompt.ts'
-import { getAiExpensePreflightQuestion } from './aiExpensePreflight.ts'
+import {
+  getAiExpensePreflightQuestion,
+  getAiExpenseRecoveryQuestion,
+} from './aiExpensePreflight.ts'
 
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 
@@ -104,14 +106,26 @@ export async function handleParseExpenseRequest(
     return jsonError(502, 'provider_error', 'The AI provider could not create a draft.')
   }
 
+  let providerPayload: unknown
   try {
-    const modelOutput = parseOpenRouterModelOutput(await providerResponse.json())
+    providerPayload = await providerResponse.json()
+  } catch {
+    return jsonError(502, 'provider_error', 'The AI provider returned unreadable data.')
+  }
+
+  try {
+    const modelOutput = parseOpenRouterModelOutput(providerPayload)
     const result = normalizeAiExpenseModelOutput(modelOutput, parsedRequest)
     return Response.json({ result, model }, {
       headers: { 'cache-control': 'no-store' },
     })
-  } catch (error) {
-    const code = error instanceof AiExpenseContractError ? 'invalid_model_response' : 'provider_error'
-    return jsonError(502, code, 'The AI response could not be safely converted into an expense.')
+  } catch {
+    return Response.json({
+      result: {
+        status: 'needs_clarification',
+        question: getAiExpenseRecoveryQuestion(parsedRequest),
+      },
+      model,
+    }, { headers: { 'cache-control': 'no-store' } })
   }
 }

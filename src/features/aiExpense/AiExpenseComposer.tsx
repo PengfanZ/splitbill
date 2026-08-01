@@ -16,7 +16,7 @@ import { getAiExpensePreflightQuestion } from './aiExpensePreflight'
 function errorTranslationKey(error: unknown) {
   if (!(error instanceof AiExpenseApiError)) return 'expense.aiError'
   if (error.kind === 'rate-limit') return 'expense.aiRateLimit'
-  if (error.kind === 'invalid-input') return 'expense.aiInvalid'
+  if (error.kind === 'invalid-input' || error.kind === 'invalid-response') return 'expense.aiInvalid'
   return 'expense.aiError'
 }
 

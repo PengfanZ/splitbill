@@ -23,14 +23,14 @@ Do not add `VITE_AI_EXPENSE_ENABLED` to the GitHub Pages production environment.
 6. A strict JSON Schema constrains the model response.
 7. Titles and clarification questions follow the description's language, with the interface locale used only as a fallback.
 8. Zod and deterministic business rules reject unknown members, invalid cents, duplicate participants, and exact splits that do not equal the total.
-9. Remaining ambiguity becomes one clarification question instead of a guess.
+9. Remaining ambiguity—and any model output that cannot be normalized safely—becomes one clarification question instead of a guess or a misleading provider-outage error.
 10. A valid result only pre-fills the existing expense form. The user remains the final validator and saver.
 
 This does not use RAG: there is no external knowledge to retrieve. Reliability comes from narrowly scoped context, structured output, deterministic validation, clarification, and explicit human review.
 
 ## Model and cost control
 
-The initial model is pinned to `google/gemma-4-26b-a4b-it:free`, a non-reasoning free model that currently advertises structured-output support. Override it with `OPENROUTER_MODEL` only after running the same evaluation examples and browser flow. Automatic provider fallback is disabled, so a model outage produces a clear retry/manual-entry message rather than silently switching to a paid or differently behaving model. The request has a bounded timeout so a busy free endpoint falls back to manual entry instead of leaving the user waiting indefinitely.
+The initial model is pinned to `google/gemma-4-26b-a4b-it:free`, a non-reasoning free model that currently advertises structured-output support. Override it with `OPENROUTER_MODEL` only after running the same evaluation examples and browser flow. Automatic provider fallback is disabled, so a genuine model outage produces a clear retry/manual-entry message rather than silently switching to a paid or differently behaving model. A successful provider response that does not satisfy the expense contract is treated as an incomplete conversation: the user receives a localized prompt to restate the amount, payer, and participants. The request has a bounded timeout so a busy free endpoint falls back to manual entry instead of leaving the user waiting indefinitely.
 
 The server allows 30 AI draft requests per normalized client identifier per 10-minute window. OpenRouter account limits remain the hard cost ceiling. Start with a preview-only key and the smallest available limit; never reuse a broad personal key.
 

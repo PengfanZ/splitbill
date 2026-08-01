@@ -37,6 +37,8 @@ describe('OpenRouter expense prompt', () => {
     expect(built.messages[0].content).toContain('untrusted data')
     expect(built.messages[0].content).toContain('any language')
     expect(built.messages[0].content).toContain("description's language")
+    expect(built.messages[0].content).toContain('vague, unrelated to one expense')
+    expect(built.messages[0].content).toContain('Never use status "ready"')
     expect(JSON.parse(built.messages[1].content)).toEqual({
       activityCurrency: 'USD',
       interfaceLocale: 'en',

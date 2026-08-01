@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { AiExpenseRequest } from './aiExpenseContract'
-import { getAiExpensePreflightQuestion } from './aiExpensePreflight'
+import {
+  getAiExpensePreflightQuestion,
+  getAiExpenseRecoveryQuestion,
+} from './aiExpensePreflight'
 
 const request: AiExpenseRequest = {
   text: 'Maya paid $30 for dinner, split with me',
@@ -73,5 +76,24 @@ describe('AI expense preflight', () => {
       text: 'Ａｌｅｘ pagó la cena',
       members: [{ id: 'blank', name: ' ' }, { id: 'me', name: 'Alex' }],
     })).toBeNull()
+  })
+
+  it('provides localized recovery questions without claiming the provider is unavailable', () => {
+    expect(getAiExpenseRecoveryQuestion(request)).toBe(
+      'I could not determine this expense safely. Please add the total amount, who paid, and who should be included in the split.',
+    )
+    expect(getAiExpenseRecoveryQuestion({
+      ...request,
+      locale: 'zh-CN',
+    })).toBe('我还不能确定这笔支出的细节。请补充总金额、付款人，以及哪些人参与分摊。')
+    expect(getAiExpenseRecoveryQuestion({
+      ...request,
+      clarification: { question: 'Who paid?', answer: 'Maya' },
+    })).toContain('rewrite the complete expense')
+    expect(getAiExpenseRecoveryQuestion({
+      ...request,
+      locale: 'zh-CN',
+      clarification: { question: '谁付款？', answer: '小明' },
+    })).toContain('用一句话重新说明')
   })
 })

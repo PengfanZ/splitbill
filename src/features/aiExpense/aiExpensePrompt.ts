@@ -52,6 +52,9 @@ Rules:
 - Use only the supplied member IDs. Never invent a member or currency.
 - amountCents is the total amount in the activity currency, converted to integer minor units.
 - Use status "needs_clarification" whenever the payer, amount, or intended participants are ambiguous or missing.
+- Also use status "needs_clarification" when the description is vague, unrelated to one expense, or cannot produce a safe draft without guessing.
+- For "needs_clarification", set title, amountCents, payerId, and splitMethod to null; use empty participantIds and exactSharesCents; ask one useful question.
+- Never use status "ready" with placeholder, invented, incomplete, or guessed values.
 - Duplicate or ambiguous member names require clarification; do not guess.
 - For an equal split, participantIds contains everyone included and exactSharesCents is empty.
 - For an exact split, participantIds and exactSharesCents contain the same members, and exact shares sum exactly to amountCents.

@@ -33,6 +33,17 @@ function chineseQuestion(missing: MissingDetail[]) {
   return '请补充总金额、付款人、参与分摊的人。'
 }
 
+export function getAiExpenseRecoveryQuestion(request: AiExpenseRequest) {
+  if (request.locale === 'zh-CN') {
+    return request.clarification
+      ? '还是无法生成可靠的草稿。请用一句话重新说明总金额、付款人，以及哪些人参与分摊。'
+      : '我还不能确定这笔支出的细节。请补充总金额、付款人，以及哪些人参与分摊。'
+  }
+  return request.clarification
+    ? 'I still could not create a reliable draft. Please rewrite the complete expense in one sentence, including the total amount, who paid, and who should share it.'
+    : 'I could not determine this expense safely. Please add the total amount, who paid, and who should be included in the split.'
+}
+
 export function getAiExpensePreflightQuestion(request: AiExpenseRequest): string | null {
   if (!isObviouslyVague(request)) return null
   const missing: MissingDetail[] = request.members.length > 1

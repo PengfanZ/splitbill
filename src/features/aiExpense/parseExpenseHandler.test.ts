@@ -188,7 +188,7 @@ describe('parse expense Edge Function handler', () => {
     expect(await response.json()).toMatchObject({ code })
   })
 
-  it('handles provider network and response failures without leaking content', async () => {
+  it('handles provider network and unreadable response failures without leaking content', async () => {
     const unavailable = await handleParseExpenseRequest(request(), dependencies({
       fetcher: vi.fn().mockRejectedValue(new Error('secret provider detail')),
     }))
@@ -201,10 +201,41 @@ describe('parse expense Edge Function handler', () => {
     expect(unreadable.status).toBe(502)
     expect(await unreadable.json()).toMatchObject({ code: 'provider_error' })
 
+  })
+
+  it('turns unsafe model drafts into actionable clarification instead of an availability error', async () => {
     const invalid = await handleParseExpenseRequest(request(), dependencies({
       fetcher: vi.fn().mockResolvedValue(providerResponse({ ...output, payerId: 'invented' })),
     }))
-    expect(invalid.status).toBe(502)
-    expect(await invalid.json()).toMatchObject({ code: 'invalid_model_response' })
+    expect(invalid.status).toBe(200)
+    expect(await invalid.json()).toEqual({
+      result: {
+        status: 'needs_clarification',
+        question: 'I could not determine this expense safely. Please add the total amount, who paid, and who should be included in the split.',
+      },
+      model: DEFAULT_OPENROUTER_MODEL,
+    })
+
+    const malformedModel = await handleParseExpenseRequest(request(), dependencies({
+      fetcher: vi.fn().mockResolvedValue(providerResponse({ status: 'ready' })),
+    }))
+    expect(malformedModel.status).toBe(200)
+    expect(await malformedModel.json()).toMatchObject({
+      result: { status: 'needs_clarification' },
+    })
+
+    const repeated = await handleParseExpenseRequest(request({
+      ...requestBody,
+      clarification: { question: 'Who paid?', answer: 'Maya paid.' },
+    }), dependencies({
+      fetcher: vi.fn().mockResolvedValue(providerResponse({ ...output, payerId: 'invented' })),
+    }))
+    expect(repeated.status).toBe(200)
+    expect(await repeated.json()).toMatchObject({
+      result: {
+        status: 'needs_clarification',
+        question: expect.stringContaining('rewrite the complete expense'),
+      },
+    })
   })
 })

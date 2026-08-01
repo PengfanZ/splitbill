@@ -33,8 +33,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function errorKind(status: number): AiExpenseApiErrorKind {
-  if (status === 400 || status === 413) return 'invalid-input'
+function errorKind(status: number, payload: unknown): AiExpenseApiErrorKind {
+  const code = isRecord(payload) && typeof payload.code === 'string' ? payload.code : ''
+  if (status === 400 || status === 413 || status === 422 || code === 'invalid_model_response') return 'invalid-input'
   if (status === 429) return 'rate-limit'
   return 'unavailable'
 }
@@ -98,7 +99,7 @@ export function createAiExpenseClient(
         const message = isRecord(payload) && typeof payload.message === 'string'
           ? payload.message
           : 'AI expense entry is temporarily unavailable.'
-        throw new AiExpenseApiError(errorKind(response.status), message)
+        throw new AiExpenseApiError(errorKind(response.status, payload), message)
       }
       if (!isRecord(payload) || !('result' in payload)) {
         throw new AiExpenseApiError('invalid-response', 'The AI expense service returned an unexpected result.')

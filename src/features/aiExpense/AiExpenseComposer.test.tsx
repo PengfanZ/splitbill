@@ -112,7 +112,8 @@ describe('AI expense composer', () => {
 
   it.each([
     [new AiExpenseApiError('rate-limit', 'busy'), 'The free AI model is busy.'],
-    [new AiExpenseApiError('invalid-input', 'invalid'), 'Add a little more detail'],
+    [new AiExpenseApiError('invalid-input', 'invalid'), 'Tally could not turn that into a reliable draft.'],
+    [new AiExpenseApiError('invalid-response', 'invalid'), 'Tally could not turn that into a reliable draft.'],
     [new AiExpenseApiError('unavailable', 'offline'), 'The free AI model is unavailable'],
     [new Error('unknown'), 'The free AI model is unavailable'],
   ])('shows a safe, actionable error for %s', async (error, expected) => {
