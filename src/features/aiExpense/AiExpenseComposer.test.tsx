@@ -22,13 +22,13 @@ const draft: AiExpenseReadyDraft = {
   exactSharesCents: [],
 }
 
-function renderComposer(client: AiExpenseClient, onDraft = vi.fn(), onClose = vi.fn()) {
+function renderComposer(client: Pick<AiExpenseClient, 'parseBatch'>, onDrafts = vi.fn(), onClose = vi.fn()) {
   return {
-    onDraft,
+    onDrafts,
     onClose,
     ...render(
       <LocalizationProvider>
-        <AiExpenseComposer client={client} currency="USD" members={members} viewerMemberId="me" onClose={onClose} onDraft={onDraft} />
+        <AiExpenseComposer client={client} currency="USD" members={members} viewerMemberId="me" onClose={onClose} onDrafts={onDrafts} />
       </LocalizationProvider>,
     ),
   }
@@ -37,9 +37,9 @@ function renderComposer(client: AiExpenseClient, onDraft = vi.fn(), onClose = vi
 describe('AI expense composer', () => {
   it('creates a reviewable draft without saving it', async () => {
     const user = userEvent.setup()
-    let resolveDraft!: (value: typeof draft) => void
-    const parse = vi.fn(() => new Promise<typeof draft>(resolve => { resolveDraft = resolve }))
-    const { onDraft } = renderComposer({ parse })
+    let resolveDraft!: (value: { status: 'ready_batch'; drafts: AiExpenseReadyDraft[] }) => void
+    const parseBatch = vi.fn(() => new Promise<{ status: 'ready_batch'; drafts: AiExpenseReadyDraft[] }>(resolve => { resolveDraft = resolve }))
+    const { onDrafts } = renderComposer({ parseBatch })
 
     expect(screen.getByText('Tell Tally what happened')).toBeVisible()
     const description = screen.getByLabelText('Expense description')
@@ -47,11 +47,11 @@ describe('AI expense composer', () => {
     await user.click(screen.getByRole('button', { name: /Create draft/ }))
     const workingButton = screen.getByRole('button', { name: /Creating draft/ })
     expect(workingButton).toBeDisabled()
-    resolveDraft(draft)
+    resolveDraft({ status: 'ready_batch', drafts: [draft] })
 
     expect(await screen.findByText('Tell Tally what happened')).toBeVisible()
-    expect(onDraft).toHaveBeenCalledWith(draft)
-    expect(parse).toHaveBeenCalledWith({
+    expect(onDrafts).toHaveBeenCalledWith([draft])
+    expect(parseBatch).toHaveBeenCalledWith({
       inputMode: 'text',
       text: 'Maya paid $30 for dinner, split with me',
       locale: 'en',
@@ -63,18 +63,18 @@ describe('AI expense composer', () => {
 
   it('asks an instant clarification and calls AI only after the missing detail is supplied', async () => {
     const user = userEvent.setup()
-    const parse = vi.fn().mockResolvedValue(draft)
-    const { onDraft } = renderComposer({ parse })
+    const parseBatch = vi.fn().mockResolvedValue({ status: 'ready_batch', drafts: [draft] })
+    const { onDrafts } = renderComposer({ parseBatch })
 
     await user.type(screen.getByLabelText('Expense description'), 'dinner')
     await user.click(screen.getByRole('button', { name: /Create draft/ }))
     expect(await screen.findByText('Please add the total amount, who paid, and who should be included in the split.')).toBeVisible()
-    expect(parse).not.toHaveBeenCalled()
+    expect(parseBatch).not.toHaveBeenCalled()
     await user.type(screen.getByLabelText('Your answer'), 'Maya paid $30, split with me and Maya')
     await user.click(screen.getByRole('button', { name: /Update draft/ }))
-    expect(onDraft).toHaveBeenCalledWith(draft)
-    expect(parse).toHaveBeenCalledOnce()
-    expect(parse.mock.calls[0][0]).toMatchObject({
+    expect(onDrafts).toHaveBeenCalledWith([draft])
+    expect(parseBatch).toHaveBeenCalledOnce()
+    expect(parseBatch.mock.calls[0][0]).toMatchObject({
       text: 'dinner',
       clarifications: [{
         question: 'Please add the total amount, who paid, and who should be included in the split.',
@@ -85,11 +85,11 @@ describe('AI expense composer', () => {
 
   it('keeps every prior answer when the model needs more than one clarification', async () => {
     const user = userEvent.setup()
-    const parse = vi.fn()
+    const parseBatch = vi.fn()
       .mockResolvedValueOnce({ status: 'needs_clarification', question: 'Who paid?' })
       .mockResolvedValueOnce({ status: 'needs_clarification', question: 'Who should share it?' })
-      .mockResolvedValueOnce(draft)
-    const { onDraft } = renderComposer({ parse })
+      .mockResolvedValueOnce({ status: 'ready_batch', drafts: [draft] })
+    const { onDrafts } = renderComposer({ parseBatch })
 
     await user.type(screen.getByLabelText('Expense description'), 'Dinner was $30')
     await user.click(screen.getByRole('button', { name: /Create draft/ }))
@@ -100,25 +100,25 @@ describe('AI expense composer', () => {
     await user.type(screen.getByLabelText('Your answer'), 'Alex and Maya')
     await user.click(screen.getByRole('button', { name: /Update draft/ }))
 
-    expect(parse).toHaveBeenCalledTimes(3)
-    expect(parse).toHaveBeenNthCalledWith(2, expect.objectContaining({
+    expect(parseBatch).toHaveBeenCalledTimes(3)
+    expect(parseBatch).toHaveBeenNthCalledWith(2, expect.objectContaining({
       text: 'Dinner was $30',
       clarifications: [{ question: 'Who paid?', answer: 'Maya paid' }],
     }))
-    expect(parse).toHaveBeenNthCalledWith(3, expect.objectContaining({
+    expect(parseBatch).toHaveBeenNthCalledWith(3, expect.objectContaining({
       text: 'Dinner was $30',
       clarifications: [
         { question: 'Who paid?', answer: 'Maya paid' },
         { question: 'Who should share it?', answer: 'Alex and Maya' },
       ],
     }))
-    expect(onDraft).toHaveBeenCalledWith(draft)
+    expect(onDrafts).toHaveBeenCalledWith([draft])
   })
 
   it('clears clarification when the original description changes', async () => {
     const user = userEvent.setup()
-    const parse = vi.fn()
-    renderComposer({ parse })
+    const parseBatch = vi.fn()
+    renderComposer({ parseBatch })
     const description = screen.getByLabelText('Expense description')
     await user.type(description, 'dinner')
     await user.click(screen.getByRole('button', { name: /Create draft/ }))
@@ -137,7 +137,7 @@ describe('AI expense composer', () => {
     [new Error('unknown'), 'The free AI model is unavailable'],
   ])('shows a safe, actionable error for %s', async (error, expected) => {
     const user = userEvent.setup()
-    renderComposer({ parse: vi.fn().mockRejectedValue(error) })
+    renderComposer({ parseBatch: vi.fn().mockRejectedValue(error) })
     await user.type(screen.getByLabelText('Expense description'), 'Maya paid $30, split with me')
     await user.click(screen.getByRole('button', { name: /Create draft/ }))
     expect(await screen.findByRole('alert')).toHaveTextContent(expected)
@@ -147,7 +147,7 @@ describe('AI expense composer', () => {
 
   it('keeps cancel and disabled states predictable', async () => {
     const user = userEvent.setup()
-    const { onClose } = renderComposer({ parse: vi.fn() })
+    const { onClose } = renderComposer({ parseBatch: vi.fn() })
     expect(screen.getByRole('button', { name: /Create draft/ })).toBeDisabled()
     fireEvent.change(screen.getByLabelText('Expense description'), { target: { value: 'x'.repeat(1_100) } })
     expect(screen.getByLabelText('Expense description')).toHaveValue('x'.repeat(1_100))

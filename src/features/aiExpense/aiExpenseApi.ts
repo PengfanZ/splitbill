@@ -1,7 +1,9 @@
 import {
+  parseAiExpenseBatchResult,
   parseAiExpenseRequest,
   parseAiExpenseResult,
   type AiExpenseRequest,
+  type AiExpenseBatchResult,
   type AiExpenseResult,
 } from './aiExpenseContract'
 
@@ -66,54 +68,64 @@ export function createAiExpenseClient(
     throw new AiExpenseApiError('configuration', 'Supabase URL and publishable key are required.')
   }
 
+  const requestDraft = async <Result>(
+    request: AiExpenseRequest,
+    parseResult: (value: unknown) => Result,
+  ): Promise<Result> => {
+    let validRequest: AiExpenseRequest
+    try {
+      validRequest = parseAiExpenseRequest(request)
+    } catch (cause) {
+      throw new AiExpenseApiError('invalid-input', 'A valid expense description is required.', { cause })
+    }
+
+    let response: Response
+    try {
+      response = await fetcher(`${supabaseUrl}/functions/v1/parse-expense`, {
+        method: 'POST',
+        headers: {
+          apikey: publishableKey,
+          'content-type': 'application/json',
+          'x-tally-input-mode': validRequest.inputMode,
+        },
+        cache: 'no-store',
+        credentials: 'omit',
+        referrerPolicy: 'no-referrer',
+        signal: AbortSignal.timeout(requestTimeoutMs),
+        body: JSON.stringify(validRequest),
+      })
+    } catch (cause) {
+      throw new AiExpenseApiError('network', 'Could not reach the AI expense service.', { cause })
+    }
+
+    let payload: unknown
+    try {
+      payload = await response.json()
+    } catch (cause) {
+      throw new AiExpenseApiError('invalid-response', 'The AI expense service returned unreadable data.', { cause })
+    }
+    if (!response.ok) {
+      const message = isRecord(payload) && typeof payload.message === 'string'
+        ? payload.message
+        : 'AI expense entry is temporarily unavailable.'
+      throw new AiExpenseApiError(errorKind(response.status, payload), message)
+    }
+    if (!isRecord(payload) || !('result' in payload)) {
+      throw new AiExpenseApiError('invalid-response', 'The AI expense service returned an unexpected result.')
+    }
+    try {
+      return parseResult(payload.result)
+    } catch (cause) {
+      throw new AiExpenseApiError('invalid-response', 'The AI expense service returned an invalid draft.', { cause })
+    }
+  }
+
   return {
     async parse(request: AiExpenseRequest): Promise<AiExpenseResult> {
-      let validRequest: AiExpenseRequest
-      try {
-        validRequest = parseAiExpenseRequest(request)
-      } catch (cause) {
-        throw new AiExpenseApiError('invalid-input', 'A valid expense description is required.', { cause })
-      }
-
-      let response: Response
-      try {
-        response = await fetcher(`${supabaseUrl}/functions/v1/parse-expense`, {
-          method: 'POST',
-          headers: {
-            apikey: publishableKey,
-            'content-type': 'application/json',
-            'x-tally-input-mode': validRequest.inputMode,
-          },
-          cache: 'no-store',
-          credentials: 'omit',
-          referrerPolicy: 'no-referrer',
-          signal: AbortSignal.timeout(requestTimeoutMs),
-          body: JSON.stringify(validRequest),
-        })
-      } catch (cause) {
-        throw new AiExpenseApiError('network', 'Could not reach the AI expense service.', { cause })
-      }
-
-      let payload: unknown
-      try {
-        payload = await response.json()
-      } catch (cause) {
-        throw new AiExpenseApiError('invalid-response', 'The AI expense service returned unreadable data.', { cause })
-      }
-      if (!response.ok) {
-        const message = isRecord(payload) && typeof payload.message === 'string'
-          ? payload.message
-          : 'AI expense entry is temporarily unavailable.'
-        throw new AiExpenseApiError(errorKind(response.status, payload), message)
-      }
-      if (!isRecord(payload) || !('result' in payload)) {
-        throw new AiExpenseApiError('invalid-response', 'The AI expense service returned an unexpected result.')
-      }
-      try {
-        return parseAiExpenseResult(payload.result)
-      } catch (cause) {
-        throw new AiExpenseApiError('invalid-response', 'The AI expense service returned an invalid draft.', { cause })
-      }
+      return requestDraft({ ...request, responseMode: undefined }, parseAiExpenseResult)
+    },
+    async parseBatch(request: AiExpenseRequest): Promise<AiExpenseBatchResult> {
+      return requestDraft({ ...request, responseMode: 'batch' }, parseAiExpenseBatchResult)
     },
   }
 }

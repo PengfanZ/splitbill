@@ -19,6 +19,7 @@ import {
 } from './features/changelog/changelog'
 import {
   addLocalExpense,
+  addLocalExpenses,
   addLocalFriends,
   createActivityFriends,
   createLocalActivity,
@@ -49,7 +50,7 @@ import { createAppQueryClient } from './queryClient'
 
 type ModalType = 'group' | 'friend' | 'expense' | 'settlement' | 'identity' | 'join' | 'live-identity' | null
 type AppProps = {
-  aiExpenseClient?: AiExpenseClient | null
+  aiExpenseClient?: Pick<AiExpenseClient, 'parseBatch'> | null
   analyticsClient?: AnalyticsClient | null
   liveActivityClient?: LiveActivityClient | null
 }
@@ -277,6 +278,27 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, liveActi
     analyticsClient?.track('expense_added', 'local', locale)
     setEditingExpense(null)
     setModal(null)
+  }
+
+  const addExpenses = async (expenses: Expense[]) => {
+    /* v8 ignore next -- The validated batch result and disabled empty review action enforce this invariant. */
+    if (expenses.length === 0) return
+    if (liveActivity) {
+      const saved = await live.save(
+        { ...liveActivity, expenses: [...expenses, ...liveActivity.expenses] },
+        t('live.addedExpenses', { count: expenses.length }),
+        JSON.stringify(['add-expenses', expenses.map(item => [item.title, item.amount, item.payerId, item.splitMethod, item.shares])]),
+      )
+      if (saved) {
+        expenses.forEach(() => analyticsClient?.track('expense_added', 'live', locale))
+        closeExpenseModal()
+      }
+      return
+    }
+    setState(current => addLocalExpenses(current, expenses))
+    expenses.forEach(() => analyticsClient?.track('expense_added', 'local', locale))
+    setActivityFeedback({ groupId: expenses[0].groupId, message: t('feedback.addedExpenses', { count: expenses.length }) })
+    closeExpenseModal()
   }
 
   const updateExpense = async (expense: Expense) => {
@@ -519,6 +541,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, liveActi
           onCurrentMemberChange={changeActiveMember}
           onClose={closeExpenseModal}
           onSave={editingExpense ? updateExpense : addExpense}
+          onSaveMany={addExpenses}
           saving={live.saving || liveEditBlocked}
         />
       ) : null}

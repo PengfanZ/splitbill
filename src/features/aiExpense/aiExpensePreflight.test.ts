@@ -101,5 +101,19 @@ describe('AI expense preflight', () => {
       locale: 'zh-CN',
       clarifications: [{ question: '谁付款？', answer: '小明' }],
     })).toContain('用一句话重新说明')
+    expect(getAiExpenseRecoveryQuestion({ ...request, responseMode: 'batch' })).toContain('these expenses')
+    expect(getAiExpenseRecoveryQuestion({
+      ...request,
+      responseMode: 'batch',
+      clarifications: [{ question: 'Who paid?', answer: 'Maya' }],
+    })).toContain('restate each expense')
+    expect(getAiExpenseRecoveryQuestion({ ...request, locale: 'zh-CN', responseMode: 'batch' }))
+      .toContain('这些支出')
+    expect(getAiExpenseRecoveryQuestion({
+      ...request,
+      locale: 'zh-CN',
+      responseMode: 'batch',
+      clarifications: [{ question: '谁付款？', answer: '小明' }],
+    })).toContain('重新说明每笔支出')
   })
 })

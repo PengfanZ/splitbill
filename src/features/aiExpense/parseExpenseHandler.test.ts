@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { AiExpenseModelOutput } from './aiExpenseContract'
+import type { AiExpenseBatchModelOutput, AiExpenseModelOutput } from './aiExpenseContract'
 import {
   DEFAULT_OPENROUTER_FALLBACK_MODEL,
   DEFAULT_OPENROUTER_MODEL,
@@ -28,6 +28,32 @@ const output: AiExpenseModelOutput = {
   splitMethod: 'equal',
   participantIds: ['me', 'maya'],
   exactSharesCents: [],
+  clarificationQuestion: null,
+}
+
+const batchOutput: AiExpenseBatchModelOutput = {
+  status: 'ready',
+  expenses: [
+    {
+      title: 'Lunch',
+      amountCents: 2000,
+      payerId: 'me',
+      splitMethod: 'equal',
+      participantIds: ['me', 'maya'],
+      exactSharesCents: [],
+    },
+    {
+      title: 'Groceries',
+      amountCents: 4600,
+      payerId: 'maya',
+      splitMethod: 'exact',
+      participantIds: ['me', 'maya'],
+      exactSharesCents: [
+        { memberId: 'me', amountCents: 2300 },
+        { memberId: 'maya', amountCents: 2300 },
+      ],
+    },
+  ],
   clarificationQuestion: null,
 }
 
@@ -247,6 +273,52 @@ describe('parse expense Edge Function handler', () => {
     expect(body.provider).toMatchObject({ allow_fallbacks: true, data_collection: 'deny' })
     expect(init.headers).toMatchObject({ authorization: 'Bearer secret-key' })
     expect(init.signal).toBeInstanceOf(AbortSignal)
+  })
+
+  it('returns a complete ordered batch for new clients while preserving the legacy response path', async () => {
+    const fetcher = vi.fn().mockResolvedValue(providerResponse(batchOutput))
+    const response = await handleParseExpenseRequest(request({
+      ...requestBody,
+      text: 'I paid $20 for lunch and Maya paid $46 for groceries. Split both between us.',
+      responseMode: 'batch',
+    }), dependencies({ fetcher }))
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      result: {
+        status: 'ready_batch',
+        drafts: [
+          expect.objectContaining({ title: 'Lunch', amountCents: 2000 }),
+          expect.objectContaining({ title: 'Groceries', amountCents: 4600, splitMethod: 'exact' }),
+        ],
+      },
+      model: DEFAULT_OPENROUTER_MODEL,
+    })
+    const body = JSON.parse((fetcher.mock.calls[0][1] as RequestInit).body as string)
+    expect(body.max_tokens).toBe(2_400)
+    expect(body.response_format.json_schema.name).toBe('tally_expense_batch')
+    expect(JSON.parse(body.messages[1].content)).toMatchObject({ responseMode: 'batch' })
+  })
+
+  it('turns an unsafe partial batch into one clarification instead of saving partial drafts', async () => {
+    const partial = {
+      ...batchOutput,
+      status: 'needs_clarification',
+      clarificationQuestion: 'Who paid for groceries?',
+    }
+    const response = await handleParseExpenseRequest(request({
+      ...requestBody,
+      responseMode: 'batch',
+    }), dependencies({ fetcher: vi.fn().mockResolvedValue(providerResponse(partial)) }))
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      result: {
+        status: 'needs_clarification',
+        question: 'I could not determine these expenses safely. Please provide the missing amount, payer, or participants for each expense.',
+      },
+      model: DEFAULT_OPENROUTER_MODEL,
+    })
   })
 
   it('uses the runtime fetch implementation when no test fetcher is provided', async () => {

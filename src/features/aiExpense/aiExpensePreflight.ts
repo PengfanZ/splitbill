@@ -1,5 +1,6 @@
 import {
   getAiExpenseClarifications,
+  isBatchAiExpenseRequest,
   type AiExpenseRequest,
   type TextAiExpenseRequest,
 } from './aiExpenseContract.ts'
@@ -39,10 +40,21 @@ function chineseQuestion(missing: MissingDetail[]) {
 
 export function getAiExpenseRecoveryQuestion(request: AiExpenseRequest) {
   const hasClarifications = getAiExpenseClarifications(request).length > 0
+  const batch = isBatchAiExpenseRequest(request)
   if (request.locale === 'zh-CN') {
+    if (batch) {
+      return hasClarifications
+        ? '还是无法生成可靠的草稿。请重新说明每笔支出的金额、付款人和参与分摊的人。'
+        : '我还不能确定这些支出的细节。请补充每笔支出的金额、付款人和参与分摊的人。'
+    }
     return hasClarifications
       ? '还是无法生成可靠的草稿。请用一句话重新说明总金额、付款人，以及哪些人参与分摊。'
       : '我还不能确定这笔支出的细节。请补充总金额、付款人，以及哪些人参与分摊。'
+  }
+  if (batch) {
+    return hasClarifications
+      ? 'I still could not create reliable drafts. Please restate each expense with its amount, payer, and participants.'
+      : 'I could not determine these expenses safely. Please provide the missing amount, payer, or participants for each expense.'
   }
   return hasClarifications
     ? 'I still could not create a reliable draft. Please rewrite the complete expense in one sentence, including the total amount, who paid, and who should share it.'

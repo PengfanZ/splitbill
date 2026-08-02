@@ -8,6 +8,7 @@ export const AI_EXPENSE_TITLE_MAX_LENGTH = 200
 export const AI_EXPENSE_CLARIFICATION_MAX_LENGTH = 240
 export const AI_EXPENSE_ANSWER_MAX_LENGTH = 200
 export const AI_EXPENSE_MAX_CLARIFICATIONS = 4
+export const AI_EXPENSE_MAX_DRAFTS = 10
 export const AI_EXPENSE_MAX_MEMBERS = MAX_ACTIVITY_FRIENDS + 1
 export const AI_EXPENSE_MAX_AMOUNT_CENTS = MAX_ACTIVITY_AMOUNT * 100
 export const AI_EXPENSE_AUDIO_SAMPLE_RATE = 16_000
@@ -31,6 +32,7 @@ const requestContextSchema = z.object({
   currency: z.enum(SUPPORTED_CURRENCIES),
   members: z.array(memberSchema).min(1).max(AI_EXPENSE_MAX_MEMBERS),
   viewerMemberId: z.string().trim().min(1).max(100).optional(),
+  responseMode: z.literal('batch').optional(),
   clarification: clarificationContextSchema.optional(),
   clarifications: z.array(clarificationContextSchema).min(1).max(AI_EXPENSE_MAX_CLARIFICATIONS).optional(),
 })
@@ -100,6 +102,10 @@ export function isVoiceAiExpenseRequest(request: AiExpenseRequest): request is V
   return request.inputMode === 'voice'
 }
 
+export function isBatchAiExpenseRequest(request: AiExpenseRequest) {
+  return request.responseMode === 'batch'
+}
+
 export function getAiExpenseClarifications(request: AiExpenseRequest): AiExpenseClarification[] {
   if (request.clarifications) return request.clarifications
   return request.clarification ? [request.clarification] : []
@@ -108,6 +114,15 @@ export function getAiExpenseClarifications(request: AiExpenseRequest): AiExpense
 const exactShareSchema = z.object({
   memberId: z.string(),
   amountCents: z.number().int().min(1).max(AI_EXPENSE_MAX_AMOUNT_CENTS),
+}).strict()
+
+export const aiExpenseModelDraftSchema = z.object({
+  title: z.string().nullable(),
+  amountCents: z.number().int().nullable(),
+  payerId: z.string().nullable(),
+  splitMethod: z.enum(['equal', 'exact']).nullable(),
+  participantIds: z.array(z.string()),
+  exactSharesCents: z.array(exactShareSchema),
 }).strict()
 
 export const aiExpenseModelOutputSchema = z.object({
@@ -122,6 +137,14 @@ export const aiExpenseModelOutputSchema = z.object({
 }).strict()
 
 export type AiExpenseModelOutput = z.infer<typeof aiExpenseModelOutputSchema>
+
+export const aiExpenseBatchModelOutputSchema = z.object({
+  status: z.enum(['ready', 'needs_clarification']),
+  expenses: z.array(aiExpenseModelDraftSchema).max(AI_EXPENSE_MAX_DRAFTS),
+  clarificationQuestion: z.string().nullable(),
+}).strict()
+
+export type AiExpenseBatchModelOutput = z.infer<typeof aiExpenseBatchModelOutputSchema>
 
 const readyDraftSchema = z.object({
   status: z.literal('ready'),
@@ -143,8 +166,19 @@ export const aiExpenseResultSchema = z.discriminatedUnion('status', [
   clarificationSchema,
 ])
 
+const readyBatchSchema = z.object({
+  status: z.literal('ready_batch'),
+  drafts: z.array(readyDraftSchema).min(1).max(AI_EXPENSE_MAX_DRAFTS),
+}).strict()
+
+export const aiExpenseBatchResultSchema = z.discriminatedUnion('status', [
+  readyBatchSchema,
+  clarificationSchema,
+])
+
 export type AiExpenseReadyDraft = z.infer<typeof readyDraftSchema>
 export type AiExpenseResult = z.infer<typeof aiExpenseResultSchema>
+export type AiExpenseBatchResult = z.infer<typeof aiExpenseBatchResultSchema>
 
 export class AiExpenseContractError extends Error {
   constructor(message: string) {
@@ -175,6 +209,68 @@ export function parseAiExpenseResult(value: unknown): AiExpenseResult {
   return parsed.data
 }
 
+export function parseAiExpenseBatchResult(value: unknown): AiExpenseBatchResult {
+  const parsed = aiExpenseBatchResultSchema.safeParse(value)
+  if (!parsed.success) throw new AiExpenseContractError('The AI expense service returned an invalid batch of drafts.')
+  return parsed.data
+}
+
+function clarificationResult(questionValue: string | null) {
+  const question = questionValue?.trim() ?? ''
+  if (!question || question.length > AI_EXPENSE_CLARIFICATION_MAX_LENGTH) {
+    throw new AiExpenseContractError('The model requested clarification without a usable question.')
+  }
+  return { status: 'needs_clarification' as const, question }
+}
+
+function normalizeModelDraft(
+  value: z.infer<typeof aiExpenseModelDraftSchema>,
+  request: AiExpenseRequest,
+): AiExpenseReadyDraft {
+  const title = value.title?.trim() ?? ''
+  const memberIds = new Set(request.members.map(member => member.id))
+  const participantIds = value.participantIds
+  if (!title
+    || title.length > AI_EXPENSE_TITLE_MAX_LENGTH
+    || value.amountCents === null
+    || value.amountCents < 1
+    || value.amountCents > AI_EXPENSE_MAX_AMOUNT_CENTS
+    || value.payerId === null
+    || !memberIds.has(value.payerId)
+    || value.splitMethod === null
+    || participantIds.length < 1
+    || participantIds.length > AI_EXPENSE_MAX_MEMBERS
+    || !unique(participantIds)
+    || participantIds.some(memberId => !memberIds.has(memberId))) {
+    throw new AiExpenseContractError('The model draft does not match the current activity.')
+  }
+
+  if (value.splitMethod === 'equal') {
+    if (value.exactSharesCents.length !== 0) {
+      throw new AiExpenseContractError('An equal split must not contain exact shares.')
+    }
+  } else {
+    const exactIds = value.exactSharesCents.map(share => share.memberId)
+    const exactTotal = value.exactSharesCents.reduce((total, share) => total + share.amountCents, 0)
+    if (!unique(exactIds)
+      || exactIds.some(memberId => !memberIds.has(memberId))
+      || !sameMembers(participantIds, exactIds)
+      || exactTotal !== value.amountCents) {
+      throw new AiExpenseContractError('The exact shares must match the expense total and activity members.')
+    }
+  }
+
+  return {
+    status: 'ready',
+    title,
+    amountCents: value.amountCents,
+    payerId: value.payerId,
+    splitMethod: value.splitMethod,
+    participantIds,
+    exactSharesCents: value.exactSharesCents,
+  }
+}
+
 export function normalizeAiExpenseModelOutput(
   value: unknown,
   request: AiExpenseRequest,
@@ -184,53 +280,29 @@ export function normalizeAiExpenseModelOutput(
   const output = parsed.data
 
   if (output.status === 'needs_clarification') {
-    const question = output.clarificationQuestion?.trim() ?? ''
-    if (!question || question.length > AI_EXPENSE_CLARIFICATION_MAX_LENGTH) {
-      throw new AiExpenseContractError('The model requested clarification without a usable question.')
-    }
-    return { status: 'needs_clarification', question }
+    return clarificationResult(output.clarificationQuestion)
   }
+  return normalizeModelDraft(output, request)
+}
 
-  const title = output.title?.trim() ?? ''
-  const memberIds = new Set(request.members.map(member => member.id))
-  const participantIds = output.participantIds
-  if (!title
-    || title.length > AI_EXPENSE_TITLE_MAX_LENGTH
-    || output.amountCents === null
-    || output.amountCents < 1
-    || output.amountCents > AI_EXPENSE_MAX_AMOUNT_CENTS
-    || output.payerId === null
-    || !memberIds.has(output.payerId)
-    || output.splitMethod === null
-    || participantIds.length < 1
-    || participantIds.length > AI_EXPENSE_MAX_MEMBERS
-    || !unique(participantIds)
-    || participantIds.some(memberId => !memberIds.has(memberId))) {
-    throw new AiExpenseContractError('The model draft does not match the current activity.')
-  }
-
-  if (output.splitMethod === 'equal') {
-    if (output.exactSharesCents.length !== 0) {
-      throw new AiExpenseContractError('An equal split must not contain exact shares.')
+export function normalizeAiExpenseBatchModelOutput(
+  value: unknown,
+  request: AiExpenseRequest,
+): AiExpenseBatchResult {
+  const parsed = aiExpenseBatchModelOutputSchema.safeParse(value)
+  if (!parsed.success) throw new AiExpenseContractError('The model returned an invalid batch response shape.')
+  const output = parsed.data
+  if (output.status === 'needs_clarification') {
+    if (output.expenses.length > 0) {
+      throw new AiExpenseContractError('A clarification response must not contain partial expense drafts.')
     }
-  } else {
-    const exactIds = output.exactSharesCents.map(share => share.memberId)
-    const exactTotal = output.exactSharesCents.reduce((total, share) => total + share.amountCents, 0)
-    if (!unique(exactIds)
-      || exactIds.some(memberId => !memberIds.has(memberId))
-      || !sameMembers(participantIds, exactIds)
-      || exactTotal !== output.amountCents) {
-      throw new AiExpenseContractError('The exact shares must match the expense total and activity members.')
-    }
+    return clarificationResult(output.clarificationQuestion)
   }
-
+  if (output.expenses.length < 1) {
+    throw new AiExpenseContractError('The model did not return any expense drafts.')
+  }
   return {
-    status: 'ready',
-    title,
-    amountCents: output.amountCents,
-    payerId: output.payerId,
-    splitMethod: output.splitMethod,
-    participantIds,
-    exactSharesCents: output.exactSharesCents,
+    status: 'ready_batch',
+    drafts: output.expenses.map(draft => normalizeModelDraft(draft, request)),
   }
 }

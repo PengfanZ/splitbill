@@ -1,4 +1,6 @@
 import {
+  isBatchAiExpenseRequest,
+  normalizeAiExpenseBatchModelOutput,
   normalizeAiExpenseModelOutput,
   parseAiExpenseRequest,
   isVoiceAiExpenseRequest,
@@ -9,6 +11,7 @@ import {
   DEFAULT_OPENROUTER_MODEL,
   DEFAULT_OPENROUTER_VOICE_MODEL,
   getOpenRouterFailure,
+  parseOpenRouterBatchModelOutput,
   parseOpenRouterModelOutput,
 } from './aiExpensePrompt.ts'
 import {
@@ -137,7 +140,7 @@ export async function handleParseExpenseRequest(
     if (error instanceof RangeError) {
       return jsonError(413, 'request_too_large', 'The expense description is too large.')
     }
-    return jsonError(400, 'invalid_request', 'Describe one expense using the current activity members.')
+    return jsonError(400, 'invalid_request', 'Describe one or more expenses using the current activity members.')
   }
 
   const preflightQuestion = isVoiceAiExpenseRequest(parsedRequest)
@@ -205,8 +208,9 @@ export async function handleParseExpenseRequest(
     : model
 
   try {
-    const modelOutput = parseOpenRouterModelOutput(providerPayload)
-    const result = normalizeAiExpenseModelOutput(modelOutput, parsedRequest)
+    const result = isBatchAiExpenseRequest(parsedRequest)
+      ? normalizeAiExpenseBatchModelOutput(parseOpenRouterBatchModelOutput(providerPayload), parsedRequest)
+      : normalizeAiExpenseModelOutput(parseOpenRouterModelOutput(providerPayload), parsedRequest)
     return Response.json({ result, model: actualModel }, {
       headers: { 'cache-control': 'no-store' },
     })

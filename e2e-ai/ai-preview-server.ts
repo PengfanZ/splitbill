@@ -69,6 +69,8 @@ const server = createServer((request, response) => {
     const body = JSON.parse(Buffer.concat(chunks).toString()) as {
       inputMode: 'text' | 'voice'
       members: Array<{ id: string }>
+      responseMode?: 'batch'
+      text?: string
     }
     const payerId = body.members[1]?.id ?? body.members[0].id
     const result = body.inputMode === 'voice'
@@ -95,7 +97,23 @@ const server = createServer((request, response) => {
       ...corsHeaders,
       'content-type': 'application/json',
     })
-    response.end(JSON.stringify({ result }))
+    const drafts = [result]
+    if (body.inputMode === 'text' && body.text?.toLowerCase().includes('groceries')) {
+      drafts.push({
+        status: 'ready',
+        title: 'Groceries',
+        amountCents: 4_600,
+        payerId,
+        splitMethod: 'equal',
+        participantIds: body.members.map(member => member.id),
+        exactSharesCents: [],
+      })
+    }
+    response.end(JSON.stringify({
+      result: body.responseMode === 'batch'
+        ? { status: 'ready_batch', drafts }
+        : result,
+    }))
   })
 })
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   AI_EXPENSE_MAX_AMOUNT_CENTS,
   AI_EXPENSE_MAX_CLARIFICATIONS,
+  AI_EXPENSE_MAX_DRAFTS,
   AI_EXPENSE_MAX_MEMBERS,
   AI_EXPENSE_ANSWER_MAX_LENGTH,
   AI_EXPENSE_CLARIFICATION_MAX_LENGTH,
@@ -9,11 +10,15 @@ import {
   AI_EXPENSE_TITLE_MAX_LENGTH,
   AiExpenseContractError,
   getAiExpenseClarifications,
+  isBatchAiExpenseRequest,
   isVoiceAiExpenseRequest,
+  normalizeAiExpenseBatchModelOutput,
   normalizeAiExpenseModelOutput,
+  parseAiExpenseBatchResult,
   parseAiExpenseRequest,
   parseAiExpenseResult,
   type AiExpenseModelOutput,
+  type AiExpenseBatchModelOutput,
   type AiExpenseRequest,
 } from './aiExpenseContract'
 
@@ -99,6 +104,18 @@ describe('AI expense contract', () => {
     })
     expect(isVoiceAiExpenseRequest(voice)).toBe(true)
     expect(isVoiceAiExpenseRequest(request)).toBe(false)
+    const batchRequest = parseAiExpenseRequest({ ...request, responseMode: 'batch' })
+    expect(isBatchAiExpenseRequest(batchRequest)).toBe(true)
+    expect(isBatchAiExpenseRequest(request)).toBe(false)
+    expect(parseAiExpenseBatchResult({ status: 'ready_batch', drafts: [{
+      status: 'ready',
+      title: 'Dinner',
+      amountCents: 3000,
+      payerId: 'maya',
+      splitMethod: 'equal',
+      participantIds: ['me', 'maya'],
+      exactSharesCents: [],
+    }] })).toMatchObject({ status: 'ready_batch', drafts: [{ title: 'Dinner' }] })
   })
 
   it.each([
@@ -127,6 +144,7 @@ describe('AI expense contract', () => {
     { ...request, inputMode: 'voice', text: undefined, audio: { data: 'A'.repeat(64), format: 'mp3', durationSeconds: 1 } },
     { ...request, inputMode: 'voice', text: undefined, audio: { data: 'A'.repeat(64), format: 'wav', durationSeconds: 61 } },
     { ...request, inputMode: 'unknown' },
+    { ...request, responseMode: 'single' },
   ])('rejects an invalid request: %j', invalidRequest => {
     expectContractError(() => parseAiExpenseRequest(invalidRequest))
   })
@@ -159,6 +177,84 @@ describe('AI expense contract', () => {
         { memberId: 'maya', amountCents: 2000 },
       ],
     }, request)).toMatchObject({ status: 'ready', splitMethod: 'exact' })
+  })
+
+  it('normalizes a bounded batch without merging or reordering its expenses', () => {
+    const batchOutput: AiExpenseBatchModelOutput = {
+      status: 'ready',
+      expenses: [
+        {
+          title: 'Lunch',
+          amountCents: 2000,
+          payerId: 'me',
+          splitMethod: 'equal',
+          participantIds: ['me', 'maya'],
+          exactSharesCents: [],
+        },
+        {
+          title: 'Tickets',
+          amountCents: 3000,
+          payerId: 'maya',
+          splitMethod: 'exact',
+          participantIds: ['me', 'maya'],
+          exactSharesCents: [
+            { memberId: 'me', amountCents: 1000 },
+            { memberId: 'maya', amountCents: 2000 },
+          ],
+        },
+      ],
+      clarificationQuestion: null,
+    }
+    expect(normalizeAiExpenseBatchModelOutput(batchOutput, { ...request, responseMode: 'batch' }))
+      .toEqual({
+        status: 'ready_batch',
+        drafts: [
+          expect.objectContaining({ title: 'Lunch', amountCents: 2000 }),
+          expect.objectContaining({ title: 'Tickets', amountCents: 3000, splitMethod: 'exact' }),
+        ],
+      })
+  })
+
+  it('requires a complete safe batch or one clarification, never partial drafts', () => {
+    const batchRequest = { ...request, responseMode: 'batch' as const }
+    expect(normalizeAiExpenseBatchModelOutput({
+      status: 'needs_clarification',
+      expenses: [],
+      clarificationQuestion: 'Which expense did Maya pay?',
+    }, batchRequest)).toEqual({
+      status: 'needs_clarification',
+      question: 'Which expense did Maya pay?',
+    })
+
+    expectContractError(() => normalizeAiExpenseBatchModelOutput({
+      status: 'ready', expenses: [], clarificationQuestion: null,
+    }, batchRequest))
+    expectContractError(() => normalizeAiExpenseBatchModelOutput({
+      status: 'needs_clarification',
+      expenses: [{
+        title: 'Dinner', amountCents: 3000, payerId: 'maya', splitMethod: 'equal',
+        participantIds: ['me', 'maya'], exactSharesCents: [],
+      }],
+      clarificationQuestion: 'Who paid lunch?',
+    }, batchRequest))
+    expectContractError(() => normalizeAiExpenseBatchModelOutput({
+      status: 'ready',
+      expenses: [{
+        title: 'Dinner', amountCents: 3000, payerId: 'invented', splitMethod: 'equal',
+        participantIds: ['me', 'maya'], exactSharesCents: [],
+      }],
+      clarificationQuestion: null,
+    }, batchRequest))
+    expectContractError(() => normalizeAiExpenseBatchModelOutput({
+      status: 'ready',
+      expenses: Array.from({ length: AI_EXPENSE_MAX_DRAFTS + 1 }, () => ({
+        title: 'Dinner', amountCents: 3000, payerId: 'maya', splitMethod: 'equal',
+        participantIds: ['me', 'maya'], exactSharesCents: [],
+      })),
+      clarificationQuestion: null,
+    }, batchRequest))
+    expectContractError(() => parseAiExpenseBatchResult({ status: 'ready_batch', drafts: [] }))
+    expectContractError(() => parseAiExpenseBatchResult({ status: 'ready', drafts: [] }))
   })
 
   it('normalizes a useful clarification and rejects an unusable one', () => {

@@ -3,6 +3,10 @@ import { expect, test, type Page } from '@playwright/test'
 const aiPreviewURL = 'http://127.0.0.1:4184'
 const aiExpenseEndpoint = `${aiPreviewURL}/functions/v1/parse-expense`
 
+function batchResult(...drafts: Array<Record<string, unknown>>) {
+  return { status: 'ready_batch', drafts }
+}
+
 test.beforeEach(async ({ context }, testInfo) => {
   if (testInfo.title === 'completes a real browser CORS preflight for voice entry') return
   await context.route(`${aiPreviewURL}/rest/v1/rpc/record_analytics_event`, route => route.fulfill({
@@ -96,7 +100,7 @@ test('clarifies an incomplete description locally, then sends structured follow-
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        result: {
+        result: batchResult({
           status: 'ready',
           title: 'Dinner',
           amountCents: 3_000,
@@ -104,7 +108,7 @@ test('clarifies an incomplete description locally, then sends structured follow-
           splitMethod: 'equal',
           participantIds: body.members.map((member: { id: string }) => member.id),
           exactSharesCents: [],
-        },
+        }),
       }),
     })
   })
@@ -135,7 +139,7 @@ test('retains earlier answers across multiple model follow-up questions', async 
       ? { status: 'needs_clarification', question: 'Who paid?' }
       : requests.length === 2
         ? { status: 'needs_clarification', question: 'Who should share it?' }
-        : {
+        : batchResult({
             status: 'ready',
             title: 'Dinner',
             amountCents: 3_000,
@@ -143,7 +147,7 @@ test('retains earlier answers across multiple model follow-up questions', async 
             splitMethod: 'equal',
             participantIds: members.map(member => member.id),
             exactSharesCents: [],
-          }
+          })
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -189,6 +193,7 @@ test('turns a description into a reviewable draft before the user saves it', asy
       text: 'Maya paid $36 for dinner, split between Maya and me',
       currency: 'USD',
       viewerMemberId: 'me',
+      responseMode: 'batch',
       members: [
         { id: 'me', name: 'Preview Tester' },
         { name: 'Maya' },
@@ -198,7 +203,7 @@ test('turns a description into a reviewable draft before the user saves it', asy
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        result: {
+        result: batchResult({
           status: 'ready',
           title: 'Dinner',
           amountCents: 3_600,
@@ -206,7 +211,7 @@ test('turns a description into a reviewable draft before the user saves it', asy
           splitMethod: 'equal',
           participantIds: request.postDataJSON().members.map((member: { id: string }) => member.id),
           exactSharesCents: [],
-        },
+        }),
         model: 'google/gemma-4-26b-a4b-it:free',
       }),
     })
@@ -230,6 +235,47 @@ test('turns a description into a reviewable draft before the user saves it', asy
   expect(aiRequests).toBe(1)
 })
 
+test('reviews and saves several text expenses together without partial persistence', async ({ page }) => {
+  await page.route(aiExpenseEndpoint, async route => {
+    const body = route.request().postDataJSON()
+    expect(body).toMatchObject({
+      responseMode: 'batch',
+      text: 'I paid $24 for lunch and Maya paid $46 for groceries. Split both between everyone.',
+    })
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        result: batchResult(
+          {
+            status: 'ready', title: 'Lunch', amountCents: 2_400, payerId: body.members[0].id,
+            splitMethod: 'equal', participantIds: body.members.map((member: { id: string }) => member.id),
+            exactSharesCents: [],
+          },
+          {
+            status: 'ready', title: 'Groceries', amountCents: 4_600, payerId: body.members[1].id,
+            splitMethod: 'equal', participantIds: body.members.map((member: { id: string }) => member.id),
+            exactSharesCents: [],
+          },
+        ),
+      }),
+    })
+  })
+
+  await createPreviewActivity(page)
+  await page.getByLabel('Expense description').fill(
+    'I paid $24 for lunch and Maya paid $46 for groceries. Split both between everyone.',
+  )
+  await page.getByRole('button', { name: 'Create draft' }).click()
+
+  await expect(page.getByText('2 expense drafts ready')).toBeVisible()
+  await expect(page.getByText('Nothing is saved until you confirm the whole batch.')).toBeVisible()
+  await page.getByRole('button', { name: 'Save 2 expenses' }).click()
+  await expect(page.getByText('Lunch', { exact: true })).toBeVisible()
+  await expect(page.getByText('Groceries', { exact: true })).toBeVisible()
+  await expect(page.locator('.activity-row')).toHaveCount(2)
+})
+
 test('sends a substantive non-English description to the model without an English-only gate', async ({ page }) => {
   let aiRequests = 0
   await page.route(aiExpenseEndpoint, async route => {
@@ -242,7 +288,7 @@ test('sends a substantive non-English description to the model without an Englis
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        result: {
+        result: batchResult({
           status: 'ready',
           title: 'Cena',
           amountCents: 3_600,
@@ -250,7 +296,7 @@ test('sends a substantive non-English description to the model without an Englis
           splitMethod: 'equal',
           participantIds: body.members.map((member: { id: string }) => member.id),
           exactSharesCents: [],
-        },
+        }),
       }),
     })
   })
@@ -302,7 +348,7 @@ test('identifies an upstream model failure instead of blaming the expense descri
   await expect(error).not.toContainText('Restate the total amount')
 })
 
-test('turns a short voice recording into the same reviewable expense draft', async ({ page }) => {
+test('turns a short voice recording into a reviewable expense batch', async ({ page }) => {
   await enableFakeVoiceRecording(page)
   let aiRequests = 0
   await page.route(aiExpenseEndpoint, async route => {
@@ -315,6 +361,7 @@ test('turns a short voice recording into the same reviewable expense draft', asy
       audio: { format: 'wav', durationSeconds: 1 },
       currency: 'USD',
       viewerMemberId: 'me',
+      responseMode: 'batch',
     })
     expect(body).not.toHaveProperty('text')
     expect(body.audio.data).toMatch(/^UklGR/)
@@ -322,15 +369,18 @@ test('turns a short voice recording into the same reviewable expense draft', asy
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        result: {
-          status: 'ready',
-          title: 'Voice dinner',
-          amountCents: 4_200,
-          payerId: body.members[1].id,
-          splitMethod: 'equal',
-          participantIds: body.members.map((member: { id: string }) => member.id),
-          exactSharesCents: [],
-        },
+        result: batchResult(
+          {
+            status: 'ready', title: 'Voice dinner', amountCents: 4_200, payerId: body.members[1].id,
+            splitMethod: 'equal', participantIds: body.members.map((member: { id: string }) => member.id),
+            exactSharesCents: [],
+          },
+          {
+            status: 'ready', title: 'Voice taxi', amountCents: 1_800, payerId: body.members[0].id,
+            splitMethod: 'equal', participantIds: body.members.map((member: { id: string }) => member.id),
+            exactSharesCents: [],
+          },
+        ),
       }),
     })
   })
@@ -341,9 +391,10 @@ test('turns a short voice recording into the same reviewable expense draft', asy
   await expect(page.getByText('Listening… tap to stop')).toBeVisible()
   await page.getByRole('button', { name: 'Stop recording' }).click()
 
-  await expect(page.getByRole('status')).toContainText('AI draft ready')
-  await expect(page.getByLabel('Description')).toHaveValue('Voice dinner')
-  await expect(page.getByRole('spinbutton', { name: 'Amount' })).toHaveValue('42')
+  await expect(page.getByText('2 expense drafts ready')).toBeVisible()
+  await page.getByRole('button', { name: 'Save 2 expenses' }).click()
+  await expect(page.getByText('Voice dinner', { exact: true })).toBeVisible()
+  await expect(page.getByText('Voice taxi', { exact: true })).toBeVisible()
   expect(aiRequests).toBe(1)
 })
 
@@ -360,7 +411,7 @@ test('maps first-person AI entry to the participant selected on this browser', a
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        result: {
+        result: batchResult({
           status: 'ready',
           title: 'Coffee',
           amountCents: 1_800,
@@ -368,7 +419,7 @@ test('maps first-person AI entry to the participant selected on this browser', a
           splitMethod: 'equal',
           participantIds: body.members.map((member: { id: string }) => member.id),
           exactSharesCents: [],
-        },
+        }),
       }),
     })
   })

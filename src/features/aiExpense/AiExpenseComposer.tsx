@@ -28,14 +28,14 @@ export function AiExpenseComposer({
   members,
   viewerMemberId,
   onClose,
-  onDraft,
+  onDrafts,
 }: {
-  client: AiExpenseClient
+  client: Pick<AiExpenseClient, 'parseBatch'>
   currency: CurrencyCode
   members: Member[]
   viewerMemberId: string
   onClose: () => void
-  onDraft: (draft: AiExpenseReadyDraft) => void
+  onDrafts: (drafts: AiExpenseReadyDraft[]) => void
 }) {
   const { locale, t } = useLocalization()
   const [text, setText] = useState('')
@@ -66,14 +66,14 @@ export function AiExpenseComposer({
 
     setLoading(true)
     try {
-      const result = await client.parse(request)
+      const result = await client.parseBatch(request)
       if (result.status === 'needs_clarification') {
         setClarificationHistory(history)
         setClarification(result.question)
         setAnswer('')
         return
       }
-      onDraft(result)
+      onDrafts(result.drafts)
     } catch (error) {
       setErrorKey(errorTranslationKey(error))
     } finally {

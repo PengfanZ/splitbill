@@ -1,6 +1,6 @@
 # Conversational expense entry preview
 
-This experiment keeps manual expense entry as the default and adds two optional shortcuts: a typed description or a voice recording. Both produce a reviewable expense draft and save nothing until the user checks the normal expense form and chooses **Save expense**.
+This experiment keeps manual expense entry as the default and adds two optional shortcuts: a typed description or a voice recording. Either shortcut can describe one expense or a batch of up to 10 expenses. Tally preserves their order, presents every draft for review, and saves nothing until the user confirms.
 
 ## Release boundary
 
@@ -20,11 +20,12 @@ Do not add `VITE_AI_EXPENSE_ENABLED` to the GitHub Pages production environment.
 3. Tiny, clearly incomplete category-only descriptions receive a deterministic, localized clarification before any provider request or quota consumption.
 4. Substantive descriptions in any language, dialect, shorthand, or mixed language go to the model; language-specific regexes never block them.
 5. The Edge Function accepts a publishable client request, checks a server-only rate limit, prefers the cheapest model that meets a three-second p90 latency target, and requests no provider data collection.
-6. A strict JSON Schema constrains the model response.
+6. A strict JSON Schema constrains the model response and caps each batch at 10 expenses.
 7. Titles and clarification questions follow the description's language, with the interface locale used only as a fallback.
 8. Zod and deterministic business rules reject unknown members, invalid cents, duplicate participants, and exact splits that do not equal the total.
 9. Remaining ambiguity becomes a clarification question, and every answer is appended to a bounded structured history so later turns cannot forget earlier details.
-10. A valid result only pre-fills the existing expense form. The user remains the final validator and saver.
+10. One result still pre-fills the existing expense form. Multiple results open a batch review where every draft can be edited or removed.
+11. A batch is saved atomically: one local state update or one Live revision contains all confirmed expenses, so provider ambiguity and failed Live saves cannot leave a partial batch behind.
 
 This does not use RAG: there is no external knowledge to retrieve. Reliability comes from narrowly scoped context, structured output, deterministic validation, clarification, and explicit human review.
 
@@ -130,6 +131,9 @@ Resolve any conflict in favor of the current `main` behavior first, then reapply
 ## Trial checklist
 
 - Try English and Simplified Chinese descriptions.
+- Describe two or more expenses in one text request and one voice request; verify their titles, amounts, payers, order, and splits.
+- Edit one generated draft, remove another, and confirm nothing reaches the activity until **Save expenses** is selected.
+- Verify a Live batch creates exactly one new shared revision.
 - Cover equal splits, a subset of members, and exact amounts.
 - Verify ambiguous payer, amount, or participant wording asks for clarification.
 - Verify invented member names and malformed provider responses are rejected.

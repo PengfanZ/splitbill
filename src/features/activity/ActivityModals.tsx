@@ -9,9 +9,11 @@ import { makeId } from '../../domain/members'
 import type { ActivityGroup, Expense, Member, Settlement, SplitMethod } from '../../domain/models'
 import { useLocalization } from '../../i18n/LocalizationContext'
 import { AiExpenseComposer } from '../aiExpense/AiExpenseComposer'
+import { AiExpenseBatchReview } from '../aiExpense/AiExpenseBatchReview'
 import { VoiceExpenseComposer } from '../aiExpense/VoiceExpenseComposer'
 import type { AiExpenseClient } from '../aiExpense/aiExpenseApi'
 import type { AiExpenseReadyDraft } from '../aiExpense/aiExpenseContract'
+import { createAiDraftFromValues, createExpenseFromAiDraft } from '../aiExpense/aiExpenseDrafts'
 import { MAX_ACTIVITY_AMOUNT } from '../sharing/sharedActivity'
 import { ActivityIdentityControl } from './ActivityIdentityControl'
 
@@ -116,15 +118,16 @@ export function SettleUpModal({ group, settlement, onClose, onSave, saving = fal
   )
 }
 
-export function ExpenseModal({ group, members, expense, aiExpenseClient = null, currentMemberId = 'me', onCurrentMemberChange, onClose, onSave, saving = false }: {
+export function ExpenseModal({ group, members, expense, aiExpenseClient = null, currentMemberId = 'me', onCurrentMemberChange, onClose, onSave, onSaveMany, saving = false }: {
   group: ActivityGroup
   members: Member[]
   expense?: Expense
-  aiExpenseClient?: AiExpenseClient | null
+  aiExpenseClient?: Pick<AiExpenseClient, 'parseBatch'> | null
   currentMemberId?: string | null
   onCurrentMemberChange?: (memberId: string) => void
   onClose: () => void
   onSave: (expense: Expense) => void
+  onSaveMany?: (expenses: Expense[]) => void
   saving?: boolean
 }) {
   const { locale, t } = useLocalization()
@@ -135,8 +138,10 @@ export function ExpenseModal({ group, members, expense, aiExpenseClient = null, 
   const [method, setMethod] = useState<SplitMethod>(expense?.splitMethod ?? 'equal')
   const aiAvailable = Boolean(aiExpenseClient && !expense)
   const aiIdentityReady = Boolean(currentMemberId && members.some(member => member.id === currentMemberId))
-  const [entryMode, setEntryMode] = useState<'manual' | 'ai-text' | 'ai-voice'>('manual')
+  const [entryMode, setEntryMode] = useState<'manual' | 'ai-text' | 'ai-voice' | 'ai-batch'>('manual')
   const [aiDraftApplied, setAiDraftApplied] = useState(false)
+  const [aiBatchDrafts, setAiBatchDrafts] = useState<AiExpenseReadyDraft[]>([])
+  const [editingBatchIndex, setEditingBatchIndex] = useState<number | null>(null)
   const payerOptions: ReadonlyArray<SelectMenuOption<string>> = members.map(member => ({
     value: member.id,
     label: member.name,
@@ -167,7 +172,7 @@ export function ExpenseModal({ group, members, expense, aiExpenseClient = null, 
       : [...current, memberId])
   }
 
-  const applyAiDraft = (draft: AiExpenseReadyDraft) => {
+  const loadAiDraft = (draft: AiExpenseReadyDraft) => {
     const exactSharesById = new Map(draft.exactSharesCents.map(share => [share.memberId, share.amountCents]))
     setTitle(draft.title)
     setAmount(String(draft.amountCents / 100))
@@ -182,9 +187,53 @@ export function ExpenseModal({ group, members, expense, aiExpenseClient = null, 
     setEntryMode('manual')
   }
 
+  const applyAiDrafts = (drafts: AiExpenseReadyDraft[]) => {
+    if (drafts.length === 1) {
+      loadAiDraft(drafts[0])
+      return
+    }
+    setAiBatchDrafts(drafts)
+    setEditingBatchIndex(null)
+    setEntryMode('ai-batch')
+  }
+
+  const editBatchDraft = (index: number) => {
+    const draft = aiBatchDrafts[index]
+    setEditingBatchIndex(index)
+    loadAiDraft(draft)
+  }
+
+  const removeBatchDraft = (index: number) => {
+    const nextDrafts = aiBatchDrafts.filter((_, draftIndex) => draftIndex !== index)
+    setAiBatchDrafts(nextDrafts)
+    if (nextDrafts.length === 0) setEntryMode('ai-text')
+  }
+
+  const saveAiBatch = () => {
+    const savedAt = createExpenseTimestamp()
+    const expenses = aiBatchDrafts.map(draft => createExpenseFromAiDraft(group.id, draft, members, makeId('expense'), savedAt))
+    if (onSaveMany) onSaveMany(expenses)
+    else expenses.forEach(onSave)
+  }
+
   const submit = (event: FormEvent) => {
     event.preventDefault()
     if (!title.trim() || numericAmount <= 0 || !splitValid) return
+    if (editingBatchIndex !== null) {
+      const draft = createAiDraftFromValues({
+        amount: numericAmount,
+        equalParticipantIds,
+        exactShares,
+        members,
+        method,
+        payerId,
+        title,
+      })
+      setAiBatchDrafts(current => current.map((item, index) => index === editingBatchIndex ? draft : item))
+      setEditingBatchIndex(null)
+      setEntryMode('ai-batch')
+      return
+    }
     const shares = method === 'equal'
       ? createEqualShares(equalParticipants, numericAmount)
       : createExactShares(members, exactShares)
@@ -204,7 +253,7 @@ export function ExpenseModal({ group, members, expense, aiExpenseClient = null, 
 
   return (
     <ModalShell eyebrow={group.name} title={t(expense ? 'expense.editTitle' : 'expense.addTitle')} onClose={onClose}>
-      {aiAvailable ? (
+      {aiAvailable && aiBatchDrafts.length === 0 ? (
         <div className="expense-entry-tabs" role="tablist" aria-label={t('expense.entryMethod')}>
           <button type="button" role="tab" aria-selected={entryMode === 'manual'} className={entryMode === 'manual' ? 'active' : ''} onClick={() => setEntryMode('manual')}><Pencil size={15} />{t('expense.manualTab')}</button>
           <button type="button" role="tab" aria-selected={entryMode === 'ai-text'} className={entryMode === 'ai-text' ? 'active' : ''} onClick={() => setEntryMode('ai-text')}><Sparkles size={15} />{t('expense.aiTab')}</button>
@@ -225,7 +274,7 @@ export function ExpenseModal({ group, members, expense, aiExpenseClient = null, 
           members={members}
           viewerMemberId={currentMemberId}
           onClose={onClose}
-          onDraft={applyAiDraft}
+          onDrafts={applyAiDrafts}
         />
       ) : aiAvailable && entryMode === 'ai-voice' && aiExpenseClient && currentMemberId ? (
         <VoiceExpenseComposer
@@ -234,10 +283,21 @@ export function ExpenseModal({ group, members, expense, aiExpenseClient = null, 
           members={members}
           viewerMemberId={currentMemberId}
           onClose={onClose}
-          onDraft={applyAiDraft}
+          onDrafts={applyAiDrafts}
+        />
+      ) : entryMode === 'ai-batch' ? (
+        <AiExpenseBatchReview
+          currency={currency}
+          drafts={aiBatchDrafts}
+          members={members}
+          onCancel={onClose}
+          onEdit={editBatchDraft}
+          onRemove={removeBatchDraft}
+          onSave={saveAiBatch}
+          saving={saving}
         />
       ) : entryMode === 'manual' ? <form onSubmit={submit}>
-        {aiDraftApplied ? <div className="split-note ai-draft-note" role="status"><Sparkles size={18} /><span><b>{t('expense.aiDraftReady')}</b><small>{t('expense.aiDraftReview')}</small></span></div> : null}
+        {aiDraftApplied ? <div className="split-note ai-draft-note" role="status"><Sparkles size={18} /><span><b>{t(editingBatchIndex === null ? 'expense.aiDraftReady' : 'expense.batchEditing', editingBatchIndex === null ? undefined : { current: editingBatchIndex + 1, total: aiBatchDrafts.length })}</b><small>{t(editingBatchIndex === null ? 'expense.aiDraftReview' : 'expense.batchEditingHelp')}</small></span></div> : null}
         <label>{t('expense.description')}<input autoFocus value={title} onChange={event => setTitle(event.target.value)} placeholder={t('expense.descriptionPlaceholder')} maxLength={200} required /></label>
         <label>{t('expense.amount')}<span className="modal-amount"><i>{currencySymbol(currency, locale)}</i><input aria-label={t('expense.amount')} value={amount} onChange={event => setAmount(event.target.value)} type="number" min="0.01" max={MAX_ACTIVITY_AMOUNT} step="0.01" placeholder="0.00" required /></span></label>
         <div className="form-grid">
@@ -273,7 +333,7 @@ export function ExpenseModal({ group, members, expense, aiExpenseClient = null, 
           </div>
         )}
         {expense ? <div className="split-note edit-note"><Pencil size={17} /><span>{method === 'equal' ? t('expense.editEqualNote') : t('expense.editExactNote', { count: members.length })}</span></div> : null}
-        <div className="modal-actions"><Button onClick={onClose}>{t('common.cancel')}</Button><Button variant="primary" type="submit" disabled={!splitValid || saving}>{t(expense ? 'expense.saveChanges' : 'expense.save')}</Button></div>
+        <div className="modal-actions"><Button onClick={editingBatchIndex === null ? onClose : () => { setEditingBatchIndex(null); setEntryMode('ai-batch') }}>{t(editingBatchIndex === null ? 'common.cancel' : 'expense.batchBack')}</Button><Button variant="primary" type="submit" disabled={!splitValid || saving}>{t(editingBatchIndex === null ? (expense ? 'expense.saveChanges' : 'expense.save') : 'expense.batchUpdate')}</Button></div>
       </form> : null}
     </ModalShell>
   )

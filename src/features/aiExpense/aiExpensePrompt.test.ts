@@ -3,12 +3,14 @@ import type { AiExpenseRequest } from './aiExpenseContract'
 import { AiExpenseContractError } from './aiExpenseContract'
 import {
   AI_EXPENSE_JSON_SCHEMA,
+  AI_EXPENSE_BATCH_JSON_SCHEMA,
   buildOpenRouterRequest,
   DEFAULT_OPENROUTER_FALLBACK_MODEL,
   DEFAULT_OPENROUTER_MODEL,
   DEFAULT_OPENROUTER_VOICE_MODEL,
   getOpenRouterFailure,
   parseOpenRouterModelOutput,
+  parseOpenRouterBatchModelOutput,
 } from './aiExpensePrompt'
 
 const request: AiExpenseRequest = {
@@ -51,7 +53,7 @@ describe('OpenRouter expense prompt', () => {
     expect(built.messages[0].content).toContain("description's language")
     expect(built.messages[0].content).toContain('one continuous conversation')
     expect(built.messages[0].content).toContain('never ask again')
-    expect(built.messages[0].content).toContain('vague, unrelated to one expense')
+    expect(built.messages[0].content).toContain('vague, unrelated to an expense')
     expect(built.messages[0].content).toContain('Never use status "ready"')
     const initialContent = built.messages[1].content
     if (typeof initialContent !== 'string') throw new Error('Expected text content')
@@ -60,6 +62,7 @@ describe('OpenRouter expense prompt', () => {
       interfaceLocale: 'en',
       members: request.members,
       currentMemberId: 'maya',
+      responseMode: 'single',
       expenseDescription: request.text,
     })
     expect(built.messages).toHaveLength(2)
@@ -112,11 +115,51 @@ describe('OpenRouter expense prompt', () => {
           interfaceLocale: 'en',
           members: request.members,
           currentMemberId: 'maya',
+          responseMode: 'single',
           expenseDescription: 'The expense is described in the attached audio.',
         }),
       },
       { type: 'input_audio', input_audio: { data: 'A'.repeat(64), format: 'wav' } },
     ])
+  })
+
+  it('builds and parses a bounded batch response while retaining single-response compatibility', () => {
+    const batchRequest = { ...request, responseMode: 'batch' as const }
+    const built = buildOpenRouterRequest(batchRequest)
+    expect(built.response_format.json_schema).toMatchObject({
+      name: 'tally_expense_batch',
+      strict: true,
+      schema: AI_EXPENSE_BATCH_JSON_SCHEMA,
+    })
+    expect(built.max_tokens).toBe(2_400)
+    const content = built.messages[1].content
+    if (typeof content !== 'string') throw new Error('Expected text content')
+    expect(JSON.parse(content)).toMatchObject({ responseMode: 'batch' })
+    expect(built.messages[0].content).toContain('return at most 10 expenses')
+    expect(built.messages[0].content).toContain('Never return partial drafts')
+
+    const batchOutput = {
+      status: 'ready',
+      expenses: [{
+        title: 'Lunch',
+        amountCents: 2000,
+        payerId: 'maya',
+        splitMethod: 'equal',
+        participantIds: ['maya'],
+        exactSharesCents: [],
+      }],
+      clarificationQuestion: null,
+    }
+    expect(parseOpenRouterBatchModelOutput({
+      choices: [{ message: { content: JSON.stringify(batchOutput) } }],
+    })).toEqual(batchOutput)
+    expect(() => parseOpenRouterBatchModelOutput({ choices: [{ message: { content: '{}' } }] }))
+      .toThrow(AiExpenseContractError)
+    expect(() => parseOpenRouterBatchModelOutput({ choices: [] })).toThrow(AiExpenseContractError)
+    expect(() => parseOpenRouterBatchModelOutput({ choices: [{ message: { content: 42 } }] }))
+      .toThrow(AiExpenseContractError)
+    expect(() => parseOpenRouterBatchModelOutput({ choices: [{ message: { content: '{' } }] }))
+      .toThrow(AiExpenseContractError)
   })
 
   it('extracts typed provider failures from top-level and completed-response errors', () => {

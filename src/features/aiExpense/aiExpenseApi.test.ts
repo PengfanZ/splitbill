@@ -25,6 +25,7 @@ const readyResult = {
   participantIds: ['maya'],
   exactSharesCents: [],
 } as const
+const readyBatchResult = { status: 'ready_batch' as const, drafts: [readyResult] }
 
 function response(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), { status })
@@ -111,6 +112,25 @@ describe('AI expense API client', () => {
     )
   })
 
+  it('requests and validates batch drafts without changing the legacy single client', async () => {
+    fetcher
+      .mockResolvedValueOnce(response({ result: readyBatchResult }))
+      .mockResolvedValueOnce(response({ result: readyResult }))
+      .mockResolvedValueOnce(response({ result: { status: 'ready_batch', drafts: [] } }))
+    const client = createAiExpenseClient({
+      supabaseUrl: 'https://preview.supabase.co',
+      publishableKey: 'publishable-key',
+    }, fetcher)
+
+    await expect(client.parseBatch(request)).resolves.toEqual(readyBatchResult)
+    expect(JSON.parse(fetcher.mock.calls[0][1].body)).toMatchObject({ responseMode: 'batch' })
+
+    await expect(client.parse({ ...request, responseMode: 'batch' })).resolves.toEqual(readyResult)
+    expect(JSON.parse(fetcher.mock.calls[1][1].body)).not.toHaveProperty('responseMode')
+
+    await expectApiError(client.parseBatch(request), 'invalid-response')
+  })
+
   it.each([
     { supabaseUrl: '', publishableKey: 'key' },
     { supabaseUrl: 'not-a-url', publishableKey: 'key' },
@@ -123,7 +143,7 @@ describe('AI expense API client', () => {
   })
 
   it('allows local HTTP development URLs and a custom timeout', () => {
-    expect(createAiExpenseClient({ supabaseUrl: 'http://localhost:54321', publishableKey: 'key', requestTimeoutMs: 50 }, fetcher)).toMatchObject({ parse: expect.any(Function) })
+    expect(createAiExpenseClient({ supabaseUrl: 'http://localhost:54321', publishableKey: 'key', requestTimeoutMs: 50 }, fetcher)).toMatchObject({ parse: expect.any(Function), parseBatch: expect.any(Function) })
     expect(createAiExpenseClient({ supabaseUrl: 'http://127.0.0.1:54321', publishableKey: 'key' }, fetcher)).toMatchObject({ parse: expect.any(Function) })
     expect(createAiExpenseClient({ supabaseUrl: 'http://[::1]:54321', publishableKey: 'key' }, fetcher)).toMatchObject({ parse: expect.any(Function) })
   })
@@ -203,6 +223,6 @@ describe('AI expense API client', () => {
       VITE_AI_EXPENSE_ENABLED: 'true',
       VITE_SUPABASE_URL: 'https://preview.supabase.co',
       VITE_SUPABASE_PUBLISHABLE_KEY: 'key',
-    })).toMatchObject({ parse: expect.any(Function) })
+    })).toMatchObject({ parse: expect.any(Function), parseBatch: expect.any(Function) })
   })
 })

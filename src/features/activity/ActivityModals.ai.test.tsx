@@ -18,12 +18,18 @@ const group: ActivityGroup = {
   currency: 'USD',
 }
 
-function renderModal(client: AiExpenseClient, onSave = vi.fn(), expense?: Expense) {
+function renderModal(
+  client: Pick<AiExpenseClient, 'parseBatch'>,
+  onSave = vi.fn(),
+  expense?: Expense,
+  onSaveMany = vi.fn(),
+) {
   return {
     onSave,
+    onSaveMany,
     ...render(
       <LocalizationProvider>
-        <ExpenseModal group={group} members={members} expense={expense} aiExpenseClient={client} onClose={vi.fn()} onSave={onSave} />
+        <ExpenseModal group={group} members={members} expense={expense} aiExpenseClient={client} onClose={vi.fn()} onSave={onSave} onSaveMany={onSaveMany} />
       </LocalizationProvider>,
     ),
   }
@@ -32,16 +38,19 @@ function renderModal(client: AiExpenseClient, onSave = vi.fn(), expense?: Expens
 describe('AI-assisted expense modal', () => {
   it('prefills an equal draft and still requires the normal save action', async () => {
     const user = userEvent.setup()
-    const parse = vi.fn().mockResolvedValue({
-      status: 'ready',
-      title: 'Dinner',
-      amountCents: 3001,
-      payerId: 'maya',
-      splitMethod: 'equal',
-      participantIds: ['me', 'maya'],
-      exactSharesCents: [],
+    const parseBatch = vi.fn().mockResolvedValue({
+      status: 'ready_batch',
+      drafts: [{
+        status: 'ready',
+        title: 'Dinner',
+        amountCents: 3001,
+        payerId: 'maya',
+        splitMethod: 'equal',
+        participantIds: ['me', 'maya'],
+        exactSharesCents: [],
+      }],
     })
-    const { onSave } = renderModal({ parse })
+    const { onSave } = renderModal({ parseBatch })
 
     expect(screen.getByRole('tab', { name: 'Enter manually' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByLabelText('Description')).toBeVisible()
@@ -50,7 +59,7 @@ describe('AI-assisted expense modal', () => {
     await user.click(screen.getByRole('button', { name: /Create draft/ }))
 
     expect(await screen.findByText('AI draft ready')).toBeVisible()
-    expect(parse).toHaveBeenCalledWith(expect.objectContaining({ viewerMemberId: 'me' }))
+    expect(parseBatch).toHaveBeenCalledWith(expect.objectContaining({ viewerMemberId: 'me' }))
     expect(screen.getByRole('tab', { name: 'Enter manually' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByLabelText('Description')).toHaveValue('Dinner')
     expect(screen.getByLabelText('Amount')).toHaveValue(30.01)
@@ -71,17 +80,20 @@ describe('AI-assisted expense modal', () => {
   it('prefills exact shares and leaves uninvolved members at zero', async () => {
     const user = userEvent.setup()
     const { onSave } = renderModal({
-      parse: vi.fn().mockResolvedValue({
-        status: 'ready',
-        title: 'Tickets',
-        amountCents: 3000,
-        payerId: 'me',
-        splitMethod: 'exact',
-        participantIds: ['me', 'maya'],
-        exactSharesCents: [
-          { memberId: 'me', amountCents: 1000 },
-          { memberId: 'maya', amountCents: 2000 },
-        ],
+      parseBatch: vi.fn().mockResolvedValue({
+        status: 'ready_batch',
+        drafts: [{
+          status: 'ready',
+          title: 'Tickets',
+          amountCents: 3000,
+          payerId: 'me',
+          splitMethod: 'exact',
+          participantIds: ['me', 'maya'],
+          exactSharesCents: [
+            { memberId: 'me', amountCents: 1000 },
+            { memberId: 'maya', amountCents: 2000 },
+          ],
+        }],
       }),
     })
     await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))
@@ -98,14 +110,139 @@ describe('AI-assisted expense modal', () => {
     }))
   })
 
+  it('reviews, edits, removes, and saves a multi-expense batch in one callback', async () => {
+    const user = userEvent.setup()
+    const parseBatch = vi.fn().mockResolvedValue({
+      status: 'ready_batch',
+      drafts: [
+        {
+          status: 'ready',
+          title: 'Lunch',
+          amountCents: 2400,
+          payerId: 'me',
+          splitMethod: 'equal',
+          participantIds: ['me', 'maya'],
+          exactSharesCents: [],
+        },
+        {
+          status: 'ready',
+          title: 'Groceries',
+          amountCents: 4600,
+          payerId: 'maya',
+          splitMethod: 'equal',
+          participantIds: ['me', 'maya', 'jordan'],
+          exactSharesCents: [],
+        },
+      ],
+    })
+    const { onSave, onSaveMany } = renderModal({ parseBatch })
+
+    await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))
+    await user.type(
+      screen.getByLabelText('Expense description'),
+      'I paid $24 for lunch and Maya paid $46 for groceries. Split both between everyone.',
+    )
+    await user.click(screen.getByRole('button', { name: /Create draft/ }))
+
+    expect(await screen.findByText('2 expense drafts ready')).toBeVisible()
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument()
+    expect(onSave).not.toHaveBeenCalled()
+    expect(onSaveMany).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'Edit Lunch' }))
+    expect(screen.getByText('Editing draft 1 of 2')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Back to drafts' }))
+    expect(await screen.findByText('Lunch')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Edit Lunch' }))
+    await user.clear(screen.getByLabelText('Description'))
+    await user.type(screen.getByLabelText('Description'), 'Team lunch')
+    await user.click(screen.getByRole('button', { name: 'Update draft' }))
+    expect(await screen.findByText('Team lunch')).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Remove Groceries' }))
+    expect(screen.queryByText('Groceries')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Save expense' }))
+
+    expect(onSave).not.toHaveBeenCalled()
+    expect(onSaveMany).toHaveBeenCalledOnce()
+    expect(onSaveMany).toHaveBeenCalledWith([
+      expect.objectContaining({
+        groupId: 'trip',
+        title: 'Team lunch',
+        amount: 24,
+        payerId: 'me',
+        splitMethod: 'equal',
+        shares: { me: 12, maya: 12 },
+        createdAt: expect.any(String),
+      }),
+    ])
+  })
+
+  it('returns to AI text entry if every generated draft is removed', async () => {
+    const user = userEvent.setup()
+    const draft = {
+      status: 'ready' as const,
+      title: 'Lunch',
+      amountCents: 2400,
+      payerId: 'me',
+      splitMethod: 'equal' as const,
+      participantIds: ['me', 'maya'],
+      exactSharesCents: [],
+    }
+    renderModal({
+      parseBatch: vi.fn().mockResolvedValue({ status: 'ready_batch', drafts: [draft, { ...draft, title: 'Dinner' }] }),
+    })
+    await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))
+    await user.type(screen.getByLabelText('Expense description'), 'I paid $24 for lunch and $24 for dinner with Maya')
+    await user.click(screen.getByRole('button', { name: /Create draft/ }))
+    await user.click(await screen.findByRole('button', { name: 'Remove Lunch' }))
+    await user.click(screen.getByRole('button', { name: 'Remove Dinner' }))
+    expect(await screen.findByLabelText('Expense description')).toBeVisible()
+  })
+
+  it('keeps the batch callback optional for older ExpenseModal consumers', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn()
+    const draft = {
+      status: 'ready' as const,
+      title: 'Lunch',
+      amountCents: 2400,
+      payerId: 'me',
+      splitMethod: 'equal' as const,
+      participantIds: ['me', 'maya'],
+      exactSharesCents: [],
+    }
+    render(
+      <LocalizationProvider>
+        <ExpenseModal
+          group={group}
+          members={members}
+          aiExpenseClient={{
+            parseBatch: vi.fn().mockResolvedValue({
+              status: 'ready_batch',
+              drafts: [draft, { ...draft, title: 'Dinner' }],
+            }),
+          }}
+          onClose={vi.fn()}
+          onSave={onSave}
+        />
+      </LocalizationProvider>,
+    )
+    await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))
+    await user.type(screen.getByLabelText('Expense description'), 'I paid $24 for lunch and $24 for dinner with Maya')
+    await user.click(screen.getByRole('button', { name: 'Create draft' }))
+    await user.click(await screen.findByRole('button', { name: 'Save 2 expenses' }))
+    expect(onSave).toHaveBeenCalledTimes(2)
+  })
+
   it('lets users choose manual entry and keeps editing fully manual', async () => {
     const user = userEvent.setup()
-    const client: AiExpenseClient = { parse: vi.fn() }
+    const client = { parseBatch: vi.fn() }
     const { rerender } = renderModal(client)
     expect(screen.getByLabelText('Description')).toBeVisible()
     expect(screen.getByRole('tab', { name: 'Speak' })).toHaveAttribute('aria-selected', 'false')
     await user.click(screen.getByRole('tab', { name: 'Speak' }))
-    expect(screen.getByText('Describe the expense out loud')).toBeVisible()
+    expect(screen.getByText('Describe expenses out loud')).toBeVisible()
     await user.click(screen.getByRole('tab', { name: 'Enter manually' }))
     expect(screen.getByLabelText('Description')).toBeVisible()
     await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))
@@ -132,14 +269,17 @@ describe('AI-assisted expense modal', () => {
 
   it('requires and forwards the participant selected on this browser', async () => {
     const user = userEvent.setup()
-    const parse = vi.fn().mockResolvedValue({
-      status: 'ready',
-      title: 'Coffee',
-      amountCents: 1800,
-      payerId: 'maya',
-      splitMethod: 'equal',
-      participantIds: ['maya', 'jordan'],
-      exactSharesCents: [],
+    const parseBatch = vi.fn().mockResolvedValue({
+      status: 'ready_batch',
+      drafts: [{
+        status: 'ready',
+        title: 'Coffee',
+        amountCents: 1800,
+        payerId: 'maya',
+        splitMethod: 'equal',
+        participantIds: ['maya', 'jordan'],
+        exactSharesCents: [],
+      }],
     })
     const onCurrentMemberChange = vi.fn()
     const rendered = render(
@@ -147,7 +287,7 @@ describe('AI-assisted expense modal', () => {
         <ExpenseModal
           group={group}
           members={members}
-          aiExpenseClient={{ parse }}
+          aiExpenseClient={{ parseBatch }}
           currentMemberId={null}
           onCurrentMemberChange={onCurrentMemberChange}
           onClose={vi.fn()}
@@ -168,7 +308,7 @@ describe('AI-assisted expense modal', () => {
         <ExpenseModal
           group={group}
           members={members}
-          aiExpenseClient={{ parse }}
+          aiExpenseClient={{ parseBatch }}
           currentMemberId="maya"
           onCurrentMemberChange={onCurrentMemberChange}
           onClose={vi.fn()}
@@ -178,7 +318,7 @@ describe('AI-assisted expense modal', () => {
     )
     await user.type(screen.getByLabelText('Expense description'), 'I paid $18 for coffee with Jordan')
     await user.click(screen.getByRole('button', { name: /Create draft/ }))
-    expect(parse).toHaveBeenCalledWith(expect.objectContaining({
+    expect(parseBatch).toHaveBeenCalledWith(expect.objectContaining({
       text: 'I paid $18 for coffee with Jordan',
       viewerMemberId: 'maya',
     }))
@@ -190,7 +330,7 @@ describe('AI-assisted expense modal', () => {
         <ExpenseModal
           group={group}
           members={members}
-          aiExpenseClient={{ parse: vi.fn() }}
+          aiExpenseClient={{ parseBatch: vi.fn() }}
           currentMemberId="maya"
           onCurrentMemberChange={vi.fn()}
           onClose={vi.fn()}

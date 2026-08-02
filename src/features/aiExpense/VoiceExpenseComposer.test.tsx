@@ -34,6 +34,7 @@ const draft = {
   participantIds: ['me', 'maya'],
   exactSharesCents: [],
 }
+const batch = { status: 'ready_batch' as const, drafts: [draft] }
 
 class FakeMediaRecorder {
   static emitEmptyChunk = false
@@ -76,9 +77,9 @@ function createStream() {
   }
 }
 
-function renderComposer(client: AiExpenseClient, onDraft = vi.fn(), onClose = vi.fn()) {
+function renderComposer(client: Pick<AiExpenseClient, 'parseBatch'>, onDrafts = vi.fn(), onClose = vi.fn()) {
   return {
-    onDraft,
+    onDrafts,
     onClose,
     ...render(
       <LocalizationProvider>
@@ -88,7 +89,7 @@ function renderComposer(client: AiExpenseClient, onDraft = vi.fn(), onClose = vi
           members={members}
           viewerMemberId="me"
           onClose={onClose}
-          onDraft={onDraft}
+          onDrafts={onDrafts}
         />
       </LocalizationProvider>,
     ),
@@ -131,13 +132,13 @@ describe('voice expense composer', () => {
       language: 'en-US',
       mediaDevices: { getUserMedia: vi.fn().mockResolvedValue(stream) },
     })
-    const parse = vi.fn().mockResolvedValue(draft)
-    const { onDraft } = renderComposer({ parse })
+    const parseBatch = vi.fn().mockResolvedValue(batch)
+    const { onDrafts } = renderComposer({ parseBatch })
 
     await recordOnce(user)
-    await waitFor(() => expect(onDraft).toHaveBeenCalledWith(draft))
+    await waitFor(() => expect(onDrafts).toHaveBeenCalledWith([draft]))
     expect(stop).toHaveBeenCalledOnce()
-    expect(parse).toHaveBeenCalledWith({
+    expect(parseBatch).toHaveBeenCalledWith({
       inputMode: 'voice',
       audio,
       currency: 'USD',
@@ -160,12 +161,12 @@ describe('voice expense composer', () => {
       <StrictMode>
         <LocalizationProvider>
           <VoiceExpenseComposer
-            client={{ parse: vi.fn().mockResolvedValue(draft) }}
+            client={{ parseBatch: vi.fn().mockResolvedValue(batch) }}
             currency="USD"
             members={members}
             viewerMemberId="me"
             onClose={vi.fn()}
-            onDraft={vi.fn()}
+            onDrafts={vi.fn()}
           />
         </LocalizationProvider>
       </StrictMode>,
@@ -179,18 +180,18 @@ describe('voice expense composer', () => {
 
   it('keeps the recording context when a typed follow-up completes the draft', async () => {
     const user = userEvent.setup()
-    const parse = vi.fn()
+    const parseBatch = vi.fn()
       .mockResolvedValueOnce({ status: 'needs_clarification', question: 'Who paid?' })
-      .mockResolvedValueOnce(draft)
-    const { onDraft } = renderComposer({ parse })
+      .mockResolvedValueOnce(batch)
+    const { onDrafts } = renderComposer({ parseBatch })
 
     await recordOnce(user)
     expect(await screen.findByText('Who paid?')).toBeVisible()
     await user.type(screen.getByLabelText('Your answer'), 'Maya')
     await user.click(screen.getByRole('button', { name: /Update draft/ }))
 
-    await waitFor(() => expect(onDraft).toHaveBeenCalledWith(draft))
-    expect(parse).toHaveBeenLastCalledWith(expect.objectContaining({
+    await waitFor(() => expect(onDrafts).toHaveBeenCalledWith([draft]))
+    expect(parseBatch).toHaveBeenLastCalledWith(expect.objectContaining({
       inputMode: 'voice',
       audio,
       clarifications: [{ question: 'Who paid?', answer: 'Maya' }],
@@ -200,7 +201,7 @@ describe('voice expense composer', () => {
   it('handles unsupported browsers and denied microphone permission', async () => {
     const user = userEvent.setup()
     vi.stubGlobal('MediaRecorder', undefined)
-    renderComposer({ parse: vi.fn() })
+    renderComposer({ parseBatch: vi.fn() })
     await user.click(screen.getByRole('button', { name: 'Start recording' }))
     expect(await screen.findByText(/not supported in this browser/)).toBeVisible()
 
@@ -210,7 +211,7 @@ describe('voice expense composer', () => {
       language: 'en-US',
       mediaDevices: { getUserMedia: vi.fn().mockRejectedValue(new Error('denied')) },
     })
-    renderComposer({ parse: vi.fn() })
+    renderComposer({ parseBatch: vi.fn() })
     const buttons = screen.getAllByRole('button', { name: 'Start recording' })
     await user.click(buttons.at(-1)!)
     expect(await screen.findByText(/Microphone access was not granted/)).toBeVisible()
@@ -223,7 +224,7 @@ describe('voice expense composer', () => {
       language: 'en-US',
       mediaDevices: { getUserMedia: vi.fn(() => new Promise<MediaStream>(() => undefined)) },
     })
-    renderComposer({ parse: vi.fn() })
+    renderComposer({ parseBatch: vi.fn() })
     fireEvent.click(screen.getByRole('button', { name: 'Start recording' }))
     await act(async () => {
       await vi.advanceTimersByTimeAsync(VOICE_STREAM_START_TIMEOUT_MS)
@@ -240,7 +241,7 @@ describe('voice expense composer', () => {
       language: 'en-US',
       mediaDevices: { getUserMedia: vi.fn(() => new Promise<MediaStream>(resolve => { resolveStream = resolve })) },
     })
-    renderComposer({ parse: vi.fn() })
+    renderComposer({ parseBatch: vi.fn() })
 
     await user.click(screen.getByRole('button', { name: 'Start recording' }))
     expect(screen.getByText('Starting microphone…')).toBeVisible()
@@ -261,7 +262,7 @@ describe('voice expense composer', () => {
       language: 'en-US',
       mediaDevices: { getUserMedia: vi.fn(() => new Promise<MediaStream>((_resolve, reject) => { rejectStream = reject })) },
     })
-    renderComposer({ parse: vi.fn() })
+    renderComposer({ parseBatch: vi.fn() })
 
     await user.click(screen.getByRole('button', { name: 'Start recording' }))
     await user.click(screen.getByRole('button', { name: 'Cancel microphone request' }))
@@ -273,15 +274,15 @@ describe('voice expense composer', () => {
 
   it('reports unusable recordings and recorder failures without calling AI', async () => {
     const user = userEvent.setup()
-    const parse = vi.fn()
+    const parseBatch = vi.fn()
     recordingMocks.recordedBlobToVoiceAudio.mockRejectedValueOnce(new Error('empty'))
-    renderComposer({ parse })
+    renderComposer({ parseBatch })
     await recordOnce(user)
     expect(await screen.findByText(/could not hear enough/)).toBeVisible()
-    expect(parse).not.toHaveBeenCalled()
+    expect(parseBatch).not.toHaveBeenCalled()
 
     FakeMediaRecorder.failOnStop = true
-    renderComposer({ parse })
+    renderComposer({ parseBatch })
     const startButtons = screen.getAllByRole('button', { name: 'Start recording' })
     await user.click(startButtons.at(-1)!)
     const stopButtons = screen.getAllByRole('button', { name: 'Stop recording' })
@@ -293,7 +294,7 @@ describe('voice expense composer', () => {
     const user = userEvent.setup()
     FakeMediaRecorder.emitEmptyChunk = true
     recordingMocks.preferredRecorderMimeType.mockReturnValue(null)
-    renderComposer({ parse: vi.fn() })
+    renderComposer({ parseBatch: vi.fn() })
     await recordOnce(user)
     expect(recordingMocks.recordedBlobToVoiceAudio).toHaveBeenCalledWith(expect.objectContaining({
       type: 'audio/webm',
@@ -302,7 +303,7 @@ describe('voice expense composer', () => {
     FakeMediaRecorder.emitEmptyChunk = false
     FakeMediaRecorder.ignoreMimeType = true
     recordingMocks.preferredRecorderMimeType.mockReturnValue('audio/webm')
-    renderComposer({ parse: vi.fn().mockResolvedValue(draft) })
+    renderComposer({ parseBatch: vi.fn().mockResolvedValue(batch) })
     const startButtons = screen.getAllByRole('button', { name: 'Start recording' })
     await user.click(startButtons.at(-1)!)
     const stopButtons = screen.getAllByRole('button', { name: 'Stop recording' })
@@ -315,7 +316,7 @@ describe('voice expense composer', () => {
   it('does not stop an already-inactive recorder twice', async () => {
     const user = userEvent.setup()
     FakeMediaRecorder.suppressOnStop = true
-    renderComposer({ parse: vi.fn() })
+    renderComposer({ parseBatch: vi.fn() })
     await user.click(screen.getByRole('button', { name: 'Start recording' }))
     const stop = screen.getByRole('button', { name: 'Stop recording' })
     await user.click(stop)
@@ -331,13 +332,13 @@ describe('voice expense composer', () => {
       language: 'en-US',
       mediaDevices: { getUserMedia: vi.fn().mockResolvedValue(stream) },
     })
-    const rendered = renderComposer({ parse: vi.fn() })
+    const rendered = renderComposer({ parseBatch: vi.fn() })
     await user.click(screen.getByRole('button', { name: 'Start recording' }))
     rendered.unmount()
     expect(stop).toHaveBeenCalled()
 
     FakeMediaRecorder.failOnStop = true
-    const failing = renderComposer({ parse: vi.fn() })
+    const failing = renderComposer({ parseBatch: vi.fn() })
     await user.click(screen.getByRole('button', { name: 'Start recording' }))
     failing.unmount()
     FakeMediaRecorder.failOnStop = false
@@ -349,7 +350,7 @@ describe('voice expense composer', () => {
       language: 'en-US',
       mediaDevices: { getUserMedia: vi.fn(() => new Promise<MediaStream>(resolve => { resolveStream = resolve })) },
     })
-    const pending = renderComposer({ parse: vi.fn() })
+    const pending = renderComposer({ parseBatch: vi.fn() })
     await user.click(screen.getByRole('button', { name: 'Start recording' }))
     pending.unmount()
     await act(async () => resolveStream(lateStream.stream))
@@ -360,14 +361,14 @@ describe('voice expense composer', () => {
     const user = userEvent.setup()
     let resolveAudio!: (value: VoiceAiExpenseRequest['audio']) => void
     recordingMocks.recordedBlobToVoiceAudio.mockReturnValueOnce(new Promise(resolve => { resolveAudio = resolve }))
-    const completed = renderComposer({ parse: vi.fn() })
+    const completed = renderComposer({ parseBatch: vi.fn() })
     await recordOnce(user)
     completed.unmount()
     await act(async () => resolveAudio(audio))
 
     let rejectAudio!: (error: Error) => void
     recordingMocks.recordedBlobToVoiceAudio.mockReturnValueOnce(new Promise((_resolve, reject) => { rejectAudio = reject }))
-    const failed = renderComposer({ parse: vi.fn() })
+    const failed = renderComposer({ parseBatch: vi.fn() })
     await recordOnce(user)
     failed.unmount()
     await act(async () => rejectAudio(new Error('late failure')))
@@ -375,17 +376,17 @@ describe('voice expense composer', () => {
 
   it('does not update state when the AI request finishes after unmount', async () => {
     const user = userEvent.setup()
-    let resolveDraft!: (value: typeof draft) => void
-    const resolvedParse = vi.fn(() => new Promise<typeof draft>(resolve => { resolveDraft = resolve }))
-    const resolved = renderComposer({ parse: resolvedParse })
+    let resolveDraft!: (value: typeof batch) => void
+    const resolvedParse = vi.fn(() => new Promise<typeof batch>(resolve => { resolveDraft = resolve }))
+    const resolved = renderComposer({ parseBatch: resolvedParse })
     await recordOnce(user)
     await waitFor(() => expect(resolvedParse).toHaveBeenCalled())
     resolved.unmount()
-    await act(async () => resolveDraft(draft))
+    await act(async () => resolveDraft(batch))
 
     let rejectDraft!: (error: Error) => void
-    const rejectedParse = vi.fn(() => new Promise<typeof draft>((_resolve, reject) => { rejectDraft = reject }))
-    const rejected = renderComposer({ parse: rejectedParse })
+    const rejectedParse = vi.fn(() => new Promise<typeof batch>((_resolve, reject) => { rejectDraft = reject }))
+    const rejected = renderComposer({ parseBatch: rejectedParse })
     await recordOnce(user)
     await waitFor(() => expect(rejectedParse).toHaveBeenCalled())
     rejected.unmount()
@@ -395,8 +396,8 @@ describe('voice expense composer', () => {
   it('automatically stops a recording at sixty seconds', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-01T12:00:00Z'))
-    const parse = vi.fn().mockResolvedValue(draft)
-    renderComposer({ parse })
+    const parseBatch = vi.fn().mockResolvedValue(batch)
+    renderComposer({ parseBatch })
     fireEvent.click(screen.getByRole('button', { name: 'Start recording' }))
     await act(async () => { await Promise.resolve() })
     await act(async () => {
@@ -410,7 +411,7 @@ describe('voice expense composer', () => {
       await Promise.resolve()
       await Promise.resolve()
     })
-    expect(parse).toHaveBeenCalled()
+    expect(parseBatch).toHaveBeenCalled()
   })
 
   it('maps API failures to specific safe messages', () => {
@@ -427,7 +428,7 @@ describe('voice expense composer', () => {
   it('shows rate-limit errors and allows dismissing them or cancelling', async () => {
     const user = userEvent.setup()
     const { onClose } = renderComposer({
-      parse: vi.fn().mockRejectedValue(new AiExpenseApiError('rate-limit', 'limited')),
+      parseBatch: vi.fn().mockRejectedValue(new AiExpenseApiError('rate-limit', 'limited')),
     })
     await recordOnce(user)
     expect(await screen.findByText(/reached the voice-entry limit/)).toBeVisible()

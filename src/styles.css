@@ -207,6 +207,22 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .ai-draft-note span { display: grid; gap: 3px; }
 .ai-draft-note b { color: var(--green); font-size: 12px; }
 .ai-draft-note small { color: var(--muted); font-size: 10px; line-height: 1.4; }
+.ai-batch-review { display: grid; gap: 16px; }
+.ai-batch-intro { padding: 2px 1px; }
+.ai-batch-list { max-height: min(410px, 48dvh); margin: 0; padding: 1px; display: grid; gap: 9px; overflow-y: auto; list-style: none; overscroll-behavior: contain; }
+.ai-batch-card { min-width: 0; padding: 12px; border: 1px solid #ddd6cd; border-radius: 13px; display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 11px; background: #fbf8f4; }
+.ai-batch-index { width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center; background: #fce3df; color: var(--coral-dark); font-size: 11px; font-weight: 800; }
+.ai-batch-card-body { min-width: 0; display: grid; gap: 7px; }
+.ai-batch-card-heading { min-width: 0; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.ai-batch-card-heading b { overflow: hidden; color: var(--ink); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.ai-batch-card-heading strong { flex: 0 0 auto; color: var(--ink); font-family: var(--serif); font-size: 15px; }
+.ai-batch-card-body p { margin: 0; display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 10px; line-height: 1.35; }
+.ai-batch-card-body p > span { display: inline-flex; align-items: center; gap: 4px; }
+.ai-batch-card-actions { display: flex; gap: 4px; }
+.ai-batch-card-actions button { width: 34px; height: 34px; border: 0; border-radius: 9px; display: grid; place-items: center; background: transparent; color: var(--muted); }
+.ai-batch-card-actions button:hover { background: #eee9e2; color: var(--ink); }
+.ai-batch-card-actions button:focus-visible { outline: 2px solid rgba(243, 87, 75, .32); outline-offset: 1px; }
+.ai-batch-card-actions button:last-child:hover { background: #fff0ed; color: var(--coral-dark); }
 .voice-expense-composer { min-height: 340px; }
 .voice-recorder { min-height: 180px; display: grid; justify-items: center; align-content: center; gap: 9px; border: 1px solid #ddd6cd; border-radius: 16px; background: #f7f3ee; text-align: center; }
 .voice-recorder b { color: var(--ink); font-size: 12px; }
@@ -455,6 +471,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 @media (max-width: 520px) {
   .equal-member-list { grid-template-columns: 1fr; }
   .expense-entry-tabs button { gap: 5px; padding-inline: 5px; font-size: 10px; }
+  .ai-batch-list { max-height: none; overflow: visible; }
+  .ai-batch-card { grid-template-columns: 26px minmax(0, 1fr); align-items: start; gap: 9px; }
+  .ai-batch-card-heading { display: grid; gap: 3px; }
+  .ai-batch-card-heading strong { font-size: 14px; }
+  .ai-batch-card-body p { flex-wrap: wrap; }
+  .ai-batch-card-actions { grid-column: 2; justify-content: flex-end; margin-top: -3px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

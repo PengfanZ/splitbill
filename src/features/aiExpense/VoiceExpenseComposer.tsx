@@ -52,14 +52,14 @@ export function VoiceExpenseComposer({
   members,
   viewerMemberId,
   onClose,
-  onDraft,
+  onDrafts,
 }: {
-  client: AiExpenseClient
+  client: Pick<AiExpenseClient, 'parseBatch'>
   currency: CurrencyCode
   members: Member[]
   viewerMemberId: string
   onClose: () => void
-  onDraft: (draft: AiExpenseReadyDraft) => void
+  onDrafts: (drafts: AiExpenseReadyDraft[]) => void
 }) {
   const { locale, t } = useLocalization()
   const [state, setState] = useState<VoiceState>('idle')
@@ -99,7 +99,7 @@ export function VoiceExpenseComposer({
     setState('processing')
     setErrorKey(null)
     try {
-      const result = await client.parse({
+      const result = await client.parseBatch({
         inputMode: 'voice',
         audio,
         currency,
@@ -116,7 +116,7 @@ export function VoiceExpenseComposer({
         setState('clarification')
         return
       }
-      onDraft(result)
+      onDrafts(result.drafts)
     } catch (error) {
       if (!mountedRef.current) return
       setErrorKey(voiceExpenseErrorKey(error))
