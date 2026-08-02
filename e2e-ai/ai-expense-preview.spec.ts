@@ -276,6 +276,38 @@ test('reviews and saves several text expenses together without partial persisten
   await expect(page.locator('.activity-row')).toHaveCount(2)
 })
 
+test('reviews and saves more than ten text expenses without an app-level count limit', async ({ page }) => {
+  await page.route(aiExpenseEndpoint, async route => {
+    const body = route.request().postDataJSON()
+    const participantIds = body.members.map((member: { id: string }) => member.id)
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        result: batchResult(...Array.from({ length: 11 }, (_, index) => ({
+          status: 'ready',
+          title: `Expense ${index + 1}`,
+          amountCents: (index + 1) * 100,
+          payerId: body.members[0].id,
+          splitMethod: 'equal',
+          participantIds,
+          exactSharesCents: [],
+        }))),
+      }),
+    })
+  })
+
+  await createPreviewActivity(page)
+  await page.getByLabel('Expense description').fill('Add eleven numbered expenses, paid by me and split with everyone.')
+  await page.getByRole('button', { name: 'Create draft' }).click()
+
+  await expect(page.getByText('11 expense drafts ready')).toBeVisible()
+  await expect(page.getByText('Expense 11', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Save 11 expenses' }).click()
+  await expect(page.locator('.activity-row')).toHaveCount(11)
+  await expect(page.getByText('Expense 11', { exact: true })).toBeVisible()
+})
+
 test('sends a substantive non-English description to the model without an English-only gate', async ({ page }) => {
   let aiRequests = 0
   await page.route(aiExpenseEndpoint, async route => {

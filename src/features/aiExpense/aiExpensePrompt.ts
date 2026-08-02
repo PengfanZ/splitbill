@@ -1,7 +1,6 @@
 import {
   aiExpenseBatchModelOutputSchema,
   aiExpenseModelOutputSchema,
-  AI_EXPENSE_MAX_DRAFTS,
   getAiExpenseClarifications,
   isBatchAiExpenseRequest,
   isVoiceAiExpenseRequest,
@@ -81,7 +80,7 @@ export const AI_EXPENSE_BATCH_JSON_SCHEMA = {
   additionalProperties: false,
   properties: {
     status: { type: 'string', enum: ['ready', 'needs_clarification'] },
-    expenses: { type: 'array', maxItems: AI_EXPENSE_MAX_DRAFTS, items: AI_EXPENSE_DRAFT_JSON_SCHEMA },
+    expenses: { type: 'array', items: AI_EXPENSE_DRAFT_JSON_SCHEMA },
     clarificationQuestion: { type: ['string', 'null'] },
   },
   required: ['status', 'expenses', 'clarificationQuestion'],
@@ -98,7 +97,6 @@ Rules:
 - When the latest clarification completes the missing details, return status "ready" immediately.
 - responseMode is either "single" or "batch". For "single", return exactly one expense using the single-expense schema. For "batch", return every distinct expense in the expenses array, preserving the order described.
 - In batch mode, a description of one expense returns one item. Never merge separate expenses into one total, and never split one expense into invented sub-expenses.
-- In batch mode, return at most 10 expenses. If the user describes more than 10, ask them to submit a smaller group.
 - Statements such as "I paid for all of them" or "split all of them between everyone" apply to each expense unless the user gives an expense-specific override.
 - Use only the supplied member IDs. Never invent a member or currency.
 - currentMemberId identifies who is speaking. Resolve first-person references such as “I”, “me”, “my”, “我”, and their equivalents in any language to that exact member ID.
@@ -178,7 +176,7 @@ export function buildOpenRouterRequest(
       sort: { by: 'price', partition: 'none' },
     },
     temperature: 0,
-    max_tokens: batchMode ? 2_400 : 700,
+    max_tokens: batchMode ? 8_000 : 700,
   }
 }
 

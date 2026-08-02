@@ -295,8 +295,9 @@ describe('parse expense Edge Function handler', () => {
       model: DEFAULT_OPENROUTER_MODEL,
     })
     const body = JSON.parse((fetcher.mock.calls[0][1] as RequestInit).body as string)
-    expect(body.max_tokens).toBe(2_400)
+    expect(body.max_tokens).toBe(8_000)
     expect(body.response_format.json_schema.name).toBe('tally_expense_batch')
+    expect(body.response_format.json_schema.schema.properties.expenses).not.toHaveProperty('maxItems')
     expect(JSON.parse(body.messages[1].content)).toMatchObject({ responseMode: 'batch' })
   })
 

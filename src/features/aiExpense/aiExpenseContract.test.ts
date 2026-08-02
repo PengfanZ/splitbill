@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   AI_EXPENSE_MAX_AMOUNT_CENTS,
   AI_EXPENSE_MAX_CLARIFICATIONS,
-  AI_EXPENSE_MAX_DRAFTS,
   AI_EXPENSE_MAX_MEMBERS,
   AI_EXPENSE_ANSWER_MAX_LENGTH,
   AI_EXPENSE_CLARIFICATION_MAX_LENGTH,
@@ -179,7 +178,7 @@ describe('AI expense contract', () => {
     }, request)).toMatchObject({ status: 'ready', splitMethod: 'exact' })
   })
 
-  it('normalizes a bounded batch without merging or reordering its expenses', () => {
+  it('normalizes a batch without merging or reordering its expenses', () => {
     const batchOutput: AiExpenseBatchModelOutput = {
       status: 'ready',
       expenses: [
@@ -230,6 +229,9 @@ describe('AI expense contract', () => {
       status: 'ready', expenses: [], clarificationQuestion: null,
     }, batchRequest))
     expectContractError(() => normalizeAiExpenseBatchModelOutput({
+      status: 'ready', expenses: 'not-an-array', clarificationQuestion: null,
+    }, batchRequest))
+    expectContractError(() => normalizeAiExpenseBatchModelOutput({
       status: 'needs_clarification',
       expenses: [{
         title: 'Dinner', amountCents: 3000, payerId: 'maya', splitMethod: 'equal',
@@ -245,14 +247,16 @@ describe('AI expense contract', () => {
       }],
       clarificationQuestion: null,
     }, batchRequest))
-    expectContractError(() => normalizeAiExpenseBatchModelOutput({
+    const largeBatch = normalizeAiExpenseBatchModelOutput({
       status: 'ready',
-      expenses: Array.from({ length: AI_EXPENSE_MAX_DRAFTS + 1 }, () => ({
-        title: 'Dinner', amountCents: 3000, payerId: 'maya', splitMethod: 'equal',
+      expenses: Array.from({ length: 11 }, (_, index) => ({
+        title: `Expense ${index + 1}`, amountCents: 3000, payerId: 'maya', splitMethod: 'equal',
         participantIds: ['me', 'maya'], exactSharesCents: [],
       })),
       clarificationQuestion: null,
-    }, batchRequest))
+    }, batchRequest)
+    expect(largeBatch.status).toBe('ready_batch')
+    if (largeBatch.status === 'ready_batch') expect(largeBatch.drafts).toHaveLength(11)
     expectContractError(() => parseAiExpenseBatchResult({ status: 'ready_batch', drafts: [] }))
     expectContractError(() => parseAiExpenseBatchResult({ status: 'ready', drafts: [] }))
   })

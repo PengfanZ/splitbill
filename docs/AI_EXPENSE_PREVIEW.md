@@ -1,6 +1,6 @@
 # Conversational expense entry preview
 
-This experiment keeps manual expense entry as the default and adds two optional shortcuts: a typed description or a voice recording. Either shortcut can describe one expense or a batch of up to 10 expenses. Tally preserves their order, presents every draft for review, and saves nothing until the user confirms.
+This experiment keeps manual expense entry as the default and adds two optional shortcuts: a typed description or a voice recording. Either shortcut can describe one expense or several expenses at once. Tally preserves their order, presents every draft for review, and saves nothing until the user confirms.
 
 ## Release boundary
 
@@ -20,7 +20,7 @@ Do not add `VITE_AI_EXPENSE_ENABLED` to the GitHub Pages production environment.
 3. Tiny, clearly incomplete category-only descriptions receive a deterministic, localized clarification before any provider request or quota consumption.
 4. Substantive descriptions in any language, dialect, shorthand, or mixed language go to the model; language-specific regexes never block them.
 5. The Edge Function accepts a publishable client request, checks a server-only rate limit, prefers the cheapest model that meets a three-second p90 latency target, and requests no provider data collection.
-6. A strict JSON Schema constrains the model response and caps each batch at 10 expenses.
+6. A strict JSON Schema constrains every model-generated expense without imposing a fixed expense-count limit.
 7. Titles and clarification questions follow the description's language, with the interface locale used only as a fallback.
 8. Zod and deterministic business rules reject unknown members, invalid cents, duplicate participants, and exact splits that do not equal the total.
 9. Remaining ambiguity becomes a clarification question, and every answer is appended to a bounded structured history so later turns cannot forget earlier details.

@@ -8,7 +8,6 @@ export const AI_EXPENSE_TITLE_MAX_LENGTH = 200
 export const AI_EXPENSE_CLARIFICATION_MAX_LENGTH = 240
 export const AI_EXPENSE_ANSWER_MAX_LENGTH = 200
 export const AI_EXPENSE_MAX_CLARIFICATIONS = 4
-export const AI_EXPENSE_MAX_DRAFTS = 10
 export const AI_EXPENSE_MAX_MEMBERS = MAX_ACTIVITY_FRIENDS + 1
 export const AI_EXPENSE_MAX_AMOUNT_CENTS = MAX_ACTIVITY_AMOUNT * 100
 export const AI_EXPENSE_AUDIO_SAMPLE_RATE = 16_000
@@ -140,7 +139,7 @@ export type AiExpenseModelOutput = z.infer<typeof aiExpenseModelOutputSchema>
 
 export const aiExpenseBatchModelOutputSchema = z.object({
   status: z.enum(['ready', 'needs_clarification']),
-  expenses: z.array(aiExpenseModelDraftSchema).max(AI_EXPENSE_MAX_DRAFTS),
+  expenses: z.array(aiExpenseModelDraftSchema),
   clarificationQuestion: z.string().nullable(),
 }).strict()
 
@@ -168,7 +167,7 @@ export const aiExpenseResultSchema = z.discriminatedUnion('status', [
 
 const readyBatchSchema = z.object({
   status: z.literal('ready_batch'),
-  drafts: z.array(readyDraftSchema).min(1).max(AI_EXPENSE_MAX_DRAFTS),
+  drafts: z.array(readyDraftSchema).min(1),
 }).strict()
 
 export const aiExpenseBatchResultSchema = z.discriminatedUnion('status', [

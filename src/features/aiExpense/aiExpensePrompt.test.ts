@@ -123,7 +123,7 @@ describe('OpenRouter expense prompt', () => {
     ])
   })
 
-  it('builds and parses a bounded batch response while retaining single-response compatibility', () => {
+  it('builds and parses a batch response without an expense-count cap while retaining single-response compatibility', () => {
     const batchRequest = { ...request, responseMode: 'batch' as const }
     const built = buildOpenRouterRequest(batchRequest)
     expect(built.response_format.json_schema).toMatchObject({
@@ -131,11 +131,12 @@ describe('OpenRouter expense prompt', () => {
       strict: true,
       schema: AI_EXPENSE_BATCH_JSON_SCHEMA,
     })
-    expect(built.max_tokens).toBe(2_400)
+    expect(built.max_tokens).toBe(8_000)
     const content = built.messages[1].content
     if (typeof content !== 'string') throw new Error('Expected text content')
     expect(JSON.parse(content)).toMatchObject({ responseMode: 'batch' })
-    expect(built.messages[0].content).toContain('return at most 10 expenses')
+    expect(AI_EXPENSE_BATCH_JSON_SCHEMA.properties.expenses).not.toHaveProperty('maxItems')
+    expect(built.messages[0].content).not.toContain('at most 10 expenses')
     expect(built.messages[0].content).toContain('Never return partial drafts')
 
     const batchOutput = {
