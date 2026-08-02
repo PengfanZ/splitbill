@@ -277,6 +277,7 @@ test('reviews and saves several text expenses together without partial persisten
 })
 
 test('reviews and saves more than ten text expenses without an app-level count limit', async ({ page }) => {
+  await page.setViewportSize({ width: 1_280, height: 720 })
   await page.route(aiExpenseEndpoint, async route => {
     const body = route.request().postDataJSON()
     const participantIds = body.members.map((member: { id: string }) => member.id)
@@ -303,7 +304,12 @@ test('reviews and saves more than ten text expenses without an app-level count l
 
   await expect(page.getByText('11 expense drafts ready')).toBeVisible()
   await expect(page.getByText('Expense 11', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'Save 11 expenses' }).click()
+  const saveButton = page.getByRole('button', { name: 'Save 11 expenses' })
+  await expect(saveButton).toBeVisible()
+  const saveButtonBox = await saveButton.boundingBox()
+  expect(saveButtonBox).not.toBeNull()
+  expect((saveButtonBox?.y ?? 0) + (saveButtonBox?.height ?? 0)).toBeLessThanOrEqual(720)
+  await saveButton.click()
   await expect(page.locator('.activity-row')).toHaveCount(11)
   await expect(page.getByText('Expense 11', { exact: true })).toBeVisible()
 })
