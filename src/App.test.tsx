@@ -881,6 +881,11 @@ describe('complete app workflows', () => {
         ['expense_added', 'local', 'en'],
         ['expense_added', 'local', 'en'],
       ])
+    expect(analyticsClient.track.mock.calls.filter(([event]) => event.startsWith('ai_')))
+      .toEqual([
+        ['ai_text_requested', 'local', 'en'],
+        ['ai_text_ready', 'local', 'en'],
+      ])
   })
 
   it('shows the latest update once to returning users and keeps it available from the sidebar', async () => {
@@ -889,7 +894,7 @@ describe('complete app workflows', () => {
     render(<App />)
 
     const update = await screen.findByRole('dialog', { name: 'What’s new in Tally' })
-    expect(update).toHaveTextContent('Sharing, without the guesswork')
+    expect(update).toHaveTextContent('Add expenses by typing or talking')
     expect(screen.getByLabelText('New updates')).toBeVisible()
 
     await user.click(screen.getByRole('button', { name: 'Got it' }))
@@ -1181,6 +1186,10 @@ describe('complete app workflows', () => {
     expect(analyticsClient.track.mock.calls.filter(([event]) => event === 'expense_added')).toEqual([
       ['expense_added', 'live', 'en'],
       ['expense_added', 'live', 'en'],
+    ])
+    expect(analyticsClient.track.mock.calls.filter(([event]) => event.startsWith('ai_'))).toEqual([
+      ['ai_text_requested', 'live', 'en'],
+      ['ai_text_ready', 'live', 'en'],
     ])
 
     update.mockRejectedValueOnce(new LiveActivityApiError('network', 'offline'))

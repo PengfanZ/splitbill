@@ -2,16 +2,16 @@
 
 This experiment keeps manual expense entry as the default and adds two optional shortcuts: a typed description or a voice recording. Either shortcut can describe one expense or several expenses at once. Tally preserves their order, presents every draft for review, and saves nothing until the user confirms.
 
-## Release boundary
+## Deployment boundary
 
-The stable app stays on `main` at `https://pengfanz.github.io/splitbill/`. The experiment stays on `codex/ai-expense-entry` and must use:
+Before production release, the experiment on `codex/ai-expense-entry` uses:
 
 - a separate frontend URL and origin, so preview local storage and PWA caches cannot affect production;
 - a separate Supabase preview project, so migrations, rate limits, logs, and Edge Function secrets cannot affect production;
 - a preview-only OpenRouter API key with a low account limit;
 - both feature switches described below.
 
-Do not add `VITE_AI_EXPENSE_ENABLED` to the GitHub Pages production environment. Without that exact `true` value, the stable manual expense flow is the only flow bundled into the UI.
+Production enables the feature only after the preview gates pass, the production Edge Function secrets are configured, and `VITE_AI_EXPENSE_ENABLED=true` is added to the GitHub `production` environment. Without that exact client value—or with `AI_EXPENSE_ENABLED=false` on the server—the stable manual expense flow remains available while AI entry is disabled.
 
 ## Why this design is safe to trial
 
@@ -109,7 +109,7 @@ This yields a stable `*.pages.dev` preview origin while the existing GitHub Page
 
 - Fastest backend stop: set `AI_EXPENSE_ENABLED=false` in the preview Edge Function and redeploy it.
 - Frontend stop: set `VITE_AI_EXPENSE_ENABLED=false` and rebuild the preview.
-- Full rollback: redeploy the previous preview commit. Do not revert or redeploy `main` for a preview-only failure.
+- Full preview rollback: redeploy the previous preview commit. In production, use the independent server and client kill switches documented in [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ## Keeping the experiment current
 
@@ -126,7 +126,7 @@ npm run test:backend
 npm run test:e2e
 ```
 
-Resolve any conflict in favor of the current `main` behavior first, then reapply the smallest AI integration. Keep the preview as a draft pull request so GitHub continuously shows whether it is mergeable and whether CI remains green. The preview is not merged until model quality, cost, privacy copy, and user feedback are acceptable.
+Resolve any conflict in favor of the current `main` behavior first, then reapply the smallest AI integration. Keep the preview as a pull request so GitHub continuously shows whether it is mergeable and whether CI remains green. Merge only after model quality, cost, privacy copy, user feedback, production secrets, and every automated gate are acceptable.
 
 ## Trial checklist
 

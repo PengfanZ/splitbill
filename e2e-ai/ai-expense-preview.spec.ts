@@ -31,6 +31,15 @@ async function createPreviewActivity(page: Page, entryMode: 'text' | 'manual' = 
   if (entryMode === 'text') await page.getByRole('tab', { name: 'Describe with AI' }).click()
 }
 
+async function captureAnalytics(page: Page) {
+  const requests: Array<Record<string, unknown>> = []
+  await page.route(`${aiPreviewURL}/rest/v1/rpc/record_analytics_event`, route => {
+    requests.push(route.request().postDataJSON())
+    return route.fulfill({ status: 204, body: '' })
+  })
+  return requests
+}
+
 async function enableFakeVoiceRecording(page: Page, permissionGranted = true) {
   await page.addInitScript((granted: boolean) => {
     const track = { stop() {} }
@@ -184,6 +193,7 @@ test('retains earlier answers across multiple model follow-up questions', async 
 
 test('turns a description into a reviewable draft before the user saves it', async ({ page }) => {
   let aiRequests = 0
+  const analyticsRequests = await captureAnalytics(page)
   await page.route(aiExpenseEndpoint, async route => {
     aiRequests += 1
     const request = route.request()
@@ -233,6 +243,18 @@ test('turns a description into a reviewable draft before the user saves it', asy
   await expect(page.getByText('Dinner', { exact: true })).toBeVisible()
   await expect(page.locator('.expense-amount b')).toHaveText('$36.00')
   expect(aiRequests).toBe(1)
+  expect(analyticsRequests.map(request => request.p_event_name)).toEqual(expect.arrayContaining([
+    'ai_text_requested',
+    'ai_text_ready',
+  ]))
+  const aiAnalyticsRequests = analyticsRequests.filter(request => String(request.p_event_name).startsWith('ai_'))
+  expect(aiAnalyticsRequests).toEqual(aiAnalyticsRequests.map(request => ({
+    p_event_name: request.p_event_name,
+    p_surface: 'local',
+    p_session_token: request.p_session_token,
+    p_locale: 'en',
+    p_currency: null,
+  })))
 })
 
 test('reviews and saves several text expenses together without partial persistence', async ({ page }) => {
@@ -389,6 +411,7 @@ test('identifies an upstream model failure instead of blaming the expense descri
 test('turns a short voice recording into a reviewable expense batch', async ({ page }) => {
   await enableFakeVoiceRecording(page)
   let aiRequests = 0
+  const analyticsRequests = await captureAnalytics(page)
   await page.route(aiExpenseEndpoint, async route => {
     aiRequests += 1
     const request = route.request()
@@ -434,6 +457,10 @@ test('turns a short voice recording into a reviewable expense batch', async ({ p
   await expect(page.getByText('Voice dinner', { exact: true })).toBeVisible()
   await expect(page.getByText('Voice taxi', { exact: true })).toBeVisible()
   expect(aiRequests).toBe(1)
+  expect(analyticsRequests.map(request => request.p_event_name)).toEqual(expect.arrayContaining([
+    'ai_voice_requested',
+    'ai_voice_ready',
+  ]))
 })
 
 test('maps first-person AI entry to the participant selected on this browser', async ({ page }) => {

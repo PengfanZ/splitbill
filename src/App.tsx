@@ -11,6 +11,7 @@ import { isSettlementPayment, money, spendingExpenses } from './domain/expenses'
 import { CURRENT_USER } from './domain/members'
 import type { ActivityGroup, Expense, Settlement } from './domain/models'
 import type { AiExpenseClient } from './features/aiExpense/aiExpenseApi'
+import { withAiExpenseAnalytics } from './features/aiExpense/aiExpenseAnalytics'
 import { GroupDashboard } from './features/activity/ActivityDashboard'
 import { AddFriendModal, CreateGroupModal, ExpenseModal, SettleUpModal } from './features/activity/ActivityModals'
 import {
@@ -140,6 +141,10 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, liveActi
   const liveActivityCodes = live.activityCodes
   const bookmarkedLiveGroupId = live.bookmarkedGroupId
   const analyticsSurface: AnalyticsSurface = live.credentials ? 'live' : 'local'
+  const trackedAiExpenseClient = useMemo(
+    () => withAiExpenseAnalytics(aiExpenseClient, analyticsClient, analyticsSurface, locale),
+    [aiExpenseClient, analyticsClient, analyticsSurface, locale],
+  )
   const sharing = useActivitySharing({
     analyticsClient,
     createLiveActivity: live.create,
@@ -536,7 +541,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, liveActi
           group={activeGroup}
           members={activeMembers}
           expense={editingExpense ?? undefined}
-          aiExpenseClient={aiExpenseClient}
+          aiExpenseClient={trackedAiExpenseClient}
           currentMemberId={activeMemberId}
           onCurrentMemberChange={changeActiveMember}
           onClose={closeExpenseModal}

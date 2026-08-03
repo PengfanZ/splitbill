@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(63);
+select plan(66);
 
 select has_table('private', 'analytics_events', 'private analytics storage exists');
 select columns_are(
@@ -224,6 +224,42 @@ select is(
   ),
   1::bigint,
   'daily analytics reports include summary export clicks'
+);
+
+select lives_ok(
+  $$
+    select public.record_analytics_event(
+      event_name,
+      'local',
+      '56789abcdef0123456789abcdef01234',
+      'en'
+    )
+    from unnest(array[
+      'ai_text_requested',
+      'ai_text_ready',
+      'ai_text_clarification',
+      'ai_text_failed',
+      'ai_voice_requested',
+      'ai_voice_ready',
+      'ai_voice_clarification',
+      'ai_voice_failed'
+    ]) as event_name
+  $$,
+  'all privacy-safe AI funnel events are recorded'
+);
+select is(
+  (select count(*) from private.analytics_events where event_name like 'ai\_%' escape '\'),
+  8::bigint,
+  'AI analytics store only the eight allowlisted outcomes'
+);
+select is(
+  (
+    select count(distinct event_name)
+    from private.analytics_daily
+    where event_name like 'ai\_%' escape '\'
+  ),
+  8::bigint,
+  'daily analytics reports distinguish every AI text and voice outcome'
 );
 
 create temporary table analytics_count_before_invalid as
