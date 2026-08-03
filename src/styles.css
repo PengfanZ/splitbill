@@ -98,7 +98,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .balance-row, .activity-row { width: 100%; border: 0; border-bottom: 1px solid var(--line); background: transparent; display: flex; align-items: center; gap: 13px; padding: 10px 8px; text-align: left; min-height: 62px; transition: background .15s ease; }
 .balance-row:hover, .activity-row:hover, .balance-row.is-selected { background: rgba(255, 255, 255, .52); }
 .balance-row.is-selected { box-shadow: inset 3px 0 var(--coral); }
-.avatar { flex: 0 0 auto; display: inline-grid; place-items: center; border-radius: 50%; color: #3f3832; font-weight: 700; letter-spacing: -.03em; }
+.avatar { flex: 0 0 auto; display: inline-grid; place-items: center; border-radius: 50%; color: #3f3832; font-family: 'DM Sans', 'PingFang SC', 'Microsoft YaHei', ui-sans-serif, system-ui, sans-serif; font-weight: 700; line-height: 1; letter-spacing: -.03em; text-align: center; }
 .avatar--sm { width: 32px; height: 32px; font-size: 10px; }
 .avatar--md { width: 42px; height: 42px; font-size: 12px; }
 .avatar--lg { width: 50px; height: 50px; font-size: 13px; }
@@ -217,7 +217,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .ai-batch-card-heading b { overflow: hidden; color: var(--ink); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .ai-batch-card-heading strong { flex: 0 0 auto; color: var(--ink); font-family: var(--serif); font-size: 15px; }
 .ai-batch-card-body p { margin: 0; display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 10px; line-height: 1.35; }
-.ai-batch-card-body p > span { display: inline-flex; align-items: center; gap: 4px; }
+.ai-batch-card-body p > span:not(.avatar) { display: inline-flex; align-items: center; gap: 4px; }
 .ai-batch-card-actions { display: flex; gap: 4px; }
 .ai-batch-card-actions button { width: 34px; height: 34px; border: 0; border-radius: 9px; display: grid; place-items: center; background: transparent; color: var(--muted); }
 .ai-batch-card-actions button:hover { background: #eee9e2; color: var(--ink); }
