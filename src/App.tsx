@@ -3,12 +3,15 @@ import { lazy, Suspense, useMemo, useState } from 'react'
 import type { AnalyticsClient, AnalyticsSurface } from './analytics'
 import { FreshStart, Sidebar, Topbar } from './components/AppShell'
 import { ConfirmDialog } from './components/ConfirmDialog'
+import { removeActivityIdentity, selectActivityIdentity } from './data/activityIdentity'
 import { createIdentity } from './data/identity'
 import { EMPTY_STATE } from './data/storage'
 import { activityCurrency, currencyLabel, type CurrencyCode } from './domain/currency'
 import { isSettlementPayment, money, spendingExpenses } from './domain/expenses'
 import { CURRENT_USER } from './domain/members'
 import type { ActivityGroup, Expense, Settlement } from './domain/models'
+import type { AiExpenseClient } from './features/aiExpense/aiExpenseApi'
+import { withAiExpenseAnalytics } from './features/aiExpense/aiExpenseAnalytics'
 import { GroupDashboard } from './features/activity/ActivityDashboard'
 import { AddFriendModal, CreateGroupModal, ExpenseModal, SettleUpModal } from './features/activity/ActivityModals'
 import {
@@ -17,6 +20,7 @@ import {
 } from './features/changelog/changelog'
 import {
   addLocalExpense,
+  addLocalExpenses,
   addLocalFriends,
   createActivityFriends,
   createLocalActivity,
@@ -40,12 +44,14 @@ import { useActivitySharing, type ActivityFeedback } from './features/sharing/us
 import { usePersistedState } from './hooks/usePersistedState'
 import { useIdentity } from './hooks/useIdentity'
 import { useAppAnalytics } from './hooks/useAppAnalytics'
+import { useActivityIdentitySelections } from './hooks/useActivityIdentitySelections'
 import { LocalizationProvider, useLocalization } from './i18n/LocalizationContext'
 import { formatLocalizedList } from './i18n/localization'
 import { createAppQueryClient } from './queryClient'
 
 type ModalType = 'group' | 'friend' | 'expense' | 'settlement' | 'identity' | 'join' | 'live-identity' | null
 type AppProps = {
+  aiExpenseClient?: Pick<AiExpenseClient, 'parseBatch'> | null
   analyticsClient?: AnalyticsClient | null
   liveActivityClient?: LiveActivityClient | null
 }
@@ -59,9 +65,10 @@ type ConfirmationRequest = {
 const LiveActivityQrModal = lazy(() => import('./features/sharing/LiveActivityQrModal').then(module => ({ default: module.LiveActivityQrModal })))
 const ChangelogModal = lazy(() => import('./features/changelog/ChangelogModal').then(module => ({ default: module.ChangelogModal })))
 
-function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps = {}) {
+function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, liveActivityClient }: AppProps = {}) {
   const [state, setState] = usePersistedState()
   const [identity, setIdentity] = useIdentity()
+  const [activityIdentities, setActivityIdentities] = useActivityIdentitySelections()
   const [changelogState, setChangelogState] = useState(() => {
     const seen = hasSeenLatestChangelog()
     return { open: Boolean(identity) && !seen, unread: !seen }
@@ -109,6 +116,20 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
   const activeGroup = liveActivity?.group ?? selectedGroup
   const activeMembers = liveActivity ? liveMembers : selectedMembers
   const activeExpenses = liveActivity?.expenses ?? selectedExpenses
+  const activeIdentityScope = activeGroup
+    ? live.credentials ? `live:${live.credentials.code}` : `local:${activeGroup.id}`
+    : null
+  const activeMemberId = useMemo(() => {
+    if (!activeIdentityScope) return null
+    const savedMemberId = activityIdentities[activeIdentityScope]
+    if (savedMemberId && activeMembers.some(member => member.id === savedMemberId)) return savedMemberId
+    if (!liveActivity) return 'me'
+    const identityName = identity?.name.trim().toLocaleLowerCase()
+    if (!identityName) return null
+    const matchingMembers = activeMembers.filter(member => member.name.trim().toLocaleLowerCase() === identityName)
+    return matchingMembers.length === 1 ? matchingMembers[0].id : null
+  }, [activeIdentityScope, activeMembers, activityIdentities, identity?.name, liveActivity])
+  const activeMember = activeMembers.find(member => member.id === activeMemberId) ?? null
   const liveEditBlocked = Boolean(live.credentials && !live.editable)
   const displayedGroup = liveActivity?.group ?? selectedGroup
   const displayedMemberCount = liveActivity
@@ -120,6 +141,10 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
   const liveActivityCodes = live.activityCodes
   const bookmarkedLiveGroupId = live.bookmarkedGroupId
   const analyticsSurface: AnalyticsSurface = live.credentials ? 'live' : 'local'
+  const trackedAiExpenseClient = useMemo(
+    () => withAiExpenseAnalytics(aiExpenseClient, analyticsClient, analyticsSurface, locale),
+    [aiExpenseClient, analyticsClient, analyticsSurface, locale],
+  )
   const sharing = useActivitySharing({
     analyticsClient,
     createLiveActivity: live.create,
@@ -129,6 +154,10 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
     t,
   })
   const qrShare = sharing.qrShare
+
+  const changeActiveMember = activeIdentityScope
+    ? (memberId: string) => setActivityIdentities(current => selectActivityIdentity(current, activeIdentityScope, memberId))
+    : undefined
 
   useAppAnalytics(analyticsClient, analyticsSurface, locale, liveSession?.record.code ?? null)
 
@@ -256,6 +285,27 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
     setModal(null)
   }
 
+  const addExpenses = async (expenses: Expense[]) => {
+    /* v8 ignore next -- The validated batch result and disabled empty review action enforce this invariant. */
+    if (expenses.length === 0) return
+    if (liveActivity) {
+      const saved = await live.save(
+        { ...liveActivity, expenses: [...expenses, ...liveActivity.expenses] },
+        t('live.addedExpenses', { count: expenses.length }),
+        JSON.stringify(['add-expenses', expenses.map(item => [item.title, item.amount, item.payerId, item.splitMethod, item.shares])]),
+      )
+      if (saved) {
+        expenses.forEach(() => analyticsClient?.track('expense_added', 'live', locale))
+        closeExpenseModal()
+      }
+      return
+    }
+    setState(current => addLocalExpenses(current, expenses))
+    expenses.forEach(() => analyticsClient?.track('expense_added', 'local', locale))
+    setActivityFeedback({ groupId: expenses[0].groupId, message: t('feedback.addedExpenses', { count: expenses.length }) })
+    closeExpenseModal()
+  }
+
   const updateExpense = async (expense: Expense) => {
     if (liveActivity) {
       const saved = await live.save({
@@ -355,6 +405,7 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
         const deletingSelectedActivity = selectedGroup?.id === group.id
         const deletingOpenLiveActivity = bookmarkedLiveGroupId === group.id
         setState(current => deleteLocalActivity(current, group.id))
+        setActivityIdentities(current => removeActivityIdentity(current, `local:${group.id}`))
         setActivityFeedback(null)
         live.removeBookmark(group.id)
         if (deletingOpenLiveActivity) closeLiveActivity()
@@ -370,6 +421,7 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
       confirmLabel: t('confirm.resetAction'),
       onConfirm: () => {
         setState(EMPTY_STATE)
+        setActivityIdentities({})
         live.clearBookmarks()
         setQuery('')
       },
@@ -439,7 +491,9 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
                 activityFeedback={null}
                 readOnly={!live.editable}
                 readOnlyLabel={t('dashboard.editingPaused')}
-                currentUserLabel={getSharedActivitySender(liveActivity).name}
+                currentMemberId={activeMemberId}
+                currentUserLabel={activeMember?.name ?? getSharedActivitySender(liveActivity).name}
+                onCurrentMemberChange={changeActiveMember}
                 statusLabel={live.connectionState === 'connected' && liveSession
                   ? t('dashboard.liveRevision', { revision: liveSession.record.revision })
                   : t('dashboard.savedRevision', { revision: live.mirror!.revision })}
@@ -462,7 +516,9 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
             expenses={selectedExpenses}
             query={query}
             activityFeedback={activityFeedback?.groupId === selectedGroup.id ? activityFeedback.message : null}
-            currentUserLabel={currentUser.name}
+            currentMemberId={activeMemberId}
+            currentUserLabel={activeMember!.name}
+            onCurrentMemberChange={changeActiveMember}
             onCurrencyChange={changeActivityCurrency}
             onShareSummary={() => sharing.shareGroup(selectedGroup, selectedMembers, selectedExpenses, 'local')}
             onShareLive={() => sharing.openLiveShare(selectedGroup, selectedMembers, selectedExpenses)}
@@ -485,8 +541,12 @@ function LocalizedApp({ analyticsClient = null, liveActivityClient }: AppProps =
           group={activeGroup}
           members={activeMembers}
           expense={editingExpense ?? undefined}
+          aiExpenseClient={trackedAiExpenseClient}
+          currentMemberId={activeMemberId}
+          onCurrentMemberChange={changeActiveMember}
           onClose={closeExpenseModal}
           onSave={editingExpense ? updateExpense : addExpense}
+          onSaveMany={addExpenses}
           saving={live.saving || liveEditBlocked}
         />
       ) : null}

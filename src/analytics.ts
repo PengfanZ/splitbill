@@ -14,6 +14,14 @@ export const ANALYTICS_EVENTS = [
   'live_activity_opened',
   'settlement_recorded',
   'currency_selected',
+  'ai_text_requested',
+  'ai_text_ready',
+  'ai_text_clarification',
+  'ai_text_failed',
+  'ai_voice_requested',
+  'ai_voice_ready',
+  'ai_voice_clarification',
+  'ai_voice_failed',
 ] as const
 
 export type AnalyticsEvent = typeof ANALYTICS_EVENTS[number]

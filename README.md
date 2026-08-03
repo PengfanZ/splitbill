@@ -4,13 +4,13 @@
 [![Live demo](https://img.shields.io/badge/demo-live-e8584f)](https://pengfanz.github.io/splitbill/)
 [![Coverage](https://img.shields.io/badge/coverage-100%25-16724c)](TESTING.md)
 
-A free, local-first shared-expense app for trips, dinners, homes, and other group activities—no account required. Tally tracks who paid, supports equal or exact splits, calculates clear suggested payments, and can synchronize a trusted group through a capability-protected live activity backed by Supabase.
+A free, local-first shared-expense app for trips, dinners, homes, and other group activities—no account required. Tally tracks who paid, supports equal or exact splits, calculates clear suggested payments, and can synchronize a trusted group through a capability-protected live activity backed by Supabase. Manual entry stays first, with optional text and voice AI shortcuts that turn one or several natural-language expenses into reviewable drafts.
 
 On first use, Tally asks for a display name and stores that identity only in the current browser. The name replaces the ambiguous generic “You” in participant lists and is included as the sender identity when an activity link is shared.
 
 Tally supports English and Simplified Chinese. It starts in Chinese when the browser language is Chinese or the device time zone is in mainland China; otherwise it starts in English. A manual choice in **Settings** is saved in the browser and always takes priority. Expense timestamps use the browser's IANA time zone, which is shown in Settings.
 
-Production uses privacy-preserving first-party analytics through Supabase for both browser-local and live activity workflows. Only allowlisted event names, a coarse `local`/`live` surface, the resolved `en`/`zh-CN` UI locale, an allowlisted currency code for currency-selection events, and a one-way session hash are stored—never precise location, URLs, capability tokens, activity IDs, names, descriptions, amounts, or balances. Tally does not load a third-party analytics beacon. See [the analytics design](docs/ANALYTICS.md).
+Production uses privacy-preserving first-party analytics through Supabase for both browser-local and live activity workflows. Only allowlisted event names, a coarse `local`/`live` surface, the resolved `en`/`zh-CN` UI locale, an allowlisted currency code for currency-selection events, and a one-way session hash are stored—never precise location, URLs, capability tokens, activity IDs, names, descriptions, amounts, audio, or balances. Separate event-name-only funnels measure text and voice AI request frequency and outcomes. Tally does not load a third-party analytics beacon. See [the analytics design](docs/ANALYTICS.md).
 
 ## Sharing and live collaboration
 
@@ -63,7 +63,8 @@ Currency selection controls display only. Tally does not convert amounts or supp
 - Vitest and Testing Library
 - GitHub Actions for CI and deployment
 - GitHub Pages for static hosting
-- Supabase Postgres for optional live activities and first-party product analytics
+- Supabase Postgres for optional live activities, AI quotas, and first-party product analytics
+- Supabase Edge Functions and OpenRouter for optional text and voice expense drafting
 
 ## Getting started
 
@@ -106,7 +107,8 @@ After the local stack starts, replace `your-publishable-key` in `.env.local` wit
 | `npm run test:all` | Run coverage plus the Playwright integration suite |
 | `npm run test:behavior` | Run focused happy-path and edge-case scenarios |
 | `npm run test:coverage` | Run all tests and enforce 100% coverage |
-| `npm run test:e2e` | Build the GitHub Pages bundle and run the Chromium integration suite |
+| `npm run test:e2e` | Run the stable and AI-preview Chromium integration suites |
+| `npm run test:e2e:ai` | Run only the AI expense preview browser flow |
 | `npm run typecheck` | Type-check every TypeScript and TSX file without emitting output |
 | `npm run build:pages` | Build the static artifact with the GitHub Pages base path |
 | `npm run build` | Build a root-hosted production artifact |
@@ -122,6 +124,7 @@ src/
 ├── domain/                    # Models and pure financial logic
 ├── features/
 │   ├── activity/              # Dashboard and expense workflows
+│   ├── aiExpense/             # Preview-only conversational expense drafting
 │   ├── identity/              # Browser-local participant identity
 │   ├── liveSharing/           # Capability links and backend synchronization
 │   └── sharing/               # Live-link handoff, QR invites, and PNG exports
@@ -156,7 +159,9 @@ The complete contract is documented in [TESTING.md](TESTING.md).
 
 ## Deployment
 
-Every pull request is type-checked, linted, tested, and built by GitHub Actions. A successful `main` release applies pending Supabase migrations before publishing the configured frontend artifact to GitHub Pages. Follow [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the one-time environment setup and release procedure.
+Every pull request is type-checked, linted, tested, and built by GitHub Actions. A successful `main` release applies pending Supabase migrations, deploys the AI Edge Function, and then publishes the configured frontend artifact to GitHub Pages. Follow [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the one-time environment setup and release procedure.
+
+The conversational expense flow was validated through an isolated preview before production. Its model strategy, privacy boundary, rate limits, synchronization behavior, test checklist, and preview deployment runbook live in [docs/AI_EXPENSE_PREVIEW.md](docs/AI_EXPENSE_PREVIEW.md).
 
 ## Contributing
 

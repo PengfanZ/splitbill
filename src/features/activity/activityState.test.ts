@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ActivityGroup, Expense, Member, PersistedState } from '../../domain/models'
 import {
   addLocalExpense,
+  addLocalExpenses,
   addLocalFriends,
   createActivityFriends,
   createLocalActivity,
@@ -72,6 +73,10 @@ describe('local activity state operations', () => {
     const edited = { ...dinner, amount: 60 }
     expect(updateLocalExpense(added, edited).expenses).toEqual([parking, edited])
     expect(deleteLocalExpense(added, parking.id).expenses).toEqual([dinner])
+
+    const tickets = { ...dinner, id: 'tickets', title: 'Tickets' }
+    expect(addLocalExpenses(state, [parking, tickets]).expenses).toEqual([parking, tickets, dinner])
+    expect(addLocalExpenses(state, [])).toBe(state)
   })
 
   it('deletes activity-owned data while preserving shared friends and selection', () => {

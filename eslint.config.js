@@ -32,4 +32,10 @@ export default defineConfig(
       }],
     },
   },
+  {
+    files: ['supabase/functions/**/*.ts'],
+    languageOptions: {
+      globals: globals.deno,
+    },
+  },
 )

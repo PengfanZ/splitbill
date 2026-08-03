@@ -1,11 +1,19 @@
 import { z } from 'zod'
 import { SUPPORTED_CURRENCIES } from '../../domain/currency'
 import type { ActivityGroup, Expense, Member } from '../../domain/models'
+import {
+  MAX_ACTIVITY_AMOUNT,
+  MAX_ACTIVITY_EXPENSES,
+  MAX_ACTIVITY_FRIENDS,
+  MAX_ACTIVITY_SNAPSHOT_BYTES,
+} from './sharedActivityLimits'
 
-export const MAX_ACTIVITY_SNAPSHOT_BYTES = 128 * 1024
-export const MAX_ACTIVITY_FRIENDS = 100
-export const MAX_ACTIVITY_EXPENSES = 1_000
-export const MAX_ACTIVITY_AMOUNT = 1_000_000_000
+export {
+  MAX_ACTIVITY_AMOUNT,
+  MAX_ACTIVITY_EXPENSES,
+  MAX_ACTIVITY_FRIENDS,
+  MAX_ACTIVITY_SNAPSHOT_BYTES,
+} from './sharedActivityLimits'
 
 const memberIdSchema = z.string().min(1).max(120)
 const memberSchema = z.object({

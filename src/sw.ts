@@ -1,6 +1,12 @@
 /// <reference lib="webworker" />
 
-import { createCacheName, isTallyCache, resolvePrecacheUrls, type PrecacheEntry } from './pwa/cacheManifest'
+import {
+  createCacheName,
+  isTallyCache,
+  resolveAppShellUrl,
+  resolvePrecacheUrls,
+  type PrecacheEntry,
+} from './pwa/cacheManifest'
 
 declare const self: ServiceWorkerGlobalScope & {
   __WB_MANIFEST: PrecacheEntry[]
@@ -9,7 +15,7 @@ declare const self: ServiceWorkerGlobalScope & {
 const precacheManifest = self.__WB_MANIFEST
 const cacheName = createCacheName(precacheManifest)
 const precacheUrls = resolvePrecacheUrls(precacheManifest, self.location.href)
-const appShellUrl = new URL('index.html', self.location.href).href
+const appShellUrl = resolveAppShellUrl(self.location.href)
 
 self.addEventListener('install', event => {
   event.waitUntil((async () => {

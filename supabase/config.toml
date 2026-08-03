@@ -37,7 +37,13 @@ additional_redirect_urls = ["https://pengfanz.github.io/splitbill/"]
 enabled = false
 
 [edge_runtime]
-enabled = false
+enabled = true
 
 [analytics]
 enabled = false
+
+[functions.parse-expense]
+enabled = true
+verify_jwt = false
+import_map = "./functions/parse-expense/deno.json"
+entrypoint = "./functions/parse-expense/index.ts"

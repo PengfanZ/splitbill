@@ -1,5 +1,8 @@
 import {
   BadgeCheck,
+  ListChecks,
+  MessageSquareText,
+  Mic2,
   Radio,
   Share2,
   SlidersHorizontal,
@@ -15,6 +18,9 @@ import {
 } from './changelog'
 
 const CHANGELOG_ICONS: Record<ChangelogIcon, LucideIcon> = {
+  aiText: MessageSquareText,
+  aiVoice: Mic2,
+  aiReview: ListChecks,
   live: Radio,
   share: Share2,
   settle: BadgeCheck,

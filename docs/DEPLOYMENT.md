@@ -3,7 +3,7 @@
 Tally deploys as two coordinated pieces:
 
 - GitHub Pages hosts the static React application.
-- Supabase hosts the private Postgres tables and capability-checked RPC functions.
+- Supabase hosts the private Postgres tables, capability-checked RPC functions, and the AI expense Edge Function.
 
 The production workflow verifies the frontend and database, builds with production client configuration, applies pending migrations, and publishes Pages only after the database release succeeds.
 
@@ -46,6 +46,19 @@ Add these environment variables:
 | `SUPABASE_PROJECT_ID` | Production project reference |
 | `VITE_SUPABASE_URL` | `https://<project-ref>.supabase.co` |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Production publishable key |
+| `VITE_AI_EXPENSE_ENABLED` | `true` |
+
+In the production Supabase project, configure these Edge Function secrets before the first AI release:
+
+```text
+AI_EXPENSE_ENABLED=true
+OPENROUTER_API_KEY=<production-limited key>
+OPENROUTER_MODEL=google/gemma-4-26b-a4b-it:free
+OPENROUTER_FALLBACK_MODEL=google/gemini-2.5-flash-lite
+OPENROUTER_VOICE_MODEL=google/gemini-2.5-flash-lite
+```
+
+Use a dedicated key with a deliberate account limit. Never expose it as a `VITE_` variable; only the Supabase Edge Function may read it.
 
 Environment protection rules and a required reviewer are recommended. GitHub makes environment secrets available only to jobs that reference that environment and pass its protection rules.
 
@@ -66,7 +79,8 @@ The release order is:
 1. typecheck, lint, 100% coverage, database migration/pgTAP tests, and Playwright;
 2. production build with the Supabase URL and publishable key;
 3. `supabase db push` against the linked production project;
-4. GitHub Pages artifact upload and deployment.
+4. deploy the versioned `parse-expense` Edge Function;
+5. GitHub Pages artifact upload and deployment.
 
 The workflow can also be started manually from `main` with **Run workflow**.
 
@@ -79,6 +93,7 @@ The workflow can also be started manually from `main` with **Run workflow**.
 - Confirm the recipient receives a persistent `Live · CODE` activity, then go offline and verify that its last synced snapshot remains visible but read-only.
 - Choose **Duplicate and edit** while offline and confirm the new independent local copy is editable without changing the Live activity.
 - Create one local activity and one live activity, then confirm their allowlisted events appear separately in `private.analytics_daily` and `private.analytics_hourly`, and their resolved UI locale appears in `private.analytics_locale_daily`, without URL or activity fields.
+- Create one text AI draft and one voice AI draft, then confirm the requested and ready events appear in the **SplitBill - AI Entry Usage** Home report without prompts, audio, or expense fields.
 - Run Supabase Security Advisor and Performance Advisor after the first migration.
 - Confirm the migration list is synchronized before the next release with `supabase migration list`.
 
@@ -87,11 +102,14 @@ The workflow can also be started manually from `main` with **Run workflow**.
 - Backend activities expire 90 days after their last successful update and expired rows are removed incrementally during new activity creation. Each browser that opened the activity keeps its latest full snapshot locally until the person removes it or clears site data; after confirmed backend expiration, that saved copy can continue as a local activity and start a new Live session.
 - Create, load, update, and analytics RPCs are rate-limited per secret-peppered identifier derived from the client IP. Rejected requests consume the same budget as successful requests. Review API/database logs and tune limits from observed traffic.
 - First-party analytics events expire after 90 days and contain no URL, capability, identity, activity, or financial payload. Review aggregate usage with the queries in [ANALYTICS.md](ANALYTICS.md).
+- AI text and voice have separate database quotas. Keep the OpenRouter key limit as the hard cost ceiling and monitor request, clarification, ready, and failure frequency through the privacy-safe Home report.
 - Free-tier projects should export regular off-site logical backups with `supabase db dump`. Paid projects provide daily backups; consider point-in-time recovery when the recovery objective warrants it. See [Supabase backups](https://supabase.com/docs/guides/platform/backups).
 - Review Security Advisor and Performance Advisor after every schema change.
 - If a capability URL leaks, treat the activity as compromised. Token rotation/revocation is a required follow-up before serving groups that need stronger access control.
-- If the Supabase project URL changes or a custom API domain is introduced, replace the exact allowed Supabase origin in the `connect-src` policy in `index.html`.
+- The build derives the exact Supabase `connect-src` origin from `VITE_SUPABASE_URL`. Missing or unsafe values fall back to the production origin, so preview deployments can use an isolated Supabase project without weakening the policy.
 
 ## Rollback
 
 Frontend rollback is a normal revert on `main`, followed by the same workflow. Database migrations are forward-only: write a corrective migration rather than deleting or editing a migration that may already be applied. Keep RPC signatures backward-compatible so the currently deployed frontend continues working if a later release step fails.
+
+For an immediate AI-only stop, set `AI_EXPENSE_ENABLED=false` in the production Edge Function environment and redeploy the function. The manual expense form remains the default and continues to work. A later frontend build with `VITE_AI_EXPENSE_ENABLED=false` removes the text and voice tabs entirely.

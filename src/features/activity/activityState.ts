@@ -53,6 +53,11 @@ export function addLocalExpense(state: PersistedState, expense: Expense): Persis
   return { ...state, expenses: [expense, ...state.expenses] }
 }
 
+export function addLocalExpenses(state: PersistedState, expenses: Expense[]): PersistedState {
+  if (expenses.length === 0) return state
+  return { ...state, expenses: [...expenses, ...state.expenses] }
+}
+
 export function updateLocalExpense(state: PersistedState, expense: Expense): PersistedState {
   return {
     ...state,

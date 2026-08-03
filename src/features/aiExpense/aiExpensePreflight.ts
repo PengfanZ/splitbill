@@ -1,0 +1,70 @@
+import {
+  getAiExpenseClarifications,
+  isBatchAiExpenseRequest,
+  type AiExpenseRequest,
+  type TextAiExpenseRequest,
+} from './aiExpenseContract.ts'
+
+type MissingDetail = 'amount' | 'payer' | 'participants'
+
+// Keep the instant path deliberately conservative. Natural-language interpretation
+// belongs to the model; this check only catches tiny category-only inputs such as
+// "dinner", "cena", "晚餐", or "夕食".
+const MAX_OBVIOUSLY_VAGUE_CODE_POINTS = 8
+const AMOUNT_SIGNAL_PATTERN = /[\p{Number}\p{Sc}]|\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million)\b|[零〇一二两三四五六七八九十百千万亿]/iu
+
+function includesMemberName(text: string, members: AiExpenseRequest['members']) {
+  const normalizedText = text.normalize('NFKC').toLocaleLowerCase()
+  return members.some(member => {
+    const normalizedName = member.name.trim().normalize('NFKC').toLocaleLowerCase()
+    return normalizedName.length > 0 && normalizedText.includes(normalizedName)
+  })
+}
+
+function isObviouslyVague(request: TextAiExpenseRequest) {
+  if (getAiExpenseClarifications(request).length > 0) return false
+  const text = request.text.trim().normalize('NFKC')
+  if (AMOUNT_SIGNAL_PATTERN.test(text) || includesMemberName(text, request.members)) return false
+  return Array.from(text).length <= MAX_OBVIOUSLY_VAGUE_CODE_POINTS
+}
+
+function englishQuestion(missing: MissingDetail[]) {
+  if (missing.length === 2) return 'Please add the total amount and who paid.'
+  return 'Please add the total amount, who paid, and who should be included in the split.'
+}
+
+function chineseQuestion(missing: MissingDetail[]) {
+  if (missing.length === 2) return '请补充总金额和付款人。'
+  return '请补充总金额、付款人、参与分摊的人。'
+}
+
+export function getAiExpenseRecoveryQuestion(request: AiExpenseRequest) {
+  const hasClarifications = getAiExpenseClarifications(request).length > 0
+  const batch = isBatchAiExpenseRequest(request)
+  if (request.locale === 'zh-CN') {
+    if (batch) {
+      return hasClarifications
+        ? '还是无法生成可靠的草稿。请重新说明每笔支出的金额、付款人和参与分摊的人。'
+        : '我还不能确定这些支出的细节。请补充每笔支出的金额、付款人和参与分摊的人。'
+    }
+    return hasClarifications
+      ? '还是无法生成可靠的草稿。请用一句话重新说明总金额、付款人，以及哪些人参与分摊。'
+      : '我还不能确定这笔支出的细节。请补充总金额、付款人，以及哪些人参与分摊。'
+  }
+  if (batch) {
+    return hasClarifications
+      ? 'I still could not create reliable drafts. Please restate each expense with its amount, payer, and participants.'
+      : 'I could not determine these expenses safely. Please provide the missing amount, payer, or participants for each expense.'
+  }
+  return hasClarifications
+    ? 'I still could not create a reliable draft. Please rewrite the complete expense in one sentence, including the total amount, who paid, and who should share it.'
+    : 'I could not determine this expense safely. Please add the total amount, who paid, and who should be included in the split.'
+}
+
+export function getAiExpensePreflightQuestion(request: TextAiExpenseRequest): string | null {
+  if (!isObviouslyVague(request)) return null
+  const missing: MissingDetail[] = request.members.length > 1
+    ? ['amount', 'payer', 'participants']
+    : ['amount', 'payer']
+  return request.locale === 'zh-CN' ? chineseQuestion(missing) : englishQuestion(missing)
+}

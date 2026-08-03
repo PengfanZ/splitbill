@@ -16,6 +16,14 @@ The browser may send only these event names:
 - `live_activity_opened`
 - `settlement_recorded`
 - `currency_selected`
+- `ai_text_requested`
+- `ai_text_ready`
+- `ai_text_clarification`
+- `ai_text_failed`
+- `ai_voice_requested`
+- `ai_voice_ready`
+- `ai_voice_clarification`
+- `ai_voice_failed`
 
 Each current event also has exactly one surface (`local` or `live`) and one resolved app locale (`en` or `zh-CN`). Historical rows from versions that supported URL snapshots may still contain the legacy `snapshot` surface. `currency_selected` additionally includes one constrained ISO currency code from Tally’s supported list; every other event must omit it. The locale is the language Tally is currently displaying, including a saved manual choice; it is not a country, GPS coordinate, IP-derived location, or full browser-language fingerprint. The request contains a random 128-bit session token stored in browser session storage. The database stores only its SHA-256 hash, which supports within-session funnels without creating a persistent visitor profile.
 
@@ -36,6 +44,8 @@ Opening the app records its initial surface. Successful product actions are meas
 `live_share_clicked` is also an intentional interaction event. It records when someone chooses **Start live activity**, before the backend request begins. Compare it with `live_activity_created` to distinguish sharing intent from successful Live activity creation. It contains no activity or link data.
 
 `summary_export_clicked` records when someone chooses **Share balances only**, before PNG generation or any share, download, or clipboard fallback begins. It measures export intent rather than successful delivery and contains no activity name, participants, expenses, balances, or generated image data.
+
+AI entry uses a separate four-step funnel for `text` and `voice`. `requested` is recorded immediately before each real Edge Function request, including model follow-ups. `ready`, `clarification`, or `failed` records the result of that request. Deterministic local clarification, microphone permission errors, unsupported browsers, and empty recordings do not count as AI requests because they never reach the service. These events contain only the event name, surface, locale, and anonymous session hash. Prompts, clarification answers, audio, model output, draft counts, latency, member data, and expense data are never sent to analytics.
 
 ## Reports in Supabase
 
@@ -150,6 +160,46 @@ order by sort_order;
 ```
 
 Use the report block's **As table** setting. An upward arrow means growth against the preceding equivalent window, a downward arrow means decline, and `no prior data` means tracking has not yet collected a complete comparison window. Do not label these values as users: `session_hash` identifies an anonymous browser session, and one person can create more than one session.
+
+Add a second **As table** block named **SplitBill - AI Entry Usage** to monitor text and voice frequency and reliability without activity data:
+
+```sql
+with usage as (
+  select
+    event_name,
+    count(*) filter (
+      where occurred_at >= (
+        date_trunc('day', now() at time zone 'America/New_York')
+        at time zone 'America/New_York'
+      )
+    )::bigint as today,
+    count(*) filter (where occurred_at >= now() - interval '7 days')::bigint as last_7_days,
+    count(*) filter (where occurred_at >= now() - interval '30 days')::bigint as last_30_days
+  from private.analytics_events
+  where event_name like 'ai\_%' escape '\'
+  group by event_name
+), rows(event_name, sort_order, label) as (
+  values
+    ('ai_text_requested', 1, 'Text requests'),
+    ('ai_voice_requested', 2, 'Voice requests'),
+    ('ai_text_ready', 3, 'Text drafts ready'),
+    ('ai_voice_ready', 4, 'Voice drafts ready'),
+    ('ai_text_clarification', 5, 'Text clarifications'),
+    ('ai_voice_clarification', 6, 'Voice clarifications'),
+    ('ai_text_failed', 7, 'Text failures'),
+    ('ai_voice_failed', 8, 'Voice failures')
+)
+select
+  rows.label as "AI outcome",
+  coalesce(usage.today, 0) as "Today",
+  coalesce(usage.last_7_days, 0) as "Last 7 days",
+  coalesce(usage.last_30_days, 0) as "Last 30 days"
+from rows
+left join usage using (event_name)
+order by rows.sort_order;
+```
+
+`Text requests` and `Voice requests` are the provider-facing frequency metrics. Compare each with its ready, clarification, and failure rows to spot reliability changes. One conversational entry may make several requests when the model asks follow-up questions, so this view intentionally measures AI service usage rather than completed expenses.
 
 For a chronological hourly usage chart, query the UTC hourly aggregate and convert the label to the reporting timezone. This example uses Eastern Time; replace `America/New_York` with `Asia/Shanghai` for China time:
 

@@ -163,6 +163,8 @@ test('is installable and reloads the local app shell while offline', async ({ br
       const requests = await Promise.all(cacheNames.map(async cacheName => (await caches.open(cacheName)).keys()))
       return requests.flat().map(request => request.url)
     })
+    expect(cachedUrls).toContain('http://127.0.0.1:4173/splitbill/')
+    expect(cachedUrls.some(url => url.endsWith('/splitbill/index.html'))).toBe(false)
     expect(cachedUrls.some(url => url.includes('supabase.co'))).toBe(false)
     expect(cachedUrls.some(url => url.endsWith('/og.png'))).toBe(false)
     expect(cachedUrls.some(url => /\/assets\/index-.+\.js$/.test(url))).toBe(true)
