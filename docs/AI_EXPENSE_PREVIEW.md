@@ -1,17 +1,17 @@
-# Conversational expense entry preview
+# Conversational expense entry
 
-This experiment keeps manual expense entry as the default and adds two optional shortcuts: a typed description or a voice recording. Either shortcut can describe one expense or several expenses at once. Tally preserves their order, presents every draft for review, and saves nothing until the user confirms.
+Conversational expense entry is available in production as an optional shortcut alongside the default manual form. A typed description or voice recording can describe one expense or several expenses at once. Tally preserves their order, presents every draft for review, and saves nothing until the user confirms.
 
-## Deployment boundary
+## Release boundary
 
-Before production release, the experiment on `codex/ai-expense-entry` uses:
+The feature was validated on an isolated frontend and Supabase preview before its production release. Future model, prompt, quota, or audio changes should use the same boundary:
 
 - a separate frontend URL and origin, so preview local storage and PWA caches cannot affect production;
 - a separate Supabase preview project, so migrations, rate limits, logs, and Edge Function secrets cannot affect production;
 - a preview-only OpenRouter API key with a low account limit;
-- both feature switches described below.
+- both feature switches described below, so either deployment can disable AI entry without affecting manual entry.
 
-Production enables the feature only after the preview gates pass, the production Edge Function secrets are configured, and `VITE_AI_EXPENSE_ENABLED=true` is added to the GitHub `production` environment. Without that exact client value—or with `AI_EXPENSE_ENABLED=false` on the server—the stable manual expense flow remains available while AI entry is disabled.
+Production enables the feature only when the Edge Function secrets are configured, `VITE_AI_EXPENSE_ENABLED=true` is present in the GitHub `production` environment, and `AI_EXPENSE_ENABLED=true` is set on the server. Without both exact flag values, the stable manual expense flow remains available while AI entry is disabled.
 
 ## Why this design is safe to trial
 
@@ -53,7 +53,7 @@ Use the local Supabase URL and publishable key printed by `npm run backend:start
 VITE_AI_EXPENSE_ENABLED=true
 ```
 
-Copy `supabase/functions/.env.example` to the ignored `supabase/functions/.env.local`, set a preview OpenRouter key, then serve the function:
+Copy `supabase/functions/.env.example` to the ignored `supabase/functions/.env.local`, set a development OpenRouter key, then serve the function:
 
 ```bash
 npx supabase functions serve parse-expense --env-file supabase/functions/.env.local
@@ -61,7 +61,7 @@ npx supabase functions serve parse-expense --env-file supabase/functions/.env.lo
 
 The Edge Function also requires `AI_EXPENSE_ENABLED=true`; either switch disables the feature independently.
 
-Run the complete gates before sharing the preview:
+Run the complete gates before sharing a local or hosted preview:
 
 ```bash
 npm run typecheck
@@ -71,11 +71,11 @@ npm run test:backend
 npm run test:e2e
 ```
 
-## Separate preview deployment
+## Isolated preview for future AI changes
 
 ### 1. Backend
 
-Create a dedicated Supabase preview project. Apply this branch’s migrations and deploy only `parse-expense` to that project. Configure these Edge Function secrets in the preview project:
+Create a dedicated Supabase preview project. Apply the candidate branch's migrations and deploy only `parse-expense` to that project. Configure these Edge Function secrets in the preview project:
 
 ```text
 AI_EXPENSE_ENABLED=true
@@ -91,7 +91,7 @@ If voice recording stops normally but the app reports that its AI budget was rea
 
 ### 2. Frontend
 
-Create a separate Cloudflare Pages project connected to the same GitHub repository, with `codex/ai-expense-entry` as that project’s production branch.
+Create or reuse a separate Cloudflare Pages project connected to the same GitHub repository, with the candidate AI branch as that project's production branch.
 
 Use:
 
@@ -111,13 +111,13 @@ This yields a stable `*.pages.dev` preview origin while the existing GitHub Page
 - Frontend stop: set `VITE_AI_EXPENSE_ENABLED=false` and rebuild the preview.
 - Full preview rollback: redeploy the previous preview commit. In production, use the independent server and client kill switches documented in [DEPLOYMENT.md](DEPLOYMENT.md).
 
-## Keeping the experiment current
+## Keeping a future AI experiment current
 
-Regular customer fixes continue to land on `main`. Before each preview deployment, bring them into the experiment and rerun every gate:
+Regular customer fixes continue to land on `main`. Before each preview deployment, bring them into the candidate branch and rerun every gate:
 
 ```bash
 git fetch origin main
-git switch codex/ai-expense-entry
+git switch <candidate-ai-branch>
 git merge --no-edit origin/main
 npm run typecheck
 npm run lint
@@ -126,7 +126,7 @@ npm run test:backend
 npm run test:e2e
 ```
 
-Resolve any conflict in favor of the current `main` behavior first, then reapply the smallest AI integration. Keep the preview as a pull request so GitHub continuously shows whether it is mergeable and whether CI remains green. Merge only after model quality, cost, privacy copy, user feedback, production secrets, and every automated gate are acceptable.
+Resolve any conflict in favor of the current `main` behavior first, then reapply the smallest AI integration. Keep the candidate as a pull request so GitHub continuously shows whether it is mergeable and whether CI remains green. Merge only after model quality, cost, privacy copy, user feedback, production secrets, and every automated gate are acceptable.
 
 ## Trial checklist
 

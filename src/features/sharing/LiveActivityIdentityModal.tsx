@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { UserRoundCheck } from 'lucide-react'
-import { ModalShell } from '../../components/AppShell'
+import { ModalShell } from '../../components/Dialog'
 import { Button } from '../../components/Button'
 import { SelectMenu } from '../../components/SelectMenu'
 import type { Member } from '../../domain/models'

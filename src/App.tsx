@@ -295,13 +295,13 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, liveActi
         JSON.stringify(['add-expenses', expenses.map(item => [item.title, item.amount, item.payerId, item.splitMethod, item.shares])]),
       )
       if (saved) {
-        expenses.forEach(() => analyticsClient?.track('expense_added', 'live', locale))
+        analyticsClient?.track('expense_added', 'live', locale)
         closeExpenseModal()
       }
       return
     }
     setState(current => addLocalExpenses(current, expenses))
-    expenses.forEach(() => analyticsClient?.track('expense_added', 'local', locale))
+    analyticsClient?.track('expense_added', 'local', locale)
     setActivityFeedback({ groupId: expenses[0].groupId, message: t('feedback.addedExpenses', { count: expenses.length }) })
     closeExpenseModal()
   }

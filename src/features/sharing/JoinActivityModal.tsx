@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ClipboardPaste, Link2, Smartphone } from 'lucide-react'
-import { ModalShell } from '../../components/AppShell'
+import { ModalShell } from '../../components/Dialog'
 import { Button } from '../../components/Button'
 import { useLocalization } from '../../i18n/LocalizationContext'
 import { copyLink } from './shareLink'

@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { ArrowRight, CircleDollarSign, Mic, Pencil, Sparkles, Users } from 'lucide-react'
-import { Avatar, ModalShell } from '../../components/AppShell'
+import { Avatar } from '../../components/AppShell'
+import { ModalShell } from '../../components/Dialog'
 import { Button } from '../../components/Button'
 import { SelectMenu, type SelectMenuOption } from '../../components/SelectMenu'
 import { activityCurrency, currencyLabel, currencySymbol, defaultCurrencyForLocale, SUPPORTED_CURRENCIES, type CurrencyCode } from '../../domain/currency'
