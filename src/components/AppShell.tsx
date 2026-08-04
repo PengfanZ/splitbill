@@ -16,8 +16,6 @@ import type { ActivityGroup, Member } from '../domain/models'
 import { useLocalization } from '../i18n/LocalizationContext'
 import { Button, IconButton } from './Button'
 
-export { ModalShell } from './Dialog'
-
 const EMPTY_LIVE_ACTIVITY_CODES: Record<string, string> = {}
 
 export function Avatar({ member, size = 'md' }: { member: Member; size?: 'sm' | 'md' | 'lg' }) {

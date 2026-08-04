@@ -161,7 +161,7 @@ The complete contract is documented in [TESTING.md](TESTING.md).
 
 Every pull request is type-checked, linted, tested, and built by GitHub Actions. A successful `main` release applies pending Supabase migrations, deploys the AI Edge Function, and then publishes the configured frontend artifact to GitHub Pages. Follow [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the one-time environment setup and release procedure.
 
-The conversational expense flow was validated through an isolated preview before production. Its model strategy, privacy boundary, rate limits, synchronization behavior, test checklist, and preview deployment runbook live in [docs/AI_EXPENSE_PREVIEW.md](docs/AI_EXPENSE_PREVIEW.md).
+The conversational expense flow keeps manual entry as the default and uses separate client/server kill switches. Its model strategy, privacy boundary, rate limits, synchronization behavior, test checklist, and isolated preview runbook for future AI changes live in [docs/AI_EXPENSE_PREVIEW.md](docs/AI_EXPENSE_PREVIEW.md).
 
 ## Contributing
 

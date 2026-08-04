@@ -4,7 +4,8 @@ import { StrictMode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import type { AnalyticsClient } from './analytics'
-import { Avatar, FreshStart, ModalShell, Sidebar, Topbar } from './components/AppShell'
+import { Avatar, FreshStart, Sidebar, Topbar } from './components/AppShell'
+import { ModalShell } from './components/Dialog'
 import { ACTIVITY_IDENTITY_KEY } from './data/activityIdentity'
 import { IDENTITY_KEY } from './data/identity'
 import { EMPTY_STATE, loadState, parseState, saveState, STORAGE_KEY } from './data/storage'
@@ -879,7 +880,6 @@ describe('complete app workflows', () => {
     expect(analyticsClient.track.mock.calls.filter(([event]) => event === 'expense_added'))
       .toEqual([
         ['expense_added', 'local', 'en'],
-        ['expense_added', 'local', 'en'],
       ])
     expect(analyticsClient.track.mock.calls.filter(([event]) => event.startsWith('ai_')))
       .toEqual([
@@ -1184,7 +1184,6 @@ describe('complete app workflows', () => {
     expect(screen.getByText('Groceries', { exact: true })).toBeVisible()
     expect(screen.getByRole('status')).toHaveTextContent('2 expenses were added to the live activity.')
     expect(analyticsClient.track.mock.calls.filter(([event]) => event === 'expense_added')).toEqual([
-      ['expense_added', 'live', 'en'],
       ['expense_added', 'live', 'en'],
     ])
     expect(analyticsClient.track.mock.calls.filter(([event]) => event.startsWith('ai_'))).toEqual([

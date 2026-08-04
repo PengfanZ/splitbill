@@ -41,6 +41,8 @@ Opening the app records its initial surface. Successful product actions are meas
 
 `friend_added` records one event after a successful friend-add action, including activity creation when at least one initial friend is supplied. Adding several friends in one submission still records one event. Failed Live saves do not count, and the request never includes friend names, IDs, or a friend count.
 
+`expense_added` records one event after a successful add action. Saving an AI-generated batch still records one event, matching the single confirmation and atomic state update rather than sending one analytics request per expense. The request never includes the batch size or any expense data.
+
 `live_share_clicked` is also an intentional interaction event. It records when someone chooses **Start live activity**, before the backend request begins. Compare it with `live_activity_created` to distinguish sharing intent from successful Live activity creation. It contains no activity or link data.
 
 `summary_export_clicked` records when someone chooses **Share balances only**, before PNG generation or any share, download, or clipboard fallback begins. It measures export intent rather than successful delivery and contains no activity name, participants, expenses, balances, or generated image data.

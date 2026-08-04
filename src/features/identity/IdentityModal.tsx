@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Globe2, UserRound } from 'lucide-react'
-import { ModalShell } from '../../components/AppShell'
+import { ModalShell } from '../../components/Dialog'
 import { Button } from '../../components/Button'
 import { useLocalization } from '../../i18n/LocalizationContext'
 import { LanguageControl } from './LanguageControl'

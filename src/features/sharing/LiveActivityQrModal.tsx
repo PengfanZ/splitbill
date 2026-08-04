@@ -1,6 +1,6 @@
 import { Copy, ScanQrCode, Share2, ShieldCheck } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
-import { ModalShell } from '../../components/AppShell'
+import { ModalShell } from '../../components/Dialog'
 import { Button } from '../../components/Button'
 import { useLocalization } from '../../i18n/LocalizationContext'
 
