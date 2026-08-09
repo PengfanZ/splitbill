@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { ShareActivityMenu } from './ShareActivityMenu'
 
 describe('ShareActivityMenu', () => {
-  it('presents only Live collaboration and a balance summary for local activities', async () => {
+  it('presents Live collaboration and a complete export for local activities', async () => {
     const user = userEvent.setup()
     const onClose = vi.fn()
     const onCollaborateLive = vi.fn()
@@ -17,12 +17,13 @@ describe('ShareActivityMenu', () => {
     />)
 
     expect(screen.getByRole('dialog', { name: 'Share activity' })).toBeVisible()
-    expect(screen.getByText('Invite people to edit Weekend trip together, or send a balance summary.')).toBeVisible()
+    expect(screen.getByText('Invite people to edit Weekend trip together, or export a complete summary.')).toBeVisible()
     expect(screen.getByText('CAN EDIT · STAYS IN SYNC')).toBeVisible()
     expect(screen.getByText('everyone sees the latest version.', { exact: false })).toBeVisible()
+    expect(screen.getByText('Includes every expense, payment, total, and who owes whom.')).toBeVisible()
     expect(screen.queryByText(/snapshot/i)).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Start live activity' }))
-    await user.click(screen.getByRole('button', { name: /^Share balances only/ }))
+    await user.click(screen.getByRole('button', { name: /^Export full summary/ }))
 
     expect(onCollaborateLive).toHaveBeenCalledOnce()
     expect(onShareSummary).toHaveBeenCalledOnce()
@@ -60,7 +61,10 @@ describe('ShareActivityMenu', () => {
     const onClose = vi.fn()
     const onCopyLink = vi.fn()
     const onShowQr = vi.fn()
-    const { rerender } = render(<ShareActivityMenu groupName="Cabin" live onClose={onClose} onCopyLink={onCopyLink} />)
+    const onShareSummary = vi.fn()
+    const { rerender } = render(<ShareActivityMenu groupName="Cabin" live onClose={onClose} onCopyLink={onCopyLink} onShareSummary={onShareSummary} />)
+
+    expect(screen.getByText('Includes every expense, payment, and balance, plus the Live QR invite.')).toBeVisible()
 
     rerender(<ShareActivityMenu groupName="Cabin" live onClose={onClose} onShowQr={onShowQr} />)
     expect(screen.queryByRole('button', { name: 'Copy live invite link' })).not.toBeInTheDocument()

@@ -45,7 +45,7 @@ Opening the app records its initial surface. Successful product actions are meas
 
 `live_share_clicked` is also an intentional interaction event. It records when someone chooses **Start live activity**, before the backend request begins. Compare it with `live_activity_created` to distinguish sharing intent from successful Live activity creation. It contains no activity or link data.
 
-`summary_export_clicked` records when someone chooses **Share balances only**, before PNG generation or any share, download, or clipboard fallback begins. It measures export intent rather than successful delivery and contains no activity name, participants, expenses, balances, or generated image data.
+`summary_export_clicked` records when someone chooses **Export full summary**, before PNG generation or any share, download, or clipboard fallback begins. It measures export intent rather than successful delivery and contains no activity name, participants, expenses, balances, Live URL, QR code, or generated image data.
 
 AI entry uses a separate four-step funnel for `text` and `voice`. `requested` is recorded immediately before each real Edge Function request, including model follow-ups. `ready`, `clarification`, or `failed` records the result of that request. Deterministic local clarification, microphone permission errors, unsupported browsers, and empty recordings do not count as AI requests because they never reach the service. These events contain only the event name, surface, locale, and anonymous session hash. Prompts, clarification answers, audio, model output, draft counts, latency, member data, and expense data are never sent to analytics.
 
