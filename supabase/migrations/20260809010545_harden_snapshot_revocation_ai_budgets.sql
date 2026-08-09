@@ -273,6 +273,54 @@ $$;
 
 alter table private.shared_activities
   drop constraint shared_activities_valid_snapshot;
+
+-- Versions released before expense timestamps were persisted stored the
+-- presentation label "Just now" instead of an instant. Repair only that exact
+-- legacy marker before validating the stricter constraint. Advancing the
+-- revision makes active clients fetch the repaired snapshot without extending
+-- the Live activity's expiry.
+with repaired_activities as (
+  select
+    activity.id,
+    jsonb_agg(
+      case
+        when expense.value ->> 'createdAt' = 'Just now' then
+          jsonb_set(
+            expense.value,
+            '{createdAt}',
+            to_jsonb(
+              case
+                when expense.value ? 'updatedAt'
+                  and private.is_valid_activity_timestamp(expense.value ->> 'updatedAt')
+                  then expense.value ->> 'updatedAt'
+                else pg_catalog.to_char(
+                  activity.created_at at time zone 'UTC',
+                  'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
+                )
+              end
+            ),
+            false
+          )
+        else expense.value
+      end
+      order by expense.position
+    ) as expenses
+  from private.shared_activities activity
+  cross join lateral jsonb_array_elements(activity.snapshot -> 'expenses')
+    with ordinality as expense(value, position)
+  where exists (
+    select 1
+    from jsonb_array_elements(activity.snapshot -> 'expenses') legacy_expense
+    where legacy_expense ->> 'createdAt' = 'Just now'
+  )
+  group by activity.id, activity.created_at
+)
+update private.shared_activities activity
+set snapshot = jsonb_set(activity.snapshot, '{expenses}', repaired.expenses, false),
+    revision = activity.revision + 1
+from repaired_activities repaired
+where activity.id = repaired.id;
+
 alter table private.shared_activities
   add constraint shared_activities_valid_snapshot
   check (private.is_valid_activity_snapshot(snapshot)) not valid;
