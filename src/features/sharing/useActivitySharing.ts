@@ -54,9 +54,11 @@ export function useActivitySharing({
     members: Member[],
     expenses: Expense[],
     surface: AnalyticsSurface,
+    liveSession?: LiveSession | null,
   ) => {
     analyticsClient?.track('summary_export_clicked', surface, locale)
-    const result = await exportActivitySummary(group, members, expenses, locale)
+    const liveUrl = liveSession ? buildLiveActivityUrl(liveSession.credentials) : undefined
+    const result = await exportActivitySummary(group, members, expenses, { locale, liveUrl })
     setActivityFeedback({ groupId: group.id, message: t(SUMMARY_MESSAGE_KEYS[result]) })
   }
 

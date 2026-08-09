@@ -4,7 +4,19 @@ import type { ActivityGroup, Expense, Member } from '../../domain/models'
 import { translate, type AppLocale, type Translate } from '../../i18n/localization'
 
 export type ShareResult = 'shared' | 'copied' | 'downloaded' | 'cancelled' | 'failed'
+export type ActivitySummaryExportOptions = {
+  locale?: AppLocale
+  liveUrl?: string
+}
+
 export const TALLY_PUBLIC_URL = 'https://pengfanz.github.io/splitbill/'
+
+const CARD_WIDTH = 1080
+const MIN_CARD_HEIGHT = 1350
+const SETTLEMENT_PANEL_Y = 570
+const SETTLEMENT_ROW_HEIGHT = 62
+const EXPENSE_ROW_HEIGHT = 86
+const LIVE_QR_PANEL_HEIGHT = 300
 
 export const SHARE_MESSAGES: Record<ShareResult, string> = {
   shared: 'PNG summary shared.',
@@ -19,7 +31,8 @@ function memberName(memberMap: Map<string, Member>, memberId: string | null, t: 
   return memberMap.get(memberId)?.name ?? t('common.unknown')
 }
 
-export function buildShareSummary(group: ActivityGroup, members: Member[], expenses: Expense[], locale: AppLocale = 'en') {
+export function buildShareSummary(group: ActivityGroup, members: Member[], expenses: Expense[], options: ActivitySummaryExportOptions = {}) {
+  const { locale = 'en', liveUrl } = options
   const t: Translate = (key, variables) => translate(locale, key, variables)
   const currency = activityCurrency(group)
   const memberMap = new Map(members.map(member => [member.id, member]))
@@ -57,24 +70,90 @@ export function buildShareSummary(group: ActivityGroup, members: Member[], expen
     '',
     t('share.suggestedPayments'),
     ...settlementLines,
+    ...(liveUrl ? ['', t('share.liveAccess'), liveUrl] : []),
     '',
     `${t('share.sharedFrom')} · ${TALLY_PUBLIC_URL}`,
   ].join('\n')
 }
 
-export async function createSummaryCard(group: ActivityGroup, members: Member[], expenses: Expense[], locale: AppLocale = 'en') {
+export function calculateSummaryCardLayout(expenseCount: number, settlementCount: number, hasLiveQr: boolean) {
+  const settlementRows = Math.max(1, settlementCount)
+  const expenseRows = Math.max(1, expenseCount)
+  const settlementPanelHeight = settlementRows * SETTLEMENT_ROW_HEIGHT + 32
+  const expenseHeadingY = SETTLEMENT_PANEL_Y + settlementPanelHeight + 62
+  const expensePanelY = expenseHeadingY + 28
+  const expensePanelHeight = expenseRows * EXPENSE_ROW_HEIGHT + 32
+  const expenseRowsStartY = expensePanelY + 54
+  const expensePanelEndY = expensePanelY + expensePanelHeight
+  const liveQrPanelY = hasLiveQr ? expensePanelEndY + 42 : null
+  const contentEndY = liveQrPanelY === null ? expensePanelEndY : liveQrPanelY + LIVE_QR_PANEL_HEIGHT
+  const height = Math.max(MIN_CARD_HEIGHT, contentEndY + 130)
+  return { expenseHeadingY, expensePanelHeight, expensePanelY, expenseRowsStartY, height, liveQrPanelY, settlementPanelHeight }
+}
+
+function fillRoundedRect(context: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
+  context.beginPath()
+  context.roundRect(x, y, width, height, radius)
+  context.fill()
+}
+
+export async function renderLiveQrSvg(liveUrl: string) {
+  const [{ createElement }, { flushSync }, { createRoot }, { QRCodeSVG }] = await Promise.all([
+    import('react'),
+    import('react-dom'),
+    import('react-dom/client'),
+    import('qrcode.react'),
+  ])
+  const host = document.createElement('div')
+  const root = createRoot(host)
+  try {
+    flushSync(() => root.render(createElement(QRCodeSVG, {
+      value: liveUrl,
+      size: 256,
+      level: 'M',
+      marginSize: 4,
+      bgColor: '#ffffff',
+      fgColor: '#26231f',
+    })))
+    const svg = host.querySelector('svg')
+    if (!svg) throw new Error('QR code rendering failed')
+    svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    return svg.outerHTML
+  } finally {
+    root.unmount()
+  }
+}
+
+async function drawLiveQrCode(context: CanvasRenderingContext2D, liveUrl: string, x: number, y: number, size: number) {
+  const svg = await renderLiveQrSvg(liveUrl)
+  const objectUrl = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }))
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const qrImage = new Image()
+      qrImage.onload = () => resolve(qrImage)
+      qrImage.onerror = () => reject(new Error('QR code rendering failed'))
+      qrImage.src = objectUrl
+    })
+    context.drawImage(image, x, y, size, size)
+  } finally {
+    URL.revokeObjectURL(objectUrl)
+  }
+}
+
+export async function createSummaryCard(group: ActivityGroup, members: Member[], expenses: Expense[], options: ActivitySummaryExportOptions = {}) {
+  const { locale = 'en', liveUrl } = options
   const t: Translate = (key, variables) => translate(locale, key, variables)
   const currency = activityCurrency(group)
+  const settlements = calculateSettlements(members, expenses)
+  const layout = calculateSummaryCardLayout(expenses.length, settlements.length, Boolean(liveUrl))
   const canvas = document.createElement('canvas')
-  canvas.width = 1080
-  canvas.height = 1350
+  canvas.width = CARD_WIDTH
+  canvas.height = layout.height
   const context = canvas.getContext('2d')
   if (!context) throw new Error('Canvas is unavailable')
 
   const total = spendingExpenses(expenses).reduce((sum, item) => sum + item.amount, 0)
-  const settlements = calculateSettlements(members, expenses)
   const memberMap = new Map(members.map(member => [member.id, member]))
-  const visibleEntries = expenses.slice(0, 5)
 
   context.fillStyle = '#f7f4ee'
   context.fillRect(0, 0, canvas.width, canvas.height)
@@ -89,7 +168,7 @@ export async function createSummaryCard(group: ActivityGroup, members: Member[],
   context.fillText(t('share.cardSharing', { count: members.length, unit: t(members.length === 1 ? 'common.person' : 'common.people') }), 74, 225)
 
   context.fillStyle = '#ffffff'
-  context.fillRect(72, 278, 936, 190)
+  fillRoundedRect(context, 72, 278, 936, 190, 24)
   context.fillStyle = '#746e67'
   context.font = '600 22px Arial, sans-serif'
   context.fillText(t('dashboard.totalSpent').toUpperCase(), 112, 330)
@@ -100,59 +179,77 @@ export async function createSummaryCard(group: ActivityGroup, members: Member[],
   context.fillStyle = '#26231f'
   context.font = '700 30px Arial, sans-serif'
   context.fillText(t('share.suggestedPayments'), 72, 540)
-  context.fillStyle = '#d8d1c8'
-  context.fillRect(72, 560, 936, 2)
-  context.font = '600 27px Arial, sans-serif'
+  context.fillStyle = '#fce9e6'
+  fillRoundedRect(context, 72, SETTLEMENT_PANEL_Y, 936, layout.settlementPanelHeight, 24)
+  context.font = '600 25px Arial, sans-serif'
   if (settlements.length) {
-    settlements.slice(0, 4).forEach((item, index) => {
-      const y = 620 + index * 58
+    settlements.forEach((item, index) => {
+      const y = SETTLEMENT_PANEL_Y + 48 + index * SETTLEMENT_ROW_HEIGHT
       context.fillStyle = '#26231f'
-      context.fillText(t('settlement.parties', { from: item.from.name, to: item.to.name }), 82, y, 710)
+      context.fillText(t('settlement.parties', { from: item.from.name, to: item.to.name }), 108, y, 690)
       context.fillStyle = '#e8584f'
       context.textAlign = 'right'
-      context.fillText(money(item.amount, currency, locale), 998, y)
+      context.fillText(money(item.amount, currency, locale), 972, y)
       context.textAlign = 'left'
     })
   } else {
     context.fillStyle = '#16724c'
-    context.fillText(t('dashboard.everyoneSettled'), 82, 620)
+    context.fillText(t('dashboard.everyoneSettled'), 108, SETTLEMENT_PANEL_Y + 48)
   }
 
-  const expenseHeadingY = 620 + Math.max(1, Math.min(4, settlements.length)) * 58 + 72
   context.fillStyle = '#26231f'
   context.font = '700 30px Arial, sans-serif'
-  context.fillText(t('share.cardActivity'), 72, expenseHeadingY)
-  context.fillStyle = '#d8d1c8'
-  context.fillRect(72, expenseHeadingY + 20, 936, 2)
-  context.font = '500 24px Arial, sans-serif'
-  if (visibleEntries.length) {
-    visibleEntries.forEach((item, index) => {
-      const y = expenseHeadingY + 78 + index * 58
+  context.fillText(t('share.cardActivity'), 72, layout.expenseHeadingY)
+  context.fillStyle = '#ffffff'
+  fillRoundedRect(context, 72, layout.expensePanelY, 936, layout.expensePanelHeight, 24)
+  if (expenses.length) {
+    expenses.forEach((item, index) => {
+      const y = layout.expenseRowsStartY + index * EXPENSE_ROW_HEIGHT
       const settlementPayment = isSettlementPayment(item)
       const payer = memberName(memberMap, item.payerId, t)
       const recipientId = getSettlementRecipientId(item)
       const recipient = memberName(memberMap, recipientId, t)
+      context.fillStyle = settlementPayment ? '#16724c' : '#e8584f'
+      fillRoundedRect(context, 104, y - 17, 8, 8, 4)
       context.fillStyle = '#26231f'
-      context.fillText(settlementPayment ? t('dashboard.paidPerson', { payer, recipient }) : item.title, 82, y, 460)
+      context.font = '600 24px Arial, sans-serif'
+      context.fillText(settlementPayment ? t('dashboard.paidPerson', { payer, recipient }) : item.title, 128, y, 650)
       context.fillStyle = '#746e67'
-      context.fillText(settlementPayment ? t('dashboard.settlementPayment') : t('share.cardPayerSplit', { payer, split: t(item.splitMethod === 'equal' ? 'dashboard.splitEqually' : 'dashboard.exactSplit') }), 390, y, 410)
+      context.font = '500 19px Arial, sans-serif'
+      context.fillText(settlementPayment ? t('dashboard.settlementPayment') : t('share.cardPayerSplit', { payer, split: t(item.splitMethod === 'equal' ? 'dashboard.splitEqually' : 'dashboard.exactSplit') }), 128, y + 28, 650)
       context.fillStyle = '#26231f'
+      context.font = '600 24px Arial, sans-serif'
       context.textAlign = 'right'
-      context.fillText(money(item.amount, currency, locale), 998, y)
+      context.fillText(money(item.amount, currency, locale), 972, y)
       context.textAlign = 'left'
     })
-    if (expenses.length > visibleEntries.length) {
-      context.fillStyle = '#746e67'
-      context.fillText(t('share.cardMoreEntries', { count: expenses.length - visibleEntries.length }), 82, expenseHeadingY + 78 + visibleEntries.length * 58)
-    }
   } else {
     context.fillStyle = '#746e67'
-    context.fillText(t('share.cardNoActivity'), 82, expenseHeadingY + 78)
+    context.font = '500 24px Arial, sans-serif'
+    context.fillText(t('share.cardNoActivity'), 108, layout.expenseRowsStartY)
+  }
+
+  if (liveUrl && layout.liveQrPanelY !== null) {
+    context.fillStyle = '#e4f0e9'
+    fillRoundedRect(context, 72, layout.liveQrPanelY, 936, LIVE_QR_PANEL_HEIGHT, 24)
+    await drawLiveQrCode(context, liveUrl, 98, layout.liveQrPanelY + 26, 248)
+    context.fillStyle = '#16724c'
+    context.font = '700 20px Arial, sans-serif'
+    context.fillText(t('share.cardLiveEyebrow').toUpperCase(), 390, layout.liveQrPanelY + 76, 560)
+    context.fillStyle = '#26231f'
+    context.font = '700 31px Arial, sans-serif'
+    context.fillText(t('share.cardLiveTitle'), 390, layout.liveQrPanelY + 124, 560)
+    context.fillStyle = '#746e67'
+    context.font = '500 22px Arial, sans-serif'
+    context.fillText(t('share.cardLiveHelp'), 390, layout.liveQrPanelY + 165, 560)
+    context.fillStyle = '#e8584f'
+    context.font = '600 20px Arial, sans-serif'
+    context.fillText(t('share.cardLiveWarning'), 390, layout.liveQrPanelY + 215, 560)
   }
 
   context.fillStyle = '#746e67'
   context.font = '500 21px Arial, sans-serif'
-  context.fillText(`${t('share.sharedFrom')} · ${TALLY_PUBLIC_URL}`, 72, 1290)
+  context.fillText(`${t('share.sharedFrom')} · ${TALLY_PUBLIC_URL}`, 72, layout.height - 50)
 
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('PNG generation failed')), 'image/png')
@@ -209,11 +306,11 @@ export async function shareActivitySummary(title: string, text: string, image: B
   return 'failed'
 }
 
-export async function exportActivitySummary(group: ActivityGroup, members: Member[], expenses: Expense[], locale: AppLocale = 'en') {
+export async function exportActivitySummary(group: ActivityGroup, members: Member[], expenses: Expense[], options: ActivitySummaryExportOptions = {}) {
   const title = `${group.name} — Tally`
-  const text = buildShareSummary(group, members, expenses, locale)
+  const text = buildShareSummary(group, members, expenses, options)
   try {
-    const image = await createSummaryCard(group, members, expenses, locale)
+    const image = await createSummaryCard(group, members, expenses, options)
     return shareActivitySummary(title, text, image)
   } catch {
     return shareActivitySummary(title, text, null)

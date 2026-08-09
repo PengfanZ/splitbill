@@ -17,7 +17,7 @@ Production uses privacy-preserving first-party analytics through Supabase for bo
 Tally supports two deliberately different sharing choices:
 
 - **Start live activity** creates a short capability URL for one canonical activity in Supabase. Trusted recipients with the complete link can load and edit the same revision-checked data from different browsers. The Live invite can be copied, opened from a QR code, or sent through the device share sheet. Any holder of the complete link can explicitly end that capability; previously opened browsers keep their last recovery copy.
-- **Share balances only** exports a PNG summary with totals and suggested payments without granting access to the activity.
+- **Export full summary** creates a PNG with every expense and payment, totals, and suggested payments. Active Live activities also include a QR invite.
 - If Safari opens a Live link outside the installed PWA, **Join activity** safely transfers the copied link into the existing Tally app session.
 
 Live links keep their secret edit token in the fragment; Supabase stores only its SHA-256 hash. Every browser that successfully opens a Live link keeps the latest full activity state as a recovery copy, while Supabase remains the source of truth for as long as that Live session is available. Tally never loads third-party analytics. See [the live sharing architecture](docs/LIVE_SHARING_EXPERIMENT.md) and [production deployment guide](docs/DEPLOYMENT.md).

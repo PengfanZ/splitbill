@@ -1,4 +1,5 @@
 import { expect, test, type BrowserContext, type Page, type Route } from '@playwright/test'
+import { readFile } from 'node:fs/promises'
 
 type AnalyticsPayload = {
   p_event_name: string
@@ -339,7 +340,7 @@ test('keeps share and add expense together in the mobile action row', async ({ p
   const shareDialog = page.getByRole('dialog', { name: 'Share activity' })
   await expect(shareDialog).toBeVisible()
   await expect(shareDialog.getByRole('button', { name: 'Start live activity' })).toBeVisible()
-  await expect(shareDialog.getByRole('button', { name: /^Share balances only/ })).toBeVisible()
+  await expect(shareDialog.getByRole('button', { name: /^Export full summary/ })).toBeVisible()
   await expect(shareDialog.getByText(/snapshot/i)).toHaveCount(0)
   await page.keyboard.press('Escape')
   await expect(shareDialog).toHaveCount(0)
@@ -453,7 +454,7 @@ test('tracks local outcomes without sending local activity data or loading third
   const summaryDownload = page.waitForEvent('download')
   await page
     .getByRole('dialog', { name: 'Share activity' })
-    .getByRole('button', { name: /^Share balances only/ })
+    .getByRole('button', { name: /^Export full summary/ })
     .click()
   await summaryDownload
 
@@ -635,7 +636,7 @@ test('shares one editable backend activity across isolated browser sessions', as
   await page.getByRole('button', { name: 'Share', exact: true }).click()
   const shareDialog = page.getByRole('dialog', { name: 'Share activity' })
   await expect(shareDialog.getByRole('button', { name: 'Start live activity' })).toBeVisible()
-  await expect(shareDialog.getByRole('button', { name: /^Share balances only/ })).toBeVisible()
+  await expect(shareDialog.getByRole('button', { name: /^Export full summary/ })).toBeVisible()
   await expect(shareDialog.getByText(/snapshot/i)).toHaveCount(0)
   await shareDialog.getByRole('button', { name: 'Start live activity' }).click()
   await expect(page.getByRole('dialog', { name: 'Scan to join Shared cabin' })).toBeVisible()
@@ -660,6 +661,19 @@ test('shares one editable backend activity across isolated browser sessions', as
   await page.getByRole('button', { name: 'Save expense' }).click()
   await expect(page.getByText('Groceries', { exact: true })).toBeVisible()
   await expect(page.getByText('Live · revision 2')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Share', exact: true }).click()
+  const liveExportDialog = page.getByRole('dialog', { name: 'Share activity' })
+  await expect(liveExportDialog.getByText('Includes every expense, payment, and balance, plus the Live QR invite.')).toBeVisible()
+  const liveSummaryDownloadPromise = page.waitForEvent('download')
+  await liveExportDialog.getByRole('button', { name: /^Export full summary/ }).click()
+  const liveSummaryDownload = await liveSummaryDownloadPromise
+  const liveSummaryPath = await liveSummaryDownload.path()
+  expect(liveSummaryPath).not.toBeNull()
+  const liveSummaryPng = await readFile(liveSummaryPath!)
+  expect(liveSummaryPng.subarray(1, 4).toString('ascii')).toBe('PNG')
+  expect(liveSummaryPng.readUInt32BE(16)).toBe(1080)
+  expect(liveSummaryPng.readUInt32BE(20)).toBeGreaterThanOrEqual(1350)
 
   await expect(page.getByRole('button', { name: 'Back to my activities' })).toHaveCount(0)
   await expect(page.getByText(`Live · ${code}`, { exact: true })).toBeVisible()

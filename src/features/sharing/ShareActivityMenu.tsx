@@ -100,7 +100,7 @@ export function ShareActivityMenu({ groupName, live = false, onClose, onCollabor
             </ShareChoice>
           ) : null}
         </div>
-        {onShareSummary ? <div className="share-menu-other"><span>{t('shareMenu.otherTitle')}</span><ShareSummaryAction icon={<Share2 size={20} />} title={t('shareMenu.summary')} description={t('shareMenu.summaryHelp')} onClick={() => run(onShareSummary)} /></div> : null}
+        {onShareSummary ? <div className="share-menu-other"><span>{t('shareMenu.otherTitle')}</span><ShareSummaryAction icon={<Share2 size={20} />} title={t('shareMenu.summary')} description={t(live ? 'shareMenu.summaryHelpLive' : 'shareMenu.summaryHelp')} onClick={() => run(onShareSummary)} /></div> : null}
         {live && onEndLive ? (
           <div className="share-menu-danger">
             <span className="share-menu-danger-copy"><CircleStop size={18} /><span><b>{t('shareMenu.endLive')}</b><small>{t('shareMenu.endLiveHelp')}</small></span></span>

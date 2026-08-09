@@ -21,7 +21,7 @@ import { liveActivityErrorMessage } from './features/liveSharing/useLiveActivity
 import { LIVE_ACTIVITY_BOOKMARKS_KEY } from './features/liveSharing/useLiveActivityBookmarks'
 import { LIVE_ACTIVITY_MIRRORS_KEY, createLiveActivityMirror } from './features/liveSharing/useLiveActivityMirrors'
 import { LIVE_ACTIVITY_POLL_INTERVAL_MS } from './features/liveSharing/liveActivityQuery'
-import { buildShareSummary, createSummaryCard, exportActivitySummary, SHARE_MESSAGES, shareActivitySummary } from './features/sharing/shareActivity'
+import { buildShareSummary, calculateSummaryCardLayout, createSummaryCard, exportActivitySummary, renderLiveQrSvg, SHARE_MESSAGES, shareActivitySummary } from './features/sharing/shareActivity'
 import { LiveActivityIdentityModal } from './features/sharing/LiveActivityIdentityModal'
 import { createSharedActivity, type SharedActivity } from './features/sharing/sharedActivity'
 import { LocalizationProvider } from './i18n/LocalizationContext'
@@ -68,8 +68,12 @@ function mockCanvas(blob: Blob | null = new Blob(['png'], { type: 'image/png' })
     fillStyle: '',
     font: '',
     textAlign: 'left',
+    beginPath: vi.fn(),
+    drawImage: vi.fn(),
+    fill: vi.fn(),
     fillRect: vi.fn(),
     fillText: vi.fn(),
+    roundRect: vi.fn(),
   }
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context as unknown as CanvasRenderingContext2D)
   vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(callback => callback(blob))
@@ -142,6 +146,7 @@ describe('state and formatting helpers', () => {
     expect(empty).toContain('• No settlement payments recorded.')
     expect(empty).toContain('• Everyone is settled.')
     expect(empty).toContain('Shared from Tally · https://pengfanz.github.io/splitbill/')
+    expect(empty).not.toContain('Open and edit the Live activity:')
 
     const populated = buildShareSummary(group, [CURRENT_USER, maya, jordan], [
       expense(),
@@ -154,6 +159,9 @@ describe('state and formatting helpers', () => {
     expect(populated).toContain('Maya Chen paid You $5.00')
     expect(populated).toContain('Maya Chen pays You $5.00')
     expect(populated).toContain('Jordan pays You $10.00')
+    const liveUrl = `https://example.com/splitbill/#live=A1B2C3D4E5.${'a'.repeat(64)}`
+    const liveSummary = buildShareSummary(group, [CURRENT_USER, maya, jordan], [expense()], { liveUrl })
+    expect(liveSummary).toContain(`Open and edit the Live activity:\n${liveUrl}`)
     expect(buildShareSummary({ ...group, currency: 'CNY' }, [CURRENT_USER, maya, jordan], [expense()]))
       .toContain('Dinner — ¥30.00')
 
@@ -190,7 +198,10 @@ describe('state and formatting helpers', () => {
     expect(drawnText).toContain('Unknown paid · Exact split')
     expect(drawnText).toContain('Maya Chen paid You')
     expect(drawnText).toContain('Settlement payment')
-    expect(drawnText).toContain('+ 3 more entries')
+    expect(drawnText).toEqual(expect.arrayContaining(['Extra 0', 'Extra 1', 'Extra 2', 'Extra 3', 'Extra 4']))
+    expect(populatedContext.fillRect.mock.calls.filter(([, , , height]) => height <= 2)).toHaveLength(0)
+    expect(populatedContext.roundRect).toHaveBeenCalled()
+    expect(calculateSummaryCardLayout(manyExpenses.length, 2, false).height).toBeGreaterThan(1350)
 
     await createSummaryCard(group, [CURRENT_USER], [
       expense({ id: 'missing-payer', kind: 'settlement', title: 'Settlement payment', amount: 5, payerId: 'missing', splitMethod: 'exact', shares: {} }),
@@ -198,6 +209,68 @@ describe('state and formatting helpers', () => {
     ])
     drawnText = populatedContext.fillText.mock.calls.map(call => call[0])
     expect(drawnText.filter(text => text === 'Unknown paid Unknown')).toHaveLength(2)
+  })
+
+  it('adds a scannable Live QR panel only when a Live URL is provided', async () => {
+    const context = mockCanvas()
+    const createObjectURL = vi.fn().mockReturnValue('blob:live-qr')
+    const revokeObjectURL = vi.fn()
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL })
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURL })
+    const OriginalImage = globalThis.Image
+    class LoadedImage {
+      onload: (() => void) | null = null
+      onerror: (() => void) | null = null
+      set src(_value: string) {
+        queueMicrotask(() => this.onload?.())
+      }
+    }
+    Object.defineProperty(globalThis, 'Image', { configurable: true, value: LoadedImage })
+
+    try {
+      const liveUrl = `https://example.com/splitbill/#live=A1B2C3D4E5.${'a'.repeat(64)}`
+      await createSummaryCard(group, [CURRENT_USER, maya, jordan], [expense()], { liveUrl })
+      const drawnText = context.fillText.mock.calls.map(call => call[0])
+      expect(context.drawImage).toHaveBeenCalledOnce()
+      expect(drawnText).toContain('Scan to open the latest activity')
+      expect(drawnText).toContain('Anyone with this QR code can edit.')
+      expect(calculateSummaryCardLayout(1, 1, true).liveQrPanelY).not.toBeNull()
+      expect(calculateSummaryCardLayout(1, 1, false).liveQrPanelY).toBeNull()
+      expect(createObjectURL).toHaveBeenCalledWith(expect.objectContaining({ type: 'image/svg+xml' }))
+      expect(revokeObjectURL).toHaveBeenCalledWith('blob:live-qr')
+    } finally {
+      Object.defineProperty(globalThis, 'Image', { configurable: true, value: OriginalImage })
+    }
+  })
+
+  it('rejects invalid or unloadable Live QR images without leaking object URLs', async () => {
+    const liveUrl = `https://example.com/splitbill/#live=A1B2C3D4E5.${'a'.repeat(64)}`
+    const querySelector = vi.spyOn(HTMLDivElement.prototype, 'querySelector').mockReturnValueOnce(null)
+    await expect(renderLiveQrSvg(liveUrl)).rejects.toThrow('QR code rendering failed')
+    querySelector.mockRestore()
+
+    mockCanvas()
+    const createObjectURL = vi.fn().mockReturnValue('blob:broken-live-qr')
+    const revokeObjectURL = vi.fn()
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL })
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURL })
+    const OriginalImage = globalThis.Image
+    class BrokenImage {
+      onload: (() => void) | null = null
+      onerror: (() => void) | null = null
+      set src(_value: string) {
+        queueMicrotask(() => this.onerror?.())
+      }
+    }
+    Object.defineProperty(globalThis, 'Image', { configurable: true, value: BrokenImage })
+
+    try {
+      await expect(createSummaryCard(group, [CURRENT_USER, maya, jordan], [expense()], { liveUrl }))
+        .rejects.toThrow('QR code rendering failed')
+      expect(revokeObjectURL).toHaveBeenCalledWith('blob:broken-live-qr')
+    } finally {
+      Object.defineProperty(globalThis, 'Image', { configurable: true, value: OriginalImage })
+    }
   })
 
   it('reports unavailable canvas and failed PNG encoding', async () => {
@@ -492,7 +565,7 @@ describe('small UI building blocks', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Summary copied.')
     expect(screen.getByText('Local')).toBeVisible()
     await chooseShareAction(user, 'Start live activity')
-    await chooseShareAction(user, 'Share balances only')
+    await chooseShareAction(user, 'Export full summary')
     await user.click(screen.getByRole('button', { name: 'Add friend' }))
     await user.click(screen.getByRole('button', { name: 'Add expense' }))
     await user.click(screen.getAllByRole('button', { name: 'Settle up' })[0])
@@ -998,7 +1071,7 @@ describe('complete app workflows', () => {
     expect(screen.getAllByText('$45.00').some(element => element.matches('.expense-amount b'))).toBe(true)
     expect(screen.getByText(/^Edited /)).toBeVisible()
 
-    await chooseShareAction(user, 'Share balances only')
+    await chooseShareAction(user, 'Export full summary')
     expect(await screen.findByRole('status')).toHaveTextContent('Summary copied')
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Maya pays You $15.00'))
     expect(analyticsClient.track).toHaveBeenCalledWith('summary_export_clicked', 'local', 'en')
@@ -1230,7 +1303,7 @@ describe('complete app workflows', () => {
     render(<App />)
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
-    await chooseShareAction(user, 'Share balances only')
+    await chooseShareAction(user, 'Export full summary')
     expect(await screen.findByRole('status')).toHaveTextContent('Summary copied')
     await user.click(screen.getByRole('button', { name: 'Open Home activity' }))
     expect(screen.getByRole('heading', { name: 'Home' })).toBeVisible()
@@ -1977,8 +2050,10 @@ describe('complete app workflows', () => {
     await user.click(screen.getByRole('button', { name: 'Copy link' }))
     expect(screen.getAllByRole('status').some(status => status.textContent?.includes('Anyone with it can edit'))).toBe(true)
 
-    await chooseShareAction(user, 'Share balances only')
+    await chooseShareAction(user, 'Export full summary')
     expect(analyticsClient.track).toHaveBeenCalledWith('summary_export_clicked', 'live', 'en')
+    expect(writeText).toHaveBeenLastCalledWith(expect.stringContaining(`Open and edit the Live activity:\n${buildLiveActivityUrl(credentials)}`))
+    expect(writeText).toHaveBeenLastCalledWith(expect.stringContaining('Dinner — $30.00'))
 
     await user.click(screen.getByRole('button', { name: 'Refresh latest' }))
     expect(await screen.findByText('Latest changes loaded.')).toBeVisible()
