@@ -97,10 +97,17 @@ export function useLiveActivitySession({
     }) => activeClient.load(activeCredentials),
   })
 
+  const endMutation = useMutation({
+    mutationFn: ({ activeClient, activeCredentials }: {
+      activeClient: Required<Pick<LiveActivityClient, 'end'>>
+      activeCredentials: LiveActivityCredentials
+    }) => activeClient.end(activeCredentials),
+  })
+
   const queryKey = credentials ? liveActivityQueryKey(credentials) : ['live-activity', 'inactive'] as const
   const liveQuery = useQuery({
     queryKey,
-    enabled: Boolean(client && credentials && browserOnline && !updateMutation.isPending),
+    enabled: Boolean(client && credentials && browserOnline && !liveEnded && !updateMutation.isPending),
     queryFn: client && credentials
       ? async () => {
           const cachedRecord = queryClient.getQueryData<LiveActivityRecord>(liveActivityQueryKey(credentials))
@@ -200,6 +207,8 @@ export function useLiveActivitySession({
     queryClient.removeQueries({ queryKey })
     clearLiveActivityHash()
     setCredentials(null)
+    setConnectionBlocked(false)
+    setLiveEnded(false)
     setNotice(null)
   }
 
@@ -210,6 +219,8 @@ export function useLiveActivitySession({
     window.history.replaceState(null, '', buildLiveActivityUrl(bookmarkedCredentials))
     setPersistedState(current => ({ ...current, selectedGroupId: groupId }))
     setCredentials(bookmarkedCredentials)
+    setConnectionBlocked(false)
+    setLiveEnded(false)
     setNotice(null)
     return true
   }
@@ -304,6 +315,32 @@ export function useLiveActivitySession({
   const ended = liveEnded || queryEnded
   const blocked = connectionBlocked || queryConnectionBlocked
   const editable = Boolean(session && browserOnline && !blocked && !ended)
+  const endActivity = client?.end
+  const end = endActivity && credentials && session && browserOnline && !blocked && !ended
+    ? async () => {
+        try {
+          await queryClient.cancelQueries({ queryKey: liveActivityQueryKey(credentials) })
+          await endMutation.mutateAsync({
+            activeClient: { end: endActivity },
+            activeCredentials: credentials,
+          })
+          setConnectionBlocked(false)
+          setLiveEnded(true)
+          setNotice(t('live.endedByUser'))
+          return true
+        } catch (error) {
+          if (error instanceof LiveActivityApiError && error.kind === 'not-found') {
+            setLiveEnded(true)
+            setNotice(t('live.endedByUser'))
+            return true
+          } else if (isConnectivityError(error)) {
+            setConnectionBlocked(true)
+          }
+          setNotice(liveActivityErrorMessage(error, t))
+          return false
+        }
+      }
+    : undefined
   const connectionState: LiveActivityConnectionState | null = !credentials
     ? null
     : ended && mirror
@@ -336,6 +373,7 @@ export function useLiveActivitySession({
     credentials,
     displayedNotice,
     editable,
+    end,
     loading: Boolean(client && credentials && !session && liveQuery.isPending) || refreshMutation.isPending,
     members,
     mirror,

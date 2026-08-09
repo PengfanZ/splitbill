@@ -35,7 +35,7 @@ Typed descriptions use the candidates `google/gemma-4-26b-a4b-it:free` and `goog
 
 A successful provider response that does not satisfy the expense contract is treated as an incomplete conversation: the user receives a localized prompt to restate the amount, payer, and participants. A genuine upstream failure is logged without the expense text and shown as a model-specific retry/manual-entry message. The request has a bounded timeout so an unavailable route cannot leave the user waiting indefinitely.
 
-The server maintains separate cost budgets per normalized client identifier. Text allows 30 requests per 10 minutes and 100 per day; voice allows 10 per 10 minutes and 25 per day. Counters are consumed before the provider call, including provider failures, and the stricter limit wins. OpenRouter account limits remain the hard cost ceiling. Use a preview-only key with a deliberately small limit, but leave enough unused budget for OpenRouter to authorize one worst-case voice request; an almost-exhausted `$0.01` key can reject a recording before the model runs. Never reuse a broad personal key.
+The server maintains separate cost budgets per normalized client identifier. Text allows 30 requests per 10 minutes and 100 per day; voice allows 10 per 10 minutes and 25 per day. A second, server-only project ceiling defaults to 500 text and 100 voice provider calls per rolling day, stopping distributed traffic that no single-client quota would catch. Administrators can lower a ceiling or disable one mode in `private.ai_expense_budget_limits`. Counters are consumed before the provider call, including provider failures, and the stricter limit wins. OpenRouter account limits remain the final hard cost ceiling. Use a preview-only key with a deliberately small limit, but leave enough unused budget for OpenRouter to authorize one worst-case voice request; an almost-exhausted `$0.01` key can reject a recording before the model runs. Never reuse a broad personal key.
 
 Each browser also keeps an activity-scoped participant selection. The selected member ID is sent with text and voice requests as `viewerMemberId`, allowing first-person phrases such as “I paid” or “我付的” to resolve to an existing activity member. This selection stays in local storage and is never written into the shared activity snapshot, so collaborators can choose independently on each browser.
 
@@ -85,7 +85,7 @@ OPENROUTER_FALLBACK_MODEL=google/gemini-2.5-flash-lite
 OPENROUTER_VOICE_MODEL=google/gemini-2.5-flash-lite
 ```
 
-Keep the production project reference out of the preview deployment environment. The database function `consume_ai_expense_quota` is executable only by the service role used inside the Edge Function; browser clients cannot call it directly.
+Keep the production project reference out of the preview deployment environment. The database function `consume_ai_expense_quota_v2` is executable only by the service role used inside the Edge Function; browser clients cannot call it directly or read the private budget table.
 
 If voice recording stops normally but the app reports that its AI budget was reached, check the preview key—not only the account balance—in OpenRouter's **API Keys** page. The key's own cumulative credit limit may be lower than the account balance. Raise that preview-only cap intentionally, then run one short voice request and confirm its cost in OpenRouter Logs.
 

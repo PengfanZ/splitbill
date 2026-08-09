@@ -58,7 +58,7 @@ type AppProps = {
 type ConfirmationRequest = {
   confirmLabel: string
   description: string
-  onConfirm: () => void | Promise<void>
+  onConfirm: () => boolean | void | Promise<boolean | void>
   title: string
 }
 
@@ -138,6 +138,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, liveActi
       ? selectedMembers.length
       : 0
   const displayedLiveNotice = live.displayedNotice
+  const liveEnd = live.end
   const liveActivityCodes = live.activityCodes
   const bookmarkedLiveGroupId = live.bookmarkedGroupId
   const analyticsSurface: AnalyticsSurface = live.credentials ? 'live' : 'local'
@@ -369,11 +370,20 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, liveActi
   const confirmRequest = async (request: ConfirmationRequest) => {
     setConfirmationBusy(true)
     try {
-      await request.onConfirm()
-      setConfirmation(null)
+      const confirmed = await request.onConfirm()
+      if (confirmed !== false) setConfirmation(null)
     } finally {
       setConfirmationBusy(false)
     }
+  }
+
+  const endLiveActivity = (end: NonNullable<typeof live.end>) => {
+    setConfirmation({
+      title: t('confirm.endLiveTitle'),
+      description: t('confirm.endLive'),
+      confirmLabel: t('confirm.endLiveAction'),
+      onConfirm: end,
+    })
   }
 
   const deleteExpense = (expense: Expense) => {
@@ -500,6 +510,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, liveActi
                 onCurrencyChange={live.editable ? changeActivityCurrency : undefined}
                 onShareQr={live.editable && liveSession ? () => sharing.openCurrentLiveQr(liveSession) : undefined}
                 onCopyShareLink={live.editable && liveSession ? () => sharing.copyCurrentLiveLink(liveSession) : undefined}
+                onEndLive={live.editable && liveEnd ? () => endLiveActivity(liveEnd) : undefined}
                 onShareSummary={() => sharing.shareGroup(liveActivity.group, liveMembers, liveActivity.expenses, 'live')}
                 onAddFriend={live.editable ? () => setModal('friend') : undefined}
                 onAddExpense={live.editable ? openNewExpense : undefined}

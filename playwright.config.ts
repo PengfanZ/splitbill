@@ -25,6 +25,7 @@ export default defineConfig({
       ...process.env,
       VITE_SUPABASE_URL: 'https://live-sharing.test',
       VITE_SUPABASE_PUBLISHABLE_KEY: 'test-publishable-key',
+      TALLY_INCLUDE_DEV_CSP: 'true',
     },
     url: baseURL,
     reuseExistingServer: false,

@@ -34,6 +34,7 @@ export default defineConfig({
         VITE_AI_EXPENSE_ENABLED: 'true',
         VITE_SUPABASE_URL: aiPreviewURL,
         VITE_SUPABASE_PUBLISHABLE_KEY: 'test-publishable-key',
+        TALLY_INCLUDE_DEV_CSP: 'true',
       },
       url: baseURL,
       reuseExistingServer: false,

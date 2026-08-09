@@ -25,7 +25,7 @@ The link is intentionally a bearer capability: anyone who has the full link can 
 
 - **GitHub Pages** continues to host the React app.
 - **Supabase Postgres** stores the canonical JSON snapshot, hashed edit token, revision, timestamps, and sliding expiration.
-- **PostgREST RPCs** provide create, lightweight revision polling, full snapshot loading, and revision-checked update operations.
+- **PostgREST RPCs** provide create, lightweight revision polling, full snapshot loading, revision-checked updates, and explicit capability revocation.
 - The storage table and privileged functions live in the non-exposed `private` schema.
 - Narrow security-definer `public` wrappers are callable with the project's publishable key. Browser roles cannot query private tables or execute private functions directly.
 - RLS, validated JSON constraints, hashed-IP request throttling, statement timeouts, and 90-day sliding expiration provide defense in depth.
@@ -58,15 +58,16 @@ An update sends `expectedRevision`. A conditional database update compares the c
 - Unknown code or invalid token: SQLSTATE `P0002`, surfaced as `not-found` without revealing which part was wrong.
 - Invalid snapshot or revision: SQLSTATE `22023`, surfaced as `invalid-input`.
 - Too many requests from one network: HTTP `429`, surfaced as `rate-limit`.
+- Valid capability + **End live sharing**: atomically delete the canonical record; later loads and saves receive the same `not-found` response as an unknown code or token.
 
 The UI immediately loads the latest record, keeps the editor open, and asks the person to review and save again. Visible live-activity tabs poll a lightweight revision-only RPC every 15 seconds and fetch the full snapshot only when that revision changes. They also check immediately when they regain focus or reconnect. **Refresh latest** remains available as a manual fallback. Automatic field-level merging should wait until we have evidence that whole-activity optimistic concurrency is too disruptive.
 
 ## Remaining trusted-group limitations
 
 - Decide whether separate read-only and edit tokens are useful.
-- Add token rotation, explicit backend deletion, and participant-level revocation.
+- Decide whether token rotation and participant-level revocation are useful beyond whole-session revocation.
 - Configure production alerts from API/database logs and tune request limits from observed traffic.
-- Replace the broad `*.supabase.co` CSP connection source if a dedicated custom API domain is introduced.
+- If a dedicated custom API domain is introduced, add only that exact HTTPS origin to the production CSP.
 - Enable Realtime only after defining how capability-token clients are authorized to subscribe.
 
 ## Implemented frontend
@@ -79,6 +80,7 @@ The UI immediately loads the latest record, keeps the editor open, and asks the 
 - Every mutation sends the last loaded revision. A stale save loads the current activity with a visible conflict message instead of overwriting someone else's work.
 - Newer revisions load automatically while the live activity is visible. Polling pauses for hidden, offline, or actively-saving tabs and backs off to at most one request per minute after failures.
 - **Refresh latest** manually loads the current revision, and **Show QR** reopens the same live link for sharing.
+- **End live sharing** invalidates the current capability immediately. Every browser that already synchronized it keeps the last recovery snapshot and can explicitly continue as a separate local activity.
 - While connected, Supabase is authoritative and all edits target the same revision-checked Live session. The local recovery copy is refreshed after every successful load or save.
 - If the browser is offline or the service cannot be reached, Tally shows the last synced copy read-only. Editing becomes available only after reconnecting or after the person explicitly chooses **Duplicate and edit**, which creates an independent local branch and leaves the Live session untouched.
 - If the backend confirms that the remembered Live activity no longer exists, Tally offers **Continue locally**. The recovered activity becomes a normal editable local activity and can start a new Live session with a new capability code and expiration window.
@@ -90,10 +92,10 @@ Each browser's shortcut, capability, and latest full recovery snapshot are store
 
 ### Upgrade compatibility
 
-The recovery-copy feature is additive. Existing `#live=` capability URLs, `tally:frontend:v2` activity data, and `tally:live-activity-bookmarks:v1` bookmarks keep their existing formats. After an upgraded browser successfully reconnects to a valid remembered Live activity, Tally writes the new full recovery mirror automatically and keeps the same code, edit token, revision checks, and backend RPC contract. If that first connection is temporarily unavailable, the old bookmark remains intact and **Try again** reconnects it without creating a replacement session.
+The recovery-copy and revocation features are additive. Existing `#live=` capability URLs, `tally:frontend:v2` activity data, and `tally:live-activity-bookmarks:v1` bookmarks keep their existing formats. After an upgraded browser successfully reconnects to a valid remembered Live activity, Tally writes the new full recovery mirror automatically and keeps the same code, edit token, revision checks, and existing RPC contracts. Older clients continue loading and editing valid sessions; after a participant ends one, their next request receives the same established `not-found` behavior. If a first upgrade connection is temporarily unavailable, the old bookmark remains intact and **Try again** reconnects it without creating a replacement session.
 
 ## Verification
 
 - Vitest enforces 100% statement, branch, function, and line coverage, including happy paths and failure states.
-- Playwright covers isolated creator, editor, observer, and pre-upgrade bookmark-only browser sessions, including additive mirror backfilling, latest-state synchronization, offline read-only behavior, and explicit duplication into an editable local branch. Component and integration tests cover a failed first upgrade connection, stale-save recovery, and continuing locally after confirmed expiration.
-- pgTAP verifies the SQL capability, privacy, validation, and optimistic-concurrency contract.
+- Playwright covers isolated creator, editor, observer, and pre-upgrade bookmark-only browser sessions, including additive mirror backfilling, latest-state synchronization, offline read-only behavior, explicit duplication, revocation propagation, and preserved recovery copies. Component and integration tests cover a failed first upgrade connection, stale-save recovery, and continuing locally after confirmed expiration.
+- pgTAP verifies the SQL capability, privacy, strict graph-validation, revocation, and optimistic-concurrency contract.

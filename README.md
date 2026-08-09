@@ -16,7 +16,7 @@ Production uses privacy-preserving first-party analytics through Supabase for bo
 
 Tally supports two deliberately different sharing choices:
 
-- **Start live activity** creates a short capability URL for one canonical activity in Supabase. Trusted recipients with the complete link can load and edit the same revision-checked data from different browsers. The Live invite can be copied, opened from a QR code, or sent through the device share sheet.
+- **Start live activity** creates a short capability URL for one canonical activity in Supabase. Trusted recipients with the complete link can load and edit the same revision-checked data from different browsers. The Live invite can be copied, opened from a QR code, or sent through the device share sheet. Any holder of the complete link can explicitly end that capability; previously opened browsers keep their last recovery copy.
 - **Share balances only** exports a PNG summary with totals and suggested payments without granting access to the activity.
 - If Safari opens a Live link outside the installed PWA, **Join activity** safely transfers the copied link into the existing Tally app session.
 
@@ -41,6 +41,7 @@ For launch copy, a privacy-safe demo storyboard, and channel guidance, see the [
 - Persist data in the browser and synchronize changes across open tabs.
 - Install Tally as a PWA and reopen the local app shell without a network connection.
 - Collaborate across browsers through short, revision-checked live activity links that automatically load newer changes while visible.
+- End a Live link immediately without deleting the last synced recovery copies on participating devices.
 - Continue a Safari-opened shared link in an installed Tally PWA without abandoning the existing app session.
 - Measure anonymous local and live feature usage without sending activity data or secret URLs to analytics.
 - Use the responsive interface on desktop or mobile.
@@ -48,7 +49,7 @@ For launch copy, a privacy-safe demo storyboard, and channel guidance, see the [
 
 ## Important data note
 
-Local activities remain in browser `localStorage` and can be viewed after the installed app shell has been cached for offline use. Live activities are stored in Supabase and are editable by anyone with the full capability link while connected. Each participating browser also keeps the latest full Live snapshot locally: if the connection is unavailable, that recovery copy is read-only so offline changes cannot silently conflict. A person can explicitly duplicate it into an independent editable activity, or continue it locally after the backend confirms that the Live session has ended. There are no user accounts or participant-level permissions. Read [PRIVACY.md](PRIVACY.md) before deploying or sharing real activity data.
+Local activities remain in browser `localStorage` and can be viewed after the installed app shell has been cached for offline use. Live activities are stored in Supabase and are editable—and can be ended—by anyone with the full capability link while connected. Each participating browser also keeps the latest full Live snapshot locally: if the connection is unavailable, that recovery copy is read-only so offline changes cannot silently conflict. A person can explicitly duplicate it into an independent editable activity, or continue it locally after the backend confirms that the Live session has ended. There are no user accounts or participant-level permissions. Read [PRIVACY.md](PRIVACY.md) before deploying or sharing real activity data.
 
 Currency selection controls display only. Tally does not convert amounts or support mixed currencies inside one activity.
 
@@ -151,7 +152,7 @@ Every push and pull request must pass:
 - ESLint with TypeScript and React Hooks rules and zero warnings;
 - component and helper tests;
 - Playwright integration tests against the production GitHub Pages build;
-- pgTAP contracts for live-activity and analytics access control, validation, privacy, retention, and rate limits;
+- pgTAP contracts for live-activity and analytics access control, graph validation, revocation, privacy, retention, and per-client/project-wide rate limits;
 - 100% statement, branch, function, and line coverage;
 - a production static build.
 

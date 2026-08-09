@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(61);
+select plan(84);
 
 select has_schema('private', 'private schema exists');
 select has_table('private', 'shared_activities', 'shared activity storage exists');
@@ -59,6 +59,16 @@ select is(
   true,
   'anonymous clients can execute the revision-only polling wrapper'
 );
+select is(
+  has_function_privilege('anon', 'private.end_shared_activity(text,text)', 'EXECUTE'),
+  false,
+  'anonymous clients cannot execute the private revocation function'
+);
+select is(
+  has_function_privilege('anon', 'public.end_shared_activity(text,text)', 'EXECUTE'),
+  true,
+  'anonymous capability holders can execute only the public revocation wrapper'
+);
 select ok(
   exists (
     select 1
@@ -75,6 +85,7 @@ select has_function('public', 'poll_shared_activity', array['text', 'text'], 'po
 select has_function('public', 'update_shared_activity', array['text', 'text', 'bigint', 'jsonb'], 'update RPC exists');
 select has_function('public', 'update_shared_activity_v2', array['text', 'text', 'bigint', 'jsonb'], 'conflict-aware update RPC exists');
 select has_function('public', 'update_shared_activity_v3', array['text', 'text', 'bigint', 'jsonb'], 'rejection-aware update RPC exists');
+select has_function('public', 'end_shared_activity', array['text', 'text'], 'revocation RPC exists');
 
 create temporary table created_activity as
 select * from public.create_shared_activity(jsonb_build_object(
@@ -253,6 +264,153 @@ select is(
   (select count(*) from public.create_shared_activity(null::jsonb)),
   0::bigint,
   'null snapshots are rejected explicitly'
+);
+
+create temporary table strict_snapshot as
+select jsonb_build_object(
+  'version', 2,
+  'sender', jsonb_build_object('id', 'me', 'name', 'Alex', 'initials', 'A', 'color', '#16724c'),
+  'group', jsonb_build_object(
+    'id', 'trip',
+    'name', 'Weekend',
+    'emoji', '✦',
+    'memberIds', jsonb_build_array('me', 'maya'),
+    'currency', 'USD'
+  ),
+  'friends', jsonb_build_array(jsonb_build_object('id', 'maya', 'name', 'Maya', 'initials', 'M', 'color', '#abc')),
+  'expenses', jsonb_build_array(jsonb_build_object(
+    'id', 'dinner',
+    'groupId', 'trip',
+    'title', 'Dinner',
+    'amount', 10,
+    'payerId', 'me',
+    'splitMethod', 'equal',
+    'shares', jsonb_build_object('me', 5, 'maya', 5),
+    'createdAt', '2026-08-08T20:00:00.000Z',
+    'updatedAt', '2026-08-08T20:01:00.000Z'
+  ))
+) as snapshot;
+
+select is(
+  private.is_valid_activity_snapshot(snapshot),
+  true,
+  'the strict validator accepts a complete activity graph'
+) from strict_snapshot;
+select is(
+  private.is_valid_activity_snapshot(jsonb_set(snapshot, '{sender,id}', '"someone-else"')),
+  false,
+  'the strict validator rejects ambiguous sender identities'
+) from strict_snapshot;
+select is(
+  private.is_valid_activity_snapshot(jsonb_set(snapshot, '{friends}', (snapshot -> 'friends') || (snapshot -> 'friends'))),
+  false,
+  'the strict validator rejects duplicate friend identifiers'
+) from strict_snapshot;
+select is(
+  private.is_valid_activity_snapshot(jsonb_set(snapshot, '{group,memberIds}', '["me"]')),
+  false,
+  'the strict validator requires the exact activity participant set'
+) from strict_snapshot;
+select is(
+  private.is_valid_activity_snapshot(jsonb_set(snapshot, '{group,memberIds}', '["me","maya","maya"]')),
+  false,
+  'the strict validator rejects duplicate group members'
+) from strict_snapshot;
+select is(
+  private.is_valid_activity_snapshot(jsonb_set(snapshot, '{expenses}', (snapshot -> 'expenses') || (snapshot -> 'expenses'))),
+  false,
+  'the strict validator rejects duplicate expense identifiers'
+) from strict_snapshot;
+select is(
+  private.is_valid_activity_snapshot(jsonb_set(snapshot, '{expenses,0,groupId}', '"other"')),
+  false,
+  'the strict validator rejects expenses for another activity'
+) from strict_snapshot;
+select is(
+  private.is_valid_activity_snapshot(jsonb_set(snapshot, '{expenses,0,payerId}', '"missing"')),
+  false,
+  'the strict validator rejects unknown payers'
+) from strict_snapshot;
+select is(
+  private.is_valid_activity_snapshot(jsonb_set(snapshot, '{expenses,0,shares}', '{"missing":10}')),
+  false,
+  'the strict validator rejects unknown share recipients'
+) from strict_snapshot;
+select is(
+  private.is_valid_activity_snapshot(jsonb_set(snapshot, '{expenses,0,shares}', '{"me":4,"maya":5}')),
+  false,
+  'the strict validator rejects share totals that do not match the amount'
+) from strict_snapshot;
+select is(
+  private.is_valid_activity_snapshot(jsonb_set(snapshot, '{expenses,0,amount}', '-1')),
+  false,
+  'the strict validator rejects negative amounts'
+) from strict_snapshot;
+select is(
+  private.is_valid_activity_snapshot(jsonb_set(snapshot, '{expenses,0,shares}', '{}')),
+  false,
+  'the strict validator rejects empty split maps'
+) from strict_snapshot;
+select is(
+  private.is_valid_activity_snapshot(jsonb_set(snapshot, '{group,currency}', '"BTC"')),
+  false,
+  'the strict validator rejects unsupported currencies'
+) from strict_snapshot;
+select is(
+  private.is_valid_activity_snapshot(jsonb_set(snapshot, '{expenses,0,createdAt}', '"yesterday"')),
+  false,
+  'the strict validator rejects invalid creation timestamps'
+) from strict_snapshot;
+select is(
+  private.is_valid_activity_snapshot(jsonb_set(snapshot, '{expenses,0,updatedAt}', '"yesterday"')),
+  false,
+  'the strict validator rejects invalid update timestamps'
+) from strict_snapshot;
+select is(
+  private.is_valid_activity_snapshot(jsonb_set(snapshot, '{expenses,0,kind}', '"settlement"')),
+  false,
+  'the strict validator rejects malformed settlement records'
+) from strict_snapshot;
+
+create temporary table revoked_activity as
+select * from public.create_shared_activity((select snapshot from strict_snapshot));
+
+select set_config('response.status', '200', true);
+select is(
+  (
+    select count(*)
+    from revoked_activity activity
+    cross join lateral public.end_shared_activity(activity.code, repeat('0', 64))
+  ),
+  0::bigint,
+  'an invalid capability cannot revoke a Live activity'
+);
+select is(
+  (
+    select count(*)
+    from revoked_activity activity
+    cross join lateral public.load_shared_activity(activity.code, activity.edit_token)
+  ),
+  1::bigint,
+  'a failed revocation leaves the Live activity available'
+);
+select is(
+  (
+    select ended.code
+    from revoked_activity activity
+    cross join lateral public.end_shared_activity(activity.code, activity.edit_token) ended
+  ),
+  (select code from revoked_activity),
+  'a valid capability revokes its Live activity'
+);
+select is(
+  (
+    select count(*)
+    from revoked_activity activity
+    cross join lateral public.load_shared_activity(activity.code, activity.edit_token)
+  ),
+  0::bigint,
+  'a revoked Live activity cannot be loaded again'
 );
 
 select is(

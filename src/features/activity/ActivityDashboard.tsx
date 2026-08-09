@@ -156,7 +156,7 @@ export function MembersRail({ members, currentMemberId = 'me', readOnly = false,
   )
 }
 
-export function GroupDashboard({ group, members, expenses, query, activityFeedback, readOnly = false, readOnlyLabel, currentMemberId = 'me', currentUserLabel = 'You', statusLabel, onCurrentMemberChange, onCurrencyChange, onShareSummary, onShareQr, onShareLive, onCopyShareLink, onAddFriend, onAddExpense, onSettleUp, onEditExpense, onDeleteExpense }: {
+export function GroupDashboard({ group, members, expenses, query, activityFeedback, readOnly = false, readOnlyLabel, currentMemberId = 'me', currentUserLabel = 'You', statusLabel, onCurrentMemberChange, onCurrencyChange, onShareSummary, onShareQr, onShareLive, onCopyShareLink, onEndLive, onAddFriend, onAddExpense, onSettleUp, onEditExpense, onDeleteExpense }: {
   group: ActivityGroup
   members: Member[]
   expenses: Expense[]
@@ -173,6 +173,7 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
   onShareQr?: () => void
   onShareLive?: () => void
   onCopyShareLink?: () => void
+  onEndLive?: () => void
   onAddFriend?: () => void
   onAddExpense?: () => void
   onSettleUp?: (settlement: Settlement) => void
@@ -229,6 +230,7 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
         onCopyLink={onCopyShareLink}
         onShowQr={onShareQr}
         onShareSummary={onShareSummary}
+        onEndLive={onEndLive}
       /> : null}
     </main>
   )

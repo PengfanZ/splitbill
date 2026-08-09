@@ -33,14 +33,17 @@ describe('ShareActivityMenu', () => {
     const user = userEvent.setup()
     const onClose = vi.fn()
     const onCopyLink = vi.fn().mockResolvedValue(undefined)
-    const { container } = render(<ShareActivityMenu groupName="Cabin" live onClose={onClose} onCopyLink={onCopyLink} />)
+    const onEndLive = vi.fn().mockResolvedValue(undefined)
+    const { container } = render(<ShareActivityMenu groupName="Cabin" live onClose={onClose} onCopyLink={onCopyLink} onEndLive={onEndLive} />)
 
     expect(screen.getByText('Invite people to edit live')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Copy live invite link' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'End live' })).toBeVisible()
     expect(screen.queryByText(/snapshot/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Start live activity' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Show live QR' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Copy live invite link' }))
+    await user.click(screen.getByRole('button', { name: 'End live' }))
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     fireEvent.mouseDown(container.querySelector('.modal')!)
     fireEvent.mouseDown(container.querySelector('.modal-backdrop')!)
@@ -48,7 +51,8 @@ describe('ShareActivityMenu', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
 
     expect(onCopyLink).toHaveBeenCalledOnce()
-    expect(onClose).toHaveBeenCalledTimes(4)
+    expect(onEndLive).toHaveBeenCalledOnce()
+    expect(onClose).toHaveBeenCalledTimes(5)
   })
 
   it('renders available Live actions independently and hides the section when none exist', async () => {

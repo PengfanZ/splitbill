@@ -30,6 +30,7 @@ const groupSchema = z.object({
   currency: z.enum(SUPPORTED_CURRENCIES).optional(),
 }).passthrough()
 const amountSchema = z.number().min(0).max(MAX_ACTIVITY_AMOUNT)
+const activityTimestampSchema = z.iso.datetime({ offset: true }).max(120)
 const expenseSchema = z.object({
   id: z.string().min(1).max(120),
   groupId: z.string().min(1).max(120),
@@ -38,12 +39,16 @@ const expenseSchema = z.object({
   payerId: memberIdSchema,
   splitMethod: z.enum(['equal', 'exact']),
   shares: z.record(memberIdSchema, amountSchema),
-  createdAt: z.string(),
-  updatedAt: z.string().refine(value => Number.isFinite(Date.parse(value))).optional(),
+  createdAt: activityTimestampSchema,
+  updatedAt: activityTimestampSchema.optional(),
   kind: z.enum(['expense', 'settlement']).optional(),
 }).passthrough().superRefine((expense, context) => {
-  if (expense.kind !== 'settlement') return
   const recipients = Object.entries(expense.shares)
+  const shareTotal = recipients.reduce((total, [, amount]) => total + amount, 0)
+  if (recipients.length === 0 || Math.abs(shareTotal - expense.amount) >= 0.005) {
+    context.addIssue({ code: 'custom', message: 'Expense shares must equal the expense amount' })
+  }
+  if (expense.kind !== 'settlement') return
   if (expense.amount <= 0
     || expense.splitMethod !== 'exact'
     || recipients.length !== 1
@@ -63,11 +68,18 @@ function validateActivityReferences(
   activity: z.infer<z.ZodObject<typeof activityDataShape>>,
   context: z.RefinementCtx,
 ) {
-  const memberIds = new Set(['me', ...activity.friends.map(friend => friend.id)])
-  const valid = activity.group.memberIds.every(memberId => memberIds.has(memberId))
+  const allMemberIds = ['me', ...activity.friends.map(friend => friend.id)]
+  const memberIds = new Set(allMemberIds)
+  const groupMemberIds = new Set(activity.group.memberIds)
+  const expenseIds = new Set(activity.expenses.map(expense => expense.id))
+  const valid = memberIds.size === allMemberIds.length
+    && groupMemberIds.size === activity.group.memberIds.length
+    && expenseIds.size === activity.expenses.length
+    && groupMemberIds.size === memberIds.size
+    && allMemberIds.every(memberId => groupMemberIds.has(memberId))
     && activity.expenses.every(expense => expense.groupId === activity.group.id
-      && memberIds.has(expense.payerId)
-      && Object.keys(expense.shares).every(memberId => memberIds.has(memberId)))
+      && groupMemberIds.has(expense.payerId)
+      && Object.keys(expense.shares).every(memberId => groupMemberIds.has(memberId)))
   if (!valid) context.addIssue({ code: 'custom', message: 'Invalid activity references' })
 }
 

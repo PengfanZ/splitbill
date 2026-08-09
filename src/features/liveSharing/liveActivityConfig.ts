@@ -1,6 +1,11 @@
 import { createLiveActivityClient } from './liveActivityApi'
 
-export type LiveActivityClient = ReturnType<typeof createLiveActivityClient>
+type ConfiguredLiveActivityClient = ReturnType<typeof createLiveActivityClient>
+
+// Keep injected preview/test clients created before revocation support usable.
+// Configured production clients always include `end`.
+export type LiveActivityClient = Omit<ConfiguredLiveActivityClient, 'end'>
+  & Partial<Pick<ConfiguredLiveActivityClient, 'end'>>
 
 type LiveActivityEnvironment = {
   VITE_SUPABASE_URL?: string
