@@ -180,6 +180,7 @@ describe('AI expense API client', () => {
     ['provider_error', 'model-unavailable'],
     ['provider_unavailable', 'model-unavailable'],
     ['provider_payment_required', 'credits'],
+    ['ai_budget_exceeded', 'credits'],
   ] as const)('maps backend code %s to %s', async (code, kind) => {
     fetcher.mockResolvedValue(response({ code, message: 'Safe backend message' }, 503))
     const client = createAiExpenseClient({ supabaseUrl: 'https://project.supabase.co', publishableKey: 'key' }, fetcher)

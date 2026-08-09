@@ -18,6 +18,24 @@ export type ChangelogEntry = {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    id: '2026-08-live-controls',
+    releasedOn: '2026-08-08',
+    titleKey: 'changelog.release.liveControlsTitle',
+    summaryKey: 'changelog.release.liveControlsSummary',
+    items: [
+      {
+        icon: 'live',
+        titleKey: 'changelog.item.endLiveTitle',
+        descriptionKey: 'changelog.item.endLiveDescription',
+      },
+      {
+        icon: 'polish',
+        titleKey: 'changelog.item.saferSharingTitle',
+        descriptionKey: 'changelog.item.saferSharingDescription',
+      },
+    ],
+  },
+  {
     id: '2026-08-ai-entry',
     releasedOn: '2026-08-02',
     titleKey: 'changelog.release.aiTitle',

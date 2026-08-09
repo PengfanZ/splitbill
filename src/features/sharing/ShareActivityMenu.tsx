@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react'
-import { ChevronRight, Copy, QrCode, Radio, Share2 } from 'lucide-react'
+import { ChevronRight, CircleStop, Copy, QrCode, Radio, Share2 } from 'lucide-react'
 import { Button } from '../../components/Button'
 import { ModalShell } from '../../components/Dialog'
 import { useLocalization } from '../../i18n/LocalizationContext'
@@ -53,7 +53,7 @@ function ShareSummaryAction({ icon, title, description, onClick }: {
   )
 }
 
-export function ShareActivityMenu({ groupName, live = false, onClose, onCollaborateLive, onCopyLink, onShowQr, onShareSummary }: {
+export function ShareActivityMenu({ groupName, live = false, onClose, onCollaborateLive, onCopyLink, onShowQr, onShareSummary, onEndLive }: {
   groupName: string
   live?: boolean
   onClose: () => void
@@ -61,6 +61,7 @@ export function ShareActivityMenu({ groupName, live = false, onClose, onCollabor
   onCopyLink?: ShareAction
   onShowQr?: ShareAction
   onShareSummary?: ShareAction
+  onEndLive?: ShareAction
 }) {
   const { t } = useLocalization()
   const run = (action: ShareAction) => {
@@ -100,6 +101,12 @@ export function ShareActivityMenu({ groupName, live = false, onClose, onCollabor
           ) : null}
         </div>
         {onShareSummary ? <div className="share-menu-other"><span>{t('shareMenu.otherTitle')}</span><ShareSummaryAction icon={<Share2 size={20} />} title={t('shareMenu.summary')} description={t('shareMenu.summaryHelp')} onClick={() => run(onShareSummary)} /></div> : null}
+        {live && onEndLive ? (
+          <div className="share-menu-danger">
+            <span className="share-menu-danger-copy"><CircleStop size={18} /><span><b>{t('shareMenu.endLive')}</b><small>{t('shareMenu.endLiveHelp')}</small></span></span>
+            <Button variant="danger" onClick={() => run(onEndLive)}>{t('shareMenu.endLiveAction')}</Button>
+          </div>
+        ) : null}
         <Button className="share-menu-cancel" onClick={onClose}>{t('common.cancel')}</Button>
     </ModalShell>
   )

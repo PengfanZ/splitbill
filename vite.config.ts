@@ -1,15 +1,15 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
-import { resolveSupabaseConnectOrigin } from './src/security/contentSecurityPolicy'
+import { resolveConnectSources } from './src/security/contentSecurityPolicy'
 
 const appDescription = 'Split group expenses fairly for free—no account required, with optional live collaboration.'
 
-function contentSecurityPolicyPlugin(supabaseUrl?: string): Plugin {
-  const supabaseOrigin = resolveSupabaseConnectOrigin(supabaseUrl)
+function contentSecurityPolicyPlugin(supabaseUrl: string | undefined, development: boolean): Plugin {
+  const connectSources = resolveConnectSources(supabaseUrl, development)
   return {
     name: 'tally-content-security-policy',
-    transformIndexHtml: html => html.replaceAll('__TALLY_SUPABASE_ORIGIN__', supabaseOrigin),
+    transformIndexHtml: html => html.replaceAll('__TALLY_CONNECT_SOURCES__', connectSources),
   }
 }
 
@@ -19,7 +19,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [
-      contentSecurityPolicyPlugin(supabaseUrl),
+      contentSecurityPolicyPlugin(supabaseUrl, mode !== 'production' || process.env.TALLY_INCLUDE_DEV_CSP === 'true'),
       react(),
       VitePWA({
         strategies: 'injectManifest',

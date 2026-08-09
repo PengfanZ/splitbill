@@ -100,6 +100,12 @@ function parseRecord(value: unknown, requireToken: boolean): CreatedLiveActivity
   return requireToken ? { ...record, editToken: row.edit_token as string } : record
 }
 
+function parseEndedActivity(value: unknown, credentials: LiveActivityCredentials) {
+  if (!isRecord(value) || value.code !== credentials.code) {
+    throw new LiveActivityApiError('invalid-response', 'The live activity service returned an invalid revocation result.')
+  }
+}
+
 function assertSnapshot(snapshot: SharedActivity) {
   if (!isSharedActivity(snapshot)) throw new LiveActivityApiError('invalid-input', 'A valid activity snapshot is required.')
 }
@@ -202,6 +208,13 @@ export function createLiveActivityClient(configuration: ApiConfiguration, fetche
         throw new LiveActivityApiError('conflict', 'A newer activity revision is available.', { latestRecord: record })
       }
       return record
+    },
+    async end(credentials: LiveActivityCredentials): Promise<void> {
+      assertCredentials(credentials)
+      parseEndedActivity(await rpc('end_shared_activity', {
+        p_code: credentials.code,
+        p_edit_token: credentials.editToken,
+      }), credentials)
     },
   }
 }

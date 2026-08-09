@@ -38,7 +38,7 @@ const expense = (overrides: Partial<Expense> = {}): Expense => ({
   payerId: 'me',
   splitMethod: 'equal',
   shares: { me: 10, maya: 10, jordan: 10 },
-  createdAt: 'Just now',
+  createdAt: '2026-07-14T01:00:00.000Z',
   ...overrides,
 })
 
@@ -442,6 +442,10 @@ describe('small UI building blocks', () => {
     expect(screen.getByText('No expenses match your search.')).toBeVisible()
     rerender(<ExpenseList expenses={[expense({ shares: { me: 30 } })]} members={[CURRENT_USER]} query="" onEditExpense={onEdit} onDeleteExpense={onDelete} />)
     expect(screen.getByText((_, node) => node?.textContent === 'You paidSplit equally · 1 person')).toBeVisible()
+    rerender(<ExpenseList expenses={[expense({ createdAt: 'Just now' })]} members={[CURRENT_USER]} query="" onEditExpense={onEdit} onDeleteExpense={onDelete} />)
+    expect(screen.getByText('Time not recorded')).toBeVisible()
+    rerender(<ExpenseList expenses={[expense({ createdAt: 'Today' })]} members={[CURRENT_USER]} query="" onEditExpense={onEdit} onDeleteExpense={onDelete} />)
+    expect(screen.getByText('Today')).toBeVisible()
     rerender(<ExpenseList expenses={[]} members={[CURRENT_USER]} query="" onEditExpense={onEdit} onDeleteExpense={onDelete} />)
     expect(screen.getByText('No expenses yet. Add the first one when you’re ready.')).toBeVisible()
 
@@ -1425,6 +1429,130 @@ describe('complete app workflows', () => {
     render(<App liveActivityClient={client} />)
     expect(await screen.findByText('Live · revision 2')).toBeVisible()
     expect(window.location.hash).toContain(`${LIVE_ACTIVITY_HASH_PREFIX}A1B2C3D4E5.`)
+  })
+
+  it('ends a Live capability while preserving the last synced recovery copy', async () => {
+    const user = userEvent.setup()
+    const credentials = { code: 'A1B2C3D4E5', editToken: 'a'.repeat(64) }
+    const snapshot = createSharedActivity(group, [CURRENT_USER, maya, jordan], [expense()])
+    const end = vi.fn().mockResolvedValue(undefined)
+    const client = {
+      create: vi.fn(),
+      load: vi.fn().mockResolvedValue({ code: credentials.code, revision: 4, snapshot, updatedAt: '2026-07-14T01:00:00.000Z' }),
+      poll: vi.fn(),
+      update: vi.fn(),
+      end,
+    } satisfies LiveActivityClient
+    localStorage.setItem(ACTIVITY_IDENTITY_KEY, JSON.stringify({ [`live:${credentials.code}`]: 'me' }))
+    window.history.replaceState(null, '', new URL(buildLiveActivityUrl(credentials, 'https://pengfanz.github.io/splitbill/')).hash)
+    render(<App liveActivityClient={client} />)
+
+    expect(await screen.findByText('Live · revision 4')).toBeVisible()
+    await chooseShareAction(user, 'End live')
+    const confirmation = screen.getByRole('dialog', { name: 'End live sharing?' })
+    expect(within(confirmation).getByText(/Everyone will immediately lose access/)).toBeVisible()
+    await user.click(within(confirmation).getByRole('button', { name: 'End live sharing' }))
+
+    await waitFor(() => expect(end).toHaveBeenCalledWith(credentials))
+    expect(await screen.findByText('Live sharing has ended')).toBeVisible()
+    expect(screen.getByRole('status')).toHaveTextContent('last synced copy remains safe')
+    expect(screen.getByText('Dinner', { exact: true })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Continue locally' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Add expense' })).not.toBeInTheDocument()
+  })
+
+  it('opens another saved Live activity after ending the current one', async () => {
+    const user = userEvent.setup()
+    const endedCredentials = { code: 'A1B2C3D4E5', editToken: 'a'.repeat(64) }
+    const activeCredentials = { code: 'F6E5D4C3B2', editToken: 'b'.repeat(64) }
+    const cabin: ActivityGroup = { id: 'cabin', name: 'Cabin', emoji: '△', memberIds: ['me', 'maya'] }
+    const endedSnapshot = createSharedActivity(group, [CURRENT_USER, maya, jordan], [expense()])
+    const activeSnapshot = createSharedActivity(cabin, [CURRENT_USER, maya], [])
+    const load = vi.fn().mockImplementation(async (credentials: typeof endedCredentials) => credentials.code === endedCredentials.code
+      ? { code: endedCredentials.code, revision: 4, snapshot: endedSnapshot, updatedAt: '2026-07-14T01:00:00.000Z' }
+      : { code: activeCredentials.code, revision: 7, snapshot: activeSnapshot, updatedAt: '2026-07-14T02:00:00.000Z' })
+    const client = {
+      create: vi.fn(),
+      load,
+      poll: vi.fn(),
+      update: vi.fn(),
+      end: vi.fn().mockResolvedValue(undefined),
+    } satisfies LiveActivityClient
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState({ groups: [group, cabin] })))
+    localStorage.setItem(LIVE_ACTIVITY_BOOKMARKS_KEY, JSON.stringify({
+      [group.id]: endedCredentials,
+      [cabin.id]: activeCredentials,
+    }))
+    localStorage.setItem(ACTIVITY_IDENTITY_KEY, JSON.stringify({
+      [`live:${endedCredentials.code}`]: 'me',
+      [`live:${activeCredentials.code}`]: 'me',
+    }))
+    window.history.replaceState(null, '', new URL(buildLiveActivityUrl(endedCredentials, 'https://pengfanz.github.io/splitbill/')).hash)
+    render(<App liveActivityClient={client} />)
+
+    expect(await screen.findByText('Live · revision 4')).toBeVisible()
+    await chooseShareAction(user, 'End live')
+    await user.click(within(screen.getByRole('dialog', { name: 'End live sharing?' })).getByRole('button', { name: 'End live sharing' }))
+    expect(await screen.findByText('Live sharing has ended')).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Open Cabin activity' }))
+
+    expect(await screen.findByRole('heading', { name: 'Cabin' })).toBeVisible()
+    expect(await screen.findByText('Live · revision 7')).toBeVisible()
+    expect(load).toHaveBeenCalledWith(activeCredentials)
+  })
+
+  it.each([
+    ['network', 'Could not reach the live activity service. Check your connection and try again.'],
+    ['invalid-input', 'One of the activity fields is too long or the amount is above the supported limit. Update it and try again.'],
+  ] as const)('keeps end confirmation open after a %s failure', async (kind, message) => {
+    const user = userEvent.setup()
+    const credentials = { code: 'A1B2C3D4E5', editToken: 'a'.repeat(64) }
+    const snapshot = createSharedActivity(group, [CURRENT_USER, maya, jordan], [expense()])
+    const end = vi.fn().mockRejectedValue(new LiveActivityApiError(kind, 'failed'))
+    const client = {
+      create: vi.fn(),
+      load: vi.fn().mockResolvedValue({ code: credentials.code, revision: 4, snapshot, updatedAt: '2026-07-14T01:00:00.000Z' }),
+      poll: vi.fn(),
+      update: vi.fn(),
+      end,
+    } satisfies LiveActivityClient
+    localStorage.setItem(ACTIVITY_IDENTITY_KEY, JSON.stringify({ [`live:${credentials.code}`]: 'me' }))
+    window.history.replaceState(null, '', new URL(buildLiveActivityUrl(credentials, 'https://pengfanz.github.io/splitbill/')).hash)
+    render(<App liveActivityClient={client} />)
+
+    expect(await screen.findByText('Live · revision 4')).toBeVisible()
+    await chooseShareAction(user, 'End live')
+    const confirmation = screen.getByRole('dialog', { name: 'End live sharing?' })
+    await user.click(within(confirmation).getByRole('button', { name: 'End live sharing' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent(message)
+    expect(screen.getByRole('dialog', { name: 'End live sharing?' })).toBeVisible()
+    expect(screen.getByText('Dinner', { exact: true })).toBeVisible()
+  })
+
+  it('treats an already-ended Live capability as an idempotent success', async () => {
+    const user = userEvent.setup()
+    const credentials = { code: 'A1B2C3D4E5', editToken: 'a'.repeat(64) }
+    const snapshot = createSharedActivity(group, [CURRENT_USER, maya, jordan], [expense()])
+    const client = {
+      create: vi.fn(),
+      load: vi.fn().mockResolvedValue({ code: credentials.code, revision: 4, snapshot, updatedAt: '2026-07-14T01:00:00.000Z' }),
+      poll: vi.fn(),
+      update: vi.fn(),
+      end: vi.fn().mockRejectedValue(new LiveActivityApiError('not-found', 'already ended')),
+    } satisfies LiveActivityClient
+    localStorage.setItem(ACTIVITY_IDENTITY_KEY, JSON.stringify({ [`live:${credentials.code}`]: 'me' }))
+    window.history.replaceState(null, '', new URL(buildLiveActivityUrl(credentials, 'https://pengfanz.github.io/splitbill/')).hash)
+    render(<App liveActivityClient={client} />)
+
+    expect(await screen.findByText('Live · revision 4')).toBeVisible()
+    await chooseShareAction(user, 'End live')
+    await user.click(within(screen.getByRole('dialog', { name: 'End live sharing?' })).getByRole('button', { name: 'End live sharing' }))
+
+    expect(await screen.findByText('Live sharing has ended')).toBeVisible()
+    expect(screen.queryByRole('dialog', { name: 'End live sharing?' })).not.toBeInTheDocument()
+    expect(screen.getByText('Dinner', { exact: true })).toBeVisible()
   })
 
   it('shows an offline Live mirror as read-only and creates an explicit editable branch', async () => {

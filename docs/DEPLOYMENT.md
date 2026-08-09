@@ -9,7 +9,7 @@ The production workflow verifies the frontend and database, builds with producti
 
 ## Production scope
 
-This is a production-ready trusted-group MVP. Live links are bearer capabilities: anyone with the complete URL can read and edit that activity. Visible live tabs poll for newer revisions every 15 seconds, but there are no accounts, participant-level permissions, audit trail, realtime subscription, or token revocation yet. Do not use this release for regulated, highly sensitive, or adversarial financial data.
+This is a production-ready trusted-group MVP. Live links are bearer capabilities: anyone with the complete URL can read, edit, and end that activity. Visible live tabs poll for newer revisions every 15 seconds, but there are no accounts, participant-level permissions, audit trail, realtime subscription, or per-participant revocation. Do not use this release for regulated, highly sensitive, or adversarial financial data.
 
 ## One-time setup
 
@@ -92,6 +92,7 @@ The workflow can also be started manually from `main` with **Run workflow**.
 - Open the link in a private browser, add an expense, and confirm the first visible browser updates automatically within 15 seconds.
 - Confirm the recipient receives a persistent `Live · CODE` activity, then go offline and verify that its last synced snapshot remains visible but read-only.
 - Choose **Duplicate and edit** while offline and confirm the new independent local copy is editable without changing the Live activity.
+- Choose **End live sharing**, confirm the old URL becomes unavailable in another browser, and verify both browsers retain their last synced read-only recovery copy with **Continue locally**.
 - Create one local activity and one live activity, then confirm their allowlisted events appear separately in `private.analytics_daily` and `private.analytics_hourly`, and their resolved UI locale appears in `private.analytics_locale_daily`, without URL or activity fields.
 - Create one text AI draft and one voice AI draft, then confirm the requested and ready events appear in the **SplitBill - AI Entry Usage** Home report without prompts, audio, or expense fields.
 - Run Supabase Security Advisor and Performance Advisor after the first migration.
@@ -102,11 +103,11 @@ The workflow can also be started manually from `main` with **Run workflow**.
 - Backend activities expire 90 days after their last successful update and expired rows are removed incrementally during new activity creation. Each browser that opened the activity keeps its latest full snapshot locally until the person removes it or clears site data; after confirmed backend expiration, that saved copy can continue as a local activity and start a new Live session.
 - Create, load, update, and analytics RPCs are rate-limited per secret-peppered identifier derived from the client IP. Rejected requests consume the same budget as successful requests. Review API/database logs and tune limits from observed traffic.
 - First-party analytics events expire after 90 days and contain no URL, capability, identity, activity, or financial payload. Review aggregate usage with the queries in [ANALYTICS.md](ANALYTICS.md).
-- AI text and voice have separate database quotas. Keep the OpenRouter key limit as the hard cost ceiling and monitor request, clarification, ready, and failure frequency through the privacy-safe Home report.
+- AI text and voice have separate per-client database quotas plus server-only rolling project ceilings (500 text and 100 voice provider calls by default). Administrators can lower a ceiling or disable one mode in `private.ai_expense_budget_limits`; keep the OpenRouter key limit as the final hard cost ceiling and monitor request, clarification, ready, and failure frequency through the privacy-safe Home report.
 - Free-tier projects should export regular off-site logical backups with `supabase db dump`. Paid projects provide daily backups; consider point-in-time recovery when the recovery objective warrants it. See [Supabase backups](https://supabase.com/docs/guides/platform/backups).
 - Review Security Advisor and Performance Advisor after every schema change.
-- If a capability URL leaks, treat the activity as compromised. Token rotation/revocation is a required follow-up before serving groups that need stronger access control.
-- The build derives the exact Supabase `connect-src` origin from `VITE_SUPABASE_URL`. Missing or unsafe values fall back to the production origin, so preview deployments can use an isolated Supabase project without weakening the policy.
+- If a capability URL leaks, use **End live sharing** immediately and create a new Live session from a trusted recovery copy. Tally still has no participant-specific revocation or token rotation.
+- The production build derives the exact HTTPS Supabase `connect-src` origin from `VITE_SUPABASE_URL`; missing or unsafe values fall back to the production origin. Local and test endpoints are added only by the explicit browser-test build flag and are absent from release artifacts.
 
 ## Rollback
 

@@ -1,6 +1,59 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(26);
+select plan(41);
+
+select has_table('private', 'ai_expense_budget_limits', 'project-wide AI budget controls exist');
+select is(
+  (select relrowsecurity from pg_class where oid = 'private.ai_expense_budget_limits'::regclass),
+  true,
+  'AI budget controls have row security enabled'
+);
+select is(
+  has_table_privilege('anon', 'private.ai_expense_budget_limits', 'SELECT'),
+  false,
+  'anonymous clients cannot read project AI budgets'
+);
+select is(
+  has_table_privilege('service_role', 'private.ai_expense_budget_limits', 'SELECT'),
+  false,
+  'the Edge Function client cannot bypass the quota function to read budgets'
+);
+select has_function(
+  'public',
+  'consume_ai_expense_quota_v2',
+  array['text', 'text'],
+  'the scoped AI quota function exists'
+);
+select is(
+  has_function_privilege('anon', 'public.consume_ai_expense_quota_v2(text,text)', 'EXECUTE'),
+  false,
+  'anonymous clients cannot consume scoped AI quota directly'
+);
+select is(
+  has_function_privilege('authenticated', 'public.consume_ai_expense_quota_v2(text,text)', 'EXECUTE'),
+  false,
+  'authenticated clients cannot consume scoped AI quota directly'
+);
+select is(
+  has_function_privilege('service_role', 'public.consume_ai_expense_quota_v2(text,text)', 'EXECUTE'),
+  true,
+  'the Edge Function client can consume scoped AI quota'
+);
+select is(
+  has_function_privilege('service_role', 'private.consume_ai_expense_quota_v2(text,text)', 'EXECUTE'),
+  false,
+  'the Edge Function client cannot bypass the public quota wrapper'
+);
+select is(
+  public.consume_ai_expense_quota_v2('', 'text'),
+  'invalid_request',
+  'the scoped quota reports invalid identifiers explicitly'
+);
+select results_eq(
+  $$select input_mode, daily_limit from private.ai_expense_budget_limits order by input_mode$$,
+  $$values ('text'::text, 500::integer), ('voice'::text, 100::integer)$$,
+  'project budgets default to 500 text and 100 voice provider calls per rolling day'
+);
 
 select has_function(
   'public',
@@ -215,6 +268,42 @@ select is(
   ),
   26,
   'rejected voice daily requests remain counted'
+);
+
+select is(
+  (
+    select request_count
+    from private.shared_activity_rate_limits
+    where operation = 'ai-expense-global-daily'
+  ),
+  33,
+  'client-rejected text requests do not consume the project-wide budget'
+);
+
+update private.shared_activity_rate_limits
+set request_count = 499,
+    window_started_at = clock_timestamp()
+where operation = 'ai-expense-global-daily';
+
+select is(
+  public.consume_ai_expense_quota_v2('global-budget-client-a', 'text'),
+  'allowed',
+  'the final request inside the project-wide text budget is allowed'
+);
+select is(
+  public.consume_ai_expense_quota_v2('global-budget-client-b', 'text'),
+  'global_limit',
+  'distributed clients are stopped at the project-wide text budget'
+);
+
+update private.ai_expense_budget_limits
+set enabled = false
+where input_mode = 'voice';
+
+select is(
+  public.consume_ai_expense_quota_v2('disabled-voice-client', 'voice'),
+  'global_limit',
+  'a project budget can disable one AI input mode without a deployment'
 );
 
 select * from finish();

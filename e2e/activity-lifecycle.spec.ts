@@ -562,6 +562,7 @@ test('shares one editable backend activity across isolated browser sessions', as
   const editToken = 'a'.repeat(64)
   let revision = 1
   let snapshot: unknown
+  let ended = false
 
   const handleLiveBackend = async (route: Route) => {
     const functionName = new URL(route.request().url()).pathname.split('/').at(-1)
@@ -573,14 +574,28 @@ test('shares one editable backend activity across isolated browser sessions', as
     }
     if (functionName === 'create_shared_activity') {
       snapshot = body.p_snapshot
+      ended = false
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ code, edit_token: editToken, revision, snapshot, updated_at: '2026-07-14T01:00:00.000Z' }]) })
       return
     }
+    if (functionName === 'end_shared_activity') {
+      ended = true
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ code }]) })
+      return
+    }
     if (functionName === 'load_shared_activity') {
+      if (ended) {
+        await route.fulfill({ status: 404, contentType: 'application/json', body: '[]' })
+        return
+      }
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ code, revision, snapshot, updated_at: '2026-07-14T01:00:00.000Z' }]) })
       return
     }
     if (functionName === 'poll_shared_activity') {
+      if (ended) {
+        await route.fulfill({ status: 404, contentType: 'application/json', body: '[]' })
+        return
+      }
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ code, revision, updated_at: '2026-07-14T01:00:00.000Z' }]) })
       return
     }
@@ -781,8 +796,28 @@ test('shares one editable backend activity across isolated browser sessions', as
   await expect(editor.getByRole('heading', { name: 'Shared cabin copy' })).toBeVisible()
   await expect(editor.getByRole('button', { name: 'Add expense' })).toBeVisible()
   await expect(editor.getByText('Firewood', { exact: true })).toBeVisible()
-
   expect(browserErrors).toEqual([])
+
+  await page.bringToFront()
+  await page.getByRole('button', { name: 'Share', exact: true }).click()
+  await page.getByRole('dialog', { name: 'Share activity' }).getByRole('button', { name: 'End live' }).click()
+  const endConfirmation = page.getByRole('dialog', { name: 'End live sharing?' })
+  await expect(endConfirmation).toContainText('Everyone will immediately lose access')
+  await endConfirmation.getByRole('button', { name: 'End live sharing' }).click()
+  await expect(page.getByText('Live sharing has ended')).toBeVisible()
+  await expect(page.getByText('Cabin fee', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Add expense' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Continue locally' })).toBeVisible()
+
+  await observer.bringToFront()
+  await observer.evaluate(() => window.dispatchEvent(new Event('focus')))
+  await expect(observer.getByText('Live sharing has ended')).toBeVisible()
+  await expect(observer.getByText('Cabin fee', { exact: true })).toBeVisible()
+  await expect(observer.getByRole('button', { name: 'Add expense' })).toHaveCount(0)
+
+  const expectedRevocationErrors = browserErrors.filter(message => message === 'Failed to load resource: the server responded with a status of 404 (Not Found)')
+  expect(expectedRevocationErrors.length).toBeGreaterThan(0)
+  expect(browserErrors).toEqual(expectedRevocationErrors)
   await legacyContext.close()
   await editorContext.close()
   await observerContext.close()

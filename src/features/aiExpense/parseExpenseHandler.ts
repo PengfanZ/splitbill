@@ -35,7 +35,7 @@ export const AI_EXPENSE_CORS_HEADERS = {
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 
 export type ParseExpenseHandlerDependencies = {
-  consumeQuota: (identifier: string, inputMode: 'text' | 'voice') => Promise<boolean>
+  consumeQuota: (identifier: string, inputMode: 'text' | 'voice') => Promise<AiExpenseQuotaResult>
   fetcher?: Fetcher
   getEnvironment: (name: string) => string | undefined
   reportProviderFailure?: (failure: {
@@ -44,6 +44,8 @@ export type ParseExpenseHandlerDependencies = {
     errorType: string | null
   }) => void
 }
+
+export type AiExpenseQuotaResult = 'allowed' | 'client-limit' | 'global-limit'
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
 const MAX_TEXT_REQUEST_BYTES = 32 * 1024
@@ -61,10 +63,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function requestIdentifier(request: Request) {
-  const forwarded = request.headers.get('cf-connecting-ip')
-    ?? request.headers.get('x-forwarded-for')?.split(',')[0]
-    ?? 'unknown-client'
-  return forwarded.trim().slice(0, 200) || 'unknown-client'
+  const candidate = request.headers.get('cf-connecting-ip')?.trim() ?? ''
+  return candidate.length <= 64 && /^[0-9a-f:.]+$/i.test(candidate)
+    ? candidate
+    : 'unknown-client'
 }
 
 function providerFailureResponse(status: number, errorType: string | null) {
@@ -154,8 +156,12 @@ export async function handleParseExpenseRequest(
   }
 
   try {
-    if (!await dependencies.consumeQuota(requestIdentifier(request), parsedRequest.inputMode)) {
+    const quota = await dependencies.consumeQuota(requestIdentifier(request), parsedRequest.inputMode)
+    if (quota === 'client-limit') {
       return jsonError(429, 'rate_limit_exceeded', 'Too many AI requests. Try again in a few minutes.')
+    }
+    if (quota === 'global-limit') {
+      return jsonError(503, 'ai_budget_exceeded', 'The project AI budget is temporarily unavailable.')
     }
   } catch {
     return jsonError(503, 'rate_limit_unavailable', 'AI expense entry is temporarily unavailable.')

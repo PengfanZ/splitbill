@@ -403,6 +403,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .share-menu-copy b { font-size: 13px; }
 .share-menu-copy small { color: var(--muted); font-size: 11px; line-height: 1.35; }
 .share-summary-action > svg { color: #a29a91; flex: 0 0 auto; }
+.share-menu-danger { margin-top: 17px; padding-top: 15px; border-top: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.share-menu-danger-copy { min-width: 0; display: flex; align-items: center; gap: 10px; color: #9b3931; }
+.share-menu-danger-copy > svg { flex: 0 0 auto; }
+.share-menu-danger-copy > span { min-width: 0; display: grid; gap: 3px; }
+.share-menu-danger-copy b { color: var(--ink); font-size: 12px; }
+.share-menu-danger-copy small { color: var(--muted); font-size: 10px; line-height: 1.4; }
+.share-menu-danger > button { flex: 0 0 auto; }
 .share-menu-cancel { width: 100%; margin-top: 16px; }
 
 .modal label small { color: #9a938b; font-size: 9px; font-weight: 400; }
@@ -552,6 +559,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .share-menu-copy small { font-size: 12px; }
   .share-menu-choices { grid-template-columns: 1fr; }
   .share-choice-copy { min-height: 0; }
+  .share-menu-danger { align-items: stretch; flex-direction: column; }
+  .share-menu-danger > button { width: 100%; }
 }
 
 @media (max-width: 430px) {

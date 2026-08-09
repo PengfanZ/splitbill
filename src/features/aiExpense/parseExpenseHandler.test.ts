@@ -98,7 +98,7 @@ function dependencies(overrides: Partial<ParseExpenseHandlerDependencies> = {}) 
     OPENROUTER_API_KEY: 'secret-key',
   }
   return {
-    consumeQuota: vi.fn().mockResolvedValue(true),
+    consumeQuota: vi.fn().mockResolvedValue('allowed'),
     fetcher: vi.fn().mockResolvedValue(providerResponse()),
     getEnvironment: vi.fn((name: string) => environment[name]),
     reportProviderFailure: vi.fn(),
@@ -203,24 +203,37 @@ describe('parse expense Edge Function handler', () => {
   })
 
   it('enforces the server quota using a normalized client identifier', async () => {
-    const consumeQuota = vi.fn().mockResolvedValue(false)
+    const consumeQuota = vi.fn().mockResolvedValue('client-limit')
     const response = await handleParseExpenseRequest(request(requestBody, {
       'cf-connecting-ip': ' 203.0.113.8 ',
     }), dependencies({ consumeQuota }))
     expect(response.status).toBe(429)
     expect(consumeQuota).toHaveBeenCalledWith('203.0.113.8', 'text')
 
-    const forwardedQuota = vi.fn().mockResolvedValue(false)
+    const forwardedQuota = vi.fn().mockResolvedValue('client-limit')
     await handleParseExpenseRequest(request(requestBody, { 'x-forwarded-for': '198.51.100.4, 10.0.0.1' }), dependencies({ consumeQuota: forwardedQuota }))
-    expect(forwardedQuota).toHaveBeenCalledWith('198.51.100.4', 'text')
+    expect(forwardedQuota).toHaveBeenCalledWith('unknown-client', 'text')
 
-    const unknownQuota = vi.fn().mockResolvedValue(false)
+    const unknownQuota = vi.fn().mockResolvedValue('client-limit')
     await handleParseExpenseRequest(request(), dependencies({ consumeQuota: unknownQuota }))
     expect(unknownQuota).toHaveBeenCalledWith('unknown-client', 'text')
 
-    const blankQuota = vi.fn().mockResolvedValue(false)
+    const blankQuota = vi.fn().mockResolvedValue('client-limit')
     await handleParseExpenseRequest(request(requestBody, { 'cf-connecting-ip': ' ' }), dependencies({ consumeQuota: blankQuota }))
     expect(blankQuota).toHaveBeenCalledWith('unknown-client', 'text')
+
+    const malformedQuota = vi.fn().mockResolvedValue('client-limit')
+    await handleParseExpenseRequest(request(requestBody, { 'cf-connecting-ip': 'forged-client' }), dependencies({ consumeQuota: malformedQuota }))
+    expect(malformedQuota).toHaveBeenCalledWith('unknown-client', 'text')
+  })
+
+  it('distinguishes a project budget ceiling from a single-client rate limit', async () => {
+    const response = await handleParseExpenseRequest(request(), dependencies({
+      consumeQuota: vi.fn().mockResolvedValue('global-limit'),
+    }))
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toMatchObject({ code: 'ai_budget_exceeded' })
   })
 
   it('fails closed when the quota service is unavailable', async () => {

@@ -36,18 +36,20 @@ describe('live activity API client', () => {
     fetcher.mockReset()
   })
 
-  it('creates, loads, and revision-updates a shared backend activity', async () => {
+  it('creates, loads, revision-updates, and ends a shared backend activity', async () => {
     fetcher
       .mockResolvedValueOnce(response([row()]))
       .mockResolvedValueOnce(response([row({ edit_token: undefined })]))
       .mockResolvedValueOnce(response([row({ edit_token: undefined, snapshot: undefined })]))
       .mockResolvedValueOnce(response([row({ edit_token: undefined, revision: 2, conflicted: false })]))
+      .mockResolvedValueOnce(response([{ code: credentials.code }]))
     const client = createLiveActivityClient({ supabaseUrl: ' https://project.supabase.co/// ', publishableKey: ' publishable ' }, fetcher)
 
     await expect(client.create(snapshot)).resolves.toEqual({ ...credentials, revision: 1, snapshot, updatedAt })
     await expect(client.load(credentials)).resolves.toEqual({ code: credentials.code, revision: 1, snapshot, updatedAt })
     await expect(client.poll(credentials)).resolves.toEqual({ code: credentials.code, revision: 1, updatedAt })
     await expect(client.update(credentials, snapshot, 1)).resolves.toEqual({ code: credentials.code, revision: 2, snapshot, updatedAt })
+    await expect(client.end(credentials)).resolves.toBeUndefined()
 
     expect(fetcher).toHaveBeenNthCalledWith(1, 'https://project.supabase.co/rest/v1/rpc/create_shared_activity', expect.objectContaining({
       method: 'POST',
@@ -67,6 +69,8 @@ describe('live activity API client', () => {
     expect(JSON.parse(fetcher.mock.calls[2][1]?.body as string)).toEqual({ p_code: credentials.code, p_edit_token: credentials.editToken })
     expect(fetcher.mock.calls[3][0]).toBe('https://project.supabase.co/rest/v1/rpc/update_shared_activity_v3')
     expect(JSON.parse(fetcher.mock.calls[3][1]?.body as string)).toMatchObject({ p_expected_revision: 1, p_snapshot: snapshot })
+    expect(fetcher.mock.calls[4][0]).toBe('https://project.supabase.co/rest/v1/rpc/end_shared_activity')
+    expect(JSON.parse(fetcher.mock.calls[4][1]?.body as string)).toEqual({ p_code: credentials.code, p_edit_token: credentials.editToken })
   })
 
   it.each([
@@ -88,10 +92,18 @@ describe('live activity API client', () => {
     await expectApiError(client.create(invalidSnapshot), 'invalid-input')
     await expectApiError(client.load(invalidCredentials), 'invalid-input')
     await expectApiError(client.poll(invalidCredentials), 'invalid-input')
+    await expectApiError(client.end(invalidCredentials), 'invalid-input')
     await expectApiError(client.update(credentials, invalidSnapshot, 1), 'invalid-input')
     await expectApiError(client.update(credentials, snapshot, 0), 'invalid-input')
     await expectApiError(client.update(credentials, snapshot, 1.5), 'invalid-input')
     expect(fetcher).not.toHaveBeenCalled()
+  })
+
+  it('rejects a malformed end result', async () => {
+    fetcher.mockResolvedValue(response([{ code: 'B1C2D3E4F5' }]))
+    const client = createLiveActivityClient({ supabaseUrl: 'https://project.supabase.co', publishableKey: 'key' }, fetcher)
+
+    await expectApiError(client.end(credentials), 'invalid-response')
   })
 
   it.each([

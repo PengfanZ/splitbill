@@ -31,6 +31,10 @@ describe('shared activity schema', () => {
     }).success).toBe(false)
     expect(sharedActivitySchema.safeParse({
       ...activity,
+      expenses: [{ ...expense, createdAt: 'not-a-date' }],
+    }).success).toBe(false)
+    expect(sharedActivitySchema.safeParse({
+      ...activity,
       group: { ...activity.group, memberIds: ['me', 'missing'] },
     }).success).toBe(false)
     expect(sharedActivitySchema.safeParse({
@@ -45,6 +49,41 @@ describe('shared activity schema', () => {
       ...activity,
       expenses: [{ ...expense, shares: { me: 5, missing: 5 } }],
     }).success).toBe(false)
+  })
+
+  it('rejects ambiguous identities and participant sets', () => {
+    expect(sharedActivitySchema.safeParse({
+      ...activity,
+      sender: { ...CURRENT_USER, id: 'someone-else' },
+    }).success).toBe(false)
+    expect(sharedActivitySchema.safeParse({
+      ...activity,
+      friends: [friend, { ...friend }],
+    }).success).toBe(false)
+    expect(sharedActivitySchema.safeParse({
+      ...activity,
+      group: { ...activity.group, memberIds: ['me', 'maya', 'maya'] },
+    }).success).toBe(false)
+    expect(sharedActivitySchema.safeParse({
+      ...activity,
+      group: { ...activity.group, memberIds: ['me'] },
+    }).success).toBe(false)
+    expect(sharedActivitySchema.safeParse({
+      ...activity,
+      expenses: [expense, { ...expense }],
+    }).success).toBe(false)
+  })
+
+  it('rejects invalid amounts and incomplete split totals', () => {
+    const invalidExpenses = [
+      { ...expense, amount: -1, shares: { me: -0.5, maya: -0.5 } },
+      { ...expense, shares: {} },
+      { ...expense, shares: { me: 4, maya: 5 } },
+      { ...expense, shares: { me: 5, maya: -1 } },
+    ]
+    invalidExpenses.forEach(invalidExpense => {
+      expect(sharedActivitySchema.safeParse({ ...activity, expenses: [invalidExpense] }).success).toBe(false)
+    })
   })
 
   it('accepts only well-formed settlement payments', () => {
@@ -85,7 +124,7 @@ describe('shared activity schema', () => {
         payerId: 'me',
         splitMethod: 'equal',
         shares: { me: 1 },
-        createdAt: 'Today',
+        createdAt: '2026-07-29T01:00:00.000Z',
       })),
     }
 
