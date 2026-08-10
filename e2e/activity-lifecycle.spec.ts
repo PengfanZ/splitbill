@@ -382,6 +382,104 @@ test('centers compact mobile dialogs and keeps long forms as sheets', async ({ p
   await expect(page.locator('.modal-backdrop')).toHaveClass(/modal-backdrop--center/)
 })
 
+test('sends private in-app feedback without interrupting the activity', async ({ page, context }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  const submissions: Array<Record<string, unknown>> = []
+  await context.route('https://live-sharing.test/rest/v1/rpc/submit_feedback', async route => {
+    submissions.push(route.request().postDataJSON() as Record<string, unknown>)
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify('submitted'),
+    })
+  })
+
+  await page.goto('./')
+  await page.getByLabel('Display name').fill('Feedback Tester')
+  await page.getByRole('button', { name: 'Continue' }).click()
+  await page.getByRole('button', { name: 'Create an activity' }).click()
+  await page.getByLabel('Activity name').fill('Private weekend')
+  await page.getByLabel(/Add friends/).fill('Maya')
+  await page.getByRole('button', { name: 'Create activity' }).click()
+
+  const appUrl = page.url()
+  await page.getByRole('button', { name: 'Open navigation' }).click()
+  await expect(page.getByRole('link', { name: 'GitHub source' })).toHaveAttribute('target', '_blank')
+  await page.getByRole('button', { name: 'Send feedback' }).click()
+
+  const dialog = page.getByRole('dialog', { name: 'What should Tally do better?' })
+  await expect(dialog).toBeVisible()
+  await expect(page.locator('.modal-backdrop')).toHaveClass(/modal-backdrop--center/)
+  await expect(dialog).toContainText('Your activities, people, expenses, and Live links stay private.')
+  await dialog.getByRole('radio', { name: 'Rate 3 out of 5' }).click()
+  await dialog.getByText('Problem', { exact: true }).click()
+  await expect(dialog.getByRole('radio', { name: 'Problem' })).toBeChecked()
+  await dialog.getByLabel('Add a note (optional)').fill('The mobile balance labels could be clearer.')
+  await dialog.getByRole('button', { name: 'Send feedback' }).click()
+
+  await expect(page.getByRole('status')).toHaveText('Thanks—your feedback was sent.')
+  await expect(page.getByRole('heading', { name: 'Private weekend' })).toBeVisible()
+  expect(page.url()).toBe(appUrl)
+  expect(submissions).toEqual([{
+    p_category: 'problem',
+    p_message: 'The mobile balance labels could be clearer.',
+    p_locale: 'en',
+    p_rating: 3,
+    p_surface: 'local',
+    p_release: '2026-08-live-controls',
+  }])
+  expect(JSON.stringify(submissions)).not.toMatch(/Private weekend|Maya|#live=/)
+})
+
+test('offers one non-blocking rating after a successful share', async ({ page, context }) => {
+  const submissions: Array<Record<string, unknown>> = []
+  await context.route('https://live-sharing.test/rest/v1/rpc/submit_feedback', async route => {
+    submissions.push(route.request().postDataJSON() as Record<string, unknown>)
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify('submitted'),
+    })
+  })
+
+  await page.goto('./')
+  await page.getByLabel('Display name').fill('Rating Tester')
+  await page.getByRole('button', { name: 'Continue' }).click()
+  await page.getByRole('button', { name: 'Create an activity' }).click()
+  await page.getByLabel('Activity name').fill('Share rating weekend')
+  await page.getByRole('button', { name: 'Create activity' }).click()
+
+  await page.getByRole('button', { name: 'Share', exact: true }).click()
+  const firstDownload = page.waitForEvent('download')
+  await page.getByRole('dialog', { name: 'Share activity' })
+    .getByRole('button', { name: /^Export full summary/ })
+    .click()
+  await firstDownload
+
+  const prompt = page.getByLabel('How was Tally?')
+  await expect(prompt).toBeVisible()
+  await prompt.getByRole('radio', { name: 'Rate 4 out of 5' }).click()
+  await expect(prompt).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Share rating weekend' })).toBeVisible()
+  expect(submissions).toEqual([{
+    p_category: 'general',
+    p_message: '',
+    p_locale: 'en',
+    p_rating: 4,
+    p_surface: 'local',
+    p_release: '2026-08-live-controls',
+  }])
+  expect(JSON.stringify(submissions)).not.toContain('Share rating weekend')
+
+  await page.getByRole('button', { name: 'Share', exact: true }).click()
+  const secondDownload = page.waitForEvent('download')
+  await page.getByRole('dialog', { name: 'Share activity' })
+    .getByRole('button', { name: /^Export full summary/ })
+    .click()
+  await secondDownload
+  await expect(page.getByLabel('How was Tally?')).toHaveCount(0)
+})
+
 test('shows new updates once and keeps the changelog available on mobile', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.addInitScript(() => {

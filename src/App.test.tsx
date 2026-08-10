@@ -14,6 +14,7 @@ import type { ActivityGroup, Expense, Member, PersistedState } from './domain/mo
 import { ActivitySummary, ExpenseList, GroupDashboard, MembersRail, SettlementDirections } from './features/activity/ActivityDashboard'
 import { AddFriendModal, CreateGroupModal, ExpenseModal, SettleUpModal } from './features/activity/ActivityModals'
 import { CHANGELOG_SEEN_STORAGE_KEY, LATEST_CHANGELOG_ID } from './features/changelog/changelog'
+import { RATING_PROMPT_STORAGE_KEY } from './features/feedback/ratingPromptStorage'
 import { LiveActivityApiError, type LiveActivityRecord } from './features/liveSharing/liveActivityApi'
 import type { LiveActivityClient } from './features/liveSharing/liveActivityConfig'
 import { buildLiveActivityUrl, LIVE_ACTIVITY_HASH_PREFIX } from './features/liveSharing/liveActivityLink'
@@ -55,6 +56,7 @@ beforeEach(() => {
   window.history.replaceState(null, '', '/')
   localStorage.setItem(IDENTITY_KEY, JSON.stringify(CURRENT_USER))
   localStorage.removeItem(ACTIVITY_IDENTITY_KEY)
+  localStorage.removeItem(RATING_PROMPT_STORAGE_KEY)
   localStorage.setItem(CHANGELOG_SEEN_STORAGE_KEY, LATEST_CHANGELOG_ID)
   Object.defineProperty(navigator, 'share', { configurable: true, value: undefined })
   Object.defineProperty(navigator, 'canShare', { configurable: true, value: undefined })
@@ -382,14 +384,15 @@ describe('small UI building blocks', () => {
     const onCreate = vi.fn()
     const onJoin = vi.fn()
     const onShowChangelog = vi.fn()
+    const onSendFeedback = vi.fn()
     const onDelete = vi.fn()
     const onReset = vi.fn()
-    const { rerender } = render(<Sidebar groups={[]} selectedId={null} onSelect={onSelect} onCreate={onCreate} onJoin={onJoin} onShowChangelog={onShowChangelog} onDelete={onDelete} onReset={onReset} hasUnreadChangelog />)
+    const { rerender } = render(<Sidebar groups={[]} selectedId={null} onSelect={onSelect} onCreate={onCreate} onJoin={onJoin} onShowChangelog={onShowChangelog} onSendFeedback={onSendFeedback} onDelete={onDelete} onReset={onReset} hasUnreadChangelog />)
     expect(screen.getByText('No activities yet.')).toBeVisible()
     expect(screen.getByLabelText('New updates')).toBeVisible()
-    expect(screen.getByRole('link', { name: 'Source & feedback' })).toHaveAttribute('href', 'https://github.com/PengfanZ/splitbill')
-    expect(screen.getByRole('link', { name: 'Source & feedback' })).toHaveAttribute('target', '_blank')
-    expect(screen.getByRole('link', { name: 'Source & feedback' })).toHaveAttribute('rel', 'noreferrer')
+    expect(screen.getByRole('link', { name: 'GitHub source' })).toHaveAttribute('href', 'https://github.com/PengfanZ/splitbill')
+    expect(screen.getByRole('link', { name: 'GitHub source' })).toHaveAttribute('target', '_blank')
+    expect(screen.getByRole('link', { name: 'GitHub source' })).toHaveAttribute('rel', 'noreferrer')
     expect(screen.queryByRole('button', { name: 'Overview' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Open navigation' }))
     await user.click(screen.getAllByRole('button', { name: 'Close navigation' })[0])
@@ -399,12 +402,14 @@ describe('small UI building blocks', () => {
     expect(onJoin).toHaveBeenCalledOnce()
     await user.click(screen.getByRole('button', { name: /What’s new/ }))
     expect(onShowChangelog).toHaveBeenCalledOnce()
+    await user.click(screen.getByRole('button', { name: 'Send feedback' }))
+    expect(onSendFeedback).toHaveBeenCalledOnce()
 
     const home: ActivityGroup = { id: 'home', name: 'Home', emoji: '⌂', memberIds: ['me'] }
-    rerender(<Sidebar groups={[home, group]} selectedId="home" onSelect={onSelect} onCreate={onCreate} onJoin={onJoin} onShowChangelog={onShowChangelog} onDelete={onDelete} onReset={onReset} />)
+    rerender(<Sidebar groups={[home, group]} selectedId="home" onSelect={onSelect} onCreate={onCreate} onJoin={onJoin} onShowChangelog={onShowChangelog} onSendFeedback={onSendFeedback} onDelete={onDelete} onReset={onReset} />)
     expect(screen.getByText('1 person')).toBeVisible()
     expect(screen.getByText('3 people')).toBeVisible()
-    rerender(<Sidebar groups={[home, group]} selectedId={null} liveActivityCodes={{ trip: 'A1B2C3D4E5' }} onSelect={onSelect} onCreate={onCreate} onJoin={onJoin} onShowChangelog={onShowChangelog} onDelete={onDelete} onReset={onReset} />)
+    rerender(<Sidebar groups={[home, group]} selectedId={null} liveActivityCodes={{ trip: 'A1B2C3D4E5' }} onSelect={onSelect} onCreate={onCreate} onJoin={onJoin} onShowChangelog={onShowChangelog} onSendFeedback={onSendFeedback} onDelete={onDelete} onReset={onReset} />)
     expect(screen.getByText('Live · A1B2C3D4E5')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Open Trip activity' }))
     expect(onSelect).toHaveBeenCalledWith('trip')
@@ -2298,5 +2303,114 @@ describe('complete app workflows', () => {
     second.unmount()
     rejectLoad(new LiveActivityApiError('network', 'offline'))
     await Promise.resolve()
+  })
+})
+
+describe('in-app feedback integration', () => {
+  it('submits feedback without navigating away or changing local activity data', async () => {
+    const user = userEvent.setup()
+    const submit = vi.fn().mockResolvedValue(undefined)
+    render(<App feedbackClient={{ submit }} />)
+
+    await user.click(screen.getByRole('button', { name: 'Send feedback' }))
+    let dialog = await screen.findByRole('dialog', { name: 'What should Tally do better?' })
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog', { name: 'What should Tally do better?' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Send feedback' }))
+    dialog = await screen.findByRole('dialog', { name: 'What should Tally do better?' })
+    await user.type(within(dialog).getByLabelText('Add a note (optional)'), 'The empty state could explain balances better.')
+
+    vi.useFakeTimers()
+    try {
+      await act(async () => {
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Send feedback' }))
+        await Promise.resolve()
+      })
+
+      expect(submit).toHaveBeenCalledOnce()
+      expect(submit).toHaveBeenCalledWith(expect.objectContaining({
+        category: 'general',
+        locale: 'en',
+        rating: null,
+        surface: 'local',
+      }))
+      expect(screen.queryByRole('dialog', { name: 'What should Tally do better?' })).not.toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Start your first activity' })).toBeVisible()
+      expect(screen.getByRole('status')).toHaveTextContent('Thanks—your feedback was sent.')
+      expect(loadState()).toEqual(EMPTY_STATE)
+
+      act(() => vi.advanceTimersByTime(4_000))
+      expect(screen.queryByText('Thanks—your feedback was sent.')).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('offers a one-tap rating only after a successful share and only once per release', async () => {
+    const user = userEvent.setup()
+    const submit = vi.fn().mockResolvedValue(undefined)
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState({ expenses: [expense()] })))
+    render(<App feedbackClient={{ submit }} />)
+
+    await chooseShareAction(user, 'Export full summary')
+    expect(await screen.findByLabelText('How was Tally?')).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Trip' })).toBeVisible()
+    await user.click(screen.getByRole('radio', { name: 'Rate 5 out of 5' }))
+
+    await waitFor(() => expect(submit).toHaveBeenCalledWith({
+      category: 'general',
+      message: '',
+      locale: 'en',
+      rating: 5,
+      release: LATEST_CHANGELOG_ID,
+      surface: 'local',
+    }))
+    expect(screen.queryByLabelText('How was Tally?')).not.toBeInTheDocument()
+    expect(localStorage.getItem(RATING_PROMPT_STORAGE_KEY)).toBe(LATEST_CHANGELOG_ID)
+
+    await chooseShareAction(user, 'Export full summary')
+    expect(screen.queryByLabelText('How was Tally?')).not.toBeInTheDocument()
+  })
+
+  it('lets a post-share rating prompt open the full form or be dismissed', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState()))
+    const first = render(<App feedbackClient={{ submit: vi.fn() }} />)
+
+    await chooseShareAction(user, 'Export full summary')
+    await user.click(await screen.findByRole('button', { name: 'Add a note' }))
+    expect(await screen.findByRole('dialog', { name: 'What should Tally do better?' })).toBeVisible()
+    expect(localStorage.getItem(RATING_PROMPT_STORAGE_KEY)).toBe(LATEST_CHANGELOG_ID)
+
+    first.unmount()
+    localStorage.removeItem(RATING_PROMPT_STORAGE_KEY)
+    render(<App feedbackClient={{ submit: vi.fn() }} />)
+    await chooseShareAction(user, 'Export full summary')
+    await user.click(await screen.findByRole('button', { name: 'Close' }))
+    expect(screen.queryByLabelText('How was Tally?')).not.toBeInTheDocument()
+    expect(localStorage.getItem(RATING_PROMPT_STORAGE_KEY)).toBe(LATEST_CHANGELOG_ID)
+  })
+
+  it('prompts after a native share but not after a cancelled share', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState()))
+    const nativeShare = vi.fn().mockResolvedValueOnce(undefined)
+    Object.defineProperty(navigator, 'share', { configurable: true, value: nativeShare })
+    const first = render(<App feedbackClient={{ submit: vi.fn() }} />)
+
+    await chooseShareAction(user, 'Export full summary')
+    expect(await screen.findByLabelText('How was Tally?')).toBeVisible()
+    first.unmount()
+
+    localStorage.removeItem(RATING_PROMPT_STORAGE_KEY)
+    nativeShare.mockRejectedValueOnce(new DOMException('cancelled', 'AbortError'))
+    render(<App feedbackClient={{ submit: vi.fn() }} />)
+    await chooseShareAction(user, 'Export full summary')
+    await waitFor(() => expect(nativeShare).toHaveBeenCalledTimes(2))
+    expect(screen.queryByLabelText('How was Tally?')).not.toBeInTheDocument()
   })
 })

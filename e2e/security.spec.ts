@@ -4,12 +4,15 @@ test('blocks clickjacking while allowing the user to open Tally directly', async
   await page.goto('/')
   const appUrl = page.url()
 
-  await page.setContent(`
-    <main>
-      <h1>Embedding site</h1>
-      <iframe title="Embedded Tally" src="${appUrl}"></iframe>
-    </main>
-  `)
+  await page.setContent(
+    `
+      <main>
+        <h1>Embedding site</h1>
+        <iframe title="Embedded Tally" src="${appUrl}"></iframe>
+      </main>
+    `,
+    { waitUntil: 'domcontentloaded' },
+  )
 
   const embeddedApp = page.frameLocator('iframe[title="Embedded Tally"]')
   await expect(embeddedApp.getByRole('heading', { name: 'Open Tally directly' })).toBeVisible()

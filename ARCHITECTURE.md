@@ -10,6 +10,7 @@ Tally is local-first rather than frontend-only. Browser persistence powers priva
 - `src/hooks/` connects focused React lifecycle behavior, such as analytics reporting, to application services.
 - `src/components/` contains reusable application-shell components with no expense rules.
 - `src/features/activity/` contains the activity dashboard, form workflows, and immutable local-state transitions.
+- `src/features/feedback/` owns the narrow feedback contract, Supabase RPC client, and self-contained submission dialog.
 - `src/features/liveSharing/liveActivityQuery.ts` decides whether a live refresh needs a full record or only a lightweight revision check.
 - `src/features/liveSharing/useLiveActivitySession.ts` owns capability-URL synchronization, backend loading and saving, optimistic-conflict recovery, and local live shortcuts.
 - `src/features/sharing/` owns text summaries, PNG generation, and browser sharing fallbacks.
@@ -54,6 +55,12 @@ The frontend treats Supabase as canonical whenever a live capability is active. 
 The configured production build sends a fixed event enum through `public.record_analytics_event`. Local activities remain entirely in browser storage; recording a local event never uploads the activity itself. The browser sends only the event name, coarse surface, resolved `en`/`zh-CN` UI locale, and a random session-scoped token. Locale represents the app language rather than physical location. The database stores a SHA-256 hash of that token in `private.analytics_events`, and browser roles have no table or aggregate-view access.
 
 The RPC validates every value, applies the existing secret-peppered request throttle, and incrementally deletes events older than 90 days. Private daily, hourly, and locale aggregates support event counts and anonymous session funnels. A three-argument RPC overload classifies older clients as `unknown`, preserving compatibility without guessing their locale. There is no third-party analytics fallback. See `docs/ANALYTICS.md` before adding events or properties.
+
+## Feedback boundary
+
+The in-app form and one-tap post-share rating prompt call `public.submit_feedback` through one typed client and never read feedback back into the browser. The RPC requires a 1–5 rating, a trimmed 3–1,000-character message, or both, then validates category, locale, local/Live surface, and release label before writing to `private.feedback_submissions`. Browser roles have no table access. Burst and daily counters reuse the secret-peppered request-limit store, while the feedback row retains no network or analytics-session identifier. The prompt is activated only after successful share outcomes and is suppressed once per release using local-only storage.
+
+Feedback is intentionally independent from activity state: `App.tsx` supplies only the coarse surface and release, and the modal has no access to groups, people, expenses, balances, or Live credentials. See `docs/FEEDBACK.md` before extending the payload.
 
 ## Change contract
 

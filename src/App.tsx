@@ -1,5 +1,6 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { lazy, Suspense, useMemo, useState } from 'react'
+import { CheckCircle2 } from 'lucide-react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import type { AnalyticsClient, AnalyticsSurface } from './analytics'
 import { FreshStart, Sidebar, Topbar } from './components/AppShell'
 import { ConfirmDialog } from './components/ConfirmDialog'
@@ -16,8 +17,14 @@ import { GroupDashboard } from './features/activity/ActivityDashboard'
 import { AddFriendModal, CreateGroupModal, ExpenseModal, SettleUpModal } from './features/activity/ActivityModals'
 import {
   hasSeenLatestChangelog,
+  LATEST_CHANGELOG_ID,
   markLatestChangelogSeen,
 } from './features/changelog/changelog'
+import type { FeedbackClient } from './features/feedback/feedbackApi'
+import {
+  markRatingPromptHandled,
+  shouldShowRatingPrompt,
+} from './features/feedback/ratingPromptStorage'
 import {
   addLocalExpense,
   addLocalExpenses,
@@ -49,10 +56,11 @@ import { LocalizationProvider, useLocalization } from './i18n/LocalizationContex
 import { formatLocalizedList } from './i18n/localization'
 import { createAppQueryClient } from './queryClient'
 
-type ModalType = 'group' | 'friend' | 'expense' | 'settlement' | 'identity' | 'join' | 'live-identity' | null
+type ModalType = 'group' | 'friend' | 'expense' | 'settlement' | 'identity' | 'join' | 'live-identity' | 'feedback' | null
 type AppProps = {
   aiExpenseClient?: Pick<AiExpenseClient, 'parseBatch'> | null
   analyticsClient?: AnalyticsClient | null
+  feedbackClient?: Pick<FeedbackClient, 'submit'> | null
   liveActivityClient?: LiveActivityClient | null
 }
 type ConfirmationRequest = {
@@ -64,8 +72,10 @@ type ConfirmationRequest = {
 
 const LiveActivityQrModal = lazy(() => import('./features/sharing/LiveActivityQrModal').then(module => ({ default: module.LiveActivityQrModal })))
 const ChangelogModal = lazy(() => import('./features/changelog/ChangelogModal').then(module => ({ default: module.ChangelogModal })))
+const FeedbackModal = lazy(() => import('./features/feedback/FeedbackModal').then(module => ({ default: module.FeedbackModal })))
+const RatingPrompt = lazy(() => import('./features/feedback/RatingPrompt').then(module => ({ default: module.RatingPrompt })))
 
-function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, liveActivityClient }: AppProps = {}) {
+function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedbackClient = null, liveActivityClient }: AppProps = {}) {
   const [state, setState] = usePersistedState()
   const [identity, setIdentity] = useIdentity()
   const [activityIdentities, setActivityIdentities] = useActivityIdentitySelections()
@@ -82,6 +92,8 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, liveActi
   const [liveIdentityMode, setLiveIdentityMode] = useState<LiveActivityIdentityMode | null>(null)
   const [confirmation, setConfirmation] = useState<ConfirmationRequest | null>(null)
   const [confirmationBusy, setConfirmationBusy] = useState(false)
+  const [feedbackNotice, setFeedbackNotice] = useState<string | null>(null)
+  const [ratingPromptOpen, setRatingPromptOpen] = useState(false)
   const selectedGroupIdAtLoad = state.selectedGroupId ?? state.groups[0]?.id ?? null
   const live = useLiveActivitySession({
     initialSelectedGroupId: selectedGroupIdAtLoad,
@@ -146,11 +158,15 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, liveActi
     () => withAiExpenseAnalytics(aiExpenseClient, analyticsClient, analyticsSurface, locale),
     [aiExpenseClient, analyticsClient, analyticsSurface, locale],
   )
+  const handleSuccessfulShare = () => {
+    if (feedbackClient && shouldShowRatingPrompt(LATEST_CHANGELOG_ID)) setRatingPromptOpen(true)
+  }
   const sharing = useActivitySharing({
     analyticsClient,
     createLiveActivity: live.create,
     locale,
     notifyLive: live.notify,
+    onShareCompleted: handleSuccessfulShare,
     setActivityFeedback,
     t,
   })
@@ -162,6 +178,12 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, liveActi
 
   useAppAnalytics(analyticsClient, analyticsSurface, locale, liveSession?.record.code ?? null)
 
+  useEffect(() => {
+    if (!feedbackNotice) return
+    const timer = window.setTimeout(() => setFeedbackNotice(null), 4_000)
+    return () => window.clearTimeout(timer)
+  }, [feedbackNotice])
+
   const openChangelog = () => {
     markLatestChangelogSeen()
     setChangelogState({ open: true, unread: false })
@@ -170,6 +192,24 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, liveActi
   const closeChangelog = () => {
     markLatestChangelogSeen()
     setChangelogState({ open: false, unread: false })
+  }
+
+  const openFeedback = (fromRatingPrompt = false) => {
+    if (fromRatingPrompt) markRatingPromptHandled(LATEST_CHANGELOG_ID)
+    setRatingPromptOpen(false)
+    setModal('feedback')
+  }
+
+  const closeRatingPrompt = () => {
+    markRatingPromptHandled(LATEST_CHANGELOG_ID)
+    setRatingPromptOpen(false)
+  }
+
+  const finishFeedback = () => {
+    markRatingPromptHandled(LATEST_CHANGELOG_ID)
+    setRatingPromptOpen(false)
+    setModal(null)
+    setFeedbackNotice(t('feedbackForm.success'))
   }
 
   const closeLiveActivity = () => {
@@ -451,6 +491,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, liveActi
         }}
         onJoin={() => setModal('join')}
         onShowChangelog={openChangelog}
+        onSendFeedback={() => openFeedback()}
         hasUnreadChangelog={changelogState.unread}
         onDelete={deleteActivity}
         onReset={resetData}
@@ -566,6 +607,13 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, liveActi
       {modal === 'join' ? <JoinActivityModal onClose={() => setModal(null)} onJoin={joinSharedActivity} /> : null}
       {qrShare ? <Suspense fallback={null}><LiveActivityQrModal groupName={qrShare.groupName} url={qrShare.url} activityCode={qrShare.activityCode} onClose={sharing.closeQrShare} onCopy={() => sharing.copyQrLink(qrShare)} onShare={() => sharing.shareQrLink(qrShare)} /></Suspense> : null}
       {changelogState.open ? <Suspense fallback={null}><ChangelogModal onClose={closeChangelog} /></Suspense> : null}
+      {modal === 'feedback' ? <Suspense fallback={null}><FeedbackModal
+        client={feedbackClient}
+        release={LATEST_CHANGELOG_ID}
+        surface={analyticsSurface}
+        onClose={() => setModal(null)}
+        onSubmitted={finishFeedback}
+      /></Suspense> : null}
       {confirmation ? (
         <ConfirmDialog
           title={confirmation.title}
@@ -584,6 +632,15 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, liveActi
         setIdentity(createIdentity(name))
         setModal(null)
       }} /> : null}
+      {ratingPromptOpen && feedbackClient ? <Suspense fallback={null}><RatingPrompt
+        client={feedbackClient}
+        release={LATEST_CHANGELOG_ID}
+        surface={analyticsSurface}
+        onDismiss={closeRatingPrompt}
+        onAddNote={() => openFeedback(true)}
+        onSubmitted={finishFeedback}
+      /></Suspense> : null}
+      {feedbackNotice ? <div className="app-toast" role="status"><CheckCircle2 size={18} /><span>{feedbackNotice}</span></div> : null}
     </div>
   )
 }

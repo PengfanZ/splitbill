@@ -24,6 +24,14 @@ Production records a small allowlist of first-party product events for both loca
 
 Tally does not load a third-party analytics beacon. A deployment without Supabase analytics configuration simply records no product analytics.
 
+## Feedback submissions
+
+The in-app feedback flow sends an optional 1–5 rating, the text a person intentionally writes, one selected category, the app language, the coarse `local` or `live` surface, and a release label to a private Supabase table. It does not attach an activity name or ID, participant, expense, amount, balance, page URL, Live capability, analytics session token, or contact identity. Browser roles can submit through a validated, rate-limited RPC but cannot read stored feedback.
+
+Whether the post-share rating prompt has already been handled for the current release is stored only in local storage. That value is not uploaded and contains no activity information.
+
+Feedback attempts share the same secret-peppered network abuse protection described above. The feedback row itself contains no network identifier, so separate messages cannot be linked through the stored feedback data.
+
 ## Scope
 
 Tally has no accounts, advertising, payment processing, or sale of activity data. Avoid entering regulated or highly sensitive financial information. Security concerns can be reported through the private process in [SECURITY.md](SECURITY.md).

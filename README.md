@@ -12,6 +12,8 @@ Tally supports English and Simplified Chinese. It starts in Chinese when the bro
 
 Production uses privacy-preserving first-party analytics through Supabase for both browser-local and live activity workflows. Only allowlisted event names, a coarse `local`/`live` surface, the resolved `en`/`zh-CN` UI locale, an allowlisted currency code for currency-selection events, and a one-way session hash are stored—never precise location, URLs, capability tokens, activity IDs, names, descriptions, amounts, audio, or balances. Separate event-name-only funnels measure text and voice AI request frequency and outcomes. Tally does not load a third-party analytics beacon. See [the analytics design](docs/ANALYTICS.md).
 
+People can also leave an optional 1–5 rating or written feedback without leaving the app or creating an account. After a successful share, a small rating prompt may appear once per release; it never interrupts the share itself. Tally submits only the rating, message, selected category, app language, local/Live surface, and release label to a private, rate-limited Supabase table. Activity names, members, expenses, balances, and Live links are never attached. See [the feedback design](docs/FEEDBACK.md).
+
 ## Sharing and live collaboration
 
 Tally supports two deliberately different sharing choices:
@@ -44,6 +46,7 @@ For launch copy, a privacy-safe demo storyboard, and channel guidance, see the [
 - End a Live link immediately without deleting the last synced recovery copies on participating devices.
 - Continue a Safari-opened shared link in an installed Tally PWA without abandoning the existing app session.
 - Measure anonymous local and live feature usage without sending activity data or secret URLs to analytics.
+- Send a short idea or problem report inside Tally without opening GitHub or losing the current activity.
 - Use the responsive interface on desktop or mobile.
 - Switch between English and Simplified Chinese, with China-aware defaults and local-time expense timestamps.
 
@@ -64,7 +67,7 @@ Currency selection controls display only. Tally does not convert amounts or supp
 - Vitest and Testing Library
 - GitHub Actions for CI and deployment
 - GitHub Pages for static hosting
-- Supabase Postgres for optional live activities, AI quotas, and first-party product analytics
+- Supabase Postgres for optional live activities, private in-app feedback, AI quotas, and first-party product analytics
 - Supabase Edge Functions and OpenRouter for optional text and voice expense drafting
 
 ## Getting started
@@ -126,6 +129,7 @@ src/
 ├── features/
 │   ├── activity/              # Dashboard and expense workflows
 │   ├── aiExpense/             # Preview-only conversational expense drafting
+│   ├── feedback/              # Private in-app feedback flow and RPC client
 │   ├── identity/              # Browser-local participant identity
 │   ├── liveSharing/           # Capability links and backend synchronization
 │   └── sharing/               # Live-link handoff, QR invites, and PNG exports
@@ -152,7 +156,7 @@ Every push and pull request must pass:
 - ESLint with TypeScript and React Hooks rules and zero warnings;
 - component and helper tests;
 - Playwright integration tests against the production GitHub Pages build;
-- pgTAP contracts for live-activity and analytics access control, graph validation, revocation, privacy, retention, and per-client/project-wide rate limits;
+- pgTAP contracts for live-activity, analytics, and feedback access control, graph validation, revocation, privacy, retention, and per-client/project-wide rate limits;
 - 100% statement, branch, function, and line coverage;
 - a production static build.
 
