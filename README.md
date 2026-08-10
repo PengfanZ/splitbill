@@ -156,7 +156,7 @@ Every push and pull request must pass:
 - ESLint with TypeScript and React Hooks rules and zero warnings;
 - component and helper tests;
 - Playwright integration tests against the production GitHub Pages build;
-- pgTAP contracts for live-activity, analytics, and feedback access control, graph validation, revocation, privacy, retention, and per-client/project-wide rate limits;
+- pgTAP contracts for live-activity, analytics, and feedback access control, fail-closed function defaults, graph validation, revocation, privacy, retention, and per-client/project-wide budgets;
 - 100% statement, branch, function, and line coverage;
 - a production static build.
 

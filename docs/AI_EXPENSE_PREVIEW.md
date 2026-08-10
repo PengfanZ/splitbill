@@ -19,7 +19,7 @@ Production enables the feature only when the Edge Function secrets are configure
 2. The OpenRouter key exists only in the Supabase Edge Function.
 3. Tiny, clearly incomplete category-only descriptions receive a deterministic, localized clarification before any provider request or quota consumption.
 4. Substantive descriptions in any language, dialect, shorthand, or mixed language go to the model; language-specific regexes never block them.
-5. The Edge Function accepts a publishable client request, checks a server-only rate limit, prefers the cheapest model that meets a three-second p90 latency target, and requests no provider data collection.
+5. The Edge Function accepts a publishable client request, checks a server-only rate limit, prefers the cheapest model that meets a three-second p90 latency target, opts out of provider data collection, and requires an OpenRouter Zero Data Retention endpoint.
 6. A strict JSON Schema constrains every model-generated expense without imposing a fixed expense-count limit.
 7. Titles and clarification questions follow the description's language, with the interface locale used only as a fallback.
 8. Zod and deterministic business rules reject unknown members, invalid cents, duplicate participants, and exact splits that do not equal the total.
@@ -31,7 +31,7 @@ This does not use RAG: there is no external knowledge to retrieve. Reliability c
 
 ## Model and cost control
 
-Typed descriptions use the candidates `google/gemma-4-26b-a4b-it:free` and `google/gemini-2.5-flash-lite`. OpenRouter prefers the cheapest eligible route whose recent p90 latency is at most three seconds, while keeping slower routes available as fallbacks. Voice goes directly to the audio-capable `google/gemini-2.5-flash-lite`, avoiding a separate transcription request. Override it with `OPENROUTER_VOICE_MODEL` only after running the same multilingual voice and browser checks.
+Typed descriptions use the candidates `google/gemma-4-26b-a4b-it:free` and `google/gemini-2.5-flash-lite`. OpenRouter prefers the cheapest eligible zero-retention route whose recent p90 latency is at most three seconds, while keeping slower eligible routes available as fallbacks. Voice goes directly to the audio-capable `google/gemini-2.5-flash-lite`, avoiding a separate transcription request. Override either model only after confirming it appears in OpenRouter's current ZDR catalog and running the same multilingual voice and browser checks.
 
 A successful provider response that does not satisfy the expense contract is treated as an incomplete conversation: the user receives a localized prompt to restate the amount, payer, and participants. A genuine upstream failure is logged without the expense text and shown as a model-specific retry/manual-entry message. The request has a bounded timeout so an unavailable route cannot leave the user waiting indefinitely.
 

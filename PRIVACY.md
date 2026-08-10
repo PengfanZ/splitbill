@@ -16,6 +16,14 @@ When someone chooses **Share live**, the activity name, participant names, expen
 
 Anyone with the complete live URL can read and edit the activity. Share it only with intended participants. Removing a shortcut from one browser does not delete the backend activity for everyone.
 
+## Optional AI expense drafts
+
+Manual expense entry remains the default. When someone deliberately chooses text or voice AI, Tally sends the expense description or recording through OpenRouter to a selected model provider. The request also includes the activity currency, app language, participant IDs and names, the activity member selected as the current user, and any answers to follow-up questions. This context is required to resolve phrases such as “I paid” and participant names correctly.
+
+Every AI request opts out of provider data collection and is restricted to OpenRouter endpoints marked for Zero Data Retention. Tally does not store descriptions, recordings, model responses, or unfinished drafts in its backend, and no expense is added to an activity until the person reviews and confirms it. Audio is held only long enough to process that request.
+
+AI providers and models can change as availability and cost change, but the zero-retention routing requirement remains. Avoid including regulated or highly sensitive financial, medical, identity, or payment-card information in an AI description or recording.
+
 ## Abuse protection and analytics
 
 The backend rate-limits requests using a secret-peppered one-way identifier derived from the client IP address; neither the raw address nor an unpeppered IP hash is stored in the application rate-limit table.

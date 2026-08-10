@@ -28,7 +28,7 @@ The link is intentionally a bearer capability: anyone who has the full link can 
 - **PostgREST RPCs** provide create, lightweight revision polling, full snapshot loading, revision-checked updates, and explicit capability revocation.
 - The storage table and privileged functions live in the non-exposed `private` schema.
 - Narrow security-definer `public` wrappers are callable with the project's publishable key. Browser roles cannot query private tables or execute private functions directly.
-- RLS, validated JSON constraints, hashed-IP request throttling, statement timeouts, and 90-day sliding expiration provide defense in depth.
+- RLS, validated JSON constraints, hashed-IP request throttling, a server-only five-MiB rolling daily snapshot budget, statement timeouts, and 90-day sliding expiration provide defense in depth. Only validated snapshots consume the shared byte budget.
 - TanStack Query owns the in-memory live record, visibility-aware polling, reconnect/focus refreshes, and revision-checked mutations.
 - Zod schemas validate versioned snapshots, references, settlements, and size limits before data enters or leaves the client.
 
@@ -58,6 +58,7 @@ An update sends `expectedRevision`. A conditional database update compares the c
 - Unknown code or invalid token: SQLSTATE `P0002`, surfaced as `not-found` without revealing which part was wrong.
 - Invalid snapshot or revision: SQLSTATE `22023`, surfaced as `invalid-input`.
 - Too many requests from one network: HTTP `429`, surfaced as `rate-limit`.
+- Valid Live creation beyond the project-wide snapshot budget: HTTP `429`, surfaced through the same retryable `rate-limit` experience.
 - Valid capability + **End live sharing**: atomically delete the canonical record; later loads and saves receive the same `not-found` response as an unknown code or token.
 
 The UI immediately loads the latest record, keeps the editor open, and asks the person to review and save again. Visible live-activity tabs poll a lightweight revision-only RPC every 15 seconds and fetch the full snapshot only when that revision changes. They also check immediately when they regain focus or reconnect. **Refresh latest** remains available as a manual fallback. Automatic field-level merging should wait until we have evidence that whole-activity optimistic concurrency is too disruptive.
@@ -98,4 +99,4 @@ The recovery-copy and revocation features are additive. Existing `#live=` capabi
 
 - Vitest enforces 100% statement, branch, function, and line coverage, including happy paths and failure states.
 - Playwright covers isolated creator, editor, observer, and pre-upgrade bookmark-only browser sessions, including additive mirror backfilling, latest-state synchronization, offline read-only behavior, explicit duplication, revocation propagation, and preserved recovery copies. Component and integration tests cover a failed first upgrade connection, stale-save recovery, and continuing locally after confirmed expiration.
-- pgTAP verifies the SQL capability, privacy, strict graph-validation, revocation, and optimistic-concurrency contract.
+- pgTAP verifies the SQL capability, privacy, fail-closed function defaults, strict graph validation, project-wide storage budgeting, revocation, and optimistic-concurrency contract.
