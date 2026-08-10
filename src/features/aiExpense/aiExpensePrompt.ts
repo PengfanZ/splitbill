@@ -174,6 +174,7 @@ export function buildOpenRouterRequest(
       preferred_max_latency: { p90: 3 },
       require_parameters: true,
       sort: { by: 'price', partition: 'none' },
+      zdr: true,
     },
     temperature: 0,
     max_tokens: batchMode ? 8_000 : 700,

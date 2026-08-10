@@ -2,6 +2,12 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select plan(47);
 
+-- Keep the suite repeatable against a developer database that may already
+-- contain manually submitted feedback. The enclosing transaction restores it.
+delete from private.feedback_submissions;
+delete from private.shared_activity_rate_limits
+where operation in ('feedback', 'feedback-daily');
+
 select has_table('private', 'feedback_submissions', 'private feedback storage exists');
 select columns_are(
   'private',

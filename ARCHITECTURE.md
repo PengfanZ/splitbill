@@ -46,7 +46,7 @@ Tally does not encode complete activities into share URLs. A local activity can 
 
 Supabase stores the canonical live activity. A short activity code identifies the row, while a secret edit token in the URL fragment grants read/write access. The database stores only a SHA-256 hash of that token. Every update supplies an expected revision and increments it atomically, preventing silent last-write-wins data loss.
 
-`src/features/liveSharing/` owns the typed API, URL, configuration, and versioned browser-shortcut contracts. `supabase/` contains RLS-protected private storage, secret-peppered request throttling, expiring activity rows, narrow security-definer RPC wrappers, and pgTAP security tests. Browser roles cannot query the private schema or execute private functions directly.
+`src/features/liveSharing/` owns the typed API, URL, configuration, and versioned browser-shortcut contracts. `supabase/` contains RLS-protected private storage, secret-peppered request throttling, a byte-weighted project circuit breaker for validated Live creation, expiring activity rows, narrow security-definer RPC wrappers, and pgTAP security tests. Browser roles cannot query the private schema or execute private functions directly, and new database functions do not inherit browser execution by default.
 
 The frontend treats Supabase as canonical whenever a live capability is active. Local shortcut rows contain only navigation metadata and credentials; they are never a second writable activity copy. Live capabilities are trusted-group bearer credentials rather than user authorization. See `docs/LIVE_SHARING_EXPERIMENT.md` and `docs/DEPLOYMENT.md` before changing this boundary.
 
@@ -54,7 +54,7 @@ The frontend treats Supabase as canonical whenever a live capability is active. 
 
 The configured production build sends a fixed event enum through `public.record_analytics_event`. Local activities remain entirely in browser storage; recording a local event never uploads the activity itself. The browser sends only the event name, coarse surface, resolved `en`/`zh-CN` UI locale, and a random session-scoped token. Locale represents the app language rather than physical location. The database stores a SHA-256 hash of that token in `private.analytics_events`, and browser roles have no table or aggregate-view access.
 
-The RPC validates every value, applies the existing secret-peppered request throttle, and incrementally deletes events older than 90 days. Private daily, hourly, and locale aggregates support event counts and anonymous session funnels. A three-argument RPC overload classifies older clients as `unknown`, preserving compatibility without guessing their locale. There is no third-party analytics fallback. See `docs/ANALYTICS.md` before adding events or properties.
+The RPC validates every value, applies the existing secret-peppered request throttle, consumes a project-wide event budget only after validation, and incrementally deletes events older than 90 days. Private daily, hourly, and locale aggregates support event counts and anonymous session funnels. A three-argument RPC overload classifies older clients as `unknown`, preserving compatibility without guessing their locale. There is no third-party analytics fallback. See `docs/ANALYTICS.md` before adding events or properties.
 
 ## Feedback boundary
 

@@ -283,7 +283,11 @@ describe('parse expense Edge Function handler', () => {
     expect(body.models).toEqual([DEFAULT_OPENROUTER_MODEL, DEFAULT_OPENROUTER_FALLBACK_MODEL])
     expect(JSON.parse(body.messages[1].content)).toMatchObject({ currentMemberId: 'me' })
     expect(body).not.toHaveProperty('model')
-    expect(body.provider).toMatchObject({ allow_fallbacks: true, data_collection: 'deny' })
+    expect(body.provider).toMatchObject({
+      allow_fallbacks: true,
+      data_collection: 'deny',
+      zdr: true,
+    })
     expect(init.headers).toMatchObject({ authorization: 'Bearer secret-key' })
     expect(init.signal).toBeInstanceOf(AbortSignal)
   })

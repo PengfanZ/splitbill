@@ -44,6 +44,7 @@ describe('OpenRouter expense prompt', () => {
       preferred_max_latency: { p90: 3 },
       require_parameters: true,
       sort: { by: 'price', partition: 'none' },
+      zdr: true,
     })
     expect(built).not.toHaveProperty('reasoning')
     expect(built.max_tokens).toBe(700)
