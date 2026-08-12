@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ACTIVITY_EMOJIS, addedFriendsMessage, CURRENT_USER, FRIEND_COLORS, initialsFor, makeId } from './members'
+import { ACTIVITY_EMOJIS, addedFriendsMessage, CURRENT_USER, FRIEND_COLORS, initialsFor, makeId, mergeMemberNames, parseMemberNames } from './members'
 
 describe('member domain', () => {
   afterEach(() => {
@@ -24,6 +24,17 @@ describe('member domain', () => {
     expect(initialsFor('maya')).toBe('M')
     expect(initialsFor('  maya chen parker ')).toBe('MC')
     expect(initialsFor('')).toBe('?')
+  })
+
+  it('parses pasted member names across common English and Chinese separators', () => {
+    expect(parseMemberNames(' Sam，Taylor、 小明；小红\nJordan; Maya ')).toEqual([
+      'Sam', 'Taylor', '小明', '小红', 'Jordan', 'Maya',
+    ])
+  })
+
+  it('normalizes whitespace and removes duplicate member names without changing order', () => {
+    expect(parseMemberNames(' Maya Chen, maya   chen, Jordan ')).toEqual(['Maya Chen', 'Jordan'])
+    expect(mergeMemberNames(['Maya'], 'maya，小红')).toEqual(['Maya', '小红'])
   })
 
   it('describes singular and plural additions with no earlier expenses', () => {

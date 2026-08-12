@@ -363,6 +363,11 @@ test('centers compact mobile dialogs and keeps long forms as sheets', async ({ p
   await page.getByRole('button', { name: 'Create an activity' }).click()
   await page.getByLabel('Activity name').fill('Modal weekend')
   await page.getByLabel(/Add friends/).fill('Maya')
+  await page.getByLabel(/Add friends/).press('Enter')
+  await expect(page.getByRole('list', { name: 'Friends ready to add' })).toContainText('Maya')
+  await page.getByLabel(/Add friends/).fill('Jordan')
+  await page.getByRole('dialog').getByRole('button', { name: 'Add', exact: true }).click()
+  await expect(page.getByText('2 friends ready')).toBeVisible()
   await page.getByRole('button', { name: 'Create activity' }).click()
 
   await page.getByRole('button', { name: 'Settings' }).click()
@@ -371,6 +376,9 @@ test('centers compact mobile dialogs and keeps long forms as sheets', async ({ p
 
   await page.getByRole('button', { name: 'Add friend' }).click()
   await expect(page.locator('.modal-backdrop')).toHaveClass(/modal-backdrop--center/)
+  await page.getByLabel(/Friend names/).fill('Sam，Taylor')
+  await page.getByRole('dialog').getByRole('button', { name: 'Add', exact: true }).click()
+  await expect(page.getByText('2 friends ready')).toBeVisible()
   await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click()
 
   await page.getByRole('button', { name: 'Add expense' }).click()

@@ -184,6 +184,18 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .select-menu-option--selected .select-menu-option-leading { background: #dcece3; color: var(--green); }
 .modal-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; margin-top: 4px; }
 .modal-actions--single { grid-template-columns: 1fr; }
+.friend-name-field { display: grid; gap: 8px; }
+.friend-name-entry { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.friend-name-entry input { min-width: 0; }
+.friend-name-entry button { min-width: 78px; min-height: var(--control-height); border: 1px solid #c9ddd1; border-radius: var(--radius-control); padding: 0 13px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: #edf6f0; color: var(--green); font-size: 11px; font-weight: 750; }
+.friend-name-entry button:hover:not(:disabled) { border-color: #a9c8b5; background: #e3f1e8; }
+.friend-name-entry button:disabled { opacity: .45; cursor: default; }
+.friend-name-list { margin: 1px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 7px; list-style: none; }
+.friend-name-list li { min-height: 30px; max-width: 100%; padding: 4px 5px 4px 10px; border: 1px solid #d5ded7; border-radius: 999px; display: flex; align-items: center; gap: 5px; background: #f0f6f2; color: var(--ink); font-size: 11px; font-weight: 650; }
+.friend-name-list li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.friend-name-list li button { width: 22px; height: 22px; border: 0; border-radius: 50%; padding: 0; display: grid; place-items: center; background: transparent; color: var(--muted); }
+.friend-name-list li button:hover { background: #dde9e1; color: var(--ink); }
+.friend-name-status { min-height: 14px; color: #8f877f; font-size: 9px; line-height: 1.4; }
 .expense-entry-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-bottom: 17px; padding: 4px; border: 1px solid #d8d2ca; border-radius: 11px; background: #eee9e2; }
 .expense-entry-tabs button { min-height: 38px; border: 0; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 7px; background: transparent; color: var(--muted); font-size: 11px; font-weight: 700; }
 .expense-entry-tabs button.active { background: white; color: var(--ink); box-shadow: 0 2px 8px rgba(34, 29, 25, .08); }

@@ -6,7 +6,7 @@ import { Button } from '../../components/Button'
 import { SelectMenu, type SelectMenuOption } from '../../components/SelectMenu'
 import { activityCurrency, currencyLabel, currencySymbol, defaultCurrencyForLocale, SUPPORTED_CURRENCIES, type CurrencyCode } from '../../domain/currency'
 import { createEqualShares, createExactShares, createExpenseTimestamp, createSettlementPayment, money } from '../../domain/expenses'
-import { makeId } from '../../domain/members'
+import { makeId, mergeMemberNames } from '../../domain/members'
 import type { ActivityGroup, Expense, Member, Settlement, SplitMethod } from '../../domain/models'
 import { useLocalization } from '../../i18n/LocalizationContext'
 import { AiExpenseComposer } from '../aiExpense/AiExpenseComposer'
@@ -17,6 +17,7 @@ import type { AiExpenseReadyDraft } from '../aiExpense/aiExpenseContract'
 import { createAiDraftFromValues, createExpenseFromAiDraft } from '../aiExpense/aiExpenseDrafts'
 import { MAX_ACTIVITY_AMOUNT } from '../sharing/sharedActivity'
 import { ActivityIdentityControl } from './ActivityIdentityControl'
+import { FriendNameInput } from './FriendNameInput'
 
 export function CreateGroupModal({ onClose, onCurrencySelect, onSave }: {
   onClose: () => void
@@ -24,7 +25,8 @@ export function CreateGroupModal({ onClose, onCurrencySelect, onSave }: {
   onSave: (name: string, friendNames: string[], currency: CurrencyCode) => void
 }) {
   const [name, setName] = useState('')
-  const [friends, setFriends] = useState('')
+  const [friendDraft, setFriendDraft] = useState('')
+  const [friendNames, setFriendNames] = useState<string[]>([])
   const { locale, t } = useLocalization()
   const [currency, setCurrency] = useState<CurrencyCode>(() => defaultCurrencyForLocale(locale))
   const currencyOptions: ReadonlyArray<SelectMenuOption<CurrencyCode>> = SUPPORTED_CURRENCIES.map(code => ({
@@ -37,7 +39,7 @@ export function CreateGroupModal({ onClose, onCurrencySelect, onSave }: {
   const submit = (event: FormEvent) => {
     event.preventDefault()
     if (!name.trim()) return
-    onSave(name.trim(), friends.split(',').map(friend => friend.trim()).filter(Boolean), currency)
+    onSave(name.trim(), mergeMemberNames(friendNames, friendDraft), currency)
   }
 
   const selectCurrency = (nextCurrency: CurrencyCode) => {
@@ -51,7 +53,7 @@ export function CreateGroupModal({ onClose, onCurrencySelect, onSave }: {
       <form onSubmit={submit}>
         <label>{t('group.name')}<input autoFocus value={name} onChange={event => setName(event.target.value)} placeholder={t('group.namePlaceholder')} required /></label>
         <label>{t('group.currency')} <small>{t('group.currencyHelp')}</small><SelectMenu value={currency} options={currencyOptions} onChange={selectCurrency} ariaLabel={t('group.chooseCurrency', { currency: currencyLabel(currency, locale) })} menuLabel={t('group.currencyMenu')} /></label>
-        <label>{t('group.addFriends')} <small>{t('group.addFriendsHelp')}</small><textarea value={friends} onChange={event => setFriends(event.target.value)} placeholder={t('group.addFriendsPlaceholder')} rows={3} /></label>
+        <FriendNameInput fieldContext="group" draft={friendDraft} names={friendNames} onDraftChange={setFriendDraft} onNamesChange={setFriendNames} />
         <div className="split-note"><Users size={18} /><span>{t('group.included')}</span></div>
         <div className="modal-actions"><Button onClick={onClose}>{t('common.cancel')}</Button><Button variant="primary" type="submit">{t('group.create')}</Button></div>
       </form>
@@ -60,22 +62,23 @@ export function CreateGroupModal({ onClose, onCurrencySelect, onSave }: {
 }
 
 export function AddFriendModal({ existingExpenseCount, onClose, onSave, saving = false }: { existingExpenseCount: number; onClose: () => void; onSave: (names: string[]) => void; saving?: boolean }) {
-  const [names, setNames] = useState('')
+  const [draft, setDraft] = useState('')
+  const [names, setNames] = useState<string[]>([])
   const { t } = useLocalization()
+  const pendingNames = mergeMemberNames(names, draft)
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    const parsed = names.split(',').map(name => name.trim()).filter(Boolean)
-    if (!parsed.length) return
-    onSave(parsed)
+    if (!pendingNames.length) return
+    onSave(pendingNames)
   }
 
   return (
     <ModalShell eyebrow={t('friend.eyebrow')} title={t('friend.title')} onClose={onClose} mobilePlacement="center">
       <form onSubmit={submit}>
-        <label>{t('friend.names')} <small>{t('friend.namesHelp')}</small><textarea autoFocus value={names} onChange={event => setNames(event.target.value)} placeholder={t('friend.namesPlaceholder')} rows={3} required /></label>
+        <FriendNameInput draft={draft} names={names} onDraftChange={setDraft} onNamesChange={setNames} />
         {existingExpenseCount ? <div className="split-note future-note"><Users size={18} /><span><b>{t('friend.futureOnly')}</b><small>{t(existingExpenseCount === 1 ? 'friend.existingOne' : 'friend.existingMany', { count: existingExpenseCount })}</small></span></div> : null}
-        <div className="modal-actions"><Button onClick={onClose}>{t('common.cancel')}</Button><Button variant="primary" type="submit" disabled={saving}>{t('friend.add')}</Button></div>
+        <div className="modal-actions"><Button onClick={onClose}>{t('common.cancel')}</Button><Button variant="primary" type="submit" disabled={saving || !pendingNames.length}>{t('friend.add')}</Button></div>
       </form>
     </ModalShell>
   )
