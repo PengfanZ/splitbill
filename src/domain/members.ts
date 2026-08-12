@@ -12,6 +12,35 @@ export const ACTIVITY_EMOJIS = ['✦', '⌂', '☀', '✈']
 
 export const makeId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
+const MEMBER_NAME_SEPARATOR = /[,，、;；\n\r]+/
+
+export function parseMemberNames(value: string): string[] {
+  const seen = new Set<string>()
+  const names: string[] = []
+
+  for (const candidate of value.split(MEMBER_NAME_SEPARATOR)) {
+    const name = candidate.trim().replace(/\s+/g, ' ')
+    const key = name.toLocaleLowerCase()
+    if (!name || seen.has(key)) continue
+    seen.add(key)
+    names.push(name)
+  }
+
+  return names
+}
+
+export function mergeMemberNames(current: string[], value: string): string[] {
+  const seen = new Set(current.map(name => name.toLocaleLowerCase()))
+  const next = [...current]
+  for (const name of parseMemberNames(value)) {
+    const key = name.toLocaleLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    next.push(name)
+  }
+  return next
+}
+
 export const initialsFor = (name: string) => name
   .trim()
   .split(/\s+/)
