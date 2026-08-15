@@ -94,7 +94,7 @@ The workflow can also be started manually from `main` with **Run workflow**.
 - Choose **Duplicate and edit** while offline and confirm the new independent local copy is editable without changing the Live activity.
 - Choose **End live sharing**, confirm the old URL becomes unavailable in another browser, and verify both browsers retain their last synced read-only recovery copy with **Continue locally**.
 - Create one local activity and one live activity, then confirm their allowlisted events appear separately in `private.analytics_daily` and `private.analytics_hourly`, and their resolved UI locale appears in `private.analytics_locale_daily`, without URL or activity fields.
-- Create one text AI draft and one voice AI draft, then confirm the requested and ready events appear in the **SplitBill - AI Entry Usage** Home report without prompts, audio, or expense fields.
+- Open the AI text and AI voice tabs, create one draft with each mode, then confirm the explorer-session, requested, and ready rows appear in the **SplitBill - AI Entry Usage** Home report without prompts, audio, or expense fields.
 - Run Supabase Security Advisor and Performance Advisor after the first migration.
 - Confirm the migration list is synchronized before the next release with `supabase migration list`.
 

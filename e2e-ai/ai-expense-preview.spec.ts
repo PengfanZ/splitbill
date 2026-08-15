@@ -244,6 +244,7 @@ test('turns a description into a reviewable draft before the user saves it', asy
   await expect(page.locator('.expense-amount b')).toHaveText('$36.00')
   expect(aiRequests).toBe(1)
   expect(analyticsRequests.map(request => request.p_event_name)).toEqual(expect.arrayContaining([
+    'expense_input_ai_text_selected',
     'ai_text_requested',
     'ai_text_ready',
   ]))
@@ -458,6 +459,7 @@ test('turns a short voice recording into a reviewable expense batch', async ({ p
   await expect(page.getByText('Voice taxi', { exact: true })).toBeVisible()
   expect(aiRequests).toBe(1)
   expect(analyticsRequests.map(request => request.p_event_name)).toEqual(expect.arrayContaining([
+    'expense_input_ai_voice_selected',
     'ai_voice_requested',
     'ai_voice_ready',
   ]))

@@ -23,19 +23,40 @@ function renderModal(
   onSave = vi.fn(),
   expense?: Expense,
   onSaveMany = vi.fn(),
+  onEntryTabSelect = vi.fn(),
 ) {
   return {
     onSave,
     onSaveMany,
+    onEntryTabSelect,
     ...render(
       <LocalizationProvider>
-        <ExpenseModal group={group} members={members} expense={expense} aiExpenseClient={client} onClose={vi.fn()} onSave={onSave} onSaveMany={onSaveMany} />
+        <ExpenseModal group={group} members={members} expense={expense} aiExpenseClient={client} onEntryTabSelect={onEntryTabSelect} onClose={vi.fn()} onSave={onSave} onSaveMany={onSaveMany} />
       </LocalizationProvider>,
     ),
   }
 }
 
 describe('AI-assisted expense modal', () => {
+  it('reports only deliberate expense-input tab changes', async () => {
+    const user = userEvent.setup()
+    const { onEntryTabSelect } = renderModal({ parseBatch: vi.fn() })
+
+    await user.click(screen.getByRole('tab', { name: 'Enter manually' }))
+    expect(onEntryTabSelect).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))
+    await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))
+    await user.click(screen.getByRole('tab', { name: 'Speak' }))
+    await user.click(screen.getByRole('tab', { name: 'Enter manually' }))
+
+    expect(onEntryTabSelect.mock.calls).toEqual([
+      ['ai-text'],
+      ['ai-voice'],
+      ['manual'],
+    ])
+  })
+
   it('prefills an equal draft and still requires the normal save action', async () => {
     const user = userEvent.setup()
     const parseBatch = vi.fn().mockResolvedValue({

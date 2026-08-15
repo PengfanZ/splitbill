@@ -122,13 +122,18 @@ export function SettleUpModal({ group, settlement, onClose, onSave, saving = fal
   )
 }
 
-export function ExpenseModal({ group, members, expense, aiExpenseClient = null, currentMemberId = 'me', onCurrentMemberChange, onClose, onSave, onSaveMany, saving = false }: {
+export type ExpenseInputTab = 'manual' | 'ai-text' | 'ai-voice'
+
+type ExpenseEntryMode = ExpenseInputTab | 'ai-batch'
+
+export function ExpenseModal({ group, members, expense, aiExpenseClient = null, currentMemberId = 'me', onCurrentMemberChange, onEntryTabSelect, onClose, onSave, onSaveMany, saving = false }: {
   group: ActivityGroup
   members: Member[]
   expense?: Expense
   aiExpenseClient?: Pick<AiExpenseClient, 'parseBatch'> | null
   currentMemberId?: string | null
   onCurrentMemberChange?: (memberId: string) => void
+  onEntryTabSelect?: (tab: ExpenseInputTab) => void
   onClose: () => void
   onSave: (expense: Expense) => void
   onSaveMany?: (expenses: Expense[]) => void
@@ -142,7 +147,7 @@ export function ExpenseModal({ group, members, expense, aiExpenseClient = null, 
   const [method, setMethod] = useState<SplitMethod>(expense?.splitMethod ?? 'equal')
   const aiAvailable = Boolean(aiExpenseClient && !expense)
   const aiIdentityReady = Boolean(currentMemberId && members.some(member => member.id === currentMemberId))
-  const [entryMode, setEntryMode] = useState<'manual' | 'ai-text' | 'ai-voice' | 'ai-batch'>('manual')
+  const [entryMode, setEntryMode] = useState<ExpenseEntryMode>('manual')
   const [aiDraftApplied, setAiDraftApplied] = useState(false)
   const [aiBatchDrafts, setAiBatchDrafts] = useState<AiExpenseReadyDraft[]>([])
   const [editingBatchIndex, setEditingBatchIndex] = useState<number | null>(null)
@@ -174,6 +179,12 @@ export function ExpenseModal({ group, members, expense, aiExpenseClient = null, 
     setEqualParticipantIds(current => current.includes(memberId)
       ? current.filter(id => id !== memberId)
       : [...current, memberId])
+  }
+
+  const selectEntryTab = (tab: ExpenseInputTab) => {
+    if (tab === entryMode) return
+    onEntryTabSelect?.(tab)
+    setEntryMode(tab)
   }
 
   const loadAiDraft = (draft: AiExpenseReadyDraft) => {
@@ -259,9 +270,9 @@ export function ExpenseModal({ group, members, expense, aiExpenseClient = null, 
     <ModalShell eyebrow={group.name} title={t(expense ? 'expense.editTitle' : 'expense.addTitle')} onClose={onClose}>
       {aiAvailable && aiBatchDrafts.length === 0 ? (
         <div className="expense-entry-tabs" role="tablist" aria-label={t('expense.entryMethod')}>
-          <button type="button" role="tab" aria-selected={entryMode === 'manual'} className={entryMode === 'manual' ? 'active' : ''} onClick={() => setEntryMode('manual')}><Pencil size={15} />{t('expense.manualTab')}</button>
-          <button type="button" role="tab" aria-selected={entryMode === 'ai-text'} className={entryMode === 'ai-text' ? 'active' : ''} onClick={() => setEntryMode('ai-text')}><Sparkles size={15} />{t('expense.aiTab')}</button>
-          <button type="button" role="tab" aria-selected={entryMode === 'ai-voice'} className={entryMode === 'ai-voice' ? 'active' : ''} onClick={() => setEntryMode('ai-voice')}><Mic size={15} />{t('expense.voiceTab')}</button>
+          <button type="button" role="tab" aria-selected={entryMode === 'manual'} className={entryMode === 'manual' ? 'active' : ''} onClick={() => selectEntryTab('manual')}><Pencil size={15} />{t('expense.manualTab')}</button>
+          <button type="button" role="tab" aria-selected={entryMode === 'ai-text'} className={entryMode === 'ai-text' ? 'active' : ''} onClick={() => selectEntryTab('ai-text')}><Sparkles size={15} />{t('expense.aiTab')}</button>
+          <button type="button" role="tab" aria-selected={entryMode === 'ai-voice'} className={entryMode === 'ai-voice' ? 'active' : ''} onClick={() => selectEntryTab('ai-voice')}><Mic size={15} />{t('expense.voiceTab')}</button>
         </div>
       ) : null}
       {aiAvailable && entryMode !== 'manual' && onCurrentMemberChange ? (

@@ -963,6 +963,7 @@ describe('complete app workflows', () => {
       .toEqual([
         ['expense_added', 'local', 'en'],
       ])
+    expect(analyticsClient.track).toHaveBeenCalledWith('expense_input_ai_text_selected', 'local', 'en')
     expect(analyticsClient.track.mock.calls.filter(([event]) => event.startsWith('ai_')))
       .toEqual([
         ['ai_text_requested', 'local', 'en'],
@@ -1268,6 +1269,7 @@ describe('complete app workflows', () => {
     expect(analyticsClient.track.mock.calls.filter(([event]) => event === 'expense_added')).toEqual([
       ['expense_added', 'live', 'en'],
     ])
+    expect(analyticsClient.track).toHaveBeenCalledWith('expense_input_ai_text_selected', 'live', 'en')
     expect(analyticsClient.track.mock.calls.filter(([event]) => event.startsWith('ai_'))).toEqual([
       ['ai_text_requested', 'live', 'en'],
       ['ai_text_ready', 'live', 'en'],
