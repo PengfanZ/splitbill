@@ -12,7 +12,7 @@ function renderPrompt({
   onSubmitted = vi.fn(),
 }: {
   client?: Pick<FeedbackClient, 'submit'>
-  onAddNote?: () => void
+  onAddNote?: (rating: 1 | 2 | 3 | 4 | 5 | null) => void
   onDismiss?: () => void
   onSubmitted?: () => void
 } = {}) {
@@ -37,7 +37,7 @@ function renderPrompt({
 }
 
 describe('RatingPrompt', () => {
-  it('submits one rating without activity data', async () => {
+  it('keeps the prompt open after a star is chosen and submits rating only on request', async () => {
     const user = userEvent.setup()
     const submit = vi.fn().mockResolvedValue(undefined)
     const onSubmitted = vi.fn()
@@ -45,6 +45,12 @@ describe('RatingPrompt', () => {
 
     expect(screen.getByLabelText('How was Tally?')).toBeVisible()
     await user.click(screen.getByRole('radio', { name: 'Rate 5 out of 5' }))
+
+    expect(submit).not.toHaveBeenCalled()
+    expect(onSubmitted).not.toHaveBeenCalled()
+    expect(screen.getByText('Want to tell us more?')).toBeVisible()
+    expect(screen.getByLabelText('How was Tally?')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Send rating only' }))
 
     expect(submit).toHaveBeenCalledWith({
       category: 'general',
@@ -66,8 +72,19 @@ describe('RatingPrompt', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add a note' }))
     await user.click(screen.getByRole('button', { name: 'Close' }))
-    expect(onAddNote).toHaveBeenCalledOnce()
+    expect(onAddNote).toHaveBeenCalledWith(null)
     expect(onDismiss).toHaveBeenCalledOnce()
+  })
+
+  it('carries the selected rating into the optional note flow', async () => {
+    const user = userEvent.setup()
+    const onAddNote = vi.fn()
+    renderPrompt({ onAddNote })
+
+    await user.click(screen.getByRole('radio', { name: 'Rate 4 out of 5' }))
+    await user.click(screen.getByRole('button', { name: 'Add a note' }))
+
+    expect(onAddNote).toHaveBeenCalledWith(4)
   })
 
   it.each([
@@ -78,6 +95,7 @@ describe('RatingPrompt', () => {
     renderPrompt({ client: { submit: vi.fn().mockRejectedValue(error) } })
 
     await user.click(screen.getByRole('radio', { name: 'Rate 2 out of 5' }))
+    await user.click(screen.getByRole('button', { name: 'Send rating only' }))
     expect(screen.getByRole('alert')).toHaveTextContent(message)
     expect(screen.getByRole('radio', { name: 'Rate 2 out of 5' })).toBeChecked()
   })
@@ -92,8 +110,10 @@ describe('RatingPrompt', () => {
     })
 
     await user.click(screen.getByRole('radio', { name: 'Rate 4 out of 5' }))
+    await user.click(screen.getByRole('button', { name: 'Send rating only' }))
     expect(screen.getByRole('button', { name: 'Close' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Add a note' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Sending…' })).toBeDisabled()
     finish()
     await vi.waitFor(() => expect(onSubmitted).toHaveBeenCalledOnce())
   })

@@ -2348,7 +2348,7 @@ describe('in-app feedback integration', () => {
     }
   })
 
-  it('offers a one-tap rating only after a successful share and only once per release', async () => {
+  it('offers a two-step rating only after a successful share and only once per release', async () => {
     const user = userEvent.setup()
     const submit = vi.fn().mockResolvedValue(undefined)
     const writeText = vi.fn().mockResolvedValue(undefined)
@@ -2360,6 +2360,11 @@ describe('in-app feedback integration', () => {
     expect(await screen.findByLabelText('How was Tally?')).toBeVisible()
     expect(screen.getByRole('heading', { name: 'Trip' })).toBeVisible()
     await user.click(screen.getByRole('radio', { name: 'Rate 5 out of 5' }))
+
+    expect(submit).not.toHaveBeenCalled()
+    expect(screen.getByText('Want to tell us more?')).toBeVisible()
+    expect(screen.getByLabelText('How was Tally?')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Send rating only' }))
 
     await waitFor(() => expect(submit).toHaveBeenCalledWith({
       category: 'general',
@@ -2384,8 +2389,10 @@ describe('in-app feedback integration', () => {
     const first = render(<App feedbackClient={{ submit: vi.fn() }} />)
 
     await chooseShareAction(user, 'Export full summary')
+    await user.click(await screen.findByRole('radio', { name: 'Rate 4 out of 5' }))
     await user.click(await screen.findByRole('button', { name: 'Add a note' }))
     expect(await screen.findByRole('dialog', { name: 'What should Tally do better?' })).toBeVisible()
+    expect(screen.getByRole('radio', { name: 'Rate 4 out of 5' })).toBeChecked()
     expect(localStorage.getItem(RATING_PROMPT_STORAGE_KEY)).toBe(LATEST_CHANGELOG_ID)
 
     first.unmount()

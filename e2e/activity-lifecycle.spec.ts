@@ -425,7 +425,7 @@ test('sends private in-app feedback without interrupting the activity', async ({
   await dialog.getByLabel('Add a note (optional)').fill('The mobile balance labels could be clearer.')
   await dialog.getByRole('button', { name: 'Send feedback' }).click()
 
-  await expect(page.getByRole('status')).toHaveText('Thanks—your feedback was sent.')
+  await expect(page.getByRole('status').filter({ hasText: 'Thanks—your feedback was sent.' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Private weekend' })).toBeVisible()
   expect(page.url()).toBe(appUrl)
   expect(submissions).toEqual([{
@@ -439,7 +439,7 @@ test('sends private in-app feedback without interrupting the activity', async ({
   expect(JSON.stringify(submissions)).not.toMatch(/Private weekend|Maya|#live=/)
 })
 
-test('offers one non-blocking rating after a successful share', async ({ page, context }) => {
+test('offers optional written feedback after a successful share rating', async ({ page, context }) => {
   const submissions: Array<Record<string, unknown>> = []
   await context.route('https://live-sharing.test/rest/v1/rpc/submit_feedback', async route => {
     submissions.push(route.request().postDataJSON() as Record<string, unknown>)
@@ -467,11 +467,23 @@ test('offers one non-blocking rating after a successful share', async ({ page, c
   const prompt = page.getByLabel('How was Tally?')
   await expect(prompt).toBeVisible()
   await prompt.getByRole('radio', { name: 'Rate 4 out of 5' }).click()
+  await expect(prompt).toContainText('Want to tell us more?')
+  await expect(prompt).toBeVisible()
+  expect(submissions).toEqual([])
+
+  await prompt.getByRole('button', { name: 'Add a note' }).click()
+  const feedbackDialog = page.getByRole('dialog', { name: 'What should Tally do better?' })
+  await expect(feedbackDialog).toBeVisible()
+  await expect(feedbackDialog.getByRole('radio', { name: 'Rate 4 out of 5' })).toBeChecked()
+  await feedbackDialog.getByLabel('Add a note (optional)').fill('Sharing worked well, but the export could be clearer.')
+  await feedbackDialog.getByRole('button', { name: 'Send feedback' }).click()
+
+  await expect(page.getByRole('status').filter({ hasText: 'Thanks—your feedback was sent.' })).toBeVisible()
   await expect(prompt).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Share rating weekend' })).toBeVisible()
   expect(submissions).toEqual([{
     p_category: 'general',
-    p_message: '',
+    p_message: 'Sharing worked well, but the export could be clearer.',
     p_locale: 'en',
     p_rating: 4,
     p_surface: 'local',

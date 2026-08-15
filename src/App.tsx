@@ -20,7 +20,7 @@ import {
   LATEST_CHANGELOG_ID,
   markLatestChangelogSeen,
 } from './features/changelog/changelog'
-import type { FeedbackClient } from './features/feedback/feedbackApi'
+import type { FeedbackClient, FeedbackRating } from './features/feedback/feedbackApi'
 import {
   markRatingPromptHandled,
   shouldShowRatingPrompt,
@@ -99,6 +99,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
   const [confirmation, setConfirmation] = useState<ConfirmationRequest | null>(null)
   const [confirmationBusy, setConfirmationBusy] = useState(false)
   const [feedbackNotice, setFeedbackNotice] = useState<string | null>(null)
+  const [feedbackInitialRating, setFeedbackInitialRating] = useState<FeedbackRating | null>(null)
   const [ratingPromptOpen, setRatingPromptOpen] = useState(false)
   const selectedGroupIdAtLoad = state.selectedGroupId ?? state.groups[0]?.id ?? null
   const live = useLiveActivitySession({
@@ -200,10 +201,21 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
     setChangelogState({ open: false, unread: false })
   }
 
-  const openFeedback = (fromRatingPrompt = false) => {
-    if (fromRatingPrompt) markRatingPromptHandled(LATEST_CHANGELOG_ID)
-    setRatingPromptOpen(false)
+  const openFeedback = () => {
+    setFeedbackInitialRating(null)
     setModal('feedback')
+  }
+
+  const openFeedbackFromRatingPrompt = (rating: FeedbackRating | null) => {
+    markRatingPromptHandled(LATEST_CHANGELOG_ID)
+    setRatingPromptOpen(false)
+    setFeedbackInitialRating(rating)
+    setModal('feedback')
+  }
+
+  const closeFeedback = () => {
+    setFeedbackInitialRating(null)
+    setModal(null)
   }
 
   const closeRatingPrompt = () => {
@@ -214,6 +226,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
   const finishFeedback = () => {
     markRatingPromptHandled(LATEST_CHANGELOG_ID)
     setRatingPromptOpen(false)
+    setFeedbackInitialRating(null)
     setModal(null)
     setFeedbackNotice(t('feedbackForm.success'))
   }
@@ -616,9 +629,10 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
       {changelogState.open ? <Suspense fallback={null}><ChangelogModal onClose={closeChangelog} /></Suspense> : null}
       {modal === 'feedback' ? <Suspense fallback={null}><FeedbackModal
         client={feedbackClient}
+        initialRating={feedbackInitialRating}
         release={LATEST_CHANGELOG_ID}
         surface={analyticsSurface}
-        onClose={() => setModal(null)}
+        onClose={closeFeedback}
         onSubmitted={finishFeedback}
       /></Suspense> : null}
       {confirmation ? (
@@ -644,7 +658,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
         release={LATEST_CHANGELOG_ID}
         surface={analyticsSurface}
         onDismiss={closeRatingPrompt}
-        onAddNote={() => openFeedback(true)}
+        onAddNote={openFeedbackFromRatingPrompt}
         onSubmitted={finishFeedback}
       /></Suspense> : null}
       {feedbackNotice ? <div className="app-toast" role="status"><CheckCircle2 size={18} /><span>{feedbackNotice}</span></div> : null}

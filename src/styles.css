@@ -318,6 +318,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .rating-prompt-copy span { color: var(--muted); font-size: 11px; line-height: 1.45; }
 .rating-prompt-error { margin: -2px 0 0; color: var(--coral-dark); font-size: 10px; line-height: 1.4; }
 .rating-prompt-note { width: fit-content; min-height: 36px; padding-inline: 11px; display: flex; align-items: center; gap: 7px; font-size: 10px; }
+.rating-prompt-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .app-toast { position: fixed; right: 24px; bottom: 24px; z-index: 180; max-width: min(360px, calc(100vw - 32px)); min-height: 48px; padding: 12px 15px; border: 1px solid #c9ddd1; border-radius: 13px; display: flex; align-items: center; gap: 9px; background: #edf6f0; color: var(--green); box-shadow: var(--shadow-menu); font-size: 12px; font-weight: 700; animation: rise .2s ease; }
 .app-toast svg { flex: 0 0 auto; }
 

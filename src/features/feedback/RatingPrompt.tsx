@@ -21,7 +21,7 @@ export function RatingPrompt({
   surface,
 }: {
   client: Pick<FeedbackClient, 'submit'>
-  onAddNote: () => void
+  onAddNote: (rating: FeedbackRating | null) => void
   onDismiss: () => void
   onSubmitted: () => void
   release: string
@@ -32,8 +32,7 @@ export function RatingPrompt({
   const [submitting, setSubmitting] = useState(false)
   const [errorKey, setErrorKey] = useState<'feedbackForm.errorRateLimit' | 'feedbackForm.errorUnavailable' | null>(null)
 
-  const submitRating = async (nextRating: FeedbackRating) => {
-    setRating(nextRating)
+  const submitRating = async (selectedRating: FeedbackRating) => {
     setSubmitting(true)
     setErrorKey(null)
     try {
@@ -41,7 +40,7 @@ export function RatingPrompt({
         category: 'general',
         message: '',
         locale,
-        rating: nextRating,
+        rating: selectedRating,
         release,
         surface,
       })
@@ -58,15 +57,34 @@ export function RatingPrompt({
       <button className="rating-prompt-close" onClick={onDismiss} disabled={submitting} aria-label={t('common.close')}>
         <X size={18} />
       </button>
-      <div className="rating-prompt-copy">
-        <strong>{t('ratingPrompt.title')}</strong>
-        <span>{t('ratingPrompt.description')}</span>
+      <div className="rating-prompt-copy" aria-live="polite">
+        <strong>{t(rating === null ? 'ratingPrompt.title' : 'ratingPrompt.followUpTitle')}</strong>
+        <span>{t(rating === null ? 'ratingPrompt.description' : 'ratingPrompt.followUpDescription')}</span>
       </div>
-      <FeedbackRatingField compact value={rating} onChange={submitRating} disabled={submitting} />
+      <FeedbackRatingField
+        compact
+        value={rating}
+        onChange={nextRating => {
+          setRating(nextRating)
+          setErrorKey(null)
+        }}
+        disabled={submitting}
+      />
       {errorKey ? <p className="rating-prompt-error" role="alert">{t(errorKey)}</p> : null}
-      <Button className="rating-prompt-note" onClick={onAddNote} disabled={submitting}>
-        <MessageSquareText size={15} />{t('ratingPrompt.addNote')}
-      </Button>
+      {rating === null ? (
+        <Button className="rating-prompt-note" onClick={() => onAddNote(null)} disabled={submitting}>
+          <MessageSquareText size={15} />{t('ratingPrompt.addNote')}
+        </Button>
+      ) : (
+        <div className="rating-prompt-actions">
+          <Button variant="primary" className="rating-prompt-note" onClick={() => onAddNote(rating)} disabled={submitting}>
+            <MessageSquareText size={15} />{t('ratingPrompt.addNote')}
+          </Button>
+          <Button onClick={() => void submitRating(rating)} disabled={submitting}>
+            {t(submitting ? 'feedbackForm.sending' : 'ratingPrompt.sendRating')}
+          </Button>
+        </div>
+      )}
     </section>
   )
 }

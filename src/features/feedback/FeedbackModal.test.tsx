@@ -7,10 +7,12 @@ import { FeedbackApiError, type FeedbackClient } from './feedbackApi'
 
 function renderModal({
   client = { submit: vi.fn().mockResolvedValue(undefined) },
+  initialRating = null,
   onClose = vi.fn(),
   onSubmitted = vi.fn(),
 }: {
   client?: Pick<FeedbackClient, 'submit'> | null
+  initialRating?: 1 | 2 | 3 | 4 | 5 | null
   onClose?: () => void
   onSubmitted?: () => void
 } = {}) {
@@ -22,6 +24,7 @@ function renderModal({
       <LocalizationProvider initialLocale="en">
         <FeedbackModal
           client={client}
+          initialRating={initialRating}
           onClose={onClose}
           onSubmitted={onSubmitted}
           release="2026-08-live-controls"
@@ -33,6 +36,13 @@ function renderModal({
 }
 
 describe('FeedbackModal', () => {
+  it('starts with a rating carried over from the post-share prompt', () => {
+    renderModal({ initialRating: 4 })
+
+    expect(screen.getByRole('radio', { name: 'Rate 4 out of 5' })).toBeChecked()
+    expect(screen.getByRole('button', { name: 'Send feedback' })).toBeEnabled()
+  })
+
   it('submits a selected category without activity details', async () => {
     const user = userEvent.setup()
     const submit = vi.fn().mockResolvedValue(undefined)

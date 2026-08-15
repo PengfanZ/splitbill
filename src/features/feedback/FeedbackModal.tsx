@@ -33,12 +33,14 @@ function feedbackErrorKey(error: unknown): TranslationKey {
 
 export function FeedbackModal({
   client,
+  initialRating = null,
   onClose,
   onSubmitted,
   release,
   surface,
 }: {
   client: Pick<FeedbackClient, 'submit'> | null
+  initialRating?: FeedbackRating | null
   onClose: () => void
   onSubmitted: () => void
   release: string
@@ -47,7 +49,7 @@ export function FeedbackModal({
   const { locale, t } = useLocalization()
   const messageId = useId()
   const [category, setCategory] = useState<FeedbackCategory>('general')
-  const [rating, setRating] = useState<FeedbackRating | null>(null)
+  const [rating, setRating] = useState<FeedbackRating | null>(initialRating)
   const [message, setMessage] = useState('')
   const [errorKey, setErrorKey] = useState<TranslationKey | null>(null)
   const [submitting, setSubmitting] = useState(false)
