@@ -16,6 +16,9 @@ The browser may send only these event names:
 - `live_activity_opened`
 - `settlement_recorded`
 - `currency_selected`
+- `expense_input_manual_selected`
+- `expense_input_ai_text_selected`
+- `expense_input_ai_voice_selected`
 - `ai_text_requested`
 - `ai_text_ready`
 - `ai_text_clarification`
@@ -47,7 +50,9 @@ Opening the app records its initial surface. Successful product actions are meas
 
 `summary_export_clicked` records when someone chooses **Export full summary**, before PNG generation or any share, download, or clipboard fallback begins. It measures export intent rather than successful delivery and contains no activity name, participants, expenses, balances, Live URL, QR code, or generated image data.
 
-AI entry uses a separate four-step funnel for `text` and `voice`. `requested` is recorded immediately before each real Edge Function request, including model follow-ups. `ready`, `clarification`, or `failed` records the result of that request. Deterministic local clarification, microphone permission errors, unsupported browsers, and empty recordings do not count as AI requests because they never reach the service. These events contain only the event name, surface, locale, and anonymous session hash. Prompts, clarification answers, audio, model output, draft counts, latency, member data, and expense data are never sent to analytics.
+Expense-input tab events measure exploration before any AI request. They are recorded only when someone deliberately switches to manual, AI text, or AI voice; rendering the default manual tab and clicking an already-selected tab do not count. `expense_input_ai_text_selected` and `expense_input_ai_voice_selected` therefore show anonymous sessions that explored each AI entry mode even if they never submitted a prompt or recording. `expense_input_manual_selected` shows sessions that returned to manual entry after exploring another mode.
+
+AI entry then uses a separate four-step service funnel for `text` and `voice`. `requested` is recorded immediately before each real Edge Function request, including model follow-ups. `ready`, `clarification`, or `failed` records the result of that request. Deterministic local clarification, microphone permission errors, unsupported browsers, and empty recordings do not count as AI requests because they never reach the service. These events contain only the event name, surface, locale, and anonymous session hash. Prompts, clarification answers, audio, model output, draft counts, latency, member data, and expense data are never sent to analytics.
 
 ## Reports in Supabase
 
@@ -174,34 +179,46 @@ with usage as (
         date_trunc('day', now() at time zone 'America/New_York')
         at time zone 'America/New_York'
       )
-    )::bigint as today,
-    count(*) filter (where occurred_at >= now() - interval '7 days')::bigint as last_7_days,
-    count(*) filter (where occurred_at >= now() - interval '30 days')::bigint as last_30_days
+    )::bigint as today_events,
+    count(distinct session_hash) filter (
+      where occurred_at >= (
+        date_trunc('day', now() at time zone 'America/New_York')
+        at time zone 'America/New_York'
+      )
+    )::bigint as today_sessions,
+    count(*) filter (where occurred_at >= now() - interval '7 days')::bigint as last_7_days_events,
+    count(distinct session_hash) filter (where occurred_at >= now() - interval '7 days')::bigint as last_7_days_sessions,
+    count(*) filter (where occurred_at >= now() - interval '30 days')::bigint as last_30_days_events,
+    count(distinct session_hash) filter (where occurred_at >= now() - interval '30 days')::bigint as last_30_days_sessions
   from private.analytics_events
   where event_name like 'ai\_%' escape '\'
+    or event_name like 'expense\_input\_%\_selected' escape '\'
   group by event_name
-), rows(event_name, sort_order, label) as (
+), rows(event_name, sort_order, label, metric) as (
   values
-    ('ai_text_requested', 1, 'Text requests'),
-    ('ai_voice_requested', 2, 'Voice requests'),
-    ('ai_text_ready', 3, 'Text drafts ready'),
-    ('ai_voice_ready', 4, 'Voice drafts ready'),
-    ('ai_text_clarification', 5, 'Text clarifications'),
-    ('ai_voice_clarification', 6, 'Voice clarifications'),
-    ('ai_text_failed', 7, 'Text failures'),
-    ('ai_voice_failed', 8, 'Voice failures')
+    ('expense_input_ai_text_selected', 1, 'Text tab explorers (sessions)', 'sessions'),
+    ('expense_input_ai_voice_selected', 2, 'Voice tab explorers (sessions)', 'sessions'),
+    ('expense_input_manual_selected', 3, 'Returned to manual (sessions)', 'sessions'),
+    ('ai_text_requested', 4, 'Text requests', 'events'),
+    ('ai_voice_requested', 5, 'Voice requests', 'events'),
+    ('ai_text_ready', 6, 'Text drafts ready', 'events'),
+    ('ai_voice_ready', 7, 'Voice drafts ready', 'events'),
+    ('ai_text_clarification', 8, 'Text clarifications', 'events'),
+    ('ai_voice_clarification', 9, 'Voice clarifications', 'events'),
+    ('ai_text_failed', 10, 'Text failures', 'events'),
+    ('ai_voice_failed', 11, 'Voice failures', 'events')
 )
 select
   rows.label as "AI outcome",
-  coalesce(usage.today, 0) as "Today",
-  coalesce(usage.last_7_days, 0) as "Last 7 days",
-  coalesce(usage.last_30_days, 0) as "Last 30 days"
+  case rows.metric when 'sessions' then coalesce(usage.today_sessions, 0) else coalesce(usage.today_events, 0) end as "Today",
+  case rows.metric when 'sessions' then coalesce(usage.last_7_days_sessions, 0) else coalesce(usage.last_7_days_events, 0) end as "Last 7 days",
+  case rows.metric when 'sessions' then coalesce(usage.last_30_days_sessions, 0) else coalesce(usage.last_30_days_events, 0) end as "Last 30 days"
 from rows
 left join usage using (event_name)
 order by rows.sort_order;
 ```
 
-`Text requests` and `Voice requests` are the provider-facing frequency metrics. Compare each with its ready, clarification, and failure rows to spot reliability changes. One conversational entry may make several requests when the model asks follow-up questions, so this view intentionally measures AI service usage rather than completed expenses.
+The first two rows answer how many anonymous browser sessions explored AI text or voice, including people who stopped before submitting anything. `Text requests` and `Voice requests` are provider-facing frequency metrics. Compare explorers with requests to see discovery-to-attempt conversion, then compare requests with ready, clarification, and failure rows to spot reliability changes. One conversational entry may make several requests when the model asks follow-up questions.
 
 For a chronological hourly usage chart, query the UTC hourly aggregate and convert the label to the reporting timezone. This example uses Eastern Time; replace `America/New_York` with `Asia/Shanghai` for China time:
 

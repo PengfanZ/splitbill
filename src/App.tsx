@@ -1,7 +1,7 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { CheckCircle2 } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
-import type { AnalyticsClient, AnalyticsSurface } from './analytics'
+import type { AnalyticsClient, AnalyticsEvent, AnalyticsSurface } from './analytics'
 import { FreshStart, Sidebar, Topbar } from './components/AppShell'
 import { ConfirmDialog } from './components/ConfirmDialog'
 import { removeActivityIdentity, selectActivityIdentity } from './data/activityIdentity'
@@ -14,7 +14,7 @@ import type { ActivityGroup, Expense, Settlement } from './domain/models'
 import type { AiExpenseClient } from './features/aiExpense/aiExpenseApi'
 import { withAiExpenseAnalytics } from './features/aiExpense/aiExpenseAnalytics'
 import { GroupDashboard } from './features/activity/ActivityDashboard'
-import { AddFriendModal, CreateGroupModal, ExpenseModal, SettleUpModal } from './features/activity/ActivityModals'
+import { AddFriendModal, CreateGroupModal, ExpenseModal, SettleUpModal, type ExpenseInputTab } from './features/activity/ActivityModals'
 import {
   hasSeenLatestChangelog,
   LATEST_CHANGELOG_ID,
@@ -74,6 +74,12 @@ const LiveActivityQrModal = lazy(() => import('./features/sharing/LiveActivityQr
 const ChangelogModal = lazy(() => import('./features/changelog/ChangelogModal').then(module => ({ default: module.ChangelogModal })))
 const FeedbackModal = lazy(() => import('./features/feedback/FeedbackModal').then(module => ({ default: module.FeedbackModal })))
 const RatingPrompt = lazy(() => import('./features/feedback/RatingPrompt').then(module => ({ default: module.RatingPrompt })))
+
+const EXPENSE_INPUT_TAB_EVENTS: Record<ExpenseInputTab, AnalyticsEvent> = {
+  manual: 'expense_input_manual_selected',
+  'ai-text': 'expense_input_ai_text_selected',
+  'ai-voice': 'expense_input_ai_voice_selected',
+}
 
 function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedbackClient = null, liveActivityClient }: AppProps = {}) {
   const [state, setState] = usePersistedState()
@@ -596,6 +602,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
           aiExpenseClient={trackedAiExpenseClient}
           currentMemberId={activeMemberId}
           onCurrentMemberChange={changeActiveMember}
+          onEntryTabSelect={tab => analyticsClient?.track(EXPENSE_INPUT_TAB_EVENTS[tab], analyticsSurface, locale)}
           onClose={closeExpenseModal}
           onSave={editingExpense ? updateExpense : addExpense}
           onSaveMany={addExpenses}

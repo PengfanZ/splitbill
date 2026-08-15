@@ -185,6 +185,33 @@ describe('first-party analytics', () => {
     })
   })
 
+  it.each([
+    'expense_input_manual_selected',
+    'expense_input_ai_text_selected',
+    'expense_input_ai_voice_selected',
+  ] as const)('records the selected expense-input tab without expense data: %s', event => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
+    const client = createConfiguredAnalyticsClient({
+      VITE_SUPABASE_URL: 'https://project.supabase.co',
+      VITE_SUPABASE_PUBLISHABLE_KEY: 'publishable-key',
+    }, {
+      enabled: true,
+      fetcher,
+      storage: null,
+      crypto: deterministicCrypto(8),
+    })!
+
+    client.track(event, 'local', 'en')
+
+    expect(JSON.parse(fetcher.mock.calls[0][1].body as string)).toEqual({
+      p_event_name: event,
+      p_surface: 'local',
+      p_session_token: '08'.repeat(16),
+      p_locale: 'en',
+      p_currency: null,
+    })
+  })
+
   it('uses browser fetch, crypto, and session storage by default', () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
     Object.defineProperty(window, 'fetch', { configurable: true, value: fetcher })

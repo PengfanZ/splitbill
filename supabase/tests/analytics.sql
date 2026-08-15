@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(66);
+select plan(71);
 
 select has_table('private', 'analytics_events', 'private analytics storage exists');
 select columns_are(
@@ -260,6 +260,61 @@ select is(
   ),
   8::bigint,
   'daily analytics reports distinguish every AI text and voice outcome'
+);
+
+select lives_ok(
+  $$
+    select public.record_analytics_event(
+      event_name,
+      'local',
+      '6789abcdef0123456789abcdef012345',
+      'en'
+    )
+    from unnest(array[
+      'expense_input_manual_selected',
+      'expense_input_ai_text_selected',
+      'expense_input_ai_voice_selected'
+    ]) as event_name
+  $$,
+  'all expense-input tab selections are recorded'
+);
+select is(
+  (
+    select count(*)
+    from private.analytics_events
+    where event_name like 'expense\_input\_%\_selected' escape '\'
+  ),
+  3::bigint,
+  'one event is stored for each allowlisted expense-input tab'
+);
+select is(
+  (
+    select count(distinct event_name)
+    from private.analytics_daily
+    where event_name like 'expense\_input\_%\_selected' escape '\'
+  ),
+  3::bigint,
+  'daily analytics distinguish manual, AI text, and AI voice exploration'
+);
+select is(
+  (
+    select sum(sessions)
+    from private.analytics_daily
+    where event_name like 'expense\_input\_%\_selected' escape '\'
+  ),
+  3::numeric,
+  'each tab-selection event retains anonymous session counts'
+);
+select is(
+  (
+    select count(*)
+    from private.analytics_events
+    where event_name like 'expense\_input\_%\_selected' escape '\'
+      and currency is null
+      and locale = 'en'
+  ),
+  3::bigint,
+  'tab exploration stores no expense or currency metadata'
 );
 
 create temporary table analytics_count_before_invalid as
