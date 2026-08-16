@@ -10,6 +10,7 @@ The browser may send only these event names:
 - `activity_created`
 - `friend_added`
 - `expense_added`
+- `feedback_submitted`
 - `summary_export_clicked`
 - `live_share_clicked`
 - `live_activity_created`
@@ -45,6 +46,8 @@ Opening the app records its initial surface. Successful product actions are meas
 `friend_added` records one event after a successful friend-add action, including activity creation when at least one initial friend is supplied. Adding several friends in one submission still records one event. Failed Live saves do not count, and the request never includes friend names, IDs, or a friend count.
 
 `expense_added` records one event after a successful add action. Saving an AI-generated batch still records one event, matching the single confirmation and atomic state update rather than sending one analytics request per expense. The request never includes the batch size or any expense data.
+
+`feedback_submitted` records one event only after `submit_feedback` accepts a rating, a written note, or both. It does not include the rating, category, message, release, or any activity data; those fields remain in the separate private feedback store described in [FEEDBACK.md](FEEDBACK.md). Cancelled and rejected submissions do not count.
 
 `live_share_clicked` is also an intentional interaction event. It records when someone chooses **Start live activity**, before the backend request begins. Compare it with `live_activity_created` to distinguish sharing intent from successful Live activity creation. It contains no activity or link data.
 

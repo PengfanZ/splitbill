@@ -8,6 +8,7 @@ export const ANALYTICS_EVENTS = [
   'activity_created',
   'friend_added',
   'expense_added',
+  'feedback_submitted',
   'summary_export_clicked',
   'live_share_clicked',
   'live_activity_created',

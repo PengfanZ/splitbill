@@ -224,6 +224,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
   }
 
   const finishFeedback = () => {
+    analyticsClient?.track('feedback_submitted', analyticsSurface, locale)
     markRatingPromptHandled(LATEST_CHANGELOG_ID)
     setRatingPromptOpen(false)
     setFeedbackInitialRating(null)

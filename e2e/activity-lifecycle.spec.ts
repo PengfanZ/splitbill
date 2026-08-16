@@ -393,6 +393,11 @@ test('centers compact mobile dialogs and keeps long forms as sheets', async ({ p
 test('sends private in-app feedback without interrupting the activity', async ({ page, context }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   const submissions: Array<Record<string, unknown>> = []
+  const events: AnalyticsPayload[] = []
+  await context.route('https://live-sharing.test/rest/v1/rpc/record_analytics_event', async route => {
+    events.push(route.request().postDataJSON() as AnalyticsPayload)
+    await route.fulfill({ status: 204, body: '' })
+  })
   await context.route('https://live-sharing.test/rest/v1/rpc/submit_feedback', async route => {
     submissions.push(route.request().postDataJSON() as Record<string, unknown>)
     await route.fulfill({
@@ -436,7 +441,16 @@ test('sends private in-app feedback without interrupting the activity', async ({
     p_surface: 'local',
     p_release: '2026-08-live-controls',
   }])
+  await expect.poll(() => events.filter(event => event.p_event_name === 'feedback_submitted').length).toBe(1)
+  expect(events.filter(event => event.p_event_name === 'feedback_submitted')).toEqual([{
+    p_event_name: 'feedback_submitted',
+    p_surface: 'local',
+    p_session_token: expect.stringMatching(/^[a-f0-9]{32}$/),
+    p_locale: 'en',
+    p_currency: null,
+  }])
   expect(JSON.stringify(submissions)).not.toMatch(/Private weekend|Maya|#live=/)
+  expect(JSON.stringify(events)).not.toMatch(/Private weekend|Maya|balance labels|#live=/i)
 })
 
 test('offers optional written feedback after a successful share rating', async ({ page, context }) => {

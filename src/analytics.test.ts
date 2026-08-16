@@ -185,6 +185,29 @@ describe('first-party analytics', () => {
     })
   })
 
+  it('records a successful feedback submission without feedback content', () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
+    const client = createConfiguredAnalyticsClient({
+      VITE_SUPABASE_URL: 'https://project.supabase.co',
+      VITE_SUPABASE_PUBLISHABLE_KEY: 'publishable-key',
+    }, {
+      enabled: true,
+      fetcher,
+      storage: null,
+      crypto: deterministicCrypto(8),
+    })!
+
+    client.track('feedback_submitted', 'live', 'zh-CN')
+
+    expect(JSON.parse(fetcher.mock.calls[0][1].body as string)).toEqual({
+      p_event_name: 'feedback_submitted',
+      p_surface: 'live',
+      p_session_token: '08'.repeat(16),
+      p_locale: 'zh-CN',
+      p_currency: null,
+    })
+  })
+
   it.each([
     'expense_input_manual_selected',
     'expense_input_ai_text_selected',
@@ -198,7 +221,7 @@ describe('first-party analytics', () => {
       enabled: true,
       fetcher,
       storage: null,
-      crypto: deterministicCrypto(8),
+      crypto: deterministicCrypto(9),
     })!
 
     client.track(event, 'local', 'en')
@@ -206,7 +229,7 @@ describe('first-party analytics', () => {
     expect(JSON.parse(fetcher.mock.calls[0][1].body as string)).toEqual({
       p_event_name: event,
       p_surface: 'local',
-      p_session_token: '08'.repeat(16),
+      p_session_token: '09'.repeat(16),
       p_locale: 'en',
       p_currency: null,
     })

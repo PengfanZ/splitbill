@@ -92,12 +92,14 @@ describe('RatingPrompt', () => {
     [new Error('offline'), 'Feedback is temporarily unavailable.'],
   ])('keeps the prompt retryable after %s', async (error, message) => {
     const user = userEvent.setup()
-    renderPrompt({ client: { submit: vi.fn().mockRejectedValue(error) } })
+    const onSubmitted = vi.fn()
+    renderPrompt({ client: { submit: vi.fn().mockRejectedValue(error) }, onSubmitted })
 
     await user.click(screen.getByRole('radio', { name: 'Rate 2 out of 5' }))
     await user.click(screen.getByRole('button', { name: 'Send rating only' }))
     expect(screen.getByRole('alert')).toHaveTextContent(message)
     expect(screen.getByRole('radio', { name: 'Rate 2 out of 5' })).toBeChecked()
+    expect(onSubmitted).not.toHaveBeenCalled()
   })
 
   it('disables prompt actions while the rating is being sent', async () => {

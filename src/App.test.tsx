@@ -2312,7 +2312,8 @@ describe('in-app feedback integration', () => {
   it('submits feedback without navigating away or changing local activity data', async () => {
     const user = userEvent.setup()
     const submit = vi.fn().mockResolvedValue(undefined)
-    render(<App feedbackClient={{ submit }} />)
+    const analyticsClient = { track: vi.fn() } satisfies AnalyticsClient
+    render(<App analyticsClient={analyticsClient} feedbackClient={{ submit }} />)
 
     await user.click(screen.getByRole('button', { name: 'Send feedback' }))
     let dialog = await screen.findByRole('dialog', { name: 'What should Tally do better?' })
@@ -2336,6 +2337,9 @@ describe('in-app feedback integration', () => {
         rating: null,
         surface: 'local',
       }))
+      expect(analyticsClient.track.mock.calls.filter(([event]) => event === 'feedback_submitted')).toEqual([
+        ['feedback_submitted', 'local', 'en'],
+      ])
       expect(screen.queryByRole('dialog', { name: 'What should Tally do better?' })).not.toBeInTheDocument()
       expect(screen.getByRole('heading', { name: 'Start your first activity' })).toBeVisible()
       expect(screen.getByRole('status')).toHaveTextContent('Thanks—your feedback was sent.')
@@ -2351,10 +2355,11 @@ describe('in-app feedback integration', () => {
   it('offers a two-step rating only after a successful share and only once per release', async () => {
     const user = userEvent.setup()
     const submit = vi.fn().mockResolvedValue(undefined)
+    const analyticsClient = { track: vi.fn() } satisfies AnalyticsClient
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
     localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState({ expenses: [expense()] })))
-    render(<App feedbackClient={{ submit }} />)
+    render(<App analyticsClient={analyticsClient} feedbackClient={{ submit }} />)
 
     await chooseShareAction(user, 'Export full summary')
     expect(await screen.findByLabelText('How was Tally?')).toBeVisible()
@@ -2374,6 +2379,9 @@ describe('in-app feedback integration', () => {
       release: LATEST_CHANGELOG_ID,
       surface: 'local',
     }))
+    expect(analyticsClient.track.mock.calls.filter(([event]) => event === 'feedback_submitted')).toEqual([
+      ['feedback_submitted', 'local', 'en'],
+    ])
     expect(screen.queryByLabelText('How was Tally?')).not.toBeInTheDocument()
     expect(localStorage.getItem(RATING_PROMPT_STORAGE_KEY)).toBe(LATEST_CHANGELOG_ID)
 

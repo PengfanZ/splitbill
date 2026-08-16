@@ -19,6 +19,8 @@ Every submission must contain a rating, a message, or both. The request never in
 
 The once-per-release prompt state is stored only in browser local storage under `tally:feedback-rating-prompt:v1`. It is not an analytics identifier and is never uploaded.
 
+After the feedback RPC succeeds, Tally separately records one `feedback_submitted` product event. That analytics event contains only its allowlisted event name, the local/Live surface, the displayed app locale, and a one-way session hash. It never contains the rating, category, message, release, or activity data. Cancelled and rejected submissions do not create the event.
+
 ## Storage and abuse controls
 
 `private.feedback_submissions` has row-level security enabled and no browser, authenticated, or service-role table grants. Browser clients can call only the validated public RPC; they cannot list, edit, or delete submissions.

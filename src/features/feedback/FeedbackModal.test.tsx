@@ -122,11 +122,13 @@ describe('FeedbackModal', () => {
   ])('shows a useful retryable error for %s', async (error, message) => {
     const user = userEvent.setup()
     const submit = vi.fn().mockRejectedValue(error)
-    renderModal({ client: { submit } })
+    const onSubmitted = vi.fn()
+    renderModal({ client: { submit }, onSubmitted })
 
     await user.type(screen.getByLabelText('Add a note (optional)'), 'Something went wrong.')
     await user.click(screen.getByRole('button', { name: 'Send feedback' }))
     expect(screen.getByRole('alert')).toHaveTextContent(message)
+    expect(onSubmitted).not.toHaveBeenCalled()
   })
 
   it('clears a previous error when the user edits the message', async () => {

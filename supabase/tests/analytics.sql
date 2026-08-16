@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(71);
+select plan(74);
 
 select has_table('private', 'analytics_events', 'private analytics storage exists');
 select columns_are(
@@ -227,11 +227,38 @@ select is(
 );
 
 select lives_ok(
+  $$select public.record_analytics_event('feedback_submitted', 'live', '56789abcdef0123456789abcdef01234', 'zh-CN')$$,
+  'a successful feedback submission is recorded'
+);
+select is(
+  (
+    select count(*)
+    from private.analytics_events
+    where event_name = 'feedback_submitted'
+      and surface = 'live'
+      and locale = 'zh-CN'
+      and currency is null
+      and occurred_at is not null
+  ),
+  1::bigint,
+  'feedback analytics retain only approved anonymous event fields'
+);
+select is(
+  (
+    select events
+    from private.analytics_daily
+    where event_name = 'feedback_submitted' and surface = 'live'
+  ),
+  1::bigint,
+  'daily analytics reports include successful feedback submissions'
+);
+
+select lives_ok(
   $$
     select public.record_analytics_event(
       event_name,
       'local',
-      '56789abcdef0123456789abcdef01234',
+      '6789abcdef0123456789abcdef012345',
       'en'
     )
     from unnest(array[
@@ -267,7 +294,7 @@ select lives_ok(
     select public.record_analytics_event(
       event_name,
       'local',
-      '6789abcdef0123456789abcdef012345',
+      '789abcdef0123456789abcdef0123456',
       'en'
     )
     from unnest(array[
