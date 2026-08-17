@@ -60,7 +60,12 @@ export function useActivitySharing({
   ) => {
     analyticsClient?.track('summary_export_clicked', surface, locale)
     const liveUrl = liveSession ? buildLiveActivityUrl(liveSession.credentials) : undefined
-    const result = await exportActivitySummary(group, members, expenses, { locale, liveUrl })
+    setActivityFeedback({ groupId: group.id, message: t('feedback.summaryPreparing') })
+    const result = await exportActivitySummary(group, members, expenses, {
+      locale,
+      liveUrl,
+      onNativeShareStart: () => setActivityFeedback({ groupId: group.id, message: t('feedback.summaryShareSheet') }),
+    })
     setActivityFeedback({ groupId: group.id, message: t(SUMMARY_MESSAGE_KEYS[result]) })
     if (result === 'shared' || result === 'copied' || result === 'downloaded') onShareCompleted()
   }

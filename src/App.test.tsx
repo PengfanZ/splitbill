@@ -82,6 +82,13 @@ function mockCanvas(blob: Blob | null = new Blob(['png'], { type: 'image/png' })
   return context
 }
 
+function mockSummaryDownload() {
+  mockCanvas()
+  Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn().mockReturnValue('blob:summary') })
+  Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
+  return vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+}
+
 async function chooseShareAction(user: UserEvent, actionName: string) {
   await user.click(screen.getByRole('button', { name: 'Share' }))
   const menu = screen.getByRole('dialog', { name: 'Share activity' })
@@ -287,11 +294,17 @@ describe('state and formatting helpers', () => {
     const image = new Blob(['png'], { type: 'image/png' })
     const nativeShare = vi.fn().mockResolvedValue(undefined)
     const canShare = vi.fn().mockReturnValue(true)
+    const onNativeShareStart = vi.fn()
     Object.defineProperty(navigator, 'share', { configurable: true, value: nativeShare })
     Object.defineProperty(navigator, 'canShare', { configurable: true, value: canShare })
-    expect(await shareActivitySummary('Trip — Tally', 'Summary', image)).toBe('shared')
-    expect(canShare).toHaveBeenCalled()
-    expect(nativeShare.mock.calls[0][0].files[0]).toMatchObject({ name: 'trip-tally.png', type: 'image/png' })
+    expect(await shareActivitySummary('Trip — Tally', 'Summary', image, onNativeShareStart)).toBe('shared')
+    const expectedFile = expect.objectContaining({ name: 'trip-tally.png', type: 'image/png' })
+    expect(canShare).toHaveBeenCalledWith({ files: [expectedFile] })
+    expect(nativeShare).toHaveBeenCalledWith({ files: [expectedFile] })
+    expect(nativeShare.mock.calls[0][0]).not.toHaveProperty('text')
+    expect(nativeShare.mock.calls[0][0]).not.toHaveProperty('url')
+    expect(nativeShare.mock.calls[0][0]).not.toHaveProperty('title')
+    expect(onNativeShareStart).toHaveBeenCalledOnce()
 
     nativeShare.mockRejectedValueOnce(new DOMException('cancelled', 'AbortError'))
     expect(await shareActivitySummary('Trip — Tally', 'Summary', image)).toBe('cancelled')
@@ -315,11 +328,14 @@ describe('state and formatting helpers', () => {
     Object.defineProperty(navigator, 'canShare', { configurable: true, value: vi.fn().mockReturnValue(false) })
     expect(await shareActivitySummary('Trip', 'Summary', image)).toBe('downloaded')
 
+    Object.defineProperty(navigator, 'canShare', { configurable: true, value: vi.fn(() => { throw new Error('unsupported payload') }) })
+    expect(await shareActivitySummary('Trip', 'Summary', image)).toBe('downloaded')
+
     const failingShare = vi.fn().mockRejectedValue(new Error('unavailable'))
     Object.defineProperty(navigator, 'canShare', { configurable: true, value: vi.fn().mockReturnValue(true) })
     Object.defineProperty(navigator, 'share', { configurable: true, value: failingShare })
     expect(await shareActivitySummary('Trip', 'Summary', image)).toBe('downloaded')
-    expect(click).toHaveBeenCalledTimes(4)
+    expect(click).toHaveBeenCalledTimes(5)
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:summary')
   })
 
@@ -339,20 +355,21 @@ describe('state and formatting helpers', () => {
     Object.defineProperty(navigator, 'share', { configurable: true, value: undefined })
     writeText.mockRejectedValueOnce(new Error('blocked'))
     expect(await shareActivitySummary('Trip', 'Summary', null)).toBe('failed')
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined })
+    expect(await shareActivitySummary('Trip', 'Summary', null)).toBe('failed')
   })
 
-  it('falls back to text after a PNG download failure and can report total failure', async () => {
+  it('never substitutes text or a URL when PNG delivery fails', async () => {
     const image = new Blob(['png'], { type: 'image/png' })
     Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => { throw new Error('blocked') }) })
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
-    expect(await shareActivitySummary('Trip', 'Summary', image)).toBe('copied')
-    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined })
     expect(await shareActivitySummary('Trip', 'Summary', image)).toBe('failed')
+    expect(writeText).not.toHaveBeenCalled()
     expect(SHARE_MESSAGES.failed).toContain('Could not export')
   })
 
-  it('exports a generated PNG and falls back when card rendering fails', async () => {
+  it('exports a generated PNG and reports a rendering failure without sharing text', async () => {
     mockCanvas()
     const anchor = document.createElement('a')
     vi.spyOn(anchor, 'click').mockImplementation(() => {})
@@ -366,7 +383,35 @@ describe('state and formatting helpers', () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
-    expect(await exportActivitySummary(group, [CURRENT_USER], [])).toBe('copied')
+    expect(await exportActivitySummary(group, [CURRENT_USER], [])).toBe('failed')
+    expect(await exportActivitySummary(group, [CURRENT_USER], [], { liveUrl: 'https://example.com/#live=code.token' })).toBe('failed')
+    expect(writeText).not.toHaveBeenCalled()
+  })
+
+  it('still exports a PNG without the Live QR if QR rendering fails', async () => {
+    mockCanvas()
+    const anchor = document.createElement('a')
+    const click = vi.spyOn(anchor, 'click').mockImplementation(() => {})
+    const originalCreateElement = document.createElement.bind(document)
+    vi.spyOn(document, 'createElement').mockImplementation(tag => tag === 'a' ? anchor : originalCreateElement(tag))
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn().mockReturnValue('blob:summary') })
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
+    const OriginalImage = globalThis.Image
+    class BrokenImage {
+      onload: (() => void) | null = null
+      onerror: (() => void) | null = null
+      set src(_value: string) {
+        queueMicrotask(() => this.onerror?.())
+      }
+    }
+    Object.defineProperty(globalThis, 'Image', { configurable: true, value: BrokenImage })
+
+    try {
+      expect(await exportActivitySummary(group, [CURRENT_USER], [], { liveUrl: 'https://example.com/#live=code.token' })).toBe('downloaded')
+      expect(click).toHaveBeenCalledOnce()
+    } finally {
+      Object.defineProperty(globalThis, 'Image', { configurable: true, value: OriginalImage })
+    }
   })
 })
 
@@ -1046,11 +1091,46 @@ describe('complete app workflows', () => {
     await user.click(screen.getByRole('button', { name: 'Close' }))
   })
 
+  it('shows progress while preparing the PNG summary', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState()))
+    mockSummaryDownload()
+    let finishEncoding: BlobCallback | undefined
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(callback => {
+      finishEncoding = callback
+    })
+    render(<App />)
+
+    await chooseShareAction(user, 'Export full summary')
+    expect(screen.getByRole('status')).toHaveTextContent('Preparing your PNG summary')
+
+    act(() => finishEncoding?.(new Blob(['png'], { type: 'image/png' })))
+    expect(await screen.findByRole('status')).toHaveTextContent('PNG summary downloaded')
+  })
+
+  it('shows when the PNG has moved from preparation to the system share sheet', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState()))
+    mockCanvas()
+    let finishSharing: (() => void) | undefined
+    Object.defineProperty(navigator, 'canShare', { configurable: true, value: vi.fn().mockReturnValue(true) })
+    Object.defineProperty(navigator, 'share', {
+      configurable: true,
+      value: vi.fn(() => new Promise<void>(resolve => { finishSharing = resolve })),
+    })
+    render(<App />)
+
+    await chooseShareAction(user, 'Export full summary')
+    expect(await screen.findByRole('status')).toHaveTextContent('Your PNG is ready in the system share sheet')
+
+    act(() => finishSharing?.())
+    expect(await screen.findByRole('status')).toHaveTextContent('PNG summary shared')
+  })
+
   it('creates an activity, adds people and expenses, searches, deletes, and resets', async () => {
     const user = userEvent.setup()
     const analyticsClient = { track: vi.fn() } satisfies AnalyticsClient
-    const writeText = vi.fn().mockResolvedValue(undefined)
-    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    mockSummaryDownload()
     render(<App analyticsClient={analyticsClient} />)
     await user.click(screen.getByRole('button', { name: 'Create an activity' }))
     await user.type(screen.getByLabelText('Activity name'), 'Road trip')
@@ -1078,8 +1158,7 @@ describe('complete app workflows', () => {
     expect(screen.getByText(/^Edited /)).toBeVisible()
 
     await chooseShareAction(user, 'Export full summary')
-    expect(await screen.findByRole('status')).toHaveTextContent('Summary copied')
-    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Maya pays You $15.00'))
+    expect(await screen.findByRole('status')).toHaveTextContent('PNG summary downloaded')
     expect(analyticsClient.track).toHaveBeenCalledWith('summary_export_clicked', 'local', 'en')
 
     await user.type(screen.getByRole('textbox', { name: 'Search expenses' }), 'zzz')
@@ -1307,11 +1386,10 @@ describe('complete app workflows', () => {
     const user = userEvent.setup()
     const second: ActivityGroup = { id: 'home', name: 'Home', emoji: '⌂', memberIds: ['me'] }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState({ groups: [group, second] })))
+    mockSummaryDownload()
     render(<App />)
-    const writeText = vi.fn().mockResolvedValue(undefined)
-    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
     await chooseShareAction(user, 'Export full summary')
-    expect(await screen.findByRole('status')).toHaveTextContent('Summary copied')
+    expect(await screen.findByRole('status')).toHaveTextContent('PNG summary downloaded')
     await user.click(screen.getByRole('button', { name: 'Open Home activity' }))
     expect(screen.getByRole('heading', { name: 'Home' })).toBeVisible()
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
@@ -2057,10 +2135,20 @@ describe('complete app workflows', () => {
     await user.click(screen.getByRole('button', { name: 'Copy link' }))
     expect(screen.getAllByRole('status').some(status => status.textContent?.includes('Anyone with it can edit'))).toBe(true)
 
+    mockSummaryDownload()
+    const OriginalImage = globalThis.Image
+    class LoadedImage {
+      onload: (() => void) | null = null
+      onerror: (() => void) | null = null
+      set src(_value: string) {
+        queueMicrotask(() => this.onload?.())
+      }
+    }
+    Object.defineProperty(globalThis, 'Image', { configurable: true, value: LoadedImage })
     await chooseShareAction(user, 'Export full summary')
+    await screen.findByText('PNG summary downloaded.')
+    Object.defineProperty(globalThis, 'Image', { configurable: true, value: OriginalImage })
     expect(analyticsClient.track).toHaveBeenCalledWith('summary_export_clicked', 'live', 'en')
-    expect(writeText).toHaveBeenLastCalledWith(expect.stringContaining(`Open and edit the Live activity:\n${buildLiveActivityUrl(credentials)}`))
-    expect(writeText).toHaveBeenLastCalledWith(expect.stringContaining('Dinner — $30.00'))
 
     await user.click(screen.getByRole('button', { name: 'Refresh latest' }))
     expect(await screen.findByText('Latest changes loaded.')).toBeVisible()
@@ -2356,8 +2444,7 @@ describe('in-app feedback integration', () => {
     const user = userEvent.setup()
     const submit = vi.fn().mockResolvedValue(undefined)
     const analyticsClient = { track: vi.fn() } satisfies AnalyticsClient
-    const writeText = vi.fn().mockResolvedValue(undefined)
-    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    mockSummaryDownload()
     localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState({ expenses: [expense()] })))
     render(<App analyticsClient={analyticsClient} feedbackClient={{ submit }} />)
 
@@ -2391,8 +2478,7 @@ describe('in-app feedback integration', () => {
 
   it('lets a post-share rating prompt open the full form or be dismissed', async () => {
     const user = userEvent.setup()
-    const writeText = vi.fn().mockResolvedValue(undefined)
-    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    mockSummaryDownload()
     localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState()))
     const first = render(<App feedbackClient={{ submit: vi.fn() }} />)
 
@@ -2415,8 +2501,10 @@ describe('in-app feedback integration', () => {
   it('prompts after a native share but not after a cancelled share', async () => {
     const user = userEvent.setup()
     localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState()))
+    mockCanvas()
     const nativeShare = vi.fn().mockResolvedValueOnce(undefined)
     Object.defineProperty(navigator, 'share', { configurable: true, value: nativeShare })
+    Object.defineProperty(navigator, 'canShare', { configurable: true, value: vi.fn().mockReturnValue(true) })
     const first = render(<App feedbackClient={{ submit: vi.fn() }} />)
 
     await chooseShareAction(user, 'Export full summary')

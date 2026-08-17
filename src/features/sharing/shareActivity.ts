@@ -7,6 +7,7 @@ export type ShareResult = 'shared' | 'copied' | 'downloaded' | 'cancelled' | 'fa
 export type ActivitySummaryExportOptions = {
   locale?: AppLocale
   liveUrl?: string
+  onNativeShareStart?: () => void
 }
 
 export const TALLY_PUBLIC_URL = 'https://pengfanz.github.io/splitbill/'
@@ -256,15 +257,23 @@ export async function createSummaryCard(group: ActivityGroup, members: Member[],
   })
 }
 
-export async function shareActivitySummary(title: string, text: string, image: Blob | null): Promise<ShareResult> {
+export async function shareActivitySummary(
+  title: string,
+  text: string,
+  image: Blob | null,
+  onNativeShareStart?: () => void,
+): Promise<ShareResult> {
   const filename = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'tally-summary'}.png`
   if (image) {
     const file = new File([image], filename, { type: 'image/png' })
-    const shareData = { title, text, files: [file] }
-    if (typeof navigator.share === 'function' && typeof navigator.canShare === 'function' && navigator.canShare(shareData)) {
+    const fileShareData = { files: [file] }
+    if (typeof navigator.share === 'function' && typeof navigator.canShare === 'function') {
       try {
-        await navigator.share(shareData)
-        return 'shared'
+        if (navigator.canShare(fileShareData)) {
+          onNativeShareStart?.()
+          await navigator.share(fileShareData)
+          return 'shared'
+        }
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return 'cancelled'
       }
@@ -281,7 +290,7 @@ export async function shareActivitySummary(title: string, text: string, image: B
       URL.revokeObjectURL(url)
       return 'downloaded'
     } catch {
-      // Continue to the text fallback.
+      return 'failed'
     }
   }
 
@@ -308,11 +317,17 @@ export async function shareActivitySummary(title: string, text: string, image: B
 
 export async function exportActivitySummary(group: ActivityGroup, members: Member[], expenses: Expense[], options: ActivitySummaryExportOptions = {}) {
   const title = `${group.name} — Tally`
-  const text = buildShareSummary(group, members, expenses, options)
+  const { onNativeShareStart, ...cardOptions } = options
+  let image: Blob
   try {
-    const image = await createSummaryCard(group, members, expenses, options)
-    return shareActivitySummary(title, text, image)
+    image = await createSummaryCard(group, members, expenses, cardOptions)
   } catch {
-    return shareActivitySummary(title, text, null)
+    if (!cardOptions.liveUrl) return 'failed'
+    try {
+      image = await createSummaryCard(group, members, expenses, { ...cardOptions, liveUrl: undefined })
+    } catch {
+      return 'failed'
+    }
   }
+  return shareActivitySummary(title, '', image, onNativeShareStart)
 }

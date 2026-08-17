@@ -559,7 +559,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
                 members={liveMembers}
                 expenses={liveActivity.expenses}
                 query={query}
-                activityFeedback={null}
+                activityFeedback={activityFeedback?.groupId === liveActivity.group.id ? activityFeedback.message : null}
                 readOnly={!live.editable}
                 readOnlyLabel={t('dashboard.editingPaused')}
                 currentMemberId={activeMemberId}
