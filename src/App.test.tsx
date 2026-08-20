@@ -912,11 +912,11 @@ describe('complete app workflows', () => {
     expect(document.documentElement.lang).toBe('zh-CN')
     expect(document.title).toBe('Tally — 多人分账工具')
     expect(screen.getByRole('heading', { name: '设置' })).toBeVisible()
-    expect(screen.getByRole('button', { name: '保存' })).toBeVisible()
+    expect(screen.getByRole('button', { name: '保存设置' })).toBeVisible()
     expect(screen.getByText(/^创建于 /)).toBeVisible()
     expect(localStorage.getItem('tally:locale:v1')).toBe('zh-CN')
 
-    await user.click(screen.getByRole('button', { name: '保存' }))
+    await user.click(screen.getByRole('button', { name: '保存设置' }))
     unmount()
     render(<App />)
     expect(screen.getByRole('button', { name: '设置' })).toBeVisible()
@@ -1060,7 +1060,7 @@ describe('complete app workflows', () => {
     await user.click(screen.getByRole('button', { name: 'Settings' }))
     await user.clear(screen.getByLabelText('Display name'))
     await user.type(screen.getByLabelText('Display name'), 'Pengfan')
-    await user.click(screen.getByRole('button', { name: 'Save name' }))
+    await user.click(screen.getByRole('button', { name: 'Save settings' }))
     await waitFor(() => expect(JSON.parse(localStorage.getItem(IDENTITY_KEY)!)).toMatchObject({ name: 'Pengfan', initials: 'P' }))
   })
 

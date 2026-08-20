@@ -29,7 +29,7 @@ export function IdentityModal({ initialName = '', onClose, onSave }: {
         <ThemeControl />
         <div className="split-note identity-note"><Globe2 size={18} /><span><b>{t('settings.regionTitle')}</b><small>{t('settings.timeZone', { timeZone })}</small></span></div>
         <div className="split-note identity-note"><UserRound size={18} /><span><b>{t('identity.storedLocally')}</b><small>{t('identity.explanation')}</small></span></div>
-        <div className="modal-actions modal-actions--single"><Button variant="primary" type="submit">{t(initialName ? 'identity.saveName' : 'identity.continue')}</Button></div>
+        <div className="modal-actions modal-actions--single"><Button variant="primary" type="submit">{t(initialName ? 'identity.saveSettings' : 'identity.continue')}</Button></div>
       </form>
     </ModalShell>
   )

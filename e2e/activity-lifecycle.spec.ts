@@ -90,7 +90,7 @@ test('automatically uses Simplified Chinese in China and keeps the choice across
     await page.getByRole('button', { name: '语言：简体中文' }).click()
     await page.getByRole('option', { name: 'English' }).click()
     await expect(page).toHaveTitle('Tally — Group Expense Splitter')
-    await page.getByRole('button', { name: 'Save name' }).click()
+    await page.getByRole('button', { name: 'Save settings' }).click()
     await page.reload()
     await expect(page.getByRole('button', { name: 'Settings' })).toBeVisible()
     await expect(page.locator('html')).toHaveAttribute('lang', 'en')
