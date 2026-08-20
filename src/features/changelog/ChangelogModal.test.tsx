@@ -11,6 +11,9 @@ describe('ChangelogModal', () => {
     render(<LocalizationProvider initialLocale="en"><ChangelogModal onClose={onClose} /></LocalizationProvider>)
 
     const dialog = screen.getByRole('dialog', { name: 'What’s new in Tally' })
+    expect(dialog).toHaveTextContent('August 20, 2026')
+    expect(dialog).toHaveTextContent('Light or dark, your choice')
+    expect(dialog).toHaveTextContent('Open Settings, find Appearance, then choose System, Light, or Dark.')
     expect(dialog).toHaveTextContent('July 26, 2026')
     expect(dialog).toHaveTextContent('Sharing, without the guesswork')
     expect(screen.getByText('Reliable live collaboration')).toBeVisible()
@@ -26,6 +29,9 @@ describe('ChangelogModal', () => {
   it('renders the same update naturally in Simplified Chinese', () => {
     render(<LocalizationProvider initialLocale="zh-CN"><ChangelogModal onClose={vi.fn()} /></LocalizationProvider>)
     const dialog = screen.getByRole('dialog', { name: 'Tally 最近更新' })
+    expect(dialog).toHaveTextContent('2026年8月20日')
+    expect(dialog).toHaveTextContent('亮色或深色，由你选择')
+    expect(dialog).toHaveTextContent('打开“设置”，在“外观”中选择“跟随系统”“浅色”或“深色”')
     expect(dialog).toHaveTextContent('2026年7月26日')
     expect(dialog).toHaveTextContent('分享更清楚，也更安心')
     expect(screen.getByText('更可靠的实时协作')).toBeVisible()

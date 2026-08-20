@@ -1,5 +1,6 @@
 import { expect, test, type BrowserContext, type Page, type Route } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
+import { LATEST_CHANGELOG_ID } from '../src/features/changelog/changelog'
 
 type AnalyticsPayload = {
   p_event_name: string
@@ -468,7 +469,7 @@ test('sends private in-app feedback without interrupting the activity', async ({
     p_locale: 'en',
     p_rating: 3,
     p_surface: 'local',
-    p_release: '2026-08-live-controls',
+    p_release: LATEST_CHANGELOG_ID,
   }])
   await expect.poll(() => events.filter(event => event.p_event_name === 'feedback_submitted').length).toBe(1)
   expect(events.filter(event => event.p_event_name === 'feedback_submitted')).toEqual([{
@@ -530,7 +531,7 @@ test('offers optional written feedback after a successful share rating', async (
     p_locale: 'en',
     p_rating: 4,
     p_surface: 'local',
-    p_release: '2026-08-live-controls',
+    p_release: LATEST_CHANGELOG_ID,
   }])
   expect(JSON.stringify(submissions)).not.toContain('Share rating weekend')
 

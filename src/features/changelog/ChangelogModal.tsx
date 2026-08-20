@@ -6,6 +6,7 @@ import {
   Radio,
   Share2,
   SlidersHorizontal,
+  SunMoon,
   type LucideIcon,
 } from 'lucide-react'
 import { ModalShell } from '../../components/Dialog'
@@ -25,6 +26,7 @@ const CHANGELOG_ICONS: Record<ChangelogIcon, LucideIcon> = {
   share: Share2,
   settle: BadgeCheck,
   polish: SlidersHorizontal,
+  theme: SunMoon,
 }
 
 export function ChangelogModal({ onClose }: { onClose: () => void }) {

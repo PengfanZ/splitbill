@@ -2,7 +2,7 @@ import type { AppLocale, TranslationKey } from '../../i18n/localization'
 
 export const CHANGELOG_SEEN_STORAGE_KEY = 'tally:changelog-seen:v1'
 
-export type ChangelogIcon = 'aiText' | 'aiVoice' | 'aiReview' | 'live' | 'share' | 'settle' | 'polish'
+export type ChangelogIcon = 'aiText' | 'aiVoice' | 'aiReview' | 'live' | 'share' | 'settle' | 'polish' | 'theme'
 
 export type ChangelogEntry = {
   id: string
@@ -17,6 +17,19 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
+  {
+    id: '2026-08-appearance',
+    releasedOn: '2026-08-20',
+    titleKey: 'changelog.release.themeTitle',
+    summaryKey: 'changelog.release.themeSummary',
+    items: [
+      {
+        icon: 'theme',
+        titleKey: 'changelog.item.themeTitle',
+        descriptionKey: 'changelog.item.themeDescription',
+      },
+    ],
+  },
   {
     id: '2026-08-live-controls',
     releasedOn: '2026-08-08',
