@@ -21,6 +21,35 @@ test.beforeEach(async ({ context }) => {
   }))
 })
 
+test('follows the system theme and persists an explicit appearance override', async ({ browser }) => {
+  const context = await browser.newContext({ colorScheme: 'dark' })
+  const page = await context.newPage()
+
+  try {
+    await page.goto('./')
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+    await expect(page.getByRole('radio', { name: 'System' })).toBeChecked()
+
+    await page.emulateMedia({ colorScheme: 'light' })
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+
+    await page.getByRole('radio', { name: 'Dark' }).click()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('tally:theme:v1'))).toBe('dark')
+
+    await page.reload()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+    await expect(page.getByRole('radio', { name: 'Dark' })).toBeChecked()
+
+    await page.getByRole('radio', { name: 'System' }).click()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+    await page.emulateMedia({ colorScheme: 'dark' })
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+  } finally {
+    await context.close()
+  }
+})
+
 test('automatically uses Simplified Chinese in China and keeps the choice across reloads', async ({ browser }) => {
   const context = await browser.newContext({ locale: 'zh-CN', timezoneId: 'Asia/Shanghai' })
   const page = await context.newPage()

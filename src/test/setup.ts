@@ -18,6 +18,20 @@ Object.defineProperty(globalThis, 'localStorage', {
   value: new MemoryStorage(),
 })
 
+Object.defineProperty(window, 'matchMedia', {
+  configurable: true,
+  value: (query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  }),
+})
+
 afterEach(() => {
   cleanup()
   localStorage.clear()

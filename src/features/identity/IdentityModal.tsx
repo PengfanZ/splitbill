@@ -4,6 +4,7 @@ import { ModalShell } from '../../components/Dialog'
 import { Button } from '../../components/Button'
 import { useLocalization } from '../../i18n/LocalizationContext'
 import { LanguageControl } from './LanguageControl'
+import { ThemeControl } from './ThemeControl'
 
 export function IdentityModal({ initialName = '', onClose, onSave }: {
   initialName?: string
@@ -25,6 +26,7 @@ export function IdentityModal({ initialName = '', onClose, onSave }: {
       <form onSubmit={submit}>
         <label>{t('identity.displayName')}<input aria-label={t('identity.displayName')} autoFocus value={name} onChange={event => setName(event.target.value)} placeholder={t('identity.namePlaceholder')} required /></label>
         <div className="language-field"><span>{t('settings.language')}</span><LanguageControl locale={locale} onChange={setLocale} /></div>
+        <ThemeControl />
         <div className="split-note identity-note"><Globe2 size={18} /><span><b>{t('settings.regionTitle')}</b><small>{t('settings.timeZone', { timeZone })}</small></span></div>
         <div className="split-note identity-note"><UserRound size={18} /><span><b>{t('identity.storedLocally')}</b><small>{t('identity.explanation')}</small></span></div>
         <div className="modal-actions modal-actions--single"><Button variant="primary" type="submit">{t(initialName ? 'identity.saveName' : 'identity.continue')}</Button></div>

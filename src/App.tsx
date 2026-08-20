@@ -55,6 +55,7 @@ import { useActivityIdentitySelections } from './hooks/useActivityIdentitySelect
 import { LocalizationProvider, useLocalization } from './i18n/LocalizationContext'
 import { formatLocalizedList } from './i18n/localization'
 import { createAppQueryClient } from './queryClient'
+import { ThemeProvider } from './theme/ThemeContext'
 
 type ModalType = 'group' | 'friend' | 'expense' | 'settlement' | 'identity' | 'join' | 'live-identity' | 'feedback' | null
 type AppProps = {
@@ -670,8 +671,10 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
 export default function App(props: AppProps = {}) {
   const [queryClient] = useState(createAppQueryClient)
   return (
-    <QueryClientProvider client={queryClient}>
-      <LocalizationProvider><LocalizedApp {...props} /></LocalizationProvider>
-    </QueryClientProvider>
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <LocalizationProvider><LocalizedApp {...props} /></LocalizationProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
   )
 }
