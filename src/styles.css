@@ -340,9 +340,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .theme-field { min-width: 0; margin: 0; padding: 0; border: 0; display: grid; gap: 7px; }
 .theme-field legend { margin-bottom: 7px; padding: 0; color: var(--muted); font-size: 11px; }
 .theme-field > small { color: var(--muted); font-size: 9px; line-height: 1.4; }
-.theme-options { min-width: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--field-border); border-radius: var(--radius-control); overflow: hidden; background: var(--surface-solid); }
-.theme-options label { min-width: 0; min-height: 46px; position: relative; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0 8px; color: var(--muted); font-size: 11px; font-weight: 700; cursor: pointer; transition: background .16s ease, color .16s ease, box-shadow .16s ease; }
-.theme-options label + label { border-left: 1px solid var(--field-border); }
+.theme-options { min-width: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; padding: 2px; border: 1px solid var(--field-border); border-radius: var(--radius-control); overflow: hidden; background: var(--surface-solid); }
+.theme-options label { min-width: 0; min-height: 44px; position: relative; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0 8px; border-radius: calc(var(--radius-control) - 3px); color: var(--muted); font-size: 11px; font-weight: 700; cursor: pointer; transition: background .16s ease, color .16s ease, box-shadow .16s ease; }
 .theme-options label:hover { background: var(--surface-muted); color: var(--ink); }
 .theme-options label.is-selected { z-index: 1; background: var(--coral-soft); color: var(--coral); box-shadow: inset 0 0 0 1px var(--coral); }
 .theme-options input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
