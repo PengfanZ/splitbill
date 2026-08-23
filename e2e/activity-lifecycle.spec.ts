@@ -419,6 +419,12 @@ test('centers compact mobile dialogs and keeps long forms as sheets', async ({ p
   await page.getByRole('option', { name: 'Exact amounts' }).click()
   const exactShareControl = expenseDialog.locator('.share-input').first()
   await expect(expenseDialog.locator('.share-input')).toHaveCount(3)
+  const exactShareInput = exactShareControl.locator('input')
+  await exactShareInput.fill('7.49')
+  await expenseDialog.getByRole('spinbutton', { name: 'Amount' }).click()
+  await exactShareInput.click()
+  await page.keyboard.type('12.34')
+  await expect(exactShareInput).toHaveValue('12.34')
   expect(await exactShareControl.evaluate(control => {
     const input = control.querySelector('input')!
     const controlStyle = getComputedStyle(control)

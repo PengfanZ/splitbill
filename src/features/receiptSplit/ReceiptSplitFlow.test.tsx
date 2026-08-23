@@ -158,8 +158,9 @@ describe('receipt split flow', () => {
     expect(await screen.findByText('Detected charges are $0.44 below the printed total.')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Assign dishes' })).toBeDisabled()
 
-    await user.clear(screen.getByLabelText('Receipt total'))
-    await user.type(screen.getByLabelText('Receipt total'), '34.56')
+    await user.click(screen.getByLabelText('Receipt total'))
+    await user.keyboard('34.56')
+    expect(screen.getByLabelText('Receipt total')).toHaveValue(34.56)
     await user.clear(screen.getByLabelText('Subtotal'))
     await user.type(screen.getByLabelText('Subtotal'), '32.01')
     expect(screen.getByRole('button', { name: 'Assign dishes' })).toBeDisabled()

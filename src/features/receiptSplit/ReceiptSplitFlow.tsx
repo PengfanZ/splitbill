@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ChangeEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import {
   AlertCircle,
   ArrowLeft,
@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { Avatar } from '../../components/AppShell'
 import { Button } from '../../components/Button'
+import { selectInputContents } from '../../components/inputInteractions'
 import { SelectMenu, type SelectMenuOption } from '../../components/SelectMenu'
 import { activityCurrency, currencyLabel, currencySymbol } from '../../domain/currency'
 import { createExpenseTimestamp, money } from '../../domain/expenses'
@@ -57,6 +58,43 @@ function centsFromInput(value: string) {
 
 function amountInput(cents: number) {
   return (cents / 100).toFixed(2)
+}
+
+function ReceiptMoneyInput({ ariaLabel, min, onValueChange, valueCents }: {
+  ariaLabel: string
+  min?: number
+  onValueChange: (value: string) => void
+  valueCents: number
+}) {
+  const focused = useRef(false)
+  const [value, setValue] = useState(() => amountInput(valueCents))
+
+  useEffect(() => {
+    if (!focused.current) setValue(amountInput(valueCents))
+  }, [valueCents])
+
+  return (
+    <input
+      aria-label={ariaLabel}
+      type="number"
+      inputMode="decimal"
+      min={min}
+      step="0.01"
+      value={value}
+      onBlur={() => {
+        focused.current = false
+        setValue(amountInput(valueCents))
+      }}
+      onChange={event => {
+        setValue(event.target.value)
+        onValueChange(event.target.value)
+      }}
+      onFocus={event => {
+        focused.current = true
+        selectInputContents(event)
+      }}
+    />
+  )
 }
 
 function chargeSettings(draft: ReceiptDraft): ReceiptChargeSetting[] {
@@ -298,7 +336,7 @@ export function ReceiptSplitFlow({
                   <div className="receipt-line-main">
                     <span className="receipt-line-index">{item.quantity > 1 ? item.quantity : <ReceiptText size={15} />}</span>
                     <input aria-label={t('receipt.itemName')} value={item.name} onChange={event => updateItem(item.id, current => ({ ...current, name: event.target.value }))} />
-                    <span className="receipt-money-input"><i>{currencySymbol(activityCurrencyCode, locale)}</i><input aria-label={t('receipt.itemAmount', { name: item.name })} type="number" min="0" step="0.01" value={amountInput(item.totalCents)} onChange={event => updateItem(item.id, current => ({ ...current, totalCents: centsFromInput(event.target.value) }))} /></span>
+                    <span className="receipt-money-input"><i>{currencySymbol(activityCurrencyCode, locale)}</i><ReceiptMoneyInput ariaLabel={t('receipt.itemAmount', { name: item.name })} min={0} valueCents={item.totalCents} onValueChange={value => updateItem(item.id, current => ({ ...current, totalCents: centsFromInput(value) }))} /></span>
                     {item.details.length || item.sourceLines.length ? <button type="button" className={`receipt-detail-toggle${expanded ? ' is-open' : ''}`} aria-label={t(expanded ? 'receipt.hideDetails' : 'receipt.showDetails', { name: item.name })} onClick={() => setExpandedItemId(expanded ? null : item.id)}><ChevronDown size={17} /></button> : null}
                   </div>
                   {expanded ? <div className="receipt-line-details">{item.details.map((detail, index) => <span key={`${detail.kind}-${index}`}><b>•</b>{detail.label}{detail.amountCents === null ? null : <em>{money(detail.amountCents / 100, activityCurrencyCode, locale)}</em>}</span>)}{item.sourceLines.map((line, index) => <small key={`${line}-${index}`}>{line}</small>)}</div> : null}
@@ -310,12 +348,12 @@ export function ReceiptSplitFlow({
         {activeDraft.charges.length ? <section className="receipt-review-section">
           <header><h4>{t('receipt.charges')}</h4><strong>{money(activeReconciliation.chargesCents / 100, activityCurrencyCode, locale)}</strong></header>
           <div className="receipt-charge-list">
-            {activeDraft.charges.map(charge => <label key={charge.id}><span>{charge.label}{charge.rateBasisPoints === null ? null : <small>{charge.rateBasisPoints / 100}%</small>}</span><span className="receipt-money-input"><i>{currencySymbol(activityCurrencyCode, locale)}</i><input aria-label={t('receipt.chargeAmount', { name: charge.label })} type="number" step="0.01" value={amountInput(charge.amountCents)} onChange={event => updateCharge(charge.id, Math.round(Number(event.target.value || 0) * 100))} /></span></label>)}
+            {activeDraft.charges.map(charge => <label key={charge.id}><span>{charge.label}{charge.rateBasisPoints === null ? null : <small>{charge.rateBasisPoints / 100}%</small>}</span><span className="receipt-money-input"><i>{currencySymbol(activityCurrencyCode, locale)}</i><ReceiptMoneyInput ariaLabel={t('receipt.chargeAmount', { name: charge.label })} valueCents={charge.amountCents} onValueChange={value => updateCharge(charge.id, Math.round(Number(value || 0) * 100))} /></span></label>)}
           </div>
         </section> : null}
         <section className={`receipt-totals${activeReconciliation.matches ? '' : ' receipt-totals--mismatch'}`}>
-          <label><span>{t('receipt.subtotal')}</span><span className="receipt-money-input"><i>{currencySymbol(activityCurrencyCode, locale)}</i><input aria-label={t('receipt.subtotal')} type="number" min="0" step="0.01" value={amountInput(activeDraft.subtotalCents)} onChange={event => setDraft(current => ({ ...current!, subtotalCents: centsFromInput(event.target.value) }))} /></span></label>
-          <label><span>{t('receipt.total')}</span><span className="receipt-money-input"><i>{currencySymbol(activityCurrencyCode, locale)}</i><input aria-label={t('receipt.total')} type="number" min="0" step="0.01" value={amountInput(activeDraft.totalCents)} onChange={event => setDraft(current => ({ ...current!, totalCents: centsFromInput(event.target.value) }))} /></span></label>
+          <label><span>{t('receipt.subtotal')}</span><span className="receipt-money-input"><i>{currencySymbol(activityCurrencyCode, locale)}</i><ReceiptMoneyInput ariaLabel={t('receipt.subtotal')} min={0} valueCents={activeDraft.subtotalCents} onValueChange={value => setDraft(current => ({ ...current!, subtotalCents: centsFromInput(value) }))} /></span></label>
+          <label><span>{t('receipt.total')}</span><span className="receipt-money-input"><i>{currencySymbol(activityCurrencyCode, locale)}</i><ReceiptMoneyInput ariaLabel={t('receipt.total')} min={0} valueCents={activeDraft.totalCents} onValueChange={value => setDraft(current => ({ ...current!, totalCents: centsFromInput(value) }))} /></span></label>
           <p><span>{t('receipt.calculated')}</span><strong>{money(activeReconciliation.calculatedTotalCents / 100, activityCurrencyCode, locale)}</strong></p>
         </section>
         {!activeReconciliation.matches ? <div className="receipt-reconciliation" role="alert">
@@ -392,7 +430,7 @@ export function ReceiptSplitFlow({
         <label>{t('receipt.paidBy')}<SelectMenu value={payerId} options={payerOptions} onChange={setPayerId} ariaLabel={t('receipt.paidBy')} menuLabel={t('receipt.paidBy')} /></label>
       </div>
       {charges.length ? <section className="receipt-charge-methods"><h4>{t('receipt.extraCharges')}</h4>{charges.map(charge => <label key={charge.id}><span><b>{charge.label}</b><small>{money(charge.amountCents / 100, activityCurrencyCode, locale)}</small></span><SelectMenu value={charge.allocationMethod} options={chargeMethodOptions} onChange={method => setChargeMethod(charge.id, method)} ariaLabel={`${charge.label} ${t('receipt.extraCharges')}`} menuLabel={t('receipt.extraCharges')} /></label>)}</section> : null}
-      <section className="receipt-tip-field"><label><span><b>{t('receipt.tip')}</b><small>{chargedTipIncluded ? t('receipt.tipAlreadyIncluded') : t('receipt.tipHelp')}</small></span><span className="receipt-tip-input"><input aria-label={t('receipt.tipPercent')} type="number" min="0" max="100" step="0.5" disabled={chargedTipIncluded} value={tipPercent} onChange={event => setTipPercent(Math.max(0, Math.min(100, Number(event.target.value) || 0)))} /><i>%</i></span></label></section>
+      <section className="receipt-tip-field"><label><span><b>{t('receipt.tip')}</b><small>{chargedTipIncluded ? t('receipt.tipAlreadyIncluded') : t('receipt.tipHelp')}</small></span><span className="receipt-tip-input"><input aria-label={t('receipt.tipPercent')} type="number" inputMode="decimal" min="0" max="100" step="0.5" disabled={chargedTipIncluded} value={tipPercent} onChange={event => setTipPercent(Math.max(0, Math.min(100, Number(event.target.value) || 0)))} onFocus={selectInputContents} /><i>%</i></span></label></section>
       <section className={`receipt-person-totals${participantTotals.length > 4 ? ' receipt-person-totals--scrollable' : ''}`}>
         {participantTotals.map(total => {
           const member = members.find(candidate => candidate.id === total.memberId)!
