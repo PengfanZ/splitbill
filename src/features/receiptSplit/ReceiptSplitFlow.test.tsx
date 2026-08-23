@@ -117,7 +117,7 @@ describe('receipt split flow', () => {
     const mismatch = { ...receiptDraftFixture, totalCents: 3_500 }
     const { container } = renderFlow({ draft: mismatch })
     const user = await uploadReceipt(container)
-    expect(await screen.findByText('The item and charge amounts do not match the printed totals. Fix the highlighted amounts before continuing.')).toBeVisible()
+    expect(await screen.findByText('Detected charges are $0.44 below the printed total.')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Assign dishes' })).toBeDisabled()
 
     await user.clear(screen.getByLabelText('Receipt total'))
@@ -137,6 +137,45 @@ describe('receipt split flow', () => {
     expect(screen.getByRole('button', { name: 'Assign dishes' })).toBeEnabled()
     await user.click(screen.getByRole('button', { name: 'Choose another photo' }))
     expect(screen.getByText('Add a clear receipt photo')).toBeVisible()
+  })
+
+  it('explains and resolves a missing receipt item without changing printed totals', async () => {
+    const mismatch = {
+      ...receiptDraftFixture,
+      items: [
+        { ...receiptDraftFixture.items[0], totalCents: 9_122 },
+        receiptDraftFixture.items[1],
+      ],
+      charges: [{ ...receiptDraftFixture.charges[0], amountCents: 838 }],
+      subtotalCents: 10_472,
+      totalCents: 11_310,
+    }
+    const { container } = renderFlow({ draft: mismatch })
+    const user = await uploadReceipt(container)
+
+    expect(await screen.findByText('Detected items are $1.50 below the printed subtotal.')).toBeVisible()
+    expect(screen.getByText('The receipt reader probably missed a line. Add it as a separate item, then rename it if you recognize it.')).toBeVisible()
+    expect(screen.getByText('$111.60')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Assign dishes' })).toBeDisabled()
+
+    await user.click(screen.getByRole('button', { name: 'Add missing item · $1.50' }))
+    expect(screen.getByLabelText('Unrecognized item amount')).toHaveValue(1.5)
+    expect(screen.getByText('$113.10')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Assign dishes' })).toBeEnabled()
+
+    await user.click(screen.getByRole('button', { name: 'Assign dishes' }))
+    expect(screen.getByRole('button', { name: 'Assign Unrecognized item to Avery' })).toBeVisible()
+  })
+
+  it('adds a transparent missing charge while keeping charge allocation explicit', async () => {
+    const mismatch = { ...receiptDraftFixture, totalCents: 3_500 }
+    const { container } = renderFlow({ draft: mismatch })
+    const user = await uploadReceipt(container)
+
+    expect(await screen.findByText('Detected charges are $0.44 below the printed total.')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Add missing charge · $0.44' }))
+    expect(screen.getByLabelText('Unrecognized charge amount')).toHaveValue(0.44)
+    expect(screen.getByRole('button', { name: 'Assign dishes' })).toBeEnabled()
   })
 
   it('requires acknowledgment of unresolved lines and blocks a currency mismatch', async () => {

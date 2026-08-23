@@ -82,6 +82,7 @@ export type ReceiptReconciliation = {
   chargesCents: number
   calculatedTotalCents: number
   subtotalDifferenceCents: number
+  chargeDifferenceCents: number
   totalDifferenceCents: number
   matches: boolean
 }
@@ -99,14 +100,59 @@ export function reconcileReceipt(draft: ReceiptDraft): ReceiptReconciliation {
   const chargesCents = draft.charges.reduce((total, charge) => total + charge.amountCents, 0)
   const calculatedTotalCents = itemsCents + chargesCents
   const subtotalDifferenceCents = draft.subtotalCents - itemsCents
+  const chargeDifferenceCents = draft.totalCents - draft.subtotalCents - chargesCents
   const totalDifferenceCents = draft.totalCents - calculatedTotalCents
   return {
     itemsCents,
     chargesCents,
     calculatedTotalCents,
     subtotalDifferenceCents,
+    chargeDifferenceCents,
     totalDifferenceCents,
-    matches: subtotalDifferenceCents === 0 && totalDifferenceCents === 0,
+    matches: subtotalDifferenceCents === 0 && chargeDifferenceCents === 0,
+  }
+}
+
+export function addUnrecognizedReceiptItem(
+  draft: ReceiptDraft,
+  id: string,
+  name: string,
+  detail: string,
+): ReceiptDraft {
+  const amountCents = reconcileReceipt(draft).subtotalDifferenceCents
+  if (amountCents <= 0 || draft.items.length >= MAX_RECEIPT_ITEMS) return draft
+  return {
+    ...draft,
+    items: [...draft.items, {
+      id,
+      name,
+      quantity: 1,
+      unitPriceCents: amountCents,
+      totalCents: amountCents,
+      details: [{ kind: 'unknown', label: detail, amountCents: null }],
+      sourceLines: [],
+      confidence: 'low',
+    }],
+  }
+}
+
+export function addUnrecognizedReceiptCharge(
+  draft: ReceiptDraft,
+  id: string,
+  label: string,
+): ReceiptDraft {
+  const amountCents = reconcileReceipt(draft).chargeDifferenceCents
+  if (amountCents <= 0 || draft.charges.length >= MAX_RECEIPT_CHARGES) return draft
+  return {
+    ...draft,
+    charges: [...draft.charges, {
+      id,
+      type: 'other',
+      label,
+      amountCents,
+      rateBasisPoints: null,
+      confidence: 'low',
+    }],
   }
 }
 

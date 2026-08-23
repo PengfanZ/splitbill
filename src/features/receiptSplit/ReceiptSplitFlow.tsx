@@ -29,7 +29,14 @@ import {
   type ReceiptChargeAllocationMethod,
   type ReceiptChargeSetting,
 } from './receiptAllocation'
-import { reconcileReceipt, type ReceiptDraft } from './receiptContract'
+import {
+  addUnrecognizedReceiptCharge,
+  addUnrecognizedReceiptItem,
+  MAX_RECEIPT_CHARGES,
+  MAX_RECEIPT_ITEMS,
+  reconcileReceipt,
+  type ReceiptDraft,
+} from './receiptContract'
 
 type ReceiptStep = 'capture' | 'reading' | 'review' | 'assign' | 'confirm'
 
@@ -169,6 +176,28 @@ export function ReceiptSplitFlow({
     setCharges(current => current.map(charge => charge.id === chargeId ? { ...charge, amountCents } : charge))
   }
 
+  const addMissingItem = () => {
+    const currentDraft = draft!
+    const nextDraft = addUnrecognizedReceiptItem(
+      currentDraft,
+      makeId('receipt-item'),
+      t('receipt.unrecognizedItem'),
+      t('receipt.unrecognizedItemDetail'),
+    )
+    setDraft(nextDraft)
+  }
+
+  const addMissingCharge = () => {
+    const currentDraft = draft!
+    const nextDraft = addUnrecognizedReceiptCharge(
+      currentDraft,
+      makeId('receipt-charge'),
+      t('receipt.unrecognizedCharge'),
+    )
+    setDraft(nextDraft)
+    setCharges(chargeSettings(nextDraft))
+  }
+
   const toggleAssignment = (itemId: string, memberId: string) => {
     setAssignments(current => {
       const selected = current[itemId] ?? []
@@ -276,7 +305,32 @@ export function ReceiptSplitFlow({
           <label><span>{t('receipt.total')}</span><span className="receipt-money-input"><i>{currencySymbol(activityCurrencyCode, locale)}</i><input aria-label={t('receipt.total')} type="number" min="0" step="0.01" value={amountInput(activeDraft.totalCents)} onChange={event => setDraft(current => ({ ...current!, totalCents: centsFromInput(event.target.value) }))} /></span></label>
           <p><span>{t('receipt.calculated')}</span><strong>{money(activeReconciliation.calculatedTotalCents / 100, activityCurrencyCode, locale)}</strong></p>
         </section>
-        {!activeReconciliation.matches ? <div className="receipt-warning" role="alert"><AlertCircle size={18} />{t('receipt.totalMismatch')}</div> : null}
+        {!activeReconciliation.matches ? <div className="receipt-reconciliation" role="alert">
+          {activeReconciliation.subtotalDifferenceCents !== 0 ? <div className="receipt-reconciliation-issue">
+            <AlertCircle size={18} />
+            <span>
+              <b>{t(activeReconciliation.subtotalDifferenceCents > 0 ? 'receipt.itemsShort' : 'receipt.itemsOver', {
+                amount: money(Math.abs(activeReconciliation.subtotalDifferenceCents) / 100, activityCurrencyCode, locale),
+              })}</b>
+              <small>{t(activeReconciliation.subtotalDifferenceCents > 0 ? 'receipt.itemsShortHelp' : 'receipt.itemsOverHelp')}</small>
+            </span>
+            {activeReconciliation.subtotalDifferenceCents > 0 && activeDraft.items.length < MAX_RECEIPT_ITEMS ? <Button onClick={addMissingItem}>{t('receipt.addMissingItem', {
+              amount: money(activeReconciliation.subtotalDifferenceCents / 100, activityCurrencyCode, locale),
+            })}</Button> : null}
+          </div> : null}
+          {activeReconciliation.chargeDifferenceCents !== 0 ? <div className="receipt-reconciliation-issue">
+            <AlertCircle size={18} />
+            <span>
+              <b>{t(activeReconciliation.chargeDifferenceCents > 0 ? 'receipt.chargesShort' : 'receipt.chargesOver', {
+                amount: money(Math.abs(activeReconciliation.chargeDifferenceCents) / 100, activityCurrencyCode, locale),
+              })}</b>
+              <small>{t(activeReconciliation.chargeDifferenceCents > 0 ? 'receipt.chargesShortHelp' : 'receipt.chargesOverHelp')}</small>
+            </span>
+            {activeReconciliation.chargeDifferenceCents > 0 && activeDraft.charges.length < MAX_RECEIPT_CHARGES ? <Button onClick={addMissingCharge}>{t('receipt.addMissingCharge', {
+              amount: money(activeReconciliation.chargeDifferenceCents / 100, activityCurrencyCode, locale),
+            })}</Button> : null}
+          </div> : null}
+        </div> : null}
         {!currencyMatches ? <div className="receipt-warning" role="alert"><AlertCircle size={18} />{t('receipt.currencyMismatch', { receiptCurrency: currencyLabel(activeDraft.currency!, locale), activityCurrency: currencyLabel(activityCurrencyCode, locale) })}</div> : null}
         {activeDraft.unresolvedLines.length ? <div className="receipt-unresolved"><b>{t('receipt.unresolved')}</b>{activeDraft.unresolvedLines.map(line => <small key={line}>{line}</small>)}<label><input type="checkbox" checked={unresolvedConfirmed} onChange={event => setUnresolvedConfirmed(event.target.checked)} />{t('receipt.unresolvedConfirm')}</label></div> : null}
         <div className="modal-actions"><Button onClick={resetCapture}><ArrowLeft size={16} />{t('receipt.tryAgain')}</Button><Button variant="primary" disabled={!reviewReady} onClick={() => setStep('assign')}>{t('receipt.continueAssign')}</Button></div>

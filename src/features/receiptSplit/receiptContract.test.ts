@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  addUnrecognizedReceiptCharge,
+  addUnrecognizedReceiptItem,
+  MAX_RECEIPT_CHARGES,
+  MAX_RECEIPT_ITEMS,
   parseReceiptDraft,
   parseReceiptRequest,
   receiptCurrency,
@@ -85,9 +89,61 @@ describe('receipt contract', () => {
       chargesCents: -100,
       calculatedTotalCents: 3_100,
       subtotalDifferenceCents: 1,
+      chargeDifferenceCents: 0,
       totalDifferenceCents: 1,
       matches: false,
     })
+  })
+
+  it('adds transparent reconciliation lines without hiding the discrepancy', () => {
+    const missingItem = {
+      ...receiptDraftFixture,
+      subtotalCents: 3_350,
+      totalCents: 3_606,
+    }
+    const withItem = addUnrecognizedReceiptItem(missingItem, 'missing-item', 'Unrecognized item', 'Review it')
+    expect(withItem.items.at(-1)).toMatchObject({
+      id: 'missing-item',
+      totalCents: 150,
+      confidence: 'low',
+      details: [{ kind: 'unknown', label: 'Review it', amountCents: null }],
+    })
+    expect(reconcileReceipt(withItem).matches).toBe(true)
+    expect(addUnrecognizedReceiptItem(receiptDraftFixture, 'ignored', 'Ignored', 'Ignored')).toBe(receiptDraftFixture)
+
+    const missingCharge = { ...receiptDraftFixture, totalCents: 3_606 }
+    const withCharge = addUnrecognizedReceiptCharge(missingCharge, 'missing-charge', 'Unrecognized charge')
+    expect(withCharge.charges.at(-1)).toMatchObject({
+      id: 'missing-charge',
+      type: 'other',
+      amountCents: 150,
+      confidence: 'low',
+    })
+    expect(reconcileReceipt(withCharge).matches).toBe(true)
+    expect(addUnrecognizedReceiptCharge(receiptDraftFixture, 'ignored', 'Ignored')).toBe(receiptDraftFixture)
+  })
+
+  it('respects receipt line limits when offering reconciliation helpers', () => {
+    const fullItems = {
+      ...receiptDraftFixture,
+      items: Array.from({ length: MAX_RECEIPT_ITEMS }, (_, index) => ({
+        ...receiptDraftFixture.items[0],
+        id: `item-${index}`,
+        totalCents: 0,
+      })),
+    }
+    expect(addUnrecognizedReceiptItem(fullItems, 'extra', 'Extra', 'Extra')).toBe(fullItems)
+
+    const fullCharges = {
+      ...receiptDraftFixture,
+      charges: Array.from({ length: MAX_RECEIPT_CHARGES }, (_, index) => ({
+        ...receiptDraftFixture.charges[0],
+        id: `charge-${index}`,
+        type: 'other' as const,
+        amountCents: 0,
+      })),
+    }
+    expect(addUnrecognizedReceiptCharge(fullCharges, 'extra', 'Extra')).toBe(fullCharges)
   })
 
   it('reconciles an exact receipt and resolves its currency', () => {

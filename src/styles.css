@@ -454,6 +454,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .receipt-totals--mismatch { border-color: var(--coral-border); background: var(--coral-quiet); }
 .receipt-warning { border: 1px solid var(--coral-border); border-radius: var(--radius-control); padding: 11px 12px; display: flex; align-items: flex-start; gap: 9px; background: var(--coral-quiet); color: var(--coral-hover); font-size: 10px; line-height: 1.45; }
 .receipt-warning svg { flex: 0 0 auto; }
+.receipt-reconciliation { display: grid; gap: 8px; }
+.receipt-reconciliation-issue { border: 1px solid var(--coral-border); border-radius: var(--radius-control); padding: 11px 12px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; background: var(--coral-quiet); color: var(--coral-hover); }
+.receipt-reconciliation-issue > svg { align-self: start; margin-top: 2px; }
+.receipt-reconciliation-issue > span { display: grid; gap: 3px; }
+.receipt-reconciliation-issue b { font-size: 10px; line-height: 1.4; }
+.receipt-reconciliation-issue small { color: var(--muted); font-size: 9px; line-height: 1.4; }
+.receipt-reconciliation-issue .button { min-height: 36px; padding-inline: 11px; white-space: nowrap; font-size: 9px; }
 .receipt-unresolved { border: 1px solid var(--coral-border); border-radius: var(--radius-control); padding: 12px; display: grid; gap: 7px; background: var(--coral-quiet); }
 .receipt-unresolved > b { color: var(--coral-hover); font-size: 11px; }
 .receipt-unresolved > small { color: var(--muted); font-size: 9px; }
@@ -846,6 +853,8 @@ html[data-theme='dark'] .fresh-illustration i:nth-of-type(3) { background: #9f82
   .receipt-photo-action { min-height: 108px; }
   .receipt-error { grid-template-columns: auto minmax(0, 1fr); }
   .receipt-error .button { grid-column: 1 / -1; }
+  .receipt-reconciliation-issue { grid-template-columns: auto minmax(0, 1fr); align-items: start; }
+  .receipt-reconciliation-issue .button { grid-column: 2; width: 100%; white-space: normal; }
   .receipt-line-main { grid-template-columns: 26px minmax(90px, 1fr) 98px 28px; gap: 4px; padding-inline: 6px; }
   .receipt-line-index { width: 26px; height: 26px; }
   .receipt-line-main > input { padding-inline: 7px; font-size: 11px; }
