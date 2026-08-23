@@ -47,3 +47,9 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/parse-expense/deno.json"
 entrypoint = "./functions/parse-expense/index.ts"
+
+[functions.parse-receipt]
+enabled = true
+verify_jwt = false
+import_map = "./functions/parse-receipt/deno.json"
+entrypoint = "./functions/parse-receipt/index.ts"

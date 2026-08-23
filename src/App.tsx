@@ -21,6 +21,8 @@ import {
   markLatestChangelogSeen,
 } from './features/changelog/changelog'
 import type { FeedbackClient, FeedbackRating } from './features/feedback/feedbackApi'
+import type { ReceiptClient } from './features/receiptSplit/receiptApi'
+import { trackReceiptConfirmed, withReceiptAnalytics } from './features/receiptSplit/receiptAnalytics'
 import {
   markRatingPromptHandled,
   shouldShowRatingPrompt,
@@ -63,6 +65,7 @@ type AppProps = {
   analyticsClient?: AnalyticsClient | null
   feedbackClient?: Pick<FeedbackClient, 'submit'> | null
   liveActivityClient?: LiveActivityClient | null
+  receiptClient?: Pick<ReceiptClient, 'parse'> | null
 }
 type ConfirmationRequest = {
   confirmLabel: string
@@ -80,9 +83,10 @@ const EXPENSE_INPUT_TAB_EVENTS: Record<ExpenseInputTab, AnalyticsEvent> = {
   manual: 'expense_input_manual_selected',
   'ai-text': 'expense_input_ai_text_selected',
   'ai-voice': 'expense_input_ai_voice_selected',
+  receipt: 'expense_input_receipt_selected',
 }
 
-function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedbackClient = null, liveActivityClient }: AppProps = {}) {
+function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedbackClient = null, liveActivityClient, receiptClient = null }: AppProps = {}) {
   const [state, setState] = usePersistedState()
   const [identity, setIdentity] = useIdentity()
   const [activityIdentities, setActivityIdentities] = useActivityIdentitySelections()
@@ -165,6 +169,10 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
   const trackedAiExpenseClient = useMemo(
     () => withAiExpenseAnalytics(aiExpenseClient, analyticsClient, analyticsSurface, locale),
     [aiExpenseClient, analyticsClient, analyticsSurface, locale],
+  )
+  const trackedReceiptClient = useMemo(
+    () => withReceiptAnalytics(receiptClient, analyticsClient, analyticsSurface, locale),
+    [analyticsClient, analyticsSurface, locale, receiptClient],
   )
   const handleSuccessfulShare = () => {
     if (feedbackClient && shouldShowRatingPrompt(LATEST_CHANGELOG_ID)) setRatingPromptOpen(true)
@@ -615,9 +623,13 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
           members={activeMembers}
           expense={editingExpense ?? undefined}
           aiExpenseClient={trackedAiExpenseClient}
+          receiptClient={trackedReceiptClient}
           currentMemberId={activeMemberId}
           onCurrentMemberChange={changeActiveMember}
           onEntryTabSelect={tab => analyticsClient?.track(EXPENSE_INPUT_TAB_EVENTS[tab], analyticsSurface, locale)}
+          onReceiptConfirmed={analyticsClient
+            ? trackReceiptConfirmed.bind(null, analyticsClient, analyticsSurface, locale)
+            : undefined}
           onClose={closeExpenseModal}
           onSave={editingExpense ? updateExpense : addExpense}
           onSaveMany={addExpenses}

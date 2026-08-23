@@ -4,6 +4,7 @@ import App from './App'
 import { createConfiguredAnalyticsClient } from './analytics'
 import { createConfiguredAiExpenseClient } from './features/aiExpense/aiExpenseApi'
 import { createConfiguredFeedbackClient } from './features/feedback/feedbackApi'
+import { createConfiguredReceiptClient } from './features/receiptSplit/receiptApi'
 import { reloadOnServiceWorkerUpdate } from './pwa/serviceWorkerUpdates'
 import { isEmbeddedWindow, renderFrameProtection } from './security/frameProtection'
 import './styles.css'
@@ -18,9 +19,10 @@ if (isEmbeddedWindow()) {
   const analyticsClient = createConfiguredAnalyticsClient()
   const aiExpenseClient = createConfiguredAiExpenseClient()
   const feedbackClient = createConfiguredFeedbackClient()
+  const receiptClient = createConfiguredReceiptClient()
   createRoot(rootElement).render(
     <StrictMode>
-      <App aiExpenseClient={aiExpenseClient} analyticsClient={analyticsClient} feedbackClient={feedbackClient} />
+      <App aiExpenseClient={aiExpenseClient} analyticsClient={analyticsClient} feedbackClient={feedbackClient} receiptClient={receiptClient} />
     </StrictMode>,
   )
 

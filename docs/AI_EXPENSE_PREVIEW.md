@@ -105,6 +105,32 @@ Use:
 
 This yields a stable `*.pages.dev` preview origin while the existing GitHub Pages production deployment remains owned by `main`.
 
+## Receipt splitting experiment
+
+Receipt splitting uses the same isolated-preview boundary but remains a separate feature. Enable it only on the experimental frontend with:
+
+```dotenv
+VITE_RECEIPT_SPLIT_ENABLED=true
+```
+
+Deploy the `parse-receipt` Edge Function and configure these preview-only server values:
+
+```text
+AI_RECEIPT_ENABLED=true
+OPENROUTER_RECEIPT_MODEL=google/gemini-2.5-flash-lite
+OPENROUTER_RECEIPT_FALLBACK_MODEL=google/gemini-2.5-flash-lite
+```
+
+Receipt extraction defaults to `google/gemini-2.5-flash-lite` because it accepts images and is fast and inexpensive. OpenRouter's current Google routes reject this nested receipt contract when sent as provider-enforced JSON Schema, so the experiment uses JSON mode, includes the complete contract in the prompt, and rejects any response that fails strict local Zod validation. Nothing reaches an expense without deterministic reconciliation and human confirmation. Reconsider a free model after the full receipt contract suite passes against it.
+
+The browser converts a selected receipt to a bounded JPEG before upload. The Edge Function consumes quota before reading the request body, accepts only JPEG, PNG, or WebP input, and limits both request and provider-response bytes. Tally does not ask the model to decide who paid or how to split the bill. The model returns only reviewable receipt facts—merchant, items, printed details, subtotal, charges, total, and unresolved lines. Deterministic application code assigns shared dishes, allocates tax, service charges, discounts, and optional tips, reconciles every cent, and creates the final exact-split expense only after confirmation.
+
+Receipt traffic has separate client and project budgets from text and voice expense entry. The preview defaults are 10 requests per 10 minutes and 30 per client per day, with a 200-request project ceiling per rolling day. Provider failures still consume quota so retry storms cannot fan out cost.
+
+The experiment accepts common browser-decodable JPEG, PNG, WebP, HEIC, and HEIF selections. HEIC/HEIF is converted locally and therefore depends on the browser's decoder; when decoding is unavailable, Tally asks the user to choose a JPEG/PNG/WebP copy instead of uploading the original format.
+
+Before sharing the experiment, verify a clear printed receipt, a receipt with item modifiers, a shared dish, a discount, tax/service charges, a custom tip, an unresolved line, a currency mismatch, and a malformed model response. Confirm that no expense is saved until the final review succeeds and that the person totals always equal the receipt total exactly.
+
 ### 3. Kill switches and rollback
 
 - Fastest backend stop: set `AI_EXPENSE_ENABLED=false` in the preview Edge Function and redeploy it.

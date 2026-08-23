@@ -269,15 +269,19 @@ select lives_ok(
       'ai_voice_requested',
       'ai_voice_ready',
       'ai_voice_clarification',
-      'ai_voice_failed'
+      'ai_voice_failed',
+      'ai_receipt_requested',
+      'ai_receipt_ready',
+      'ai_receipt_failed',
+      'ai_receipt_confirmed'
     ]) as event_name
   $$,
   'all privacy-safe AI funnel events are recorded'
 );
 select is(
   (select count(*) from private.analytics_events where event_name like 'ai\_%' escape '\'),
-  8::bigint,
-  'AI analytics store only the eight allowlisted outcomes'
+  12::bigint,
+  'AI analytics store only the twelve allowlisted outcomes'
 );
 select is(
   (
@@ -285,8 +289,8 @@ select is(
     from private.analytics_daily
     where event_name like 'ai\_%' escape '\'
   ),
-  8::bigint,
-  'daily analytics reports distinguish every AI text and voice outcome'
+  12::bigint,
+  'daily analytics reports distinguish every AI text, voice, and receipt outcome'
 );
 
 select lives_ok(
@@ -300,7 +304,8 @@ select lives_ok(
     from unnest(array[
       'expense_input_manual_selected',
       'expense_input_ai_text_selected',
-      'expense_input_ai_voice_selected'
+      'expense_input_ai_voice_selected',
+      'expense_input_receipt_selected'
     ]) as event_name
   $$,
   'all expense-input tab selections are recorded'
@@ -311,7 +316,7 @@ select is(
     from private.analytics_events
     where event_name like 'expense\_input\_%\_selected' escape '\'
   ),
-  3::bigint,
+  4::bigint,
   'one event is stored for each allowlisted expense-input tab'
 );
 select is(
@@ -320,8 +325,8 @@ select is(
     from private.analytics_daily
     where event_name like 'expense\_input\_%\_selected' escape '\'
   ),
-  3::bigint,
-  'daily analytics distinguish manual, AI text, and AI voice exploration'
+  4::bigint,
+  'daily analytics distinguish manual, AI text, AI voice, and receipt exploration'
 );
 select is(
   (
@@ -329,7 +334,7 @@ select is(
     from private.analytics_daily
     where event_name like 'expense\_input\_%\_selected' escape '\'
   ),
-  3::numeric,
+  4::numeric,
   'each tab-selection event retains anonymous session counts'
 );
 select is(
@@ -340,7 +345,7 @@ select is(
       and currency is null
       and locale = 'en'
   ),
-  3::bigint,
+  4::bigint,
   'tab exploration stores no expense or currency metadata'
 );
 

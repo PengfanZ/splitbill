@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(41);
+select plan(47);
 
 select has_table('private', 'ai_expense_budget_limits', 'project-wide AI budget controls exist');
 select is(
@@ -51,8 +51,8 @@ select is(
 );
 select results_eq(
   $$select input_mode, daily_limit from private.ai_expense_budget_limits order by input_mode$$,
-  $$values ('text'::text, 500::integer), ('voice'::text, 100::integer)$$,
-  'project budgets default to 500 text and 100 voice provider calls per rolling day'
+  $$values ('receipt'::text, 200::integer), ('text'::text, 500::integer), ('voice'::text, 100::integer)$$,
+  'project budgets default to 200 receipt, 500 text, and 100 voice provider calls per rolling day'
 );
 
 select has_function(
@@ -304,6 +304,58 @@ select is(
   public.consume_ai_expense_quota_v2('disabled-voice-client', 'voice'),
   'global_limit',
   'a project budget can disable one AI input mode without a deployment'
+);
+
+select is(
+  public.consume_ai_expense_quota_v2('preview-receipt-client', 'receipt'),
+  'allowed',
+  'the first receipt scan is allowed'
+);
+select is(
+  (
+    select bool_and(public.consume_ai_expense_quota_v2('preview-receipt-client', 'receipt') = 'allowed')
+    from generate_series(1, 9)
+  ),
+  true,
+  'receipt scan burst remains available through request ten'
+);
+select is(
+  public.consume_ai_expense_quota_v2('preview-receipt-client', 'receipt'),
+  'client_limit',
+  'receipt scan eleven is rejected by the burst limit'
+);
+select is(
+  (
+    select request_count
+    from private.shared_activity_rate_limits
+    where operation = 'ai-expense-receipt'
+      and identifier_hash = extensions.hmac(
+        convert_to('preview-receipt-client', 'UTF8'),
+        (select secret from private.security_secrets where name = 'request_identifier_pepper'),
+        'sha256'
+      )
+  ),
+  11,
+  'rejected receipt scans remain counted without storing the raw identifier'
+);
+select is(
+  (
+    select request_count
+    from private.shared_activity_rate_limits
+    where operation = 'ai-expense-receipt-daily'
+      and identifier_hash = extensions.hmac(
+        convert_to('preview-receipt-client', 'UTF8'),
+        (select secret from private.security_secrets where name = 'request_identifier_pepper'),
+        'sha256'
+      )
+  ),
+  11,
+  'receipt provider attempts use a separate daily counter'
+);
+select is(
+  public.consume_ai_expense_quota_v2('preview-receipt-client', 'video'),
+  'invalid_request',
+  'unsupported AI modes remain rejected'
 );
 
 select * from finish();

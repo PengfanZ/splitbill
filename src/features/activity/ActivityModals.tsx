@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { ArrowRight, CircleDollarSign, Mic, Pencil, Sparkles, Users } from 'lucide-react'
+import { ArrowRight, CircleDollarSign, Mic, Pencil, ReceiptText, Sparkles, Users } from 'lucide-react'
 import { Avatar } from '../../components/AppShell'
 import { ModalShell } from '../../components/Dialog'
 import { Button } from '../../components/Button'
@@ -16,6 +16,8 @@ import type { AiExpenseClient } from '../aiExpense/aiExpenseApi'
 import type { AiExpenseReadyDraft } from '../aiExpense/aiExpenseContract'
 import { createAiDraftFromValues, createExpenseFromAiDraft } from '../aiExpense/aiExpenseDrafts'
 import { MAX_ACTIVITY_AMOUNT } from '../sharing/sharedActivity'
+import { ReceiptSplitFlow } from '../receiptSplit/ReceiptSplitFlow'
+import type { ReceiptClient } from '../receiptSplit/receiptApi'
 import { ActivityIdentityControl } from './ActivityIdentityControl'
 import { FriendNameInput } from './FriendNameInput'
 
@@ -122,18 +124,20 @@ export function SettleUpModal({ group, settlement, onClose, onSave, saving = fal
   )
 }
 
-export type ExpenseInputTab = 'manual' | 'ai-text' | 'ai-voice'
+export type ExpenseInputTab = 'manual' | 'ai-text' | 'ai-voice' | 'receipt'
 
 type ExpenseEntryMode = ExpenseInputTab | 'ai-batch'
 
-export function ExpenseModal({ group, members, expense, aiExpenseClient = null, currentMemberId = 'me', onCurrentMemberChange, onEntryTabSelect, onClose, onSave, onSaveMany, saving = false }: {
+export function ExpenseModal({ group, members, expense, aiExpenseClient = null, receiptClient = null, currentMemberId = 'me', onCurrentMemberChange, onEntryTabSelect, onReceiptConfirmed, onClose, onSave, onSaveMany, saving = false }: {
   group: ActivityGroup
   members: Member[]
   expense?: Expense
   aiExpenseClient?: Pick<AiExpenseClient, 'parseBatch'> | null
+  receiptClient?: Pick<ReceiptClient, 'parse'> | null
   currentMemberId?: string | null
   onCurrentMemberChange?: (memberId: string) => void
   onEntryTabSelect?: (tab: ExpenseInputTab) => void
+  onReceiptConfirmed?: () => void
   onClose: () => void
   onSave: (expense: Expense) => void
   onSaveMany?: (expenses: Expense[]) => void
@@ -146,6 +150,8 @@ export function ExpenseModal({ group, members, expense, aiExpenseClient = null, 
   const [payerId, setPayerId] = useState(expense?.payerId ?? currentMemberId ?? members[0]?.id ?? 'me')
   const [method, setMethod] = useState<SplitMethod>(expense?.splitMethod ?? 'equal')
   const aiAvailable = Boolean(aiExpenseClient && !expense)
+  const receiptAvailable = Boolean(receiptClient && !expense)
+  const assistedEntryAvailable = aiAvailable || receiptAvailable
   const aiIdentityReady = Boolean(currentMemberId && members.some(member => member.id === currentMemberId))
   const [entryMode, setEntryMode] = useState<ExpenseEntryMode>('manual')
   const [aiDraftApplied, setAiDraftApplied] = useState(false)
@@ -267,20 +273,31 @@ export function ExpenseModal({ group, members, expense, aiExpenseClient = null, 
   }
 
   return (
-    <ModalShell eyebrow={group.name} title={t(expense ? 'expense.editTitle' : 'expense.addTitle')} onClose={onClose}>
-      {aiAvailable && aiBatchDrafts.length === 0 ? (
-        <div className="expense-entry-tabs" role="tablist" aria-label={t('expense.entryMethod')}>
+    <ModalShell eyebrow={group.name} title={t(entryMode === 'receipt' ? 'receipt.title' : expense ? 'expense.editTitle' : 'expense.addTitle')} onClose={onClose} size={entryMode === 'receipt' ? 'wide' : 'standard'}>
+      {assistedEntryAvailable && aiBatchDrafts.length === 0 ? (
+        <div className={`expense-entry-tabs expense-entry-tabs--${1 + (aiAvailable ? 2 : 0) + (receiptAvailable ? 1 : 0)}`} role="tablist" aria-label={t('expense.entryMethod')}>
           <button type="button" role="tab" aria-selected={entryMode === 'manual'} className={entryMode === 'manual' ? 'active' : ''} onClick={() => selectEntryTab('manual')}><Pencil size={15} />{t('expense.manualTab')}</button>
-          <button type="button" role="tab" aria-selected={entryMode === 'ai-text'} className={entryMode === 'ai-text' ? 'active' : ''} onClick={() => selectEntryTab('ai-text')}><Sparkles size={15} />{t('expense.aiTab')}</button>
-          <button type="button" role="tab" aria-selected={entryMode === 'ai-voice'} className={entryMode === 'ai-voice' ? 'active' : ''} onClick={() => selectEntryTab('ai-voice')}><Mic size={15} />{t('expense.voiceTab')}</button>
+          {aiAvailable ? <button type="button" role="tab" aria-selected={entryMode === 'ai-text'} className={entryMode === 'ai-text' ? 'active' : ''} onClick={() => selectEntryTab('ai-text')}><Sparkles size={15} />{t('expense.aiTab')}</button> : null}
+          {aiAvailable ? <button type="button" role="tab" aria-selected={entryMode === 'ai-voice'} className={entryMode === 'ai-voice' ? 'active' : ''} onClick={() => selectEntryTab('ai-voice')}><Mic size={15} />{t('expense.voiceTab')}</button> : null}
+          {receiptAvailable ? <button type="button" role="tab" aria-selected={entryMode === 'receipt'} className={entryMode === 'receipt' ? 'active' : ''} onClick={() => selectEntryTab('receipt')}><ReceiptText size={15} />{t('expense.receiptTab')}</button> : null}
         </div>
       ) : null}
-      {aiAvailable && entryMode !== 'manual' && onCurrentMemberChange ? (
+      {aiAvailable && (entryMode === 'ai-text' || entryMode === 'ai-voice') && onCurrentMemberChange ? (
         <div className="ai-identity-control-row">
           <ActivityIdentityControl memberId={currentMemberId} members={members} onChange={onCurrentMemberChange} variant="field" />
         </div>
       ) : null}
-      {aiAvailable && entryMode !== 'manual' && !aiIdentityReady ? (
+      {receiptAvailable && entryMode === 'receipt' && receiptClient ? (
+        <ReceiptSplitFlow
+          client={receiptClient}
+          group={group}
+          members={members}
+          onBackToManual={() => setEntryMode('manual')}
+          onConfirmed={onReceiptConfirmed}
+          onSave={onSave}
+          saving={saving}
+        />
+      ) : aiAvailable && (entryMode === 'ai-text' || entryMode === 'ai-voice') && !aiIdentityReady ? (
         <div className="split-note ai-identity-required" role="status"><Sparkles size={18} /><span>{t('activityIdentity.required')}</span></div>
       ) : aiAvailable && entryMode === 'ai-text' && aiExpenseClient && currentMemberId ? (
         <AiExpenseComposer

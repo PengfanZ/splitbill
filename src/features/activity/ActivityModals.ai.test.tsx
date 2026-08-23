@@ -38,6 +38,47 @@ function renderModal(
 }
 
 describe('AI-assisted expense modal', () => {
+  it('keeps receipt scanning separate from identity-aware text and voice entry', async () => {
+    const user = userEvent.setup()
+    const onEntryTabSelect = vi.fn()
+    render(
+      <LocalizationProvider initialLocale="en">
+        <ExpenseModal
+          group={group}
+          members={members}
+          aiExpenseClient={{ parseBatch: vi.fn() }}
+          receiptClient={{ parse: vi.fn() }}
+          currentMemberId={null}
+          onCurrentMemberChange={vi.fn()}
+          onEntryTabSelect={onEntryTabSelect}
+          onClose={vi.fn()}
+          onSave={vi.fn()}
+        />
+      </LocalizationProvider>,
+    )
+
+    await user.click(screen.getByRole('tab', { name: 'Receipt' }))
+    expect(screen.getByRole('dialog')).toHaveClass('modal--wide')
+    expect(screen.getByRole('heading', { name: 'Split a receipt' })).toBeVisible()
+    expect(screen.getByText('Add a clear receipt photo')).toBeVisible()
+    expect(screen.queryByText(/choose your identity/i)).not.toBeInTheDocument()
+    expect(onEntryTabSelect).toHaveBeenCalledWith('receipt')
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.getByLabelText('Description')).toBeVisible()
+  })
+
+  it('can expose receipt entry without enabling conversational AI', () => {
+    render(
+      <LocalizationProvider initialLocale="en">
+        <ExpenseModal group={group} members={members} receiptClient={{ parse: vi.fn() }} onClose={vi.fn()} onSave={vi.fn()} />
+      </LocalizationProvider>,
+    )
+    expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Enter manually', 'Receipt'])
+    expect(screen.queryByRole('tab', { name: 'Describe with AI' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Speak' })).not.toBeInTheDocument()
+  })
+
   it('reports only deliberate expense-input tab changes', async () => {
     const user = userEvent.setup()
     const { onEntryTabSelect } = renderModal({ parseBatch: vi.fn() })
