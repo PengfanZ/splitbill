@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ActivityGroup, Member } from '../../domain/models'
 import { LocalizationProvider } from '../../i18n/LocalizationContext'
 import { receiptDraftFixture } from './receiptContract.test'
+import { ReceiptApiError } from './receiptApi'
 import { prepareReceiptImage } from './receiptImage'
 import { ReceiptSplitFlow, receiptSplitTestables } from './ReceiptSplitFlow'
 
@@ -245,6 +246,27 @@ describe('receipt split flow', () => {
     vi.mocked(prepareReceiptImage).mockRejectedValueOnce('unknown')
     await uploadReceipt(container)
     expect(await screen.findByRole('alert')).toHaveTextContent('Tally could not read this receipt')
+  })
+
+  it('explains the receipt-specific usage limit in the selected language', async () => {
+    const { container } = renderFlow({
+      locale: 'zh-CN',
+      parseError: new ReceiptApiError('rate-limit', 'Raw server message'),
+    })
+    await uploadReceipt(container)
+    expect(await screen.findByRole('alert')).toHaveTextContent('当前网络的小票识别次数已用完')
+    expect(screen.getByRole('alert')).not.toHaveTextContent('Raw server message')
+  })
+
+  it.each([
+    ['credits', 'Receipt scanning has reached its current budget.'],
+    ['model-unavailable', 'Receipt scanning is temporarily unavailable.'],
+    ['invalid-input', 'Tally could not read this receipt.'],
+  ] as const)('localizes %s receipt failures', async (kind, message) => {
+    const { container } = renderFlow({ parseError: new ReceiptApiError(kind, 'Raw server message') })
+    await uploadReceipt(container)
+    expect(await screen.findByRole('alert')).toHaveTextContent(message)
+    expect(screen.getByRole('alert')).not.toHaveTextContent('Raw server message')
   })
 
   it('supports backtracking, unassigning, charge edits, and an already-charged tip', async () => {

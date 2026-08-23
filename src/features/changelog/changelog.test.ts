@@ -23,10 +23,11 @@ describe('changelog', () => {
   it('keeps the latest release first and gives every item a stable localized shape', () => {
     expect(LATEST_CHANGELOG_ID).toBe(CHANGELOG_ENTRIES[0].id)
     expect(CHANGELOG_ENTRIES[0]).toMatchObject({
-      id: '2026-08-appearance',
-      releasedOn: '2026-08-20',
+      id: '2026-08-receipt-splitting',
+      releasedOn: '2026-08-23',
       items: [
-        { icon: 'theme' },
+        { icon: 'receipt' },
+        { icon: 'aiReview' },
       ],
     })
   })

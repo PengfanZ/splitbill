@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(47);
+select plan(49);
 
 select has_table('private', 'ai_expense_budget_limits', 'project-wide AI budget controls exist');
 select is(
@@ -314,15 +314,15 @@ select is(
 select is(
   (
     select bool_and(public.consume_ai_expense_quota_v2('preview-receipt-client', 'receipt') = 'allowed')
-    from generate_series(1, 9)
+    from generate_series(1, 2)
   ),
   true,
-  'receipt scan burst remains available through request ten'
+  'receipt scan burst remains available through request three'
 );
 select is(
   public.consume_ai_expense_quota_v2('preview-receipt-client', 'receipt'),
   'client_limit',
-  'receipt scan eleven is rejected by the burst limit'
+  'receipt scan four is rejected by the burst limit'
 );
 select is(
   (
@@ -335,7 +335,7 @@ select is(
         'sha256'
       )
   ),
-  11,
+  4,
   'rejected receipt scans remain counted without storing the raw identifier'
 );
 select is(
@@ -349,8 +349,36 @@ select is(
         'sha256'
       )
   ),
-  11,
+  4,
   'receipt provider attempts use a separate daily counter'
+);
+
+select is(
+  public.consume_ai_expense_quota_v2('receipt-daily-client', 'receipt'),
+  'allowed',
+  'a separate receipt client starts inside the daily limit'
+);
+update private.shared_activity_rate_limits
+set request_count = 10,
+    window_started_at = clock_timestamp()
+where operation = 'ai-expense-receipt-daily'
+  and identifier_hash = extensions.hmac(
+    convert_to('receipt-daily-client', 'UTF8'),
+    (select secret from private.security_secrets where name = 'request_identifier_pepper'),
+    'sha256'
+  );
+update private.shared_activity_rate_limits
+set window_started_at = clock_timestamp() - interval '11 minutes'
+where operation = 'ai-expense-receipt'
+  and identifier_hash = extensions.hmac(
+    convert_to('receipt-daily-client', 'UTF8'),
+    (select secret from private.security_secrets where name = 'request_identifier_pepper'),
+    'sha256'
+  );
+select is(
+  public.consume_ai_expense_quota_v2('receipt-daily-client', 'receipt'),
+  'client_limit',
+  'receipt scan eleven is rejected by the rolling daily limit'
 );
 select is(
   public.consume_ai_expense_quota_v2('preview-receipt-client', 'video'),

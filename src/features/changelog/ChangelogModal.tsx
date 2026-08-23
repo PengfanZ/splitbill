@@ -4,6 +4,7 @@ import {
   MessageSquareText,
   Mic2,
   Radio,
+  ReceiptText,
   Share2,
   SlidersHorizontal,
   SunMoon,
@@ -27,6 +28,7 @@ const CHANGELOG_ICONS: Record<ChangelogIcon, LucideIcon> = {
   settle: BadgeCheck,
   polish: SlidersHorizontal,
   theme: SunMoon,
+  receipt: ReceiptText,
 }
 
 export function ChangelogModal({ onClose }: { onClose: () => void }) {

@@ -1,5 +1,6 @@
--- Preview-only quota lane for the receipt-photo experiment. The production
--- branch does not deploy this migration until the experiment is accepted.
+-- Separate quota lane for receipt-photo parsing. Receipt scans are deliberately
+-- stricter than text or voice because every accepted request invokes a vision
+-- model with an uploaded image.
 
 alter table private.ai_expense_budget_limits
   drop constraint ai_expense_budget_limits_input_mode_check;
@@ -76,8 +77,8 @@ begin
     burst_operation := 'ai-expense-receipt';
     daily_operation := 'ai-expense-receipt-daily';
     global_operation := 'ai-expense-receipt-global-daily';
-    burst_limit := 10;
-    client_daily_limit := 30;
+    burst_limit := 3;
+    client_daily_limit := 10;
   else
     burst_operation := 'ai-expense';
     daily_operation := 'ai-expense-daily';

@@ -125,7 +125,7 @@ Receipt extraction defaults to `google/gemini-2.5-flash-lite` because it accepts
 
 The browser converts a selected receipt to a bounded JPEG before upload. The Edge Function consumes quota before reading the request body, accepts only JPEG, PNG, or WebP input, and limits both request and provider-response bytes. Tally does not ask the model to decide who paid or how to split the bill. The model returns only reviewable receipt facts—merchant, items, printed details, subtotal, charges, total, and unresolved lines. Deterministic application code assigns shared dishes, allocates tax, service charges, discounts, and optional tips, reconciles every cent, and creates the final exact-split expense only after confirmation.
 
-Receipt traffic has separate client and project budgets from text and voice expense entry. The preview defaults are 10 requests per 10 minutes and 30 per client per day, with a 200-request project ceiling per rolling day. Provider failures still consume quota so retry storms cannot fan out cost.
+Receipt traffic has separate client and project budgets from text and voice expense entry. Production permits 3 requests per network in a rolling 10-minute window and 10 per rolling day, with a 200-request project ceiling per rolling day. Provider failures still consume quota so retry storms cannot fan out cost.
 
 The experiment accepts common browser-decodable JPEG, PNG, WebP, HEIC, and HEIF selections. HEIC/HEIF is converted locally and therefore depends on the browser's decoder; when decoding is unavailable, Tally asks the user to choose a JPEG/PNG/WebP copy instead of uploading the original format.
 

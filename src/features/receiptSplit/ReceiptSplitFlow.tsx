@@ -21,8 +21,9 @@ import { createExpenseTimestamp, money } from '../../domain/expenses'
 import { makeId } from '../../domain/members'
 import type { ActivityGroup, Expense, Member } from '../../domain/models'
 import { useLocalization } from '../../i18n/LocalizationContext'
+import type { Translate } from '../../i18n/localization'
 import { prepareReceiptImage } from './receiptImage'
-import type { ReceiptClient } from './receiptApi'
+import { ReceiptApiError, type ReceiptClient } from './receiptApi'
 import {
   calculateReceiptSplit,
   createExpenseFromReceiptSplit,
@@ -58,6 +59,18 @@ function centsFromInput(value: string) {
 
 function amountInput(cents: number) {
   return (cents / 100).toFixed(2)
+}
+
+function receiptErrorMessage(cause: unknown, t: Translate) {
+  if (cause instanceof ReceiptApiError) {
+    if (cause.kind === 'rate-limit') return t('receipt.rateLimit')
+    if (cause.kind === 'credits') return t('receipt.credits')
+    if (['model-unavailable', 'network', 'unavailable', 'configuration'].includes(cause.kind)) {
+      return t('receipt.unavailable')
+    }
+    return t('receipt.error')
+  }
+  return cause instanceof Error ? cause.message : t('receipt.error')
 }
 
 function ReceiptMoneyInput({ ariaLabel, min, onValueChange, valueCents }: {
@@ -196,7 +209,7 @@ export function ReceiptSplitFlow({
       setUnresolvedConfirmed(result.unresolvedLines.length === 0)
       setStep('review')
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : t('receipt.error'))
+      setError(receiptErrorMessage(cause, t))
       setStep('capture')
     }
   }

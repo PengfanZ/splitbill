@@ -45,7 +45,8 @@ describe('receipt API client', () => {
       [503, { code: 'ai_budget_exceeded' }, 'credits'],
       [503, { code: 'model_unavailable' }, 'model-unavailable'],
       [503, { code: 'provider_unavailable' }, 'model-unavailable'],
-      [429, { code: 'provider_rate_limit' }, 'rate-limit'],
+      [429, { code: 'provider_rate_limit' }, 'model-unavailable'],
+      [429, {}, 'rate-limit'],
       [500, {}, 'unavailable'],
     ]
     for (const [status, payload, kind] of cases) {

@@ -177,7 +177,7 @@ export async function handleParseReceiptRequest(
         'content-type': 'application/json',
         'http-referer': dependencies.getEnvironment('TALLY_PUBLIC_URL')?.trim()
           || 'https://pengfanz.github.io/splitbill/',
-        'x-title': 'Tally receipt splitting experiment',
+        'x-title': 'Tally receipt splitting',
       },
       body: JSON.stringify(buildReceiptOpenRouterRequest(parsedRequest, model, fallbackModel)),
       signal: AbortSignal.timeout(25_000),

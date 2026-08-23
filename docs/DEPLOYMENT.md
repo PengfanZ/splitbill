@@ -3,7 +3,7 @@
 Tally deploys as two coordinated pieces:
 
 - GitHub Pages hosts the static React application.
-- Supabase hosts the private Postgres tables, capability-checked RPC functions, and the AI expense Edge Function.
+- Supabase hosts the private Postgres tables, capability-checked RPC functions, and the AI expense and receipt Edge Functions.
 
 The production workflow verifies the frontend and database, builds with production client configuration, applies pending migrations, and publishes Pages only after the database release succeeds.
 
@@ -56,7 +56,10 @@ OPENROUTER_API_KEY=<production-limited key>
 OPENROUTER_MODEL=google/gemma-4-26b-a4b-it:free
 OPENROUTER_FALLBACK_MODEL=google/gemini-2.5-flash-lite
 OPENROUTER_VOICE_MODEL=google/gemini-2.5-flash-lite
+AI_RECEIPT_ENABLED=true
 ```
+
+Receipt extraction uses the same server-only OpenRouter key. The model names have reviewed defaults in source and may be overridden with `OPENROUTER_RECEIPT_MODEL` and `OPENROUTER_RECEIPT_FALLBACK_MODEL` when an alternative has passed the receipt contract suite.
 
 Use a dedicated key with a deliberate account limit. Never expose it as a `VITE_` variable; only the Supabase Edge Function may read it.
 
@@ -79,7 +82,7 @@ The release order is:
 1. typecheck, lint, 100% coverage, database migration/pgTAP tests, and Playwright;
 2. production build with the Supabase URL and publishable key;
 3. `supabase db push` against the linked production project;
-4. deploy the versioned `parse-expense` Edge Function;
+4. deploy the versioned `parse-expense` and `parse-receipt` Edge Functions;
 5. GitHub Pages artifact upload and deployment.
 
 The workflow can also be started manually from `main` with **Run workflow**.
@@ -95,6 +98,7 @@ The workflow can also be started manually from `main` with **Run workflow**.
 - Choose **End live sharing**, confirm the old URL becomes unavailable in another browser, and verify both browsers retain their last synced read-only recovery copy with **Continue locally**.
 - Create one local activity and one live activity, then confirm their allowlisted events appear separately in `private.analytics_daily` and `private.analytics_hourly`, and their resolved UI locale appears in `private.analytics_locale_daily`, without URL or activity fields.
 - Open the AI text and AI voice tabs, create one draft with each mode, then confirm the explorer-session, requested, and ready rows appear in the **SplitBill - AI Entry Usage** Home report without prompts, audio, or expense fields.
+- Open the receipt tab, submit one clear photo, review and assign its dishes, and confirm the saved expense equals the reviewed total exactly.
 - Run Supabase Security Advisor and Performance Advisor after the first migration.
 - Confirm the migration list is synchronized before the next release with `supabase migration list`.
 
@@ -103,7 +107,7 @@ The workflow can also be started manually from `main` with **Run workflow**.
 - Backend activities expire 90 days after their last successful update and expired rows are removed incrementally during new activity creation. Each browser that opened the activity keeps its latest full snapshot locally until the person removes it or clears site data; after confirmed backend expiration, that saved copy can continue as a local activity and start a new Live session.
 - Create, load, update, and analytics RPCs are rate-limited per secret-peppered identifier derived from the client IP. Rejected requests consume the same budget as successful requests. Review API/database logs and tune limits from observed traffic.
 - First-party analytics events expire after 90 days and contain no URL, capability, identity, activity, or financial payload. Review aggregate usage with the queries in [ANALYTICS.md](ANALYTICS.md).
-- AI text and voice have separate per-client database quotas plus server-only rolling project ceilings (500 text and 100 voice provider calls by default). Administrators can lower a ceiling or disable one mode in `private.ai_expense_budget_limits`; keep the OpenRouter key limit as the final hard cost ceiling and monitor request, clarification, ready, and failure frequency through the privacy-safe Home report.
+- AI text, voice, and receipt parsing have separate per-client database quotas plus server-only rolling project ceilings. Receipt parsing is limited to 3 attempts per network in 10 minutes, 10 per rolling day, and 200 project-wide per rolling day. Administrators can lower a ceiling or disable one mode in `private.ai_expense_budget_limits`; keep the OpenRouter key limit as the final hard cost ceiling and monitor privacy-safe request outcomes in the Home report.
 - Free-tier projects should export regular off-site logical backups with `supabase db dump`. Paid projects provide daily backups; consider point-in-time recovery when the recovery objective warrants it. See [Supabase backups](https://supabase.com/docs/guides/platform/backups).
 - Review Security Advisor and Performance Advisor after every schema change.
 - If a capability URL leaks, use **End live sharing** immediately and create a new Live session from a trusted recovery copy. Tally still has no participant-specific revocation or token rotation.
@@ -113,4 +117,4 @@ The workflow can also be started manually from `main` with **Run workflow**.
 
 Frontend rollback is a normal revert on `main`, followed by the same workflow. Database migrations are forward-only: write a corrective migration rather than deleting or editing a migration that may already be applied. Keep RPC signatures backward-compatible so the currently deployed frontend continues working if a later release step fails.
 
-For an immediate AI-only stop, set `AI_EXPENSE_ENABLED=false` in the production Edge Function environment and redeploy the function. The manual expense form remains the default and continues to work. A later frontend build with `VITE_AI_EXPENSE_ENABLED=false` removes the text and voice tabs entirely.
+For an immediate AI-only stop, set `AI_EXPENSE_ENABLED=false` or `AI_RECEIPT_ENABLED=false` in the production Edge Function environment and redeploy the corresponding function. The manual expense form remains the default and continues to work. A later frontend build can remove the corresponding optional tabs.

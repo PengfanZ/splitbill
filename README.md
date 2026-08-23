@@ -4,7 +4,7 @@
 [![Live demo](https://img.shields.io/badge/demo-live-e8584f)](https://pengfanz.github.io/splitbill/)
 [![Coverage](https://img.shields.io/badge/coverage-100%25-16724c)](TESTING.md)
 
-A free, local-first shared-expense app for trips, dinners, homes, and other group activities—no account required. Tally tracks who paid, supports equal or exact splits, calculates clear suggested payments, and can synchronize a trusted group through a capability-protected live activity backed by Supabase. Manual entry stays first, with optional text and voice AI shortcuts that turn one or several natural-language expenses into reviewable drafts.
+A free, local-first shared-expense app for trips, dinners, homes, and other group activities—no account required. Tally tracks who paid, supports equal or exact splits, calculates clear suggested payments, and can synchronize a trusted group through a capability-protected live activity backed by Supabase. Manual entry stays first, with optional text, voice, and receipt-photo shortcuts that create reviewable drafts.
 
 On first use, Tally asks for a display name and stores that identity only in the current browser. The name replaces the ambiguous generic “You” in participant lists and is included as the sender identity when an activity link is shared.
 
@@ -35,6 +35,7 @@ For launch copy, a privacy-safe demo storyboard, and channel guidance, see the [
 - Create activity groups and add friends without requiring profiles or accounts.
 - Choose one currency per activity and change it later; every expense, balance, settlement, live session, and export stays consistent.
 - Record who paid and split expenses equally among everyone or only selected people, or enter exact amounts.
+- Photograph a receipt, review the detected dishes and charges, assign each dish, and save a cent-exact split.
 - Keep historical splits stable when friends join later, then explicitly edit an expense when it should include them.
 - See clear person-to-person settlement directions instead of an ambiguous group balance.
 - Record full or partial settlement payments, keep repayment history, and undo mistakes without inflating spending totals.
@@ -68,7 +69,7 @@ Currency selection controls display only. Tally does not convert amounts or supp
 - GitHub Actions for CI and deployment
 - GitHub Pages for static hosting
 - Supabase Postgres for optional live activities, private in-app feedback, AI quotas, and first-party product analytics
-- Supabase Edge Functions and OpenRouter for optional text and voice expense drafting
+- Supabase Edge Functions and OpenRouter for optional text, voice, and receipt-photo expense drafting
 
 ## Getting started
 
@@ -132,6 +133,7 @@ src/
 │   ├── feedback/              # Private in-app feedback flow and RPC client
 │   ├── identity/              # Browser-local participant identity
 │   ├── liveSharing/           # Capability links and backend synchronization
+│   ├── receiptSplit/           # Receipt extraction, review, and deterministic allocation
 │   └── sharing/               # Live-link handoff, QR invites, and PNG exports
 ├── hooks/                     # React lifecycle integrations
 ├── i18n/                      # Locale selection, translations, and time formatting
@@ -164,7 +166,7 @@ The complete contract is documented in [TESTING.md](TESTING.md).
 
 ## Deployment
 
-Every pull request is type-checked, linted, tested, and built by GitHub Actions. A successful `main` release applies pending Supabase migrations, deploys the AI Edge Function, and then publishes the configured frontend artifact to GitHub Pages. Follow [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the one-time environment setup and release procedure.
+Every pull request is type-checked, linted, tested, and built by GitHub Actions. A successful `main` release applies pending Supabase migrations, deploys the AI expense and receipt Edge Functions, and then publishes the configured frontend artifact to GitHub Pages. Follow [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the one-time environment setup and release procedure.
 
 The conversational expense flow keeps manual entry as the default and uses separate client/server kill switches. Its model strategy, privacy boundary, rate limits, synchronization behavior, test checklist, and isolated preview runbook for future AI changes live in [docs/AI_EXPENSE_PREVIEW.md](docs/AI_EXPENSE_PREVIEW.md).
 
