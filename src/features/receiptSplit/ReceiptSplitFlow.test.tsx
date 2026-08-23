@@ -21,8 +21,11 @@ const group: ActivityGroup = {
 function renderFlow(options: {
   draft?: typeof receiptDraftFixture
   locale?: 'en' | 'zh-CN'
+  members?: Member[]
   parseError?: Error
 } = {}) {
+  const flowMembers = options.members ?? members
+  const flowGroup = { ...group, memberIds: flowMembers.map(member => member.id) }
   const onBackToManual = vi.fn()
   const onSave = vi.fn()
   const onConfirmed = vi.fn()
@@ -31,7 +34,7 @@ function renderFlow(options: {
     : vi.fn().mockResolvedValue(options.draft ?? receiptDraftFixture)
   const view = render(
     <LocalizationProvider initialLocale={options.locale ?? 'en'}>
-      <ReceiptSplitFlow client={{ parse }} group={group} members={members} onBackToManual={onBackToManual} onConfirmed={onConfirmed} onSave={onSave} />
+      <ReceiptSplitFlow client={{ parse }} group={flowGroup} members={flowMembers} onBackToManual={onBackToManual} onConfirmed={onConfirmed} onSave={onSave} />
     </LocalizationProvider>,
   )
   return { ...view, onBackToManual, onConfirmed, onSave, parse }
@@ -88,11 +91,13 @@ describe('receipt split flow', () => {
     await user.click(screen.getByRole('button', { name: 'Assign dishes' }))
 
     await user.click(screen.getByRole('button', { name: 'Assign Ramen to Avery' }))
+    await user.click(screen.getByRole('button', { name: 'Next dish' }))
     await user.click(screen.getByRole('button', { name: 'Assign Bao to Blair' }))
     await user.click(screen.getByRole('button', { name: 'Assign Bao to Casey' }))
     expect(screen.getByText('2 selected')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Review split' }))
 
+    expect(screen.getByLabelText('Tip percentage').closest('.receipt-tip-input')).toBeTruthy()
     await user.click(screen.getByRole('button', { name: 'Paid by' }))
     await user.click(screen.getByRole('option', { name: 'Blair' }))
     await user.click(screen.getByRole('button', { name: 'Tax 8% Charge allocation' }))
@@ -111,6 +116,39 @@ describe('receipt split flow', () => {
       shares: { a: 22.86, b: 7.45, c: 7.45 },
     }))
     expect(onConfirmed).toHaveBeenCalledOnce()
+  })
+
+  it('keeps dish assignment focused and reviewable for a large group', async () => {
+    const largeGroup = Array.from({ length: 10 }, (_, index): Member => ({
+      id: `person-${index + 1}`,
+      name: `Person ${index + 1}`,
+      initials: `P${index + 1}`,
+      color: `hsl(${index * 30} 40% 75%)`,
+    }))
+    const { container } = renderFlow({ members: largeGroup })
+    const user = await uploadReceipt(container)
+
+    await screen.findByText('Review the receipt')
+    await user.click(screen.getByRole('button', { name: 'Assign dishes' }))
+    expect(screen.getByText('Dish 1 of 2')).toBeVisible()
+    expect(screen.getAllByRole('button', { name: /Assign Ramen to Person/ })).toHaveLength(10)
+    expect(screen.queryByRole('button', { name: 'Assign Bao to Person 1' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Everyone' }))
+    expect(screen.getByText('10 selected')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Clear' }))
+    expect(screen.getByRole('button', { name: 'Next dish' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Everyone' }))
+    await user.click(screen.getByRole('button', { name: 'Next dish' }))
+
+    expect(screen.getByText('Dish 2 of 2')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Previous' }))
+    expect(screen.getByText('Dish 1 of 2')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Next dish' }))
+    await user.click(screen.getByRole('button', { name: 'Everyone' }))
+    await user.click(screen.getByRole('button', { name: 'Review split' }))
+    expect(container.querySelector('.receipt-person-totals--scrollable')).toBeTruthy()
+    expect(container.querySelectorAll('.receipt-person-totals .avatar')).toHaveLength(10)
   })
 
   it('lets the user edit receipt lines and requires exact reconciliation', async () => {
@@ -164,6 +202,10 @@ describe('receipt split flow', () => {
     expect(screen.getByRole('button', { name: 'Assign dishes' })).toBeEnabled()
 
     await user.click(screen.getByRole('button', { name: 'Assign dishes' }))
+    await user.click(screen.getByRole('button', { name: 'Everyone' }))
+    await user.click(screen.getByRole('button', { name: 'Next dish' }))
+    await user.click(screen.getByRole('button', { name: 'Everyone' }))
+    await user.click(screen.getByRole('button', { name: 'Next dish' }))
     expect(screen.getByRole('button', { name: 'Assign Unrecognized item to Avery' })).toBeVisible()
   })
 
@@ -221,17 +263,18 @@ describe('receipt split flow', () => {
     await user.click(screen.getByRole('button', { name: 'Assign dishes' }))
     await user.click(screen.getByRole('button', { name: 'Assign Ramen to Avery' }))
     await user.click(screen.getByRole('button', { name: 'Assign Ramen to Avery' }))
-    expect(screen.getAllByText('Assign every dish before continuing.').length).toBeGreaterThan(0)
-    await user.click(screen.getByRole('button', { name: 'Review the receipt' }))
+    expect(screen.getAllByText('Assign this dish before continuing.').length).toBeGreaterThan(0)
+    await user.click(screen.getByRole('button', { name: 'Receipt' }))
     await user.click(screen.getByRole('button', { name: 'Assign dishes' }))
     await user.click(screen.getByRole('button', { name: 'Assign Ramen to Avery' }))
+    await user.click(screen.getByRole('button', { name: 'Next dish' }))
     await user.click(screen.getByRole('button', { name: 'Assign Bao to Blair' }))
     await user.click(screen.getByRole('button', { name: 'Review split' }))
     expect(screen.getByLabelText('Tip percentage')).toBeDisabled()
     expect(screen.getByText('A charged tip is already included on this receipt.')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Tax 8% Charge allocation' }))
     await user.click(screen.getByRole('option', { name: 'Equal among diners' }))
-    await user.click(screen.getByRole('button', { name: 'Who had what?' }))
+    await user.click(screen.getByRole('button', { name: 'Dishes' }))
     expect(screen.getByText('Who had what?')).toBeVisible()
   })
 
@@ -266,6 +309,7 @@ describe('receipt split flow', () => {
     await user.click(screen.getByRole('checkbox'))
     await user.click(screen.getByRole('button', { name: 'Assign dishes' }))
     await user.click(screen.getByRole('button', { name: 'Assign Ramen to Avery' }))
+    await user.click(screen.getByRole('button', { name: 'Next dish' }))
     await user.click(screen.getByRole('button', { name: 'Assign Bao to Blair' }))
     await user.click(screen.getByRole('button', { name: 'Review split' }))
     expect(screen.getByLabelText('Expense name')).toHaveValue('Split a receipt')
@@ -291,6 +335,7 @@ describe('receipt split flow', () => {
     await screen.findByText('Review the receipt')
     await user.click(screen.getByRole('button', { name: 'Assign dishes' }))
     await user.click(screen.getAllByRole('button', { name: 'Assign Ramen to Avery' })[0])
+    await user.click(screen.getByRole('button', { name: 'Next dish' }))
     await user.click(screen.getAllByRole('button', { name: 'Assign Bao to Avery' })[0])
     expect(screen.getByRole('button', { name: 'Review split' })).toBeDisabled()
   })

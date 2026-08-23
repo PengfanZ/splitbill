@@ -92,6 +92,7 @@ export function ReceiptSplitFlow({
   const [step, setStep] = useState<ReceiptStep>('capture')
   const [draft, setDraft] = useState<ReceiptDraft | null>(null)
   const [assignments, setAssignments] = useState<ReceiptAssignment>({})
+  const [assignmentIndex, setAssignmentIndex] = useState(0)
   const [charges, setCharges] = useState<ReceiptChargeSetting[]>([])
   const [payerId, setPayerId] = useState(members[0]?.id ?? '')
   const [title, setTitle] = useState('')
@@ -152,6 +153,7 @@ export function ReceiptSplitFlow({
       setTitle(result.merchant?.trim() || t('receipt.title'))
       setCharges(chargeSettings(result))
       setAssignments({})
+      setAssignmentIndex(0)
       setTipPercent(0)
       setUnresolvedConfirmed(result.unresolvedLines.length === 0)
       setStep('review')
@@ -208,6 +210,17 @@ export function ReceiptSplitFlow({
           : [...selected, memberId],
       }
     })
+  }
+
+  const assignEveryone = (itemId: string) => {
+    setAssignments(current => ({
+      ...current,
+      [itemId]: members.map(member => member.id),
+    }))
+  }
+
+  const clearAssignment = (itemId: string) => {
+    setAssignments(current => ({ ...current, [itemId]: [] }))
   }
 
   const setChargeMethod = (chargeId: string, allocationMethod: ReceiptChargeAllocationMethod) => {
@@ -333,28 +346,44 @@ export function ReceiptSplitFlow({
         </div> : null}
         {!currencyMatches ? <div className="receipt-warning" role="alert"><AlertCircle size={18} />{t('receipt.currencyMismatch', { receiptCurrency: currencyLabel(activeDraft.currency!, locale), activityCurrency: currencyLabel(activityCurrencyCode, locale) })}</div> : null}
         {activeDraft.unresolvedLines.length ? <div className="receipt-unresolved"><b>{t('receipt.unresolved')}</b>{activeDraft.unresolvedLines.map(line => <small key={line}>{line}</small>)}<label><input type="checkbox" checked={unresolvedConfirmed} onChange={event => setUnresolvedConfirmed(event.target.checked)} />{t('receipt.unresolvedConfirm')}</label></div> : null}
-        <div className="modal-actions"><Button onClick={resetCapture}><ArrowLeft size={16} />{t('receipt.tryAgain')}</Button><Button variant="primary" disabled={!reviewReady} onClick={() => setStep('assign')}>{t('receipt.continueAssign')}</Button></div>
+        <div className="modal-actions receipt-modal-actions"><Button onClick={resetCapture}><ArrowLeft size={16} />{t('receipt.tryAgain')}</Button><Button variant="primary" disabled={!reviewReady} onClick={() => { setAssignmentIndex(0); setStep('assign') }}>{t('receipt.continueAssign')}</Button></div>
       </div>
     )
   }
 
   if (step === 'assign') {
+    const item = activeDraft.items[assignmentIndex]
+    const selected = assignments[item.id] ?? []
+    const isLastItem = assignmentIndex === activeDraft.items.length - 1
     return (
       <div className="receipt-flow receipt-assign">
         <div className="receipt-step-intro"><span><Users size={22} /></span><div><h3>{t('receipt.assignTitle')}</h3><p>{t('receipt.assignHelp')}</p></div></div>
-        <div className="receipt-assignment-list">
-          {activeDraft.items.map(item => {
-            const selected = assignments[item.id] ?? []
-            return <article key={item.id}><header><span><b>{item.name}</b>{item.quantity > 1 ? <small>{t('receipt.quantity', { quantity: item.quantity })}</small> : null}</span><strong>{money(item.totalCents / 100, activityCurrencyCode, locale)}</strong></header><div>{members.map(member => <button key={member.id} type="button" className={selected.includes(member.id) ? 'is-selected' : ''} aria-pressed={selected.includes(member.id)} aria-label={t('receipt.assignMember', { item: item.name, name: member.name })} onClick={() => toggleAssignment(item.id, member.id)}><Avatar member={member} size="sm" /><span>{member.name}</span>{selected.includes(member.id) ? <Check size={14} /> : null}</button>)}</div><small className={selected.length ? '' : 'is-required'}>{selected.length ? t('receipt.assignedCount', { count: selected.length }) : t('receipt.assignRequired')}</small></article>
-          })}
+        <div className="receipt-assignment-progress">
+          <span>{t('receipt.assignmentProgress', { current: assignmentIndex + 1, total: activeDraft.items.length })}</span>
+          <progress max={activeDraft.items.length} value={assignmentIndex + 1} />
         </div>
-        <div className="modal-actions"><Button onClick={() => setStep('review')}><ArrowLeft size={16} />{t('receipt.reviewTitle')}</Button><Button variant="primary" disabled={!allItemsAssigned || !split} onClick={() => setStep('confirm')}>{t('receipt.continueReview')}</Button></div>
+        <div className="receipt-assignment-list">
+          <article key={item.id}>
+            <header><span><b>{item.name}</b>{item.quantity > 1 ? <small>{t('receipt.quantity', { quantity: item.quantity })}</small> : null}</span><strong>{money(item.totalCents / 100, activityCurrencyCode, locale)}</strong></header>
+            <div className="receipt-assignment-shortcuts">
+              <button type="button" className={selected.length === members.length ? 'is-selected' : ''} onClick={() => assignEveryone(item.id)}>{t('receipt.everyone')}</button>
+              <button type="button" disabled={!selected.length} onClick={() => clearAssignment(item.id)}>{t('receipt.clear')}</button>
+            </div>
+            <div className="receipt-member-grid">{members.map((member, index) => <button key={`${member.id}-${index}`} type="button" className={selected.includes(member.id) ? 'is-selected' : ''} aria-pressed={selected.includes(member.id)} aria-label={t('receipt.assignMember', { item: item.name, name: member.name })} onClick={() => toggleAssignment(item.id, member.id)}><Avatar member={member} size="sm" /><span>{member.name}</span>{selected.includes(member.id) ? <Check size={14} /> : null}</button>)}</div>
+            <small className={selected.length ? '' : 'is-required'}>{selected.length ? t('receipt.assignedCount', { count: selected.length }) : t('receipt.assignRequired')}</small>
+          </article>
+        </div>
+        <div className="modal-actions receipt-modal-actions">
+          <Button onClick={() => assignmentIndex > 0 ? setAssignmentIndex(current => current - 1) : setStep('review')}><ArrowLeft size={16} />{t(assignmentIndex > 0 ? 'receipt.previousDish' : 'receipt.backToReceipt')}</Button>
+          <Button variant="primary" disabled={!selected.length || (isLastItem && (!allItemsAssigned || !split))} onClick={() => isLastItem ? setStep('confirm') : setAssignmentIndex(current => current + 1)}>{t(isLastItem ? 'receipt.continueReview' : 'receipt.nextDish')}</Button>
+        </div>
       </div>
     )
   }
 
   const chargedTipIncluded = activeDraft.charges.some(charge => charge.type === 'tip')
   const confirmedSplit = split!
+  const participantTotals = confirmedSplit.members.filter(member => member.totalCents > 0)
   return (
     <div className="receipt-flow receipt-confirm">
       <div className="receipt-step-intro"><span><Check size={22} /></span><div><h3>{t('receipt.confirmTitle')}</h3><p>{t('receipt.confirmHelp')}</p></div></div>
@@ -363,16 +392,16 @@ export function ReceiptSplitFlow({
         <label>{t('receipt.paidBy')}<SelectMenu value={payerId} options={payerOptions} onChange={setPayerId} ariaLabel={t('receipt.paidBy')} menuLabel={t('receipt.paidBy')} /></label>
       </div>
       {charges.length ? <section className="receipt-charge-methods"><h4>{t('receipt.extraCharges')}</h4>{charges.map(charge => <label key={charge.id}><span><b>{charge.label}</b><small>{money(charge.amountCents / 100, activityCurrencyCode, locale)}</small></span><SelectMenu value={charge.allocationMethod} options={chargeMethodOptions} onChange={method => setChargeMethod(charge.id, method)} ariaLabel={`${charge.label} ${t('receipt.extraCharges')}`} menuLabel={t('receipt.extraCharges')} /></label>)}</section> : null}
-      <section className="receipt-tip-field"><label><span><b>{t('receipt.tip')}</b><small>{chargedTipIncluded ? t('receipt.tipAlreadyIncluded') : t('receipt.tipHelp')}</small></span><span><input aria-label={t('receipt.tipPercent')} type="number" min="0" max="100" step="0.5" disabled={chargedTipIncluded} value={tipPercent} onChange={event => setTipPercent(Math.max(0, Math.min(100, Number(event.target.value) || 0)))} /><i>%</i></span></label></section>
-      <section className="receipt-person-totals">
-        {confirmedSplit.members.filter(member => member.totalCents > 0).map(total => {
+      <section className="receipt-tip-field"><label><span><b>{t('receipt.tip')}</b><small>{chargedTipIncluded ? t('receipt.tipAlreadyIncluded') : t('receipt.tipHelp')}</small></span><span className="receipt-tip-input"><input aria-label={t('receipt.tipPercent')} type="number" min="0" max="100" step="0.5" disabled={chargedTipIncluded} value={tipPercent} onChange={event => setTipPercent(Math.max(0, Math.min(100, Number(event.target.value) || 0)))} /><i>%</i></span></label></section>
+      <section className={`receipt-person-totals${participantTotals.length > 4 ? ' receipt-person-totals--scrollable' : ''}`}>
+        {participantTotals.map(total => {
           const member = members.find(candidate => candidate.id === total.memberId)!
           return <article key={member.id}><header><span><Avatar member={member} size="sm" /><b>{member.name}</b></span><strong>{money(total.totalCents / 100, activityCurrencyCode, locale)}</strong></header><p><span>{t('receipt.food')} <b>{money(total.foodCents / 100, activityCurrencyCode, locale)}</b></span><span>{t('receipt.taxAndCharges')} <b>{money(total.chargeCents / 100, activityCurrencyCode, locale)}</b></span></p></article>
         })}
         <footer><span>{t('receipt.personTotal')}</span><strong>{money(confirmedSplit.totalCents / 100, activityCurrencyCode, locale)}</strong></footer>
       </section>
       <div className="split-note receipt-ai-note"><ShieldCheck size={18} /><span>{t('receipt.aiReviewNote')}</span></div>
-      <div className="modal-actions"><Button onClick={() => setStep('assign')}><ArrowLeft size={16} />{t('receipt.assignTitle')}</Button><Button variant="primary" disabled={!split || !title.trim() || !payerId || saving} onClick={saveReceipt}>{t('receipt.save')}</Button></div>
+      <div className="modal-actions receipt-modal-actions"><Button onClick={() => setStep('assign')}><ArrowLeft size={16} />{t('receipt.backToDishes')}</Button><Button variant="primary" disabled={!split || !title.trim() || !payerId || saving} onClick={saveReceipt}>{t('receipt.save')}</Button></div>
     </div>
   )
 }

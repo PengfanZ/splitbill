@@ -466,6 +466,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .receipt-unresolved > small { color: var(--muted); font-size: 9px; }
 .receipt-unresolved label { margin-top: 3px; display: flex; grid-template-columns: auto 1fr; align-items: center; gap: 8px; color: var(--ink); font-size: 10px; }
 .receipt-unresolved input { width: 17px; height: 17px; margin: 0; accent-color: var(--green); }
+.receipt-assignment-progress { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 11px; color: var(--muted); font-size: 10px; font-weight: 750; }
+.receipt-assignment-progress progress { width: 100%; height: 5px; border: 0; border-radius: 999px; overflow: hidden; background: var(--surface-muted); accent-color: var(--green); }
+.receipt-assignment-progress progress::-webkit-progress-bar { border-radius: 999px; background: var(--surface-muted); }
+.receipt-assignment-progress progress::-webkit-progress-value { border-radius: 999px; background: var(--green); }
 .receipt-assignment-list { display: grid; gap: 10px; }
 .receipt-assignment-list article { border: 1px solid var(--soft-border); border-radius: 14px; padding: 12px; display: grid; gap: 10px; background: var(--surface-raised); }
 .receipt-assignment-list article > header { display: flex; justify-content: space-between; align-items: start; gap: 12px; }
@@ -473,10 +477,17 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .receipt-assignment-list article > header b { overflow: hidden; color: var(--ink); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .receipt-assignment-list article > header small { color: var(--muted); font-size: 9px; }
 .receipt-assignment-list article > header strong { color: var(--ink); font-family: var(--serif); font-size: 16px; font-weight: 500; }
-.receipt-assignment-list article > div { display: flex; flex-wrap: wrap; gap: 7px; }
-.receipt-assignment-list article > div button { min-height: 38px; border: 1px solid var(--field-border); border-radius: 10px; padding: 3px 9px 3px 4px; display: flex; align-items: center; gap: 6px; background: var(--surface-solid); color: var(--muted); font-size: 10px; font-weight: 700; }
-.receipt-assignment-list article > div button:hover { border-color: var(--green-border-hover); color: var(--ink); }
-.receipt-assignment-list article > div button.is-selected { border-color: var(--green-border-strong); background: var(--green-soft); color: var(--green); }
+.receipt-assignment-shortcuts { display: flex; align-items: center; gap: 7px; }
+.receipt-assignment-shortcuts button { min-height: 30px; border: 1px solid var(--field-border); border-radius: 999px; padding: 0 11px; background: transparent; color: var(--muted); font-size: 9px; font-weight: 750; }
+.receipt-assignment-shortcuts button:hover:not(:disabled) { border-color: var(--green-border-hover); color: var(--ink); }
+.receipt-assignment-shortcuts button.is-selected { border-color: var(--green-border-strong); background: var(--green-soft); color: var(--green); }
+.receipt-assignment-shortcuts button:disabled { opacity: .42; cursor: default; }
+.receipt-member-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; max-height: 226px; overflow-y: auto; overscroll-behavior: contain; }
+.receipt-member-grid button { min-width: 0; min-height: 38px; border: 1px solid var(--field-border); border-radius: 10px; padding: 3px 7px 3px 4px; display: flex; align-items: center; gap: 6px; background: var(--surface-solid); color: var(--muted); font-size: 10px; font-weight: 700; }
+.receipt-member-grid button:hover { border-color: var(--green-border-hover); color: var(--ink); }
+.receipt-member-grid button.is-selected { border-color: var(--green-border-strong); background: var(--green-soft); color: var(--green); }
+.receipt-member-grid button span:not(.avatar) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.receipt-member-grid button svg { flex: 0 0 auto; margin-left: auto; }
 .receipt-assignment-list article > small { color: var(--green); font-size: 9px; }
 .receipt-assignment-list article > small.is-required { color: var(--coral-hover); }
 .receipt-confirm-fields { align-items: end; }
@@ -490,22 +501,27 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .receipt-tip-field > label > span:first-child { display: grid; gap: 3px; }
 .receipt-tip-field b { color: var(--ink); font-size: 11px; }
 .receipt-tip-field small { color: var(--muted); font-size: 9px; line-height: 1.4; }
-.receipt-tip-field > label > span:last-child { height: 43px; border: 1px solid var(--field-border); border-radius: var(--radius-control); display: grid; grid-template-columns: 1fr 27px; align-items: center; background: var(--surface-solid); }
-.receipt-tip-field input { min-width: 0; width: 100%; height: 41px; border: 0; padding-right: 2px; text-align: right; }
-.receipt-tip-field i { color: var(--muted); font-size: 11px; font-style: normal; }
+.receipt-tip-input { height: 43px; border: 1px solid var(--field-border); border-radius: var(--radius-control); display: grid; grid-template-columns: minmax(0, 1fr) 27px; align-items: center; overflow: hidden; background: var(--surface-solid); }
+.receipt-tip-input:focus-within { border-color: var(--coral); }
+.receipt-tip-input input { min-width: 0; width: 100%; height: 100%; border: 0; border-radius: 0; padding: 0 2px 0 8px; outline: 0; background: transparent; box-shadow: none; text-align: right; }
+.receipt-tip-input i { color: var(--muted); font-size: 11px; font-style: normal; }
 .receipt-person-totals { border: 1px solid var(--green-border); border-radius: 14px; overflow: hidden; background: var(--green-soft-subtle); }
+.receipt-person-totals--scrollable { max-height: min(356px, 42dvh); overflow-y: auto; overscroll-behavior: contain; }
 .receipt-person-totals article { padding: 11px 13px; display: grid; gap: 8px; }
 .receipt-person-totals article + article { border-top: 1px solid var(--green-border); }
 .receipt-person-totals article header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.receipt-person-totals article header span { display: flex; align-items: center; gap: 8px; }
+.receipt-person-totals article header > span { min-width: 0; display: flex; align-items: center; gap: 8px; }
 .receipt-person-totals article header b { color: var(--ink); font-size: 11px; }
 .receipt-person-totals article header strong { color: var(--green); font-family: var(--serif); font-size: 16px; font-weight: 500; }
 .receipt-person-totals article p { display: flex; justify-content: flex-end; gap: 15px; color: var(--muted); font-size: 9px; }
 .receipt-person-totals article p span { display: flex; gap: 4px; }
 .receipt-person-totals article p b { color: var(--ink); }
 .receipt-person-totals footer { min-height: 48px; border-top: 1px solid var(--green-border); padding: 0 13px; display: flex; align-items: center; justify-content: space-between; color: var(--green); font-size: 11px; font-weight: 800; }
+.receipt-person-totals--scrollable footer { position: sticky; bottom: 0; background: var(--green-soft-subtle); box-shadow: 0 -8px 16px var(--green-soft-subtle); }
 .receipt-person-totals footer strong { font-family: var(--serif); font-size: 20px; font-weight: 500; }
 .receipt-ai-note { border-color: var(--green-border); background: var(--green-soft-subtle); line-height: 1.45; }
+.receipt-modal-actions { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.receipt-modal-actions .button { min-width: 0; white-space: nowrap; }
 @keyframes receipt-spin { to { transform: rotate(360deg); } }
 @keyframes receipt-scan { 0%, 100% { background-position: 0 0; } 50% { background-position: 100% 0; } }
 .ai-expense-intro { display: grid; grid-template-columns: 42px minmax(0, 1fr); align-items: center; gap: 12px; }
@@ -861,10 +877,10 @@ html[data-theme='dark'] .fresh-illustration i:nth-of-type(3) { background: #9f82
   .receipt-line-details { margin-left: 37px; }
   .receipt-charge-list label, .receipt-totals label, .receipt-totals p { grid-template-columns: minmax(0, 1fr) 105px; }
   .receipt-charge-methods > label { grid-template-columns: 1fr; gap: 7px; }
-  .receipt-assignment-list article > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .receipt-assignment-list article > div button { min-width: 0; }
-  .receipt-assignment-list article > div button span:not(.avatar) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .receipt-member-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 222px; }
+  .receipt-member-grid button { min-width: 0; }
   .receipt-person-totals article p { justify-content: space-between; gap: 8px; }
+  .receipt-modal-actions .button { padding-inline: 10px; font-size: 11px; }
   .ai-batch-list { max-height: none; overflow: visible; }
   .ai-batch-card { grid-template-columns: 26px minmax(0, 1fr); align-items: start; gap: 9px; }
   .ai-batch-card-heading { display: grid; gap: 3px; }
