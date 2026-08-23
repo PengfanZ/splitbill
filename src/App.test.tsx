@@ -794,6 +794,8 @@ describe('modals', () => {
     await user.type(screen.getByLabelText('Description'), 'Hotel')
     await user.type(screen.getByLabelText('Amount'), '20')
     await chooseSelectOption(user, 'Split method', 'Exact amounts')
+    expect(screen.getByLabelText('You share').closest('.share-input')).toBeTruthy()
+    expect(screen.getByLabelText('Maya Chen share').closest('.share-input')).toBeTruthy()
     expect(screen.getByText('$20.00 left')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Save expense' })).toBeDisabled()
     await user.type(screen.getByLabelText('You share'), '25')

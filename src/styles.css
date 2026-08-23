@@ -317,7 +317,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .modal input:focus { border-color: var(--coral); }
 .modal-amount { display: flex; align-items: center; height: 60px; border: 1px solid var(--field-border); border-radius: 10px; background: var(--surface-solid); padding-left: 14px; }
 .modal-amount i { font-family: var(--serif); font-size: 25px; color: var(--ink); font-style: normal; }
-.modal-amount input { border: 0; font-family: var(--serif); font-size: 30px; width: 100%; height: 58px; }
+.modal-amount input { font-family: var(--serif); font-size: 30px; width: 100%; height: 58px; }
 .split-note { border: 1px solid var(--subtle-border); border-radius: 10px; padding: 13px; display: flex; gap: 10px; align-items: center; font-size: 12px; color: var(--muted); background: var(--surface-subtle); }
 .split-note svg { color: var(--green); }
 .future-note { align-items: flex-start; border-color: var(--green-border); background: var(--green-soft-subtle); }
@@ -434,7 +434,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .receipt-line-main > input:hover, .receipt-line-main > input:focus { border-color: var(--field-border); background: var(--surface-solid); }
 .receipt-money-input { min-width: 0; height: 38px; border: 1px solid var(--field-border); border-radius: var(--radius-control); display: flex; align-items: center; background: var(--surface-solid); }
 .receipt-money-input i { padding-left: 8px; color: var(--muted); font-family: var(--serif); font-size: 12px; font-style: normal; }
-.receipt-money-input input { min-width: 0; width: 100%; height: 36px; border: 0; padding: 0 8px 0 4px; background: transparent; text-align: right; font-size: 11px; }
+.receipt-money-input input { min-width: 0; width: 100%; height: 36px; padding: 0 8px 0 4px; text-align: right; font-size: 11px; }
 .receipt-detail-toggle { width: 30px; height: 30px; border: 0; border-radius: 8px; display: grid; place-items: center; background: transparent; color: var(--muted); }
 .receipt-detail-toggle:hover { background: var(--surface-muted); color: var(--ink); }
 .receipt-detail-toggle svg { transition: transform .16s ease; }
@@ -501,9 +501,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .receipt-tip-field > label > span:first-child { display: grid; gap: 3px; }
 .receipt-tip-field b { color: var(--ink); font-size: 11px; }
 .receipt-tip-field small { color: var(--muted); font-size: 9px; line-height: 1.4; }
-.receipt-tip-input { height: 43px; border: 1px solid var(--field-border); border-radius: var(--radius-control); display: grid; grid-template-columns: minmax(0, 1fr) 27px; align-items: center; overflow: hidden; background: var(--surface-solid); }
-.receipt-tip-input:focus-within { border-color: var(--coral); }
-.receipt-tip-input input { min-width: 0; width: 100%; height: 100%; border: 0; border-radius: 0; padding: 0 2px 0 8px; outline: 0; background: transparent; box-shadow: none; text-align: right; }
+.receipt-tip-input { height: 43px; border: 1px solid var(--field-border); border-radius: var(--radius-control); display: grid; grid-template-columns: minmax(0, 1fr) 27px; align-items: center; background: var(--surface-solid); }
+.receipt-tip-input input { min-width: 0; width: 100%; height: 100%; padding: 0 2px 0 8px; text-align: right; }
 .receipt-tip-input i { color: var(--muted); font-size: 11px; font-style: normal; }
 .receipt-person-totals { border: 1px solid var(--green-border); border-radius: 14px; overflow: hidden; background: var(--green-soft-subtle); }
 .receipt-person-totals--scrollable { max-height: min(356px, 42dvh); overflow-y: auto; overscroll-behavior: contain; }
@@ -820,7 +819,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .share-row > span:first-child { display: flex; align-items: center; gap: 8px; color: var(--ink); font-size: 11px; }
 .share-input { width: 92px; height: 34px; display: flex; align-items: center; border: 1px solid var(--field-border); border-radius: 8px; background: var(--surface-solid); padding-left: 9px; color: var(--ink); }
 .share-input i { font-style: normal; font-family: var(--serif); }
-.share-input input { border: 0; height: 32px; padding: 0 6px; min-width: 0; width: 100%; font-size: 12px; }
+.share-input input { height: 100%; padding: 0 6px; min-width: 0; width: 100%; font-size: 12px; }
+.modal-amount, .receipt-money-input, .receipt-tip-input, .share-input { overflow: hidden; transition: border-color .16s ease, box-shadow .16s ease; }
+.modal-amount:focus-within, .receipt-money-input:focus-within, .receipt-tip-input:focus-within, .share-input:focus-within { border-color: var(--coral); box-shadow: 0 0 0 3px var(--focus-ring-soft); }
+.modal-amount input, .receipt-money-input input, .receipt-tip-input input, .share-input input { border: 0; border-radius: 0; outline: 0; background: transparent; box-shadow: none; }
 .confirm-dialog { display: grid; gap: 18px; }
 .confirm-dialog-message { display: grid; grid-template-columns: 50px minmax(0, 1fr); gap: 14px; align-items: center; }
 .confirm-dialog-message p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }

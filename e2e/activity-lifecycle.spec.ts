@@ -413,7 +413,31 @@ test('centers compact mobile dialogs and keeps long forms as sheets', async ({ p
 
   await page.getByRole('button', { name: 'Add expense' }).click()
   await expect(page.locator('.modal-backdrop')).toHaveClass(/modal-backdrop--sheet/)
-  await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click()
+  const expenseDialog = page.getByRole('dialog', { name: 'Add a shared expense' })
+  await expenseDialog.getByRole('spinbutton', { name: 'Amount' }).fill('30')
+  await expenseDialog.getByRole('button', { name: 'Split method' }).click()
+  await page.getByRole('option', { name: 'Exact amounts' }).click()
+  const exactShareControl = expenseDialog.locator('.share-input').first()
+  await expect(expenseDialog.locator('.share-input')).toHaveCount(3)
+  expect(await exactShareControl.evaluate(control => {
+    const input = control.querySelector('input')!
+    const controlStyle = getComputedStyle(control)
+    const inputStyle = getComputedStyle(input)
+    return {
+      controlBorders: [controlStyle.borderTopWidth, controlStyle.borderRightWidth, controlStyle.borderBottomWidth, controlStyle.borderLeftWidth],
+      controlOverflow: controlStyle.overflow,
+      inputBackground: inputStyle.backgroundColor,
+      inputBorders: [inputStyle.borderTopWidth, inputStyle.borderRightWidth, inputStyle.borderBottomWidth, inputStyle.borderLeftWidth],
+      inputRadius: inputStyle.borderRadius,
+    }
+  })).toEqual({
+    controlBorders: ['1px', '1px', '1px', '1px'],
+    controlOverflow: 'hidden',
+    inputBackground: 'rgba(0, 0, 0, 0)',
+    inputBorders: ['0px', '0px', '0px', '0px'],
+    inputRadius: '0px',
+  })
+  await expenseDialog.getByRole('button', { name: 'Close', exact: true }).click()
 
   await page.getByRole('button', { name: 'Open navigation' }).click()
   await page.getByRole('button', { name: 'Join activity' }).click()
