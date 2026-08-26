@@ -118,12 +118,12 @@ Deploy the `parse-receipt` Edge Function and configure these preview-only server
 ```text
 AI_RECEIPT_ENABLED=true
 OPENROUTER_RECEIPT_MODEL=google/gemini-2.5-flash-lite
-OPENROUTER_RECEIPT_FALLBACK_MODEL=google/gemini-2.5-flash-lite
+OPENROUTER_RECEIPT_FALLBACK_MODEL=google/gemini-2.5-flash
 ```
 
-Receipt extraction defaults to `google/gemini-2.5-flash-lite` because it accepts images and is fast and inexpensive. OpenRouter's current Google routes reject this nested receipt contract when sent as provider-enforced JSON Schema, so the experiment uses JSON mode, includes the complete contract in the prompt, and rejects any response that fails strict local Zod validation. Nothing reaches an expense without deterministic reconciliation and human confirmation. Reconsider a free model after the full receipt contract suite passes against it.
+Receipt extraction starts with `google/gemini-2.5-flash-lite` because it accepts images and is fast and inexpensive. OpenRouter enforces the receipt contract as strict JSON Schema, and Tally validates the result again with its local Zod contract. If the first result still fails local validation, the same request receives one bounded retry with `google/gemini-2.5-flash`; it is not an open-ended retry loop. Nothing reaches an expense without deterministic reconciliation and human confirmation. Reconsider a free model only after the full receipt contract suite passes against it.
 
-The browser converts a selected receipt to a bounded JPEG before upload. The Edge Function consumes quota before reading the request body, accepts only JPEG, PNG, or WebP input, and limits both request and provider-response bytes. Tally does not ask the model to decide who paid or how to split the bill. The model returns only reviewable receipt facts—merchant, items, printed details, subtotal, charges, total, and unresolved lines. Deterministic application code assigns shared dishes, allocates tax, service charges, discounts, and optional tips, reconciles every cent, and creates the final exact-split expense only after confirmation.
+The browser converts a selected receipt to a bounded JPEG before upload. The Edge Function drains and validates that bounded upload before consuming quota, accepts only JPEG, PNG, or WebP input, and limits both request and provider-response bytes. This lets a rate-limit response reach the browser promptly instead of racing the upload timeout. Tally does not ask the model to decide who paid or how to split the bill. The model returns only reviewable receipt facts—merchant, items, printed details, subtotal, charges, total, and unresolved lines. Deterministic application code assigns shared dishes, allocates tax, service charges, discounts, and optional tips, reconciles every cent, and creates the final exact-split expense only after confirmation.
 
 Receipt traffic has separate client and project budgets from text and voice expense entry. Production permits 3 requests per network in a rolling 10-minute window and 10 per rolling day, with a 200-request project ceiling per rolling day. Provider failures still consume quota so retry storms cannot fan out cost.
 

@@ -104,3 +104,21 @@ test('turns a detected subtotal gap into an assignable review item', async ({ pa
   await expect(page.getByText('$113.10')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Assign dishes' })).toBeEnabled()
 })
+
+test('shows a receipt-specific message when the scan limit is reached', async ({ page }) => {
+  await page.route(`${aiPreviewURL}/functions/v1/parse-receipt`, route => route.fulfill({
+    status: 429,
+    headers: { 'retry-after': '600' },
+    contentType: 'application/json',
+    body: JSON.stringify({
+      code: 'rate_limit_exceeded',
+      message: 'Too many receipt scans. Try again in about 10 minutes.',
+    }),
+  }))
+
+  await openReceiptFlow(page, 'Receipt rate limit')
+  await page.locator('input[type="file"]').nth(1).setInputFiles(path.resolve('public/og.png'))
+
+  await expect(page.getByRole('alert')).toContainText('Try again in about 10 minutes')
+  await expect(page.getByRole('button', { name: 'Choose another photo' })).toBeVisible()
+})

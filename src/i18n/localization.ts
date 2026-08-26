@@ -245,7 +245,7 @@ const en = {
   'receipt.reading': 'Reading receipt…',
   'receipt.readingHelp': 'Finding dishes, add-ons, tax, and service charges.',
   'receipt.error': 'Tally could not read this receipt. Try a clearer photo or enter the expense manually.',
-  'receipt.rateLimit': 'You’ve reached this network’s receipt scan limit. Try again later or enter the expense manually.',
+  'receipt.rateLimit': 'You’ve reached this network’s receipt scan limit. Try again in about 10 minutes or enter the expense manually.',
   'receipt.credits': 'Receipt scanning has reached its current budget. Try again later or enter the expense manually.',
   'receipt.unavailable': 'Receipt scanning is temporarily unavailable. Try again shortly or enter the expense manually.',
   'receipt.tryAgain': 'Choose another photo',
@@ -587,7 +587,7 @@ const zhCN: Record<TranslationKey, string> = {
   'changelog.item.receiptScanDescription': 'Tally 会识别菜品、税费、附加费和小票总额；不确定的内容由你修改后再继续。',
   'changelog.item.receiptAssignTitle': '选择每道菜是谁吃的',
   'changelog.item.receiptAssignDescription': '一道菜可以分给一人或多人，Tally 会分摊附加费并确保每一分钱都对上。',
-  'receipt.rateLimit': '当前网络的小票识别次数已用完。请稍后再试，或改为手动填写。',
+  'receipt.rateLimit': '当前网络的小票识别次数已用完。请大约 10 分钟后再试，或改为手动填写。',
   'receipt.credits': '小票识别已达到当前预算上限。请稍后再试，或改为手动填写。',
   'receipt.unavailable': '小票识别暂时不可用。请稍后重试，或改为手动填写。',
 }

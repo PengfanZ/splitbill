@@ -24,6 +24,7 @@ export default {
         throw new Error('AI quota service returned an invalid result.')
       },
       reportProviderFailure: failure => console.warn('Receipt AI provider request failed', failure),
+      reportModelOutputFailure: failure => console.warn('Receipt AI model output rejected', failure),
     })
   )),
 }

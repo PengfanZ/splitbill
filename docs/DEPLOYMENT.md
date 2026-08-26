@@ -57,9 +57,11 @@ OPENROUTER_MODEL=google/gemma-4-26b-a4b-it:free
 OPENROUTER_FALLBACK_MODEL=google/gemini-2.5-flash-lite
 OPENROUTER_VOICE_MODEL=google/gemini-2.5-flash-lite
 AI_RECEIPT_ENABLED=true
+OPENROUTER_RECEIPT_MODEL=google/gemini-2.5-flash-lite
+OPENROUTER_RECEIPT_FALLBACK_MODEL=google/gemini-2.5-flash
 ```
 
-Receipt extraction uses the same server-only OpenRouter key. The model names have reviewed defaults in source and may be overridden with `OPENROUTER_RECEIPT_MODEL` and `OPENROUTER_RECEIPT_FALLBACK_MODEL` when an alternative has passed the receipt contract suite.
+Receipt extraction uses the same server-only OpenRouter key. Flash Lite handles the normal path; full Flash is a single recovery attempt only when strict local receipt validation rejects the first result. The model names have reviewed defaults in source and may be overridden only when an alternative has passed the receipt contract suite.
 
 Use a dedicated key with a deliberate account limit. Never expose it as a `VITE_` variable; only the Supabase Edge Function may read it.
 

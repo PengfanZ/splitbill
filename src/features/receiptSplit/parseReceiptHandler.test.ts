@@ -41,6 +41,7 @@ function dependencies(overrides: Partial<ParseReceiptHandlerDependencies> = {}) 
     consumeQuota: vi.fn().mockResolvedValue('allowed'),
     fetcher: vi.fn().mockResolvedValue(providerResponse()),
     getEnvironment: vi.fn((name: string) => environment[name]),
+    reportModelOutputFailure: vi.fn(),
     reportProviderFailure: vi.fn(),
     ...overrides,
   } satisfies ParseReceiptHandlerDependencies
@@ -74,7 +75,7 @@ describe('parse receipt Edge Function handler', () => {
     expect(await noKey.json()).toMatchObject({ code: 'ai_not_configured' })
   })
 
-  it('consumes quota before parsing a body and normalizes the IP', async () => {
+  it('validates the upload before consuming quota and normalizes the IP', async () => {
     const consumeQuota = vi.fn().mockResolvedValue('allowed')
     const response = await handleParseReceiptRequest(new Request('https://example.com', {
       method: 'POST',
@@ -82,16 +83,25 @@ describe('parse receipt Edge Function handler', () => {
       body: '{',
     }), dependencies({ consumeQuota }))
     expect(response.status).toBe(400)
-    expect(consumeQuota).toHaveBeenCalledWith('2001:db8::1')
+    expect(consumeQuota).not.toHaveBeenCalled()
+
+    const validIp = vi.fn().mockResolvedValue('allowed')
+    await handleParseReceiptRequest(request(body, { 'cf-connecting-ip': ' 2001:db8::1 ' }), dependencies({ consumeQuota: validIp }))
+    expect(validIp).toHaveBeenCalledWith('2001:db8::1')
 
     const unknown = vi.fn().mockResolvedValue('client-limit')
     await handleParseReceiptRequest(request(body, { 'cf-connecting-ip': 'forged value' }), dependencies({ consumeQuota: unknown }))
     expect(unknown).toHaveBeenCalledWith('unknown-client')
+
+    const tooLong = vi.fn().mockResolvedValue('client-limit')
+    await handleParseReceiptRequest(request(body, { 'cf-connecting-ip': 'a'.repeat(65) }), dependencies({ consumeQuota: tooLong }))
+    expect(tooLong).toHaveBeenCalledWith('unknown-client')
   })
 
   it('maps client, project, and quota-service limits', async () => {
     const client = await handleParseReceiptRequest(request(), dependencies({ consumeQuota: vi.fn().mockResolvedValue('client-limit') }))
     expect(client.status).toBe(429)
+    expect(client.headers.get('retry-after')).toBe('600')
     expect(await client.json()).toMatchObject({ code: 'rate_limit_exceeded' })
     const global = await handleParseReceiptRequest(request(), dependencies({ consumeQuota: vi.fn().mockResolvedValue('global-limit') }))
     expect(await global.json()).toMatchObject({ code: 'ai_budget_exceeded' })
@@ -130,6 +140,10 @@ describe('parse receipt Edge Function handler', () => {
       DEFAULT_OPENROUTER_RECEIPT_MODEL,
       DEFAULT_OPENROUTER_RECEIPT_FALLBACK_MODEL,
     ])])
+    expect(providerBody.response_format).toMatchObject({
+      type: 'json_schema',
+      json_schema: { name: 'tally_receipt', strict: true },
+    })
     expect(providerBody.provider).toMatchObject({ data_collection: 'deny', require_parameters: true, zdr: true })
     expect(init.headers).toMatchObject({ authorization: 'Bearer secret-key' })
     expect(init.signal).toBeInstanceOf(AbortSignal)
@@ -203,7 +217,7 @@ describe('parse receipt Edge Function handler', () => {
     expect(response.status).toBe(502)
 
     const nonRecord = await handleParseReceiptRequest(request(), dependencies({
-      fetcher: vi.fn().mockResolvedValue(new Response('1')),
+      fetcher: vi.fn().mockImplementation(() => Promise.resolve(new Response('1'))),
     }))
     expect(nonRecord.status).toBe(422)
   })
@@ -231,14 +245,80 @@ describe('parse receipt Edge Function handler', () => {
     }
   })
 
-  it('returns an actionable error when the model draft is unsafe', async () => {
+  it('retries one unsafe draft with the stronger fallback model', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(providerResponse({ ...receiptDraftFixture, items: [] }, 200, 'primary'))
+      .mockResolvedValueOnce(providerResponse(receiptDraftFixture, 200, 'fallback'))
+    const reporter = vi.fn()
     const response = await handleParseReceiptRequest(request(), dependencies({
-      fetcher: vi.fn().mockResolvedValue(providerResponse({ ...receiptDraftFixture, items: [] })),
+      fetcher,
+      getEnvironment: name => ({
+        AI_RECEIPT_ENABLED: 'true',
+        OPENROUTER_API_KEY: 'key',
+        OPENROUTER_RECEIPT_MODEL: 'primary',
+        OPENROUTER_RECEIPT_FALLBACK_MODEL: 'fallback',
+      })[name],
+      reportModelOutputFailure: reporter,
+    }))
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ result: receiptDraftFixture, model: 'fallback' })
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    expect(JSON.parse(fetcher.mock.calls[0][1].body as string).models).toEqual(['primary', 'fallback'])
+    expect(JSON.parse(fetcher.mock.calls[1][1].body as string).models).toEqual(['fallback'])
+    expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+      attempt: 1,
+      model: 'primary',
+      reason: 'schema_validation',
+    }))
+  })
+
+  it('returns an actionable error after one bounded unsafe-draft retry', async () => {
+    const invalidDraft = { ...receiptDraftFixture, merchant: 'Private Merchant', items: [] }
+    const fetcher = vi.fn().mockImplementation(() => Promise.resolve(providerResponse(invalidDraft)))
+    const reporter = vi.fn()
+    const response = await handleParseReceiptRequest(request(), dependencies({
+      fetcher,
+      reportModelOutputFailure: reporter,
     }))
     expect(response.status).toBe(422)
     expect(await response.json()).toMatchObject({
       code: 'invalid_model_response',
       message: expect.stringContaining('Retake'),
     })
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    expect(reporter).toHaveBeenCalledTimes(2)
+    expect(reporter).toHaveBeenLastCalledWith(expect.objectContaining({
+      attempt: 2,
+      reason: 'schema_validation',
+      issues: [expect.objectContaining({ code: 'too_small', path: 'items' })],
+    }))
+    expect(JSON.stringify(reporter.mock.calls)).not.toContain('Private Merchant')
+  })
+
+  it('does not start a validation retry after the provider deadline', async () => {
+    vi.spyOn(Date, 'now')
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(1)
+      .mockReturnValue(25_001)
+    const fetcher = vi.fn().mockResolvedValue(providerResponse({ ...receiptDraftFixture, items: [] }))
+    const response = await handleParseReceiptRequest(request(), dependencies({ fetcher }))
+    expect(response.status).toBe(422)
+    expect(fetcher).toHaveBeenCalledTimes(1)
+  })
+
+  it('sanitizes an unexpected local parser failure', async () => {
+    const reporter = vi.fn()
+    const response = await handleParseReceiptRequest(request(), dependencies({
+      fetcher: vi.fn().mockImplementation(() => Promise.resolve(providerResponse())),
+      parseProviderOutput: () => { throw new Error('Private parser detail') },
+      reportModelOutputFailure: reporter,
+    }))
+    expect(response.status).toBe(422)
+    expect(reporter).toHaveBeenCalledTimes(2)
+    expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+      reason: 'schema_validation',
+      issues: [],
+    }))
+    expect(JSON.stringify(reporter.mock.calls)).not.toContain('Private parser detail')
   })
 })

@@ -1,15 +1,30 @@
-import { receiptDraftSchema, type ParseReceiptRequest, type ReceiptDraft } from './receiptContract.ts'
+import { SUPPORTED_CURRENCIES } from '../../domain/currencyCodes.ts'
+import {
+  MAX_RECEIPT_AMOUNT_CENTS,
+  MAX_RECEIPT_CHARGES,
+  MAX_RECEIPT_DETAILS_PER_ITEM,
+  MAX_RECEIPT_ITEMS,
+  receiptDraftSchema,
+  type ParseReceiptRequest,
+  type ReceiptDraft,
+} from './receiptContract.ts'
 
 export const DEFAULT_OPENROUTER_RECEIPT_MODEL = 'google/gemini-2.5-flash-lite'
-export const DEFAULT_OPENROUTER_RECEIPT_FALLBACK_MODEL = 'google/gemini-2.5-flash-lite'
+export const DEFAULT_OPENROUTER_RECEIPT_FALLBACK_MODEL = 'google/gemini-2.5-flash'
 
+// Keep the provider schema inside Gemini's supported JSON Schema subset.
+// The local Zod contract remains the source of truth for string bounds and semantic checks.
 const DETAIL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   properties: {
     kind: { type: 'string', enum: ['modifier', 'add-on', 'discount', 'included', 'note', 'unknown'] },
     label: { type: 'string' },
-    amountCents: { type: ['integer', 'null'] },
+    amountCents: {
+      type: ['integer', 'null'],
+      minimum: -MAX_RECEIPT_AMOUNT_CENTS,
+      maximum: MAX_RECEIPT_AMOUNT_CENTS,
+    },
   },
   required: ['kind', 'label', 'amountCents'],
 } as const
@@ -20,11 +35,19 @@ const ITEM_SCHEMA = {
   properties: {
     id: { type: 'string' },
     name: { type: 'string' },
-    quantity: { type: 'integer' },
-    unitPriceCents: { type: ['integer', 'null'] },
-    totalCents: { type: 'integer' },
-    details: { type: 'array', items: DETAIL_SCHEMA },
-    sourceLines: { type: 'array', items: { type: 'string' } },
+    quantity: { type: 'integer', minimum: 1, maximum: 100 },
+    unitPriceCents: {
+      type: ['integer', 'null'],
+      minimum: 0,
+      maximum: MAX_RECEIPT_AMOUNT_CENTS,
+    },
+    totalCents: { type: 'integer', minimum: 0, maximum: MAX_RECEIPT_AMOUNT_CENTS },
+    details: { type: 'array', items: DETAIL_SCHEMA, maxItems: MAX_RECEIPT_DETAILS_PER_ITEM },
+    sourceLines: {
+      type: 'array',
+      items: { type: 'string' },
+      maxItems: 30,
+    },
     confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
   },
   required: ['id', 'name', 'quantity', 'unitPriceCents', 'totalCents', 'details', 'sourceLines', 'confidence'],
@@ -37,8 +60,12 @@ const CHARGE_SCHEMA = {
     id: { type: 'string' },
     type: { type: 'string', enum: ['tax', 'tip', 'service', 'discount', 'other'] },
     label: { type: 'string' },
-    amountCents: { type: 'integer' },
-    rateBasisPoints: { type: ['integer', 'null'] },
+    amountCents: {
+      type: 'integer',
+      minimum: -MAX_RECEIPT_AMOUNT_CENTS,
+      maximum: MAX_RECEIPT_AMOUNT_CENTS,
+    },
+    rateBasisPoints: { type: ['integer', 'null'], minimum: 0, maximum: 100_000 },
     confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
   },
   required: ['id', 'type', 'label', 'amountCents', 'rateBasisPoints', 'confidence'],
@@ -50,13 +77,17 @@ export const RECEIPT_JSON_SCHEMA = {
   properties: {
     version: { type: 'integer', enum: [1] },
     merchant: { type: ['string', 'null'] },
-    currency: { type: ['string', 'null'], enum: ['USD', 'EUR', 'GBP', 'CNY', 'JPY', 'CAD', 'AUD', 'HKD', 'SGD', 'KRW', 'INR', 'CHF', 'NZD', 'TWD', 'THB', null] },
+    currency: { type: ['string', 'null'], enum: [...SUPPORTED_CURRENCIES, null] },
     purchasedAt: { type: ['string', 'null'] },
-    items: { type: 'array', items: ITEM_SCHEMA },
-    charges: { type: 'array', items: CHARGE_SCHEMA },
-    subtotalCents: { type: 'integer' },
-    totalCents: { type: 'integer' },
-    unresolvedLines: { type: 'array', items: { type: 'string' } },
+    items: { type: 'array', items: ITEM_SCHEMA, minItems: 1, maxItems: MAX_RECEIPT_ITEMS },
+    charges: { type: 'array', items: CHARGE_SCHEMA, maxItems: MAX_RECEIPT_CHARGES },
+    subtotalCents: { type: 'integer', minimum: 0, maximum: MAX_RECEIPT_AMOUNT_CENTS },
+    totalCents: { type: 'integer', minimum: 0, maximum: MAX_RECEIPT_AMOUNT_CENTS },
+    unresolvedLines: {
+      type: 'array',
+      items: { type: 'string' },
+      maxItems: 50,
+    },
   },
   required: ['version', 'merchant', 'currency', 'purchasedAt', 'items', 'charges', 'subtotalCents', 'totalCents', 'unresolvedLines'],
 } as const
@@ -88,10 +119,13 @@ Receipt interpretation:
 
 export function buildReceiptOpenRouterRequest(
   request: ParseReceiptRequest,
-  model = DEFAULT_OPENROUTER_RECEIPT_MODEL,
-  fallbackModel = DEFAULT_OPENROUTER_RECEIPT_FALLBACK_MODEL,
+  requestedModels: readonly string[] = [
+    DEFAULT_OPENROUTER_RECEIPT_MODEL,
+    DEFAULT_OPENROUTER_RECEIPT_FALLBACK_MODEL,
+  ],
 ) {
-  const models = model === fallbackModel ? [model] : [model, fallbackModel]
+  const models = [...new Set(requestedModels.map(model => model.trim()).filter(Boolean))]
+  if (models.length === 0) throw new Error('At least one receipt model is required.')
   return {
     models,
     messages: [
@@ -105,7 +139,6 @@ export function buildReceiptOpenRouterRequest(
               task: 'Extract this receipt for review.',
               interfaceLocale: request.locale,
               activityCurrencyHint: request.currency,
-              outputSchema: RECEIPT_JSON_SCHEMA,
             }),
           },
           { type: 'image_url', image_url: { url: request.image.dataUrl } },
@@ -113,7 +146,12 @@ export function buildReceiptOpenRouterRequest(
       },
     ],
     response_format: {
-      type: 'json_object',
+      type: 'json_schema',
+      json_schema: {
+        name: 'tally_receipt',
+        strict: true,
+        schema: RECEIPT_JSON_SCHEMA,
+      },
     },
     provider: {
       allow_fallbacks: true,
@@ -132,19 +170,61 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+export type ReceiptModelOutputFailureReason =
+  | 'unexpected_response'
+  | 'missing_content'
+  | 'invalid_json'
+  | 'schema_validation'
+
+export type ReceiptModelOutputIssue = {
+  code: string
+  path: string
+}
+
+export class ReceiptModelOutputError extends Error {
+  readonly reason: ReceiptModelOutputFailureReason
+  readonly issues: ReceiptModelOutputIssue[]
+
+  constructor(
+    reason: ReceiptModelOutputFailureReason,
+    issues: ReceiptModelOutputIssue[] = [],
+  ) {
+    super({
+      unexpected_response: 'OpenRouter returned an unexpected receipt response.',
+      missing_content: 'OpenRouter did not return structured receipt content.',
+      invalid_json: 'OpenRouter returned unreadable receipt content.',
+      schema_validation: 'OpenRouter returned receipt content that failed validation.',
+    }[reason])
+    this.name = 'ReceiptModelOutputError'
+    this.reason = reason
+    this.issues = issues
+  }
+}
+
+function safeIssuePath(path: PropertyKey[]) {
+  return path.map(segment => typeof segment === 'number' ? '[]' : String(segment)).join('.')
+}
+
 export function parseOpenRouterReceiptOutput(value: unknown): ReceiptDraft {
   if (!isRecord(value) || !Array.isArray(value.choices) || value.choices.length < 1) {
-    throw new Error('OpenRouter returned an unexpected receipt response.')
+    throw new ReceiptModelOutputError('unexpected_response')
   }
   const choice = value.choices[0]
   if (!isRecord(choice) || !isRecord(choice.message) || typeof choice.message.content !== 'string') {
-    throw new Error('OpenRouter did not return structured receipt content.')
+    throw new ReceiptModelOutputError('missing_content')
   }
   let content: unknown
   try {
     content = JSON.parse(choice.message.content)
   } catch {
-    throw new Error('OpenRouter returned unreadable receipt content.')
+    throw new ReceiptModelOutputError('invalid_json')
   }
-  return receiptDraftSchema.parse(content)
+  const parsed = receiptDraftSchema.safeParse(content)
+  if (!parsed.success) {
+    throw new ReceiptModelOutputError('schema_validation', parsed.error.issues.slice(0, 8).map(issue => ({
+      code: issue.code,
+      path: safeIssuePath(issue.path),
+    })))
+  }
+  return parsed.data
 }

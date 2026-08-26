@@ -4,6 +4,9 @@ import {
   DEFAULT_OPENROUTER_RECEIPT_FALLBACK_MODEL,
   DEFAULT_OPENROUTER_RECEIPT_MODEL,
   parseOpenRouterReceiptOutput,
+  ReceiptModelOutputError,
+  type ReceiptModelOutputIssue,
+  type ReceiptModelOutputFailureReason,
 } from './receiptPrompt.ts'
 
 export const RECEIPT_CORS_HEADERS = {
@@ -25,22 +28,31 @@ export type ParseReceiptHandlerDependencies = {
   consumeQuota: (identifier: string) => Promise<ReceiptQuotaResult>
   fetcher?: Fetcher
   getEnvironment: (name: string) => string | undefined
+  parseProviderOutput?: typeof parseOpenRouterReceiptOutput
   reportProviderFailure?: (failure: {
     models: string[]
     status: number
     errorType: string | null
+  }) => void
+  reportModelOutputFailure?: (failure: {
+    models: string[]
+    model: string
+    attempt: number
+    reason: ReceiptModelOutputFailureReason
+    issues: ReceiptModelOutputIssue[]
   }) => void
 }
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
 const MAX_RECEIPT_REQUEST_BYTES = Math.ceil(MAX_RECEIPT_UPLOAD_BYTES * 4 / 3) + 2_048
 const MAX_PROVIDER_RESPONSE_BYTES = 256 * 1024
+const PROVIDER_TIMEOUT_MS = 25_000
 const DATA_URL_PATTERN = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/]+={0,2})$/
 
-function jsonError(status: number, code: string, message: string) {
+function jsonError(status: number, code: string, message: string, headers: HeadersInit = {}) {
   return Response.json({ code, message }, {
     status,
-    headers: { 'cache-control': 'no-store' },
+    headers: { ...headers, 'cache-control': 'no-store' },
   })
 }
 
@@ -132,24 +144,6 @@ export async function handleParseReceiptRequest(
   if (Number.isFinite(contentLength) && contentLength > MAX_RECEIPT_REQUEST_BYTES) {
     return jsonError(413, 'request_too_large', 'The receipt photo is too large.')
   }
-  if (dependencies.getEnvironment('AI_RECEIPT_ENABLED') !== 'true') {
-    return jsonError(503, 'ai_disabled', 'Receipt splitting is currently disabled.')
-  }
-  const apiKey = dependencies.getEnvironment('OPENROUTER_API_KEY')?.trim() ?? ''
-  if (!apiKey) return jsonError(503, 'ai_not_configured', 'Receipt splitting is not configured.')
-
-  try {
-    const quota = await dependencies.consumeQuota(requestIdentifier(request))
-    if (quota === 'client-limit') {
-      return jsonError(429, 'rate_limit_exceeded', 'Too many receipt scans. Try again later.')
-    }
-    if (quota === 'global-limit') {
-      return jsonError(503, 'ai_budget_exceeded', 'The receipt scanning budget is temporarily unavailable.')
-    }
-  } catch {
-    return jsonError(503, 'rate_limit_unavailable', 'Receipt splitting is temporarily unavailable.')
-  }
-
   let parsedRequest
   try {
     const requestText = await readTextWithLimit(request.body, MAX_RECEIPT_REQUEST_BYTES)
@@ -162,55 +156,100 @@ export async function handleParseReceiptRequest(
     return jsonError(400, 'invalid_request', 'Choose a clear JPG, PNG, or WebP receipt photo.')
   }
 
+  if (dependencies.getEnvironment('AI_RECEIPT_ENABLED') !== 'true') {
+    return jsonError(503, 'ai_disabled', 'Receipt splitting is currently disabled.')
+  }
+  const apiKey = dependencies.getEnvironment('OPENROUTER_API_KEY')?.trim() ?? ''
+  if (!apiKey) return jsonError(503, 'ai_not_configured', 'Receipt splitting is not configured.')
+
+  try {
+    const quota = await dependencies.consumeQuota(requestIdentifier(request))
+    if (quota === 'client-limit') {
+      return jsonError(
+        429,
+        'rate_limit_exceeded',
+        'Too many receipt scans. Try again in about 10 minutes.',
+        { 'retry-after': '600' },
+      )
+    }
+    if (quota === 'global-limit') {
+      return jsonError(503, 'ai_budget_exceeded', 'The receipt scanning budget is temporarily unavailable.')
+    }
+  } catch {
+    return jsonError(503, 'rate_limit_unavailable', 'Receipt splitting is temporarily unavailable.')
+  }
+
   const model = dependencies.getEnvironment('OPENROUTER_RECEIPT_MODEL')?.trim()
     || DEFAULT_OPENROUTER_RECEIPT_MODEL
   const fallbackModel = dependencies.getEnvironment('OPENROUTER_RECEIPT_FALLBACK_MODEL')?.trim()
     || DEFAULT_OPENROUTER_RECEIPT_FALLBACK_MODEL
   const models = model === fallbackModel ? [model] : [model, fallbackModel]
+  const attemptModels = models.length === 1 ? [models] : [models, [fallbackModel]]
+  const providerDeadline = Date.now() + PROVIDER_TIMEOUT_MS
 
-  let providerResponse: Response
-  try {
-    providerResponse = await (dependencies.fetcher ?? fetch)(OPENROUTER_URL, {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${apiKey}`,
-        'content-type': 'application/json',
-        'http-referer': dependencies.getEnvironment('TALLY_PUBLIC_URL')?.trim()
-          || 'https://pengfanz.github.io/splitbill/',
-        'x-title': 'Tally receipt splitting',
-      },
-      body: JSON.stringify(buildReceiptOpenRouterRequest(parsedRequest, model, fallbackModel)),
-      signal: AbortSignal.timeout(25_000),
-    })
-  } catch {
-    dependencies.reportProviderFailure?.({ models, status: 503, errorType: 'network' })
-    return jsonError(503, 'provider_unavailable', 'The receipt AI service could not be reached.')
+  for (const [attemptIndex, currentModels] of attemptModels.entries()) {
+    const remainingMs = providerDeadline - Date.now()
+    if (remainingMs <= 0) break
+
+    let providerResponse: Response
+    try {
+      providerResponse = await (dependencies.fetcher ?? fetch)(OPENROUTER_URL, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${apiKey}`,
+          'content-type': 'application/json',
+          'http-referer': dependencies.getEnvironment('TALLY_PUBLIC_URL')?.trim()
+            || 'https://pengfanz.github.io/splitbill/',
+          'x-title': 'Tally receipt splitting',
+        },
+        body: JSON.stringify(buildReceiptOpenRouterRequest(parsedRequest, currentModels)),
+        signal: AbortSignal.timeout(remainingMs),
+      })
+    } catch {
+      dependencies.reportProviderFailure?.({ models: currentModels, status: 503, errorType: 'network' })
+      return jsonError(503, 'provider_unavailable', 'The receipt AI service could not be reached.')
+    }
+
+    let providerPayload: unknown
+    try {
+      providerPayload = JSON.parse(await readTextWithLimit(providerResponse.body, MAX_PROVIDER_RESPONSE_BYTES))
+    } catch {
+      dependencies.reportProviderFailure?.({
+        models: currentModels,
+        status: providerResponse.status,
+        errorType: 'unreadable_response',
+      })
+      return jsonError(502, 'provider_error', 'The AI provider returned unreadable receipt data.')
+    }
+    const embeddedFailure = getOpenRouterFailure(providerPayload)
+    if (!providerResponse.ok || embeddedFailure) {
+      const status = embeddedFailure?.status ?? providerResponse.status
+      const errorType = embeddedFailure?.errorType ?? null
+      dependencies.reportProviderFailure?.({ models: currentModels, status, errorType })
+      return providerFailureResponse(status, errorType)
+    }
+
+    const actualModel = isRecord(providerPayload) && typeof providerPayload.model === 'string'
+      ? providerPayload.model
+      : currentModels[0]
+    try {
+      const result = (dependencies.parseProviderOutput ?? parseOpenRouterReceiptOutput)(providerPayload)
+      return Response.json({ result, model: actualModel }, {
+        headers: { 'cache-control': 'no-store' },
+      })
+    } catch (error) {
+      const outputError = error instanceof ReceiptModelOutputError
+        ? error
+        : new ReceiptModelOutputError('schema_validation')
+      dependencies.reportModelOutputFailure?.({
+        models: currentModels,
+        model: actualModel,
+        attempt: attemptIndex + 1,
+        reason: outputError.reason,
+        issues: outputError.issues,
+      })
+    }
   }
 
-  let providerPayload: unknown
-  try {
-    providerPayload = JSON.parse(await readTextWithLimit(providerResponse.body, MAX_PROVIDER_RESPONSE_BYTES))
-  } catch {
-    dependencies.reportProviderFailure?.({ models, status: providerResponse.status, errorType: 'unreadable_response' })
-    return jsonError(502, 'provider_error', 'The AI provider returned unreadable receipt data.')
-  }
-  const embeddedFailure = getOpenRouterFailure(providerPayload)
-  if (!providerResponse.ok || embeddedFailure) {
-    const status = embeddedFailure?.status ?? providerResponse.status
-    const errorType = embeddedFailure?.errorType ?? null
-    dependencies.reportProviderFailure?.({ models, status, errorType })
-    return providerFailureResponse(status, errorType)
-  }
-
-  const actualModel = isRecord(providerPayload) && typeof providerPayload.model === 'string'
-    ? providerPayload.model
-    : model
-  try {
-    const result = parseOpenRouterReceiptOutput(providerPayload)
-    return Response.json({ result, model: actualModel }, {
-      headers: { 'cache-control': 'no-store' },
-    })
-  } catch {
-    return jsonError(422, 'invalid_model_response', 'Tally could not safely understand this receipt. Retake the photo or enter it manually.')
-  }
+  return jsonError(422, 'invalid_model_response', 'Tally could not safely understand this receipt. Retake the photo or enter it manually.')
 }
