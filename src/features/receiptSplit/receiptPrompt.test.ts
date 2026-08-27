@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { MAX_RECEIPT_AMOUNT_CENTS } from './receiptContract'
 import { receiptDraftFixture } from './receiptContract.test'
 import {
   buildReceiptOpenRouterRequest,
@@ -37,6 +38,7 @@ describe('receipt OpenRouter prompt', () => {
       : null).toBeUndefined()
     expect(body.provider).toMatchObject({ data_collection: 'deny', require_parameters: true, zdr: true })
     expect(JSON.stringify(RECEIPT_JSON_SCHEMA)).not.toMatch(/minLength|maxLength/)
+    expect(RECEIPT_JSON_SCHEMA.properties.subtotalCents.type).toEqual(['integer', 'null'])
   })
 
   it('deduplicates and validates requested models', () => {
@@ -49,10 +51,45 @@ describe('receipt OpenRouter prompt', () => {
     expect(DEFAULT_OPENROUTER_RECEIPT_FALLBACK_MODEL).not.toBe(DEFAULT_OPENROUTER_RECEIPT_MODEL)
   })
 
+  it('builds a locally validated JSON compatibility request for providers with unreliable schema enforcement', () => {
+    const body = buildReceiptOpenRouterRequest(request, ['fallback'], 'json-object')
+    expect(body.response_format).toEqual({ type: 'json_object' })
+    const promptPart = body.messages[1].content[0]
+    expect(typeof promptPart !== 'string' && typeof promptPart.text === 'string'
+      ? JSON.parse(promptPart.text).outputSchema
+      : null).toEqual(RECEIPT_JSON_SCHEMA)
+  })
+
   it('parses a structured receipt response', () => {
     expect(parseOpenRouterReceiptOutput({
       choices: [{ message: { content: JSON.stringify(receiptDraftFixture) } }],
     })).toEqual(receiptDraftFixture)
+  })
+
+  it('derives an absent printed subtotal only from validated item totals', () => {
+    const withoutPrintedSubtotal = { ...receiptDraftFixture, subtotalCents: null }
+    expect(parseOpenRouterReceiptOutput({
+      choices: [{ message: { content: JSON.stringify(withoutPrintedSubtotal) } }],
+    })).toEqual(receiptDraftFixture)
+
+    for (const items of [
+      'not-an-array',
+      [null],
+      [{ ...receiptDraftFixture.items[0], totalCents: '2000' }],
+      [{ ...receiptDraftFixture.items[0], totalCents: 1.5 }],
+      [{ ...receiptDraftFixture.items[0], totalCents: -1 }],
+      [
+        { ...receiptDraftFixture.items[0], totalCents: MAX_RECEIPT_AMOUNT_CENTS },
+        { ...receiptDraftFixture.items[1], totalCents: 1 },
+      ],
+    ]) {
+      expect(() => parseOpenRouterReceiptOutput({
+        choices: [{ message: { content: JSON.stringify({
+          ...withoutPrintedSubtotal,
+          items,
+        }) } }],
+      })).toThrow()
+    }
   })
 
   it('rejects malformed provider response shapes and content', () => {

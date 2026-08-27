@@ -81,7 +81,11 @@ export const RECEIPT_JSON_SCHEMA = {
     purchasedAt: { type: ['string', 'null'] },
     items: { type: 'array', items: ITEM_SCHEMA, minItems: 1, maxItems: MAX_RECEIPT_ITEMS },
     charges: { type: 'array', items: CHARGE_SCHEMA, maxItems: MAX_RECEIPT_CHARGES },
-    subtotalCents: { type: 'integer', minimum: 0, maximum: MAX_RECEIPT_AMOUNT_CENTS },
+    subtotalCents: {
+      type: ['integer', 'null'],
+      minimum: 0,
+      maximum: MAX_RECEIPT_AMOUNT_CENTS,
+    },
     totalCents: { type: 'integer', minimum: 0, maximum: MAX_RECEIPT_AMOUNT_CENTS },
     unresolvedLines: {
       type: 'array',
@@ -109,7 +113,8 @@ Receipt interpretation:
 - Suggested tip examples are not charged tips. Do not include them in charges or totalCents.
 - Discounts must use a negative amount. Other charges must not be negative.
 - rateBasisPoints is the printed percentage times 100, such as 8% -> 800. Use null when no rate is printed.
-- subtotalCents and totalCents must be the values printed on the receipt, even when they appear inconsistent with extracted lines.
+- totalCents must be the value printed on the receipt, even when it appears inconsistent with extracted lines.
+- Use the printed subtotal for subtotalCents. If no subtotal is printed, use null; Tally will derive it from the validated item totals.
 - Use unresolvedLines for visible financial lines whose meaning or amount cannot be safely classified.
 - sourceLines preserves the relevant original text for each item.
 - Use confidence low whenever grouping, text, quantity, or price is uncertain; medium for minor uncertainty; high only when clear.
@@ -123,6 +128,7 @@ export function buildReceiptOpenRouterRequest(
     DEFAULT_OPENROUTER_RECEIPT_MODEL,
     DEFAULT_OPENROUTER_RECEIPT_FALLBACK_MODEL,
   ],
+  outputMode: 'json-schema' | 'json-object' = 'json-schema',
 ) {
   const models = [...new Set(requestedModels.map(model => model.trim()).filter(Boolean))]
   if (models.length === 0) throw new Error('At least one receipt model is required.')
@@ -139,20 +145,23 @@ export function buildReceiptOpenRouterRequest(
               task: 'Extract this receipt for review.',
               interfaceLocale: request.locale,
               activityCurrencyHint: request.currency,
+              ...(outputMode === 'json-object' ? { outputSchema: RECEIPT_JSON_SCHEMA } : {}),
             }),
           },
           { type: 'image_url', image_url: { url: request.image.dataUrl } },
         ],
       },
     ],
-    response_format: {
-      type: 'json_schema',
-      json_schema: {
-        name: 'tally_receipt',
-        strict: true,
-        schema: RECEIPT_JSON_SCHEMA,
-      },
-    },
+    response_format: outputMode === 'json-schema'
+      ? {
+          type: 'json_schema',
+          json_schema: {
+            name: 'tally_receipt',
+            strict: true,
+            schema: RECEIPT_JSON_SCHEMA,
+          },
+        }
+      : { type: 'json_object' },
     provider: {
       allow_fallbacks: true,
       data_collection: 'deny',
@@ -205,6 +214,21 @@ function safeIssuePath(path: PropertyKey[]) {
   return path.map(segment => typeof segment === 'number' ? '[]' : String(segment)).join('.')
 }
 
+function deriveMissingSubtotal(value: unknown) {
+  if (!isRecord(value) || value.subtotalCents !== null || !Array.isArray(value.items)) return value
+  let subtotalCents = 0
+  for (const item of value.items) {
+    if (!isRecord(item)) return value
+    const itemTotalCents = item.totalCents
+    if (typeof itemTotalCents !== 'number'
+      || !Number.isSafeInteger(itemTotalCents)
+      || itemTotalCents < 0) return value
+    subtotalCents += itemTotalCents
+    if (!Number.isSafeInteger(subtotalCents) || subtotalCents > MAX_RECEIPT_AMOUNT_CENTS) return value
+  }
+  return { ...value, subtotalCents }
+}
+
 export function parseOpenRouterReceiptOutput(value: unknown): ReceiptDraft {
   if (!isRecord(value) || !Array.isArray(value.choices) || value.choices.length < 1) {
     throw new ReceiptModelOutputError('unexpected_response')
@@ -219,7 +243,7 @@ export function parseOpenRouterReceiptOutput(value: unknown): ReceiptDraft {
   } catch {
     throw new ReceiptModelOutputError('invalid_json')
   }
-  const parsed = receiptDraftSchema.safeParse(content)
+  const parsed = receiptDraftSchema.safeParse(deriveMissingSubtotal(content))
   if (!parsed.success) {
     throw new ReceiptModelOutputError('schema_validation', parsed.error.issues.slice(0, 8).map(issue => ({
       code: issue.code,

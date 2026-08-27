@@ -202,7 +202,11 @@ export async function handleParseReceiptRequest(
             || 'https://pengfanz.github.io/splitbill/',
           'x-title': 'Tally receipt splitting',
         },
-        body: JSON.stringify(buildReceiptOpenRouterRequest(parsedRequest, currentModels)),
+        body: JSON.stringify(buildReceiptOpenRouterRequest(
+          parsedRequest,
+          currentModels,
+          attemptIndex === 0 ? 'json-schema' : 'json-object',
+        )),
         signal: AbortSignal.timeout(remainingMs),
       })
     } catch {

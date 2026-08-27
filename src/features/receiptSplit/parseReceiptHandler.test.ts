@@ -263,8 +263,13 @@ describe('parse receipt Edge Function handler', () => {
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ result: receiptDraftFixture, model: 'fallback' })
     expect(fetcher).toHaveBeenCalledTimes(2)
-    expect(JSON.parse(fetcher.mock.calls[0][1].body as string).models).toEqual(['primary', 'fallback'])
-    expect(JSON.parse(fetcher.mock.calls[1][1].body as string).models).toEqual(['fallback'])
+    const firstRequest = JSON.parse(fetcher.mock.calls[0][1].body as string)
+    const compatibilityRequest = JSON.parse(fetcher.mock.calls[1][1].body as string)
+    expect(firstRequest.models).toEqual(['primary', 'fallback'])
+    expect(firstRequest.response_format.type).toBe('json_schema')
+    expect(compatibilityRequest.models).toEqual(['fallback'])
+    expect(compatibilityRequest.response_format).toEqual({ type: 'json_object' })
+    expect(JSON.parse(compatibilityRequest.messages[1].content[0].text).outputSchema).toBeDefined()
     expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
       attempt: 1,
       model: 'primary',
