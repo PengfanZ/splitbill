@@ -61,7 +61,7 @@ OPENROUTER_RECEIPT_MODEL=google/gemini-2.5-flash-lite
 OPENROUTER_RECEIPT_FALLBACK_MODEL=google/gemini-2.5-flash
 ```
 
-Receipt extraction uses the same server-only OpenRouter key. Flash Lite handles the normal path; full Flash is a single recovery attempt only when strict local receipt validation rejects the first result. The model names have reviewed defaults in source and may be overridden only when an alternative has passed the receipt contract suite.
+Receipt extraction uses the same server-only OpenRouter key. Flash Lite handles the normal strict-schema path; full Flash is a single JSON-compatibility recovery attempt only when local receipt validation rejects the first result. The recovery request includes the complete receipt contract and must pass the same local Zod validation. When a receipt has no printed subtotal, Tally derives it only from the validated item totals before reconciliation. The model names have reviewed defaults in source and may be overridden only when an alternative has passed the receipt contract suite.
 
 Use a dedicated key with a deliberate account limit. Never expose it as a `VITE_` variable; only the Supabase Edge Function may read it.
 
