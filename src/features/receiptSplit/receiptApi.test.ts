@@ -21,6 +21,11 @@ describe('receipt API client', () => {
     expect(() => createReceiptClient({ supabaseUrl: 'bad', publishableKey: 'key' })).toThrow(ReceiptApiError)
     expect(() => createReceiptClient({ supabaseUrl: 'http://example.com', publishableKey: 'key' })).toThrow('required')
     expect(() => createReceiptClient({ supabaseUrl: 'https://example.com', publishableKey: '' })).toThrow('required')
+    expect(() => createReceiptClient({
+      supabaseUrl: 'https://example.com',
+      publishableKey: 'key',
+      functionName: '../parse-receipt',
+    })).toThrow('required')
     expect(() => createReceiptClient({ supabaseUrl: 'http://localhost:54321', publishableKey: 'key', requestTimeoutMs: 0 })).toThrow('required')
     expect(createReceiptClient({ supabaseUrl: 'http://127.0.0.1:54321/', publishableKey: 'key' })).toBeTruthy()
     expect(createReceiptClient({ supabaseUrl: 'http://[::1]:54321', publishableKey: 'key' })).toBeTruthy()
@@ -35,6 +40,20 @@ describe('receipt API client', () => {
       credentials: 'omit',
       headers: expect.objectContaining({ apikey: 'key', 'x-tally-input-mode': 'receipt' }),
     }))
+  })
+
+  it('can target an isolated preview function without changing the production default', async () => {
+    const fetcher = vi.fn().mockResolvedValue(response({ result: receiptDraftFixture }))
+    const client = createReceiptClient({
+      supabaseUrl: 'https://project.supabase.co',
+      publishableKey: 'key',
+      functionName: 'parse-receipt-preview',
+    }, fetcher)
+    await client.parse(request)
+    expect(fetcher).toHaveBeenCalledWith(
+      'https://project.supabase.co/functions/v1/parse-receipt-preview',
+      expect.any(Object),
+    )
   })
 
   it('classifies input, network, provider, and malformed response failures', async () => {
@@ -85,5 +104,11 @@ describe('receipt API client', () => {
       VITE_SUPABASE_URL: 'https://project.supabase.co',
       VITE_SUPABASE_PUBLISHABLE_KEY: 'key',
     })).toBeTruthy()
+    expect(createConfiguredReceiptClient({
+      VITE_RECEIPT_SPLIT_ENABLED: 'true',
+      VITE_RECEIPT_FUNCTION_NAME: 'bad/path',
+      VITE_SUPABASE_URL: 'https://project.supabase.co',
+      VITE_SUPABASE_PUBLISHABLE_KEY: 'key',
+    })).toBeNull()
   })
 })

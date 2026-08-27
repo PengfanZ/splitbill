@@ -21,6 +21,7 @@ type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Respons
 type ReceiptConfiguration = {
   supabaseUrl: string
   publishableKey: string
+  functionName?: string
   requestTimeoutMs?: number
 }
 
@@ -49,6 +50,7 @@ async function readResponseJson(response: Response) {
 export function createReceiptClient(configuration: ReceiptConfiguration, fetcher: Fetcher = fetch) {
   const supabaseUrl = configuration.supabaseUrl.trim().replace(/\/+$/, '')
   const publishableKey = configuration.publishableKey.trim()
+  const functionName = configuration.functionName?.trim() || 'parse-receipt'
   const requestTimeoutMs = configuration.requestTimeoutMs ?? 30_000
   let parsedUrl: URL
   try {
@@ -59,6 +61,7 @@ export function createReceiptClient(configuration: ReceiptConfiguration, fetcher
   const localUrl = parsedUrl.protocol === 'http:'
     && ['localhost', '127.0.0.1', '[::1]'].includes(parsedUrl.hostname)
   if (!publishableKey
+    || !/^[a-z0-9](?:[a-z0-9-]{0,62})$/.test(functionName)
     || (parsedUrl.protocol !== 'https:' && !localUrl)
     || !Number.isInteger(requestTimeoutMs)
     || requestTimeoutMs < 1) {
@@ -76,7 +79,7 @@ export function createReceiptClient(configuration: ReceiptConfiguration, fetcher
 
       let response: Response
       try {
-        response = await fetcher(`${supabaseUrl}/functions/v1/parse-receipt`, {
+        response = await fetcher(`${supabaseUrl}/functions/v1/${functionName}`, {
           method: 'POST',
           headers: {
             apikey: publishableKey,
@@ -119,6 +122,7 @@ export function createReceiptClient(configuration: ReceiptConfiguration, fetcher
 
 type ReceiptEnvironment = {
   VITE_RECEIPT_SPLIT_ENABLED?: string
+  VITE_RECEIPT_FUNCTION_NAME?: string
   VITE_SUPABASE_URL?: string
   VITE_SUPABASE_PUBLISHABLE_KEY?: string
 }
@@ -131,7 +135,11 @@ export function createConfiguredReceiptClient(
   const publishableKey = environment.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() ?? ''
   if (!supabaseUrl || !publishableKey) return null
   try {
-    return createReceiptClient({ supabaseUrl, publishableKey })
+    return createReceiptClient({
+      supabaseUrl,
+      publishableKey,
+      functionName: environment.VITE_RECEIPT_FUNCTION_NAME,
+    })
   } catch {
     return null
   }

@@ -111,9 +111,10 @@ Receipt splitting uses the same isolated-preview boundary but remains a separate
 
 ```dotenv
 VITE_RECEIPT_SPLIT_ENABLED=true
+VITE_RECEIPT_FUNCTION_NAME=parse-receipt-preview
 ```
 
-Deploy the `parse-receipt` Edge Function and configure these preview-only server values:
+Deploy the same receipt handler under the isolated `parse-receipt-preview` Edge Function slug and configure these server values. Production builds omit `VITE_RECEIPT_FUNCTION_NAME` and continue calling `parse-receipt`:
 
 ```text
 AI_RECEIPT_ENABLED=true
