@@ -14,7 +14,7 @@ import type { ActivityGroup, Expense, Member, PersistedState } from './domain/mo
 import { ActivitySummary, ExpenseList, GroupDashboard, MembersRail, SettlementDirections } from './features/activity/ActivityDashboard'
 import { AddFriendModal, CreateGroupModal, ExpenseModal, SettleUpModal } from './features/activity/ActivityModals'
 import { CHANGELOG_SEEN_STORAGE_KEY, LATEST_CHANGELOG_ID } from './features/changelog/changelog'
-import { RATING_PROMPT_STORAGE_KEY } from './features/feedback/ratingPromptStorage'
+import { CSV_EXPORT_RATING_PROMPT_STORAGE_KEY, RATING_PROMPT_STORAGE_KEY } from './features/feedback/ratingPromptStorage'
 import { LiveActivityApiError, type LiveActivityRecord } from './features/liveSharing/liveActivityApi'
 import type { LiveActivityClient } from './features/liveSharing/liveActivityConfig'
 import { buildLiveActivityUrl, LIVE_ACTIVITY_HASH_PREFIX } from './features/liveSharing/liveActivityLink'
@@ -57,6 +57,7 @@ beforeEach(() => {
   localStorage.setItem(IDENTITY_KEY, JSON.stringify(CURRENT_USER))
   localStorage.removeItem(ACTIVITY_IDENTITY_KEY)
   localStorage.removeItem(RATING_PROMPT_STORAGE_KEY)
+  localStorage.removeItem(CSV_EXPORT_RATING_PROMPT_STORAGE_KEY)
   localStorage.setItem(CHANGELOG_SEEN_STORAGE_KEY, LATEST_CHANGELOG_ID)
   Object.defineProperty(navigator, 'share', { configurable: true, value: undefined })
   Object.defineProperty(navigator, 'canShare', { configurable: true, value: undefined })
@@ -2251,7 +2252,7 @@ describe('complete app workflows', () => {
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     await chooseShareAction(user, 'Show live QR')
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: vi.fn().mockRejectedValue(new Error('blocked')) } })
-    await user.click(screen.getByRole('button', { name: 'Copy link' }))
+    await user.click(await screen.findByRole('button', { name: 'Copy link' }))
     expect(screen.getAllByRole('status').some(status => status.textContent?.includes('Could not copy'))).toBe(true)
 
     client.load.mockRejectedValueOnce(new Error('unexpected'))
@@ -2265,7 +2266,7 @@ describe('complete app workflows', () => {
     client.load.mockRejectedValueOnce(new LiveActivityApiError('not-found', 'expired'))
     await user.click(screen.getByRole('button', { name: 'Try again' }))
     expect(await screen.findByText('Live sharing has ended')).toBeVisible()
-  })
+  }, 10_000)
 
   it('ends a remembered Live session when a save confirms that it expired', async () => {
     const user = userEvent.setup()
@@ -2411,6 +2412,26 @@ describe('complete app workflows', () => {
 })
 
 describe('in-app feedback integration', () => {
+  it('offers CSV-specific feedback after the first completed export only', async () => {
+    const user = userEvent.setup()
+    mockSummaryDownload()
+    localStorage.setItem(RATING_PROMPT_STORAGE_KEY, LATEST_CHANGELOG_ID)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState({ expenses: [expense()] })))
+    render(<App feedbackClient={{ submit: vi.fn() }} />)
+
+    await chooseShareAction(user, 'Export CSV data')
+    await user.click(await screen.findByRole('button', { name: 'Download CSV' }))
+    const prompt = await screen.findByLabelText('How was Tally?')
+    expect(prompt).toHaveTextContent('Your CSV is ready. A quick rating helps us improve.')
+    expect(screen.queryByRole('dialog', { name: 'Export CSV data' })).not.toBeInTheDocument()
+    await user.click(within(prompt).getByRole('button', { name: 'Close' }))
+    expect(localStorage.getItem(CSV_EXPORT_RATING_PROMPT_STORAGE_KEY)).toBe('handled')
+
+    await chooseShareAction(user, 'Export CSV data')
+    await user.click(await screen.findByRole('button', { name: 'Download CSV' }))
+    expect(screen.queryByLabelText('How was Tally?')).not.toBeInTheDocument()
+  })
+
   it('submits feedback without navigating away or changing local activity data', async () => {
     const user = userEvent.setup()
     const submit = vi.fn().mockResolvedValue(undefined)

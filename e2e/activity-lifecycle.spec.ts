@@ -63,6 +63,20 @@ test('exports CSV data and keeps the export flow usable on mobile', async ({ pag
   expect(csv).toContain(',,"Dinner, noodles",42.00')
   expect(csv).toContain(',CSV Tester,21.00,42.00,21.00,')
   expect(csv).toContain(',Maya,21.00,0.00,-21.00,')
+
+  const prompt = page.getByLabel('How was Tally?')
+  await expect(prompt).toBeVisible()
+  await expect(prompt).toContainText('Your CSV is ready. A quick rating helps us improve.')
+  await prompt.getByRole('button', { name: 'Close' }).click()
+
+  await page.getByRole('button', { name: 'Share', exact: true }).click()
+  await page.getByRole('button', { name: /^Export CSV data/ }).click()
+  const secondDownloadPromise = page.waitForEvent('download')
+  await page.getByRole('dialog', { name: 'Export CSV data' })
+    .getByRole('button', { name: 'Download CSV' })
+    .click()
+  await secondDownloadPromise
+  await expect(page.getByLabel('How was Tally?')).toHaveCount(0)
 })
 
 test('follows the system theme and persists an explicit appearance override', async ({ browser }) => {

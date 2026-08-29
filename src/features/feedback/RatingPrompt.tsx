@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Button } from '../../components/Button'
 import type { AnalyticsSurface } from '../../analytics'
 import { useLocalization } from '../../i18n/LocalizationContext'
+import type { TranslationKey } from '../../i18n/localization'
 import { FeedbackRatingField } from './FeedbackRatingField'
 import { FeedbackApiError, type FeedbackClient, type FeedbackRating } from './feedbackApi'
 
@@ -12,6 +13,11 @@ function promptErrorKey(error: unknown) {
     : 'feedbackForm.errorUnavailable' as const
 }
 
+function promptDescriptionKey(rating: FeedbackRating | null, trigger: 'share' | 'csv-export'): TranslationKey {
+  if (rating !== null) return 'ratingPrompt.followUpDescription'
+  return trigger === 'csv-export' ? 'ratingPrompt.csvExportDescription' : 'ratingPrompt.description'
+}
+
 export function RatingPrompt({
   client,
   onAddNote,
@@ -19,6 +25,7 @@ export function RatingPrompt({
   onSubmitted,
   release,
   surface,
+  trigger = 'share',
 }: {
   client: Pick<FeedbackClient, 'submit'>
   onAddNote: (rating: FeedbackRating | null) => void
@@ -26,6 +33,7 @@ export function RatingPrompt({
   onSubmitted: () => void
   release: string
   surface: AnalyticsSurface
+  trigger?: 'share' | 'csv-export'
 }) {
   const { locale, t } = useLocalization()
   const [rating, setRating] = useState<FeedbackRating | null>(null)
@@ -59,7 +67,7 @@ export function RatingPrompt({
       </button>
       <div className="rating-prompt-copy" aria-live="polite">
         <strong>{t(rating === null ? 'ratingPrompt.title' : 'ratingPrompt.followUpTitle')}</strong>
-        <span>{t(rating === null ? 'ratingPrompt.description' : 'ratingPrompt.followUpDescription')}</span>
+        <span>{t(promptDescriptionKey(rating, trigger))}</span>
       </div>
       <FeedbackRatingField
         compact

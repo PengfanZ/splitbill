@@ -24,7 +24,9 @@ import type { FeedbackClient, FeedbackRating } from './features/feedback/feedbac
 import type { ReceiptClient } from './features/receiptSplit/receiptApi'
 import { trackReceiptConfirmed, withReceiptAnalytics } from './features/receiptSplit/receiptAnalytics'
 import {
+  markCsvExportRatingPromptHandled,
   markRatingPromptHandled,
+  shouldShowCsvExportRatingPrompt,
   shouldShowRatingPrompt,
 } from './features/feedback/ratingPromptStorage'
 import {
@@ -73,6 +75,15 @@ type ConfirmationRequest = {
   onConfirm: () => boolean | void | Promise<boolean | void>
   title: string
 }
+type RatingPromptTrigger = 'share' | 'csv-export'
+
+function markRatingPromptTriggerHandled(trigger: RatingPromptTrigger | null) {
+  if (trigger === 'csv-export') {
+    markCsvExportRatingPromptHandled()
+    return
+  }
+  markRatingPromptHandled(LATEST_CHANGELOG_ID)
+}
 
 const LiveActivityQrModal = lazy(() => import('./features/sharing/LiveActivityQrModal').then(module => ({ default: module.LiveActivityQrModal })))
 const ChangelogModal = lazy(() => import('./features/changelog/ChangelogModal').then(module => ({ default: module.ChangelogModal })))
@@ -106,7 +117,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
   const [confirmationBusy, setConfirmationBusy] = useState(false)
   const [feedbackNotice, setFeedbackNotice] = useState<string | null>(null)
   const [feedbackInitialRating, setFeedbackInitialRating] = useState<FeedbackRating | null>(null)
-  const [ratingPromptOpen, setRatingPromptOpen] = useState(false)
+  const [ratingPromptTrigger, setRatingPromptTrigger] = useState<RatingPromptTrigger | null>(null)
   const selectedGroupIdAtLoad = state.selectedGroupId ?? state.groups[0]?.id ?? null
   const live = useLiveActivitySession({
     initialSelectedGroupId: selectedGroupIdAtLoad,
@@ -176,7 +187,10 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
     [analyticsClient, analyticsSurface, locale, receiptClient],
   )
   const handleSuccessfulShare = () => {
-    if (feedbackClient && shouldShowRatingPrompt(LATEST_CHANGELOG_ID)) setRatingPromptOpen(true)
+    if (feedbackClient && shouldShowRatingPrompt(LATEST_CHANGELOG_ID)) setRatingPromptTrigger('share')
+  }
+  const handleCsvDownloaded = () => {
+    if (feedbackClient && shouldShowCsvExportRatingPrompt()) setRatingPromptTrigger('csv-export')
   }
   const sharing = useActivitySharing({
     analyticsClient,
@@ -217,8 +231,8 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
   }
 
   const openFeedbackFromRatingPrompt = (rating: FeedbackRating | null) => {
-    markRatingPromptHandled(LATEST_CHANGELOG_ID)
-    setRatingPromptOpen(false)
+    markRatingPromptTriggerHandled(ratingPromptTrigger)
+    setRatingPromptTrigger(null)
     setFeedbackInitialRating(rating)
     setModal('feedback')
   }
@@ -229,14 +243,14 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
   }
 
   const closeRatingPrompt = () => {
-    markRatingPromptHandled(LATEST_CHANGELOG_ID)
-    setRatingPromptOpen(false)
+    markRatingPromptTriggerHandled(ratingPromptTrigger)
+    setRatingPromptTrigger(null)
   }
 
   const finishFeedback = () => {
     analyticsClient?.track('feedback_submitted', analyticsSurface, locale)
-    markRatingPromptHandled(LATEST_CHANGELOG_ID)
-    setRatingPromptOpen(false)
+    markRatingPromptTriggerHandled(ratingPromptTrigger)
+    setRatingPromptTrigger(null)
     setFeedbackInitialRating(null)
     setModal(null)
     setFeedbackNotice(t('feedbackForm.success'))
@@ -642,7 +656,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
       {modal === 'settlement' && activeGroup && settlingDirection ? <SettleUpModal group={activeGroup} settlement={settlingDirection} onClose={closeSettleUpModal} onSave={recordSettlement} saving={live.saving || liveEditBlocked} /> : null}
       {modal === 'live-identity' && liveActivity && liveIdentityMode ? <LiveActivityIdentityModal members={liveMembers} mode={liveIdentityMode} onClose={() => { setModal(null); setLiveIdentityMode(null) }} onSave={viewerId => saveLiveActivityCopy(liveActivity, liveIdentityMode, viewerId)} /> : null}
       {modal === 'join' ? <JoinActivityModal onClose={() => setModal(null)} onJoin={joinSharedActivity} /> : null}
-      {modal === 'csv-export' && activeGroup ? <Suspense fallback={null}><CsvExportModal group={activeGroup} members={activeMembers} expenses={activeExpenses} currentMemberId={activeMemberId} onClose={() => setModal(null)} /></Suspense> : null}
+      {modal === 'csv-export' && activeGroup ? <Suspense fallback={null}><CsvExportModal group={activeGroup} members={activeMembers} expenses={activeExpenses} currentMemberId={activeMemberId} onClose={() => setModal(null)} onDownloaded={handleCsvDownloaded} /></Suspense> : null}
       {qrShare ? <Suspense fallback={null}><LiveActivityQrModal groupName={qrShare.groupName} url={qrShare.url} activityCode={qrShare.activityCode} onClose={sharing.closeQrShare} onCopy={() => sharing.copyQrLink(qrShare)} onShare={() => sharing.shareQrLink(qrShare)} /></Suspense> : null}
       {changelogState.open ? <Suspense fallback={null}><ChangelogModal onClose={closeChangelog} /></Suspense> : null}
       {modal === 'feedback' ? <Suspense fallback={null}><FeedbackModal
@@ -671,10 +685,11 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
         setIdentity(createIdentity(name))
         setModal(null)
       }} /> : null}
-      {ratingPromptOpen && feedbackClient ? <Suspense fallback={null}><RatingPrompt
+      {ratingPromptTrigger && feedbackClient ? <Suspense fallback={null}><RatingPrompt
         client={feedbackClient}
         release={LATEST_CHANGELOG_ID}
         surface={analyticsSurface}
+        trigger={ratingPromptTrigger}
         onDismiss={closeRatingPrompt}
         onAddNote={openFeedbackFromRatingPrompt}
         onSubmitted={finishFeedback}

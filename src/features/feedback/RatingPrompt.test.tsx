@@ -10,11 +10,13 @@ function renderPrompt({
   onAddNote = vi.fn(),
   onDismiss = vi.fn(),
   onSubmitted = vi.fn(),
+  trigger = 'share',
 }: {
   client?: Pick<FeedbackClient, 'submit'>
   onAddNote?: (rating: 1 | 2 | 3 | 4 | 5 | null) => void
   onDismiss?: () => void
   onSubmitted?: () => void
+  trigger?: 'share' | 'csv-export'
 } = {}) {
   return {
     client,
@@ -30,6 +32,7 @@ function renderPrompt({
           onSubmitted={onSubmitted}
           release="2026-08-live-controls"
           surface="local"
+          trigger={trigger}
         />
       </LocalizationProvider>,
     ),
@@ -37,6 +40,11 @@ function renderPrompt({
 }
 
 describe('RatingPrompt', () => {
+  it('explains when the prompt follows a CSV export', () => {
+    renderPrompt({ trigger: 'csv-export' })
+    expect(screen.getByText('Your CSV is ready. A quick rating helps us improve.')).toBeVisible()
+  })
+
   it('keeps the prompt open after a star is chosen and submits rating only on request', async () => {
     const user = userEvent.setup()
     const submit = vi.fn().mockResolvedValue(undefined)
