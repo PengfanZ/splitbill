@@ -22,7 +22,7 @@ test.beforeEach(async ({ context }) => {
   }))
 })
 
-test('exports categorized CSV data and keeps the export flow usable on mobile', async ({ page }) => {
+test('exports CSV data and keeps the export flow usable on mobile', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('./')
   await page.getByLabel('Display name').fill('CSV Tester')
@@ -34,8 +34,6 @@ test('exports categorized CSV data and keeps the export flow usable on mobile', 
 
   await page.getByRole('button', { name: 'Add expense' }).click()
   await page.getByLabel('Description').fill('Dinner, noodles')
-  await page.getByRole('button', { name: 'Category' }).click()
-  await page.getByRole('option', { name: 'Food & dining' }).click()
   await page.getByRole('spinbutton', { name: 'Amount' }).fill('42')
   await page.getByRole('button', { name: 'Save expense' }).click()
 
@@ -43,7 +41,6 @@ test('exports categorized CSV data and keeps the export flow usable on mobile', 
   await page.getByRole('button', { name: /^Export CSV data/ }).click()
   const dialog = page.getByRole('dialog', { name: 'Export CSV data' })
   await expect(dialog).toBeVisible()
-  await expect(dialog.getByText('Food & dining')).toBeVisible()
   await dialog.evaluate(element => Promise.all(element.getAnimations().map(animation => animation.finished)))
   const dialogBounds = await dialog.evaluate(element => {
     const bounds = element.getBoundingClientRect()
@@ -63,7 +60,7 @@ test('exports categorized CSV data and keeps the export flow usable on mobile', 
   expect(downloadPath).not.toBeNull()
   const csv = await readFile(downloadPath!, 'utf8')
   expect(csv.startsWith('\uFEFFrecord_type,recorded_at')).toBe(true)
-  expect(csv).toContain('food,"Dinner, noodles",42.00')
+  expect(csv).toContain(',,"Dinner, noodles",42.00')
   expect(csv).toContain(',CSV Tester,21.00,42.00,21.00,')
   expect(csv).toContain(',Maya,21.00,0.00,-21.00,')
 })
@@ -142,9 +139,9 @@ test('automatically uses Simplified Chinese in China and keeps the choice across
     const csvPath = await (await csvDownload).path()
     expect(csvPath).not.toBeNull()
     const localizedCsv = await readFile(csvPath!, 'utf8')
-    expect(localizedCsv.startsWith('\uFEFF记录类型,记录时间,最后编辑时间,分类')).toBe(true)
+    expect(localizedCsv.startsWith('\uFEFF记录类型,记录时间,最后编辑时间,说明')).toBe(true)
     expect(localizedCsv).toContain('支出,')
-    expect(localizedCsv).toContain(',未分类,晚餐,80.00,鹏帆,')
+    expect(localizedCsv).toContain(',,晚餐,80.00,鹏帆,')
     expect(localizedCsv).toContain(',EUR,平均分摊,')
     expect(localizedCsv).not.toContain('record_type')
 

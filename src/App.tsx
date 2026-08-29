@@ -342,7 +342,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
       const saved = await live.save(
         { ...liveActivity, expenses: [expense, ...liveActivity.expenses] },
         t('live.addedExpense', { title: expense.title }),
-        JSON.stringify(['add-expense', expense.title, expense.amount, expense.payerId, expense.splitMethod, expense.shares, expense.category]),
+        JSON.stringify(['add-expense', expense.title, expense.amount, expense.payerId, expense.splitMethod, expense.shares]),
       )
       if (saved) {
         analyticsClient?.track('expense_added', 'live', locale)
@@ -363,7 +363,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
       const saved = await live.save(
         { ...liveActivity, expenses: [...expenses, ...liveActivity.expenses] },
         t('live.addedExpenses', { count: expenses.length }),
-        JSON.stringify(['add-expenses', expenses.map(item => [item.title, item.amount, item.payerId, item.splitMethod, item.shares, item.category])]),
+        JSON.stringify(['add-expenses', expenses.map(item => [item.title, item.amount, item.payerId, item.splitMethod, item.shares])]),
       )
       if (saved) {
         analyticsClient?.track('expense_added', 'live', locale)
@@ -382,7 +382,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
       const saved = await live.save({
         ...liveActivity,
         expenses: liveActivity.expenses.map(item => item.id === expense.id ? expense : item),
-      }, t('live.updatedExpense', { title: expense.title }), JSON.stringify(['update-expense', expense.id, expense.title, expense.amount, expense.payerId, expense.splitMethod, expense.shares, expense.category]))
+      }, t('live.updatedExpense', { title: expense.title }), JSON.stringify(['update-expense', expense.id, expense.title, expense.amount, expense.payerId, expense.splitMethod, expense.shares]))
       if (saved) closeExpenseModal()
       return
     }

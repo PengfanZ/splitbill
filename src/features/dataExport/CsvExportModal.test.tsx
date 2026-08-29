@@ -10,8 +10,8 @@ const members: Member[] = [
   { id: 'maya', name: 'Maya', initials: 'M', color: '#222' },
 ]
 const expenses: Expense[] = [
-  { id: 'dinner', groupId: 'trip', title: 'Dinner', amount: 30, payerId: 'me', splitMethod: 'equal', shares: { me: 15, maya: 15 }, createdAt: '2026-08-20T23:30:00.000Z', category: 'food' },
-  { id: 'taxi', groupId: 'trip', title: 'Taxi', amount: 10, payerId: 'maya', splitMethod: 'equal', shares: { me: 5, maya: 5 }, createdAt: '2026-08-21T01:00:00.000Z', category: 'transport' },
+  { id: 'dinner', groupId: 'trip', title: 'Dinner', amount: 30, payerId: 'me', splitMethod: 'equal', shares: { me: 15, maya: 15 }, createdAt: '2026-08-20T23:30:00.000Z' },
+  { id: 'taxi', groupId: 'trip', title: 'Taxi', amount: 10, payerId: 'maya', splitMethod: 'equal', shares: { me: 5, maya: 5 }, createdAt: '2026-08-21T01:00:00.000Z' },
   { id: 'payment', groupId: 'trip', title: 'Settlement payment', amount: 3, payerId: 'maya', splitMethod: 'exact', shares: { me: 3 }, createdAt: '2026-08-21T02:00:00.000Z', kind: 'settlement' },
 ]
 
@@ -29,8 +29,6 @@ describe('CSV export modal', () => {
     expect(screen.getByRole('button', { name: 'Person to export' })).toHaveTextContent('Maya')
     expect(screen.getByText('Personal spending').nextSibling).toHaveTextContent('$20.00')
     expect(screen.getByText('Settlement flow').nextSibling).toHaveTextContent('−$3.00')
-    expect(screen.getByText('Food & dining')).toBeVisible()
-    expect(screen.getByText('Transport')).toBeVisible()
 
     await user.click(screen.getByRole('button', { name: 'Person to export' }))
     await user.click(screen.getByRole('option', { name: 'Alex' }))

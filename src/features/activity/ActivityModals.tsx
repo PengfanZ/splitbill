@@ -6,7 +6,6 @@ import { Button } from '../../components/Button'
 import { selectInputContents } from '../../components/inputInteractions'
 import { SelectMenu, type SelectMenuOption } from '../../components/SelectMenu'
 import { activityCurrency, currencyLabel, currencySymbol, defaultCurrencyForLocale, SUPPORTED_CURRENCIES, type CurrencyCode } from '../../domain/currency'
-import { EXPENSE_CATEGORIES, expenseCategory, type ExpenseCategory } from '../../domain/expenseCategories'
 import { createEqualShares, createExactShares, createExpenseTimestamp, createSettlementPayment, money } from '../../domain/expenses'
 import { makeId, mergeMemberNames } from '../../domain/members'
 import type { ActivityGroup, Expense, Member, Settlement, SplitMethod } from '../../domain/models'
@@ -151,7 +150,6 @@ export function ExpenseModal({ group, members, expense, aiExpenseClient = null, 
   const [amount, setAmount] = useState(expense ? expense.amount.toString() : '')
   const [payerId, setPayerId] = useState(expense?.payerId ?? currentMemberId ?? members[0]?.id ?? 'me')
   const [method, setMethod] = useState<SplitMethod>(expense?.splitMethod ?? 'equal')
-  const [category, setCategory] = useState<ExpenseCategory>(() => expenseCategory(expense ?? {}))
   const aiAvailable = Boolean(aiExpenseClient && !expense)
   const receiptAvailable = Boolean(receiptClient && !expense)
   const assistedEntryAvailable = aiAvailable || receiptAvailable
@@ -169,10 +167,6 @@ export function ExpenseModal({ group, members, expense, aiExpenseClient = null, 
     { value: 'equal', label: t('expense.equally') },
     { value: 'exact', label: t('expense.exactAmounts') },
   ]
-  const categoryOptions: ReadonlyArray<SelectMenuOption<ExpenseCategory>> = EXPENSE_CATEGORIES.map(value => ({
-    value,
-    label: t(`expense.category.${value}`),
-  }))
   const [equalParticipantIds, setEqualParticipantIds] = useState<string[]>(() => {
     if (expense?.splitMethod !== 'equal') return members.map(member => member.id)
     const savedParticipantIds = new Set(Object.keys(expense.shares))
@@ -276,7 +270,6 @@ export function ExpenseModal({ group, members, expense, aiExpenseClient = null, 
       shares,
       createdAt: expense?.createdAt ?? savedAt,
       ...(expense ? { updatedAt: savedAt } : {}),
-      category,
     })
   }
 
@@ -339,7 +332,6 @@ export function ExpenseModal({ group, members, expense, aiExpenseClient = null, 
       ) : entryMode === 'manual' ? <form onSubmit={submit}>
         {aiDraftApplied ? <div className="split-note ai-draft-note" role="status"><Sparkles size={18} /><span><b>{t(editingBatchIndex === null ? 'expense.aiDraftReady' : 'expense.batchEditing', editingBatchIndex === null ? undefined : { current: editingBatchIndex + 1, total: aiBatchDrafts.length })}</b><small>{t(editingBatchIndex === null ? 'expense.aiDraftReview' : 'expense.batchEditingHelp')}</small></span></div> : null}
         <label>{t('expense.description')}<input autoFocus value={title} onChange={event => setTitle(event.target.value)} placeholder={t('expense.descriptionPlaceholder')} maxLength={200} required /></label>
-        <label>{t('expense.category')}<SelectMenu value={category} options={categoryOptions} onChange={setCategory} ariaLabel={t('expense.category')} menuLabel={t('expense.categoryMenu')} /></label>
         <label>{t('expense.amount')}<span className="modal-amount"><i>{currencySymbol(currency, locale)}</i><input aria-label={t('expense.amount')} value={amount} onChange={event => setAmount(event.target.value)} onFocus={selectInputContents} type="number" inputMode="decimal" min="0.01" max={MAX_ACTIVITY_AMOUNT} step="0.01" placeholder="0.00" required /></span></label>
         <div className="form-grid">
           <label>{t('expense.paidBy')}<SelectMenu value={payerId} options={payerOptions} onChange={setPayerId} ariaLabel={t('expense.paidBy')} menuLabel={t('expense.paidBy')} /></label>

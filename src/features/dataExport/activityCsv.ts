@@ -1,6 +1,5 @@
 import type { CurrencyCode } from '../../domain/currency'
-import { expenseCategory, type ExpenseCategory } from '../../domain/expenseCategories'
-import { getSettlementRecipientId, isSettlementPayment, spendingExpenses } from '../../domain/expenses'
+import { getSettlementRecipientId, isSettlementPayment } from '../../domain/expenses'
 import type { ActivityGroup, Expense, Member } from '../../domain/models'
 import { translate, type AppLocale, type TranslationKey } from '../../i18n/localization'
 
@@ -12,7 +11,6 @@ export type CsvExportRow = {
   recordType: 'expense' | 'settlement'
   recordedAt: string
   lastEditedAt: string
-  category: ExpenseCategory | ''
   description: string
   expenseTotal: number | ''
   paidBy: string
@@ -41,7 +39,6 @@ const CSV_COLUMNS: ReadonlyArray<[keyof CsvExportRow, TranslationKey]> = [
   ['recordType', 'csvExport.column.recordType'],
   ['recordedAt', 'csvExport.column.recordedAt'],
   ['lastEditedAt', 'csvExport.column.lastEditedAt'],
-  ['category', 'csvExport.column.category'],
   ['description', 'csvExport.column.description'],
   ['expenseTotal', 'csvExport.column.expenseTotal'],
   ['paidBy', 'csvExport.column.paidBy'],
@@ -56,16 +53,6 @@ const CSV_COLUMNS: ReadonlyArray<[keyof CsvExportRow, TranslationKey]> = [
   ['splitMethod', 'csvExport.column.splitMethod'],
   ['expenseId', 'csvExport.column.expenseId'],
 ]
-
-const CATEGORY_TRANSLATION_KEYS: Record<ExpenseCategory, TranslationKey> = {
-  food: 'expense.category.food',
-  transport: 'expense.category.transport',
-  accommodation: 'expense.category.accommodation',
-  entertainment: 'expense.category.entertainment',
-  shopping: 'expense.category.shopping',
-  other: 'expense.category.other',
-  uncategorized: 'expense.category.uncategorized',
-}
 
 const RECORD_TYPE_TRANSLATION_KEYS: Record<CsvExportRow['recordType'], TranslationKey> = {
   expense: 'csvExport.recordType.expense',
@@ -100,7 +87,6 @@ function expenseRows(
         recordType: 'expense',
         recordedAt: expense.createdAt,
         lastEditedAt: expense.updatedAt ?? '',
-        category: expenseCategory(expense),
         description: expense.title,
         expenseTotal: expense.amount,
         paidBy: payerName,
@@ -135,7 +121,6 @@ function settlementRows(
     recordType: 'settlement',
     recordedAt: expense.createdAt,
     lastEditedAt: expense.updatedAt ?? '',
-    category: '',
     description: expense.title,
     expenseTotal: '',
     paidBy: from,
@@ -179,19 +164,6 @@ export function csvExportPreview(
   }
 }
 
-export function memberCategoryTotals(expenses: Expense[], memberId: string) {
-  const totals = new Map<ExpenseCategory, number>()
-  spendingExpenses(expenses).forEach(expense => {
-    const share = expense.shares[memberId] ?? 0
-    if (share <= 0) return
-    const category = expenseCategory(expense)
-    totals.set(category, (totals.get(category) ?? 0) + share)
-  })
-  return [...totals.entries()]
-    .map(([category, amount]) => ({ category, amount }))
-    .sort((left, right) => right.amount - left.amount)
-}
-
 function csvValue(value: CsvExportRow[keyof CsvExportRow]) {
   if (typeof value === 'number') return value.toFixed(2)
   const text = String(value)
@@ -202,7 +174,6 @@ function localizedCsvValue(row: CsvExportRow, key: keyof CsvExportRow, locale: A
   const value = row[key]
   if (locale === 'en' || value === '') return csvValue(value)
   if (key === 'recordType') return csvValue(translate(locale, RECORD_TYPE_TRANSLATION_KEYS[row.recordType]))
-  if (key === 'category' && row.category) return csvValue(translate(locale, CATEGORY_TRANSLATION_KEYS[row.category]))
   if (key === 'splitMethod' && row.splitMethod) return csvValue(translate(locale, SPLIT_METHOD_TRANSLATION_KEYS[row.splitMethod]))
   if (key === 'description' && row.recordType === 'settlement') return csvValue(translate(locale, 'dashboard.settlementPayment'))
   return csvValue(value)

@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import { SUPPORTED_CURRENCIES } from '../../domain/currency'
-import { EXPENSE_CATEGORIES } from '../../domain/expenseCategories'
 import type { ActivityGroup, Expense, Member } from '../../domain/models'
 import {
   MAX_ACTIVITY_AMOUNT,
@@ -43,7 +42,6 @@ const expenseSchema = z.object({
   createdAt: activityTimestampSchema,
   updatedAt: activityTimestampSchema.optional(),
   kind: z.enum(['expense', 'settlement']).optional(),
-  category: z.enum(EXPENSE_CATEGORIES).optional(),
 }).passthrough().superRefine((expense, context) => {
   const recipients = Object.entries(expense.shares)
   const shareTotal = recipients.reduce((total, [, amount]) => total + amount, 0)

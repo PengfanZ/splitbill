@@ -5,7 +5,6 @@ import {
   csvExportFilename,
   csvExportPreview,
   downloadCsv,
-  memberCategoryTotals,
   serializeCsv,
 } from './activityCsv'
 
@@ -18,7 +17,7 @@ const members: Member[] = [
 const expenses: Expense[] = [
   {
     id: 'dinner', groupId: 'trip', title: 'Dinner, "great"\nnight', amount: 30, payerId: 'me', splitMethod: 'exact',
-    shares: { me: 20, maya: 10, 'other-alex': 0 }, createdAt: '2026-08-20T23:30:00.000Z', updatedAt: '2026-08-21T00:00:00.000Z', category: 'food',
+    shares: { me: 20, maya: 10, 'other-alex': 0 }, createdAt: '2026-08-20T23:30:00.000Z', updatedAt: '2026-08-21T00:00:00.000Z',
   },
   {
     id: 'taxi', groupId: 'trip', title: 'Taxi', amount: 10, payerId: 'maya', splitMethod: 'equal',
@@ -40,7 +39,7 @@ describe('activity CSV export', () => {
 
     expect(rows).toHaveLength(6)
     expect(rows[0]).toMatchObject({
-      recordType: 'expense', category: 'food', expenseTotal: 30, paidBy: 'Alex', person: 'Alex',
+      recordType: 'expense', expenseTotal: 30, paidBy: 'Alex', person: 'Alex',
       personShare: 20, personPaid: 30, balanceContribution: 10, currency: 'CNY', expenseId: 'dinner',
     })
     expect(rows.filter(row => row.recordType === 'settlement')).toEqual([
@@ -86,14 +85,6 @@ describe('activity CSV export', () => {
     ])
   })
 
-  it('calculates descending personal category totals and ignores zero or settlement rows', () => {
-    expect(memberCategoryTotals(expenses, 'me')).toEqual([
-      { category: 'food', amount: 20 },
-      { category: 'uncategorized', amount: 5 },
-    ])
-    expect(memberCategoryTotals(expenses, 'other-alex')).toEqual([])
-  })
-
   it('uses stable ids as a readable fallback when activity members are missing', () => {
     const groupWithoutCurrency = { ...group, currency: undefined }
     const missingMembers = buildCsvExportRows(groupWithoutCurrency, [], [expenses[0], expenses[2]], { type: 'activity' })
@@ -114,10 +105,10 @@ describe('activity CSV export', () => {
     const csv = serializeCsv(buildCsvExportRows(group, members, expenses, { type: 'activity' }), 'zh-CN')
     const [header] = csv.slice(1).split('\r\n')
 
-    expect(header).toBe('记录类型,记录时间,最后编辑时间,分类,说明,支出总额,付款人,成员,成员应承担,成员已垫付,余额影响,还款净流入,还款人,收款人,币种,分摊方式,支出 ID')
-    expect(csv).toContain('支出,2026-08-20T23:30:00.000Z,2026-08-21T00:00:00.000Z,餐饮')
+    expect(header).toBe('记录类型,记录时间,最后编辑时间,说明,支出总额,付款人,成员,成员应承担,成员已垫付,余额影响,还款净流入,还款人,收款人,币种,分摊方式,支出 ID')
+    expect(csv).toContain('支出,2026-08-20T23:30:00.000Z,2026-08-21T00:00:00.000Z,"Dinner, ""great""')
     expect(csv).toContain(',CNY,指定金额,dinner')
-    expect(csv).toContain('还款,2026-08-21T02:00:00.000Z,,,还款记录,')
+    expect(csv).toContain('还款,2026-08-21T02:00:00.000Z,,还款记录,')
     expect(csv).not.toContain('record_type')
   })
 

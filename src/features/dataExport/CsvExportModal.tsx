@@ -13,7 +13,6 @@ import {
   csvExportFilename,
   csvExportPreview,
   downloadCsv,
-  memberCategoryTotals,
   serializeCsv,
   type CsvExportScope,
 } from './activityCsv'
@@ -53,10 +52,6 @@ export function CsvExportModal({
     [expenses, group, members, scope],
   )
   const preview = useMemo(() => csvExportPreview(rows), [rows])
-  const categories = useMemo(
-    () => scopeType === 'member' && memberId ? memberCategoryTotals(expenses, memberId) : [],
-    [expenses, memberId, scopeType],
-  )
   const currency = activityCurrency(group)
 
   const exportCsv = () => {
@@ -117,12 +112,6 @@ export function CsvExportModal({
             </>
           )}
         </div>
-        {categories.length ? (
-          <div className="csv-category-preview">
-            <span>{t('csvExport.categoryBreakdown')}</span>
-            <div>{categories.map(item => <span key={item.category}><b>{t(`expense.category.${item.category}`)}</b>{money(item.amount, currency, locale)}</span>)}</div>
-          </div>
-        ) : null}
       </section>
 
       <div className="csv-includes">

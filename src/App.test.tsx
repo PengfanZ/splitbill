@@ -739,7 +739,6 @@ describe('modals', () => {
     fireEvent.submit(container.querySelector('form')!)
     expect(onSave).not.toHaveBeenCalled()
     await user.type(screen.getByLabelText('Description'), 'Lunch')
-    await chooseSelectOption(user, 'Category', 'Food & dining')
     await user.type(screen.getByLabelText('Amount'), '10')
     await chooseSelectOption(user, 'Paid by', 'Maya Chen')
     expect(screen.getByText('3 of 3 selected')).toBeVisible()
@@ -752,7 +751,6 @@ describe('modals', () => {
       title: 'Lunch',
       amount: 10,
       payerId: 'maya',
-      category: 'food',
       shares: { me: 5, maya: 5 },
       createdAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
     }))
@@ -839,7 +837,6 @@ describe('modals', () => {
     expect(onSave).toHaveBeenCalledWith({
       ...existing,
       shares: { me: 10, maya: 20, jordan: 0 },
-      category: 'uncategorized',
       updatedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
     })
   })

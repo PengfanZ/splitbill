@@ -141,6 +141,5 @@ export function createExpenseFromReceiptSplit({
     splitMethod: 'exact',
     shares: result.shares,
     createdAt,
-    category: 'food',
   }
 }

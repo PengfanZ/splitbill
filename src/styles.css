@@ -815,11 +815,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .csv-preview-metrics > div + div { border-left: 1px solid var(--green-border); }
 .csv-preview-metrics span { overflow: hidden; color: var(--muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .csv-preview-metrics strong { overflow: hidden; color: var(--green); font-family: var(--serif); font-size: 18px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
-.csv-category-preview { border-top: 1px solid var(--green-border); padding: 12px 15px 14px; display: grid; gap: 8px; }
-.csv-category-preview > span { color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
-.csv-category-preview > div { display: flex; flex-wrap: wrap; gap: 6px; }
-.csv-category-preview > div > span { min-height: 28px; border: 1px solid var(--green-border); border-radius: 999px; padding: 5px 9px; display: flex; align-items: center; gap: 6px; background: var(--surface-glass); color: var(--green); font-size: 10px; }
-.csv-category-preview b { color: var(--ink); font-weight: 700; }
 .csv-includes { border: 1px solid var(--line); border-radius: 12px; padding: 12px 13px; display: grid; gap: 3px; background: var(--surface-subtle); }
 .csv-includes b { font-size: 11px; }
 .csv-includes p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.45; }
