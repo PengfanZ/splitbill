@@ -10,9 +10,10 @@ import type { ActivityGroup, Expense, Member } from '../../domain/models'
 import { useLocalization } from '../../i18n/LocalizationContext'
 import {
   buildCsvExportRows,
+  canNativeShareCsv,
   csvExportFilename,
   csvExportPreview,
-  downloadCsv,
+  deliverCsv,
   serializeCsv,
   type CsvExportScope,
 } from './activityCsv'
@@ -38,6 +39,9 @@ export function CsvExportModal({
     : members[0]?.id ?? ''
   const [scopeType, setScopeType] = useState<CsvExportScope['type']>('member')
   const [memberId, setMemberId] = useState(defaultMemberId)
+  const [exporting, setExporting] = useState(false)
+  const [exportFailed, setExportFailed] = useState(false)
+  const nativeFileShare = useMemo(() => canNativeShareCsv(), [])
   const memberOptions: ReadonlyArray<SelectMenuOption<string>> = members.map(member => ({
     value: member.id,
     label: member.name,
@@ -54,11 +58,19 @@ export function CsvExportModal({
   const preview = useMemo(() => csvExportPreview(rows), [rows])
   const currency = activityCurrency(group)
 
-  const exportCsv = () => {
-    downloadCsv(
+  const exportCsv = async () => {
+    setExportFailed(false)
+    setExporting(true)
+    const result = await deliverCsv(
       serializeCsv(rows, locale),
       csvExportFilename(group.name, scope.type === 'member' ? selectedMember?.name ?? null : null),
     )
+    setExporting(false)
+    if (result === 'cancelled') return
+    if (result === 'failed') {
+      setExportFailed(true)
+      return
+    }
     onDownloaded?.(scope)
     onClose()
   }
@@ -120,9 +132,10 @@ export function CsvExportModal({
       </div>
 
       {!rows.length ? <small className="split-error" role="alert">{t('csvExport.noRows')}</small> : null}
+      {exportFailed ? <small className="split-error" role="alert">{t('csvExport.error')}</small> : null}
       <div className="modal-actions">
-        <Button onClick={onClose}>{t('common.cancel')}</Button>
-        <Button variant="primary" onClick={exportCsv} disabled={!rows.length}><Download size={17} />{t('csvExport.download')}</Button>
+        <Button onClick={onClose} disabled={exporting}>{t('common.cancel')}</Button>
+        <Button variant="primary" onClick={() => void exportCsv()} disabled={!rows.length || exporting}><Download size={17} />{t(exporting ? 'csvExport.preparing' : nativeFileShare ? 'csvExport.saveOrShare' : 'csvExport.download')}</Button>
       </div>
     </ModalShell>
   )

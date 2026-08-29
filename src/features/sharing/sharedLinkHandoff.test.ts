@@ -1,11 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { buildLiveActivityUrl } from '../liveSharing/liveActivityLink'
-import { extractLiveActivityHash, isStandalonePwa } from './sharedLinkHandoff'
-
-beforeEach(() => {
-  Object.defineProperty(window, 'matchMedia', { configurable: true, value: vi.fn().mockReturnValue({ matches: false }) })
-  Object.defineProperty(navigator, 'standalone', { configurable: true, value: false })
-})
+import { extractLiveActivityHash } from './sharedLinkHandoff'
 
 describe('Live link PWA handoff', () => {
   it('extracts a valid Live fragment without navigating away from the app', () => {
@@ -22,14 +17,5 @@ describe('Live link PWA handoff', () => {
     expect(extractLiveActivityHash('https://example.com/#other=value')).toBeNull()
     expect(extractLiveActivityHash('https://example.com/#share=legacy')).toBeNull()
     expect(extractLiveActivityHash('https://example.com/#live=broken')).toBeNull()
-  })
-
-  it('recognizes standards-based and iOS standalone display modes', () => {
-    expect(isStandalonePwa()).toBe(false)
-    vi.mocked(window.matchMedia).mockReturnValue({ matches: true } as MediaQueryList)
-    expect(isStandalonePwa()).toBe(true)
-    vi.mocked(window.matchMedia).mockReturnValue({ matches: false } as MediaQueryList)
-    Object.defineProperty(navigator, 'standalone', { configurable: true, value: true })
-    expect(isStandalonePwa()).toBe(true)
   })
 })

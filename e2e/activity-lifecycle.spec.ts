@@ -79,6 +79,56 @@ test('exports CSV data and keeps the export flow usable on mobile', async ({ pag
   await expect(page.getByLabel('How was Tally?')).toHaveCount(0)
 })
 
+test('returns to a working app after exporting CSV from an iPhone PWA', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'standalone', { configurable: true, value: true })
+    Object.defineProperty(navigator, 'canShare', { configurable: true, value: () => true })
+    Object.defineProperty(navigator, 'share', {
+      configurable: true,
+      value: async (data: ShareData) => {
+        const file = data.files?.[0]
+        if (!file) throw new Error('Missing CSV file')
+        const target = window as typeof window & { __tallyCsvShare?: { name: string; text: string; type: string } }
+        target.__tallyCsvShare = { name: file.name, text: await file.text(), type: file.type }
+      },
+    })
+  })
+
+  await page.goto('./')
+  await page.getByLabel('Display name').fill('PWA Tester')
+  await page.getByRole('button', { name: 'Continue' }).click()
+  await page.getByRole('button', { name: 'Create an activity' }).click()
+  await page.getByLabel('Activity name').fill('PWA CSV')
+  await page.getByLabel(/Add friends/).fill('Maya')
+  await page.getByRole('button', { name: 'Create activity' }).click()
+  await page.getByRole('button', { name: 'Add expense' }).click()
+  await page.getByLabel('Description').fill('Dinner')
+  await page.getByRole('spinbutton', { name: 'Amount' }).fill('24')
+  await page.getByRole('button', { name: 'Save expense' }).click()
+
+  await page.getByRole('button', { name: 'Share', exact: true }).click()
+  await page.getByRole('button', { name: /^Export CSV data/ }).click()
+  await page.getByRole('button', { name: 'Save or share CSV' }).click()
+  await expect.poll(() => page.evaluate(() => (
+    window as typeof window & { __tallyCsvShare?: { name: string; text: string; type: string } }
+  ).__tallyCsvShare)).toMatchObject({
+    name: expect.stringMatching(/^tally-pwa-csv-pwa-tester-\d{4}-\d{2}-\d{2}\.csv$/),
+    text: expect.stringContaining('Dinner'),
+    type: 'text/csv',
+  })
+  await expect(page).toHaveURL(/\/splitbill\/$/)
+  await expect(page.getByLabel('How was Tally?')).toBeVisible()
+  await page.getByLabel('How was Tally?').getByRole('button', { name: 'Close' }).click()
+
+  await page.evaluate(() => {
+    window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }))
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }))
+  })
+  await expect(page.getByRole('heading', { name: 'PWA CSV' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Add expense' })).toBeVisible()
+})
+
 test('follows the system theme and persists an explicit appearance override', async ({ browser }) => {
   const context = await browser.newContext({ colorScheme: 'dark' })
   const page = await context.newPage()

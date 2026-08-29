@@ -1,9 +1,12 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ActivityGroup, Expense, Member } from '../../domain/models'
 import {
   buildCsvExportRows,
+  canNativeShareCsv,
+  CSV_OBJECT_URL_REVOKE_DELAY_MS,
   csvExportFilename,
   csvExportPreview,
+  deliverCsv,
   downloadCsv,
   serializeCsv,
 } from './activityCsv'
@@ -32,6 +35,11 @@ const expenses: Expense[] = [
     shares: { me: 1 }, createdAt: '2026-08-21T03:00:00.000Z', kind: 'settlement',
   },
 ]
+
+afterEach(() => {
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+})
 
 describe('activity CSV export', () => {
   it('builds a long-form full activity export with expense and two-sided settlement rows', () => {
@@ -119,9 +127,12 @@ describe('activity CSV export', () => {
     expect(csvExportFilename(' !!! ', null, date)).toBe('tally-activity-all-2026-08-28.csv')
   })
 
-  it('downloads a CSV blob and releases its object URL', () => {
+  it('downloads in a separate browsing context and keeps the blob alive for iOS previews', () => {
     vi.useFakeTimers()
-    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    const anchor = document.createElement('a')
+    const click = vi.spyOn(anchor, 'click').mockImplementation(() => {})
+    const createElement = document.createElement.bind(document)
+    vi.spyOn(document, 'createElement').mockImplementation(tag => tag === 'a' ? anchor : createElement(tag))
     const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:csv')
     const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
 
@@ -129,10 +140,75 @@ describe('activity CSV export', () => {
 
     expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob))
     expect(click).toHaveBeenCalledOnce()
+    expect(anchor.target).toBe('_blank')
+    expect(anchor.rel).toBe('noopener')
     expect(document.querySelector('a[download="data.csv"]')).not.toBeInTheDocument()
     expect(revokeObjectURL).not.toHaveBeenCalled()
-    vi.runAllTimers()
+    vi.advanceTimersByTime(CSV_OBJECT_URL_REVOKE_DELAY_MS - 1)
+    expect(revokeObjectURL).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1)
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:csv')
-    vi.useRealTimers()
+  })
+
+  it('uses native file sharing only inside an installed PWA', async () => {
+    const share = vi.fn().mockResolvedValue(undefined)
+    const canShare = vi.fn().mockReturnValue(true)
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+    expect(canNativeShareCsv({ canShare, share }, false)).toBe(false)
+    expect(canNativeShareCsv({ canShare, share }, true)).toBe(true)
+    expect(await deliverCsv('a,b', 'trip.csv', {
+      navigatorTarget: { canShare, share },
+      standalone: true,
+    })).toBe('shared')
+
+    const sharedFile = vi.mocked(share).mock.calls[0][0].files?.[0]
+    expect(sharedFile).toMatchObject({ name: 'trip.csv', type: 'text/csv' })
+    expect(click).not.toHaveBeenCalled()
+  })
+
+  it('keeps the export open after a cancelled native share', async () => {
+    const share = vi.fn().mockRejectedValue(new DOMException('Cancelled', 'AbortError'))
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL')
+
+    expect(await deliverCsv('a,b', 'trip.csv', {
+      navigatorTarget: { canShare: () => true, share },
+      standalone: true,
+    })).toBe('cancelled')
+    expect(createObjectURL).not.toHaveBeenCalled()
+  })
+
+  it('falls back to a safe download when native sharing is unavailable or fails', async () => {
+    vi.useFakeTimers()
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:csv')
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    const failedShare = vi.fn().mockRejectedValue(new Error('share unavailable'))
+
+    expect(await deliverCsv('a,b', 'trip.csv', {
+      navigatorTarget: { canShare: () => true, share: failedShare },
+      standalone: true,
+    })).toBe('downloaded')
+    expect(await deliverCsv('a,b', 'trip.csv', {
+      navigatorTarget: { canShare: () => false, share: vi.fn() },
+      standalone: true,
+    })).toBe('downloaded')
+    expect(await deliverCsv('a,b', 'trip.csv', {
+      navigatorTarget: {},
+      standalone: true,
+    })).toBe('downloaded')
+  })
+
+  it('reports unsupported capability checks and blocked downloads safely', async () => {
+    const share = vi.fn().mockResolvedValue(undefined)
+    expect(canNativeShareCsv({}, true)).toBe(false)
+    expect(canNativeShareCsv({ share }, true)).toBe(false)
+    expect(canNativeShareCsv({ share, canShare: () => { throw new Error('blocked') } }, true)).toBe(false)
+    vi.spyOn(URL, 'createObjectURL').mockImplementation(() => { throw new Error('blocked') })
+
+    expect(await deliverCsv('a,b', 'trip.csv', {
+      navigatorTarget: {},
+      standalone: false,
+    })).toBe('failed')
   })
 })

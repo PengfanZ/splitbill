@@ -2,6 +2,7 @@ import type { CurrencyCode } from '../../domain/currency'
 import { getSettlementRecipientId, isSettlementPayment } from '../../domain/expenses'
 import type { ActivityGroup, Expense, Member } from '../../domain/models'
 import { translate, type AppLocale, type TranslationKey } from '../../i18n/localization'
+import { isStandalonePwa } from '../../pwa/displayMode'
 
 export type CsvExportScope =
   | { type: 'activity' }
@@ -34,6 +35,21 @@ export type CsvExportPreview = {
   personalPaid: number
   settlementFlow: number
 }
+
+export type CsvDeliveryResult = 'shared' | 'downloaded' | 'cancelled' | 'failed'
+
+type CsvShareNavigator = {
+  canShare?: (data: ShareData) => boolean
+  share?: (data: ShareData) => Promise<void>
+}
+
+type CsvDeliveryOptions = {
+  documentTarget?: Document
+  navigatorTarget?: CsvShareNavigator
+  standalone?: boolean
+}
+
+export const CSV_OBJECT_URL_REVOKE_DELAY_MS = 60_000
 
 const CSV_COLUMNS: ReadonlyArray<[keyof CsvExportRow, TranslationKey]> = [
   ['recordType', 'csvExport.column.recordType'],
@@ -194,13 +210,62 @@ export function csvExportFilename(groupName: string, memberNameValue: string | n
   return `tally-${filenamePart(groupName)}${scope}-${date.toISOString().slice(0, 10)}.csv`
 }
 
+function csvFile(csv: string, filename: string) {
+  return new File([csv], filename, { type: 'text/csv' })
+}
+
+export function canNativeShareCsv(
+  navigatorTarget: CsvShareNavigator = navigator,
+  standalone = isStandalonePwa(),
+) {
+  if (!standalone || typeof navigatorTarget.share !== 'function' || typeof navigatorTarget.canShare !== 'function') return false
+  try {
+    return navigatorTarget.canShare({ files: [csvFile('', 'tally-export.csv')] })
+  } catch {
+    return false
+  }
+}
+
 export function downloadCsv(csv: string, filename: string, documentTarget: Document = document) {
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
   const anchor = documentTarget.createElement('a')
   anchor.href = url
   anchor.download = filename
+  // iOS may preview a blob instead of honoring `download`. Keep that preview
+  // outside the standalone PWA so closing it always returns to the app.
+  anchor.target = '_blank'
+  anchor.rel = 'noopener'
   documentTarget.body.appendChild(anchor)
   anchor.click()
   anchor.remove()
-  window.setTimeout(() => URL.revokeObjectURL(url), 0)
+  window.setTimeout(() => URL.revokeObjectURL(url), CSV_OBJECT_URL_REVOKE_DELAY_MS)
+}
+
+export async function deliverCsv(
+  csv: string,
+  filename: string,
+  options: CsvDeliveryOptions = {},
+): Promise<CsvDeliveryResult> {
+  const navigatorTarget = options.navigatorTarget ?? navigator
+  const standalone = options.standalone ?? isStandalonePwa()
+
+  if (standalone && typeof navigatorTarget.share === 'function' && typeof navigatorTarget.canShare === 'function') {
+    try {
+      const shareData = { files: [csvFile(csv, filename)] }
+      if (navigatorTarget.canShare(shareData)) {
+        await navigatorTarget.share(shareData)
+        return 'shared'
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return 'cancelled'
+      // A safe new-context download remains available if native sharing fails.
+    }
+  }
+
+  try {
+    downloadCsv(csv, filename, options.documentTarget)
+    return 'downloaded'
+  } catch {
+    return 'failed'
+  }
 }

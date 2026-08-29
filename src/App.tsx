@@ -45,7 +45,7 @@ import type { LiveActivityClient } from './features/liveSharing/liveActivityConf
 import { LiveActivityStatusBanner } from './features/liveSharing/LiveActivityStatusBanner'
 import { useLiveActivitySession } from './features/liveSharing/useLiveActivitySession'
 import { BrowserToPwaHandoff, JoinActivityModal } from './features/sharing/JoinActivityModal'
-import { isStandalonePwa } from './features/sharing/sharedLinkHandoff'
+import { isStandalonePwa } from './pwa/displayMode'
 import { LiveActivityIdentityModal, type LiveActivityIdentityMode } from './features/sharing/LiveActivityIdentityModal'
 import {
   getSharedActivitySender,

@@ -1,6 +1,6 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ActivityGroup, Expense, Member } from '../../domain/models'
 import { CsvExportModal } from './CsvExportModal'
 
@@ -14,6 +14,13 @@ const expenses: Expense[] = [
   { id: 'taxi', groupId: 'trip', title: 'Taxi', amount: 10, payerId: 'maya', splitMethod: 'equal', shares: { me: 5, maya: 5 }, createdAt: '2026-08-21T01:00:00.000Z' },
   { id: 'payment', groupId: 'trip', title: 'Settlement payment', amount: 3, payerId: 'maya', splitMethod: 'exact', shares: { me: 3 }, createdAt: '2026-08-21T02:00:00.000Z', kind: 'settlement' },
 ]
+
+afterEach(() => {
+  Object.defineProperty(navigator, 'standalone', { configurable: true, value: false })
+  Object.defineProperty(navigator, 'share', { configurable: true, value: undefined })
+  Object.defineProperty(navigator, 'canShare', { configurable: true, value: undefined })
+  vi.restoreAllMocks()
+})
 
 describe('CSV export modal', () => {
   it('previews the current person, switches members and scopes, then downloads', async () => {
@@ -43,7 +50,7 @@ describe('CSV export modal', () => {
     await user.click(screen.getByRole('button', { name: /One person/ }))
     await user.click(screen.getByRole('button', { name: 'Download CSV' }))
 
-    expect(onDownloaded.mock.calls).toEqual([[{ type: 'activity' }], [{ type: 'member', memberId: 'me' }]])
+    await waitFor(() => expect(onDownloaded.mock.calls).toEqual([[{ type: 'activity' }], [{ type: 'member', memberId: 'me' }]]))
     expect(onClose).toHaveBeenCalledTimes(2)
   })
 
@@ -74,5 +81,42 @@ describe('CSV export modal', () => {
     await user.click(screen.getByRole('button', { name: 'Download CSV' }))
 
     expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('uses the native share sheet in an installed PWA and stays usable after cancellation', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    const onDownloaded = vi.fn()
+    const share = vi.fn().mockRejectedValueOnce(new DOMException('Cancelled', 'AbortError')).mockResolvedValueOnce(undefined)
+    Object.defineProperty(navigator, 'standalone', { configurable: true, value: true })
+    Object.defineProperty(navigator, 'canShare', { configurable: true, value: vi.fn().mockReturnValue(true) })
+    Object.defineProperty(navigator, 'share', { configurable: true, value: share })
+    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    render(<CsvExportModal group={group} members={members} expenses={expenses} currentMemberId="me" onClose={onClose} onDownloaded={onDownloaded} />)
+
+    const exportButton = screen.getByRole('button', { name: 'Save or share CSV' })
+    await user.click(exportButton)
+    await waitFor(() => expect(share).toHaveBeenCalledTimes(1))
+    expect(onClose).not.toHaveBeenCalled()
+    expect(onDownloaded).not.toHaveBeenCalled()
+    expect(exportButton).toBeEnabled()
+    expect(anchorClick).not.toHaveBeenCalled()
+
+    await user.click(exportButton)
+    await waitFor(() => expect(onDownloaded).toHaveBeenCalledWith({ type: 'member', memberId: 'me' }))
+    expect(onClose).toHaveBeenCalledOnce()
+    expect(anchorClick).not.toHaveBeenCalled()
+  })
+
+  it('shows an actionable error without closing when every delivery path fails', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    vi.spyOn(URL, 'createObjectURL').mockImplementation(() => { throw new Error('blocked') })
+    render(<CsvExportModal group={group} members={members} expenses={expenses} currentMemberId="me" onClose={onClose} />)
+
+    await user.click(screen.getByRole('button', { name: 'Download CSV' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Tally could not export this CSV. Try again.')
+    expect(screen.getByRole('dialog', { name: 'Export CSV data' })).toBeVisible()
+    expect(onClose).not.toHaveBeenCalled()
   })
 })
