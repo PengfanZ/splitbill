@@ -2,6 +2,7 @@ import type { CurrencyCode } from '../../domain/currency'
 import { expenseCategory, type ExpenseCategory } from '../../domain/expenseCategories'
 import { getSettlementRecipientId, isSettlementPayment, spendingExpenses } from '../../domain/expenses'
 import type { ActivityGroup, Expense, Member } from '../../domain/models'
+import { translate, type AppLocale, type TranslationKey } from '../../i18n/localization'
 
 export type CsvExportScope =
   | { type: 'activity' }
@@ -36,25 +37,45 @@ export type CsvExportPreview = {
   settlementFlow: number
 }
 
-const CSV_COLUMNS: ReadonlyArray<[keyof CsvExportRow, string]> = [
-  ['recordType', 'record_type'],
-  ['recordedAt', 'recorded_at'],
-  ['lastEditedAt', 'last_edited_at'],
-  ['category', 'category'],
-  ['description', 'description'],
-  ['expenseTotal', 'expense_total'],
-  ['paidBy', 'paid_by'],
-  ['person', 'person'],
-  ['personShare', 'person_share'],
-  ['personPaid', 'person_paid'],
-  ['balanceContribution', 'balance_contribution'],
-  ['settlementFlow', 'settlement_flow'],
-  ['settlementFrom', 'settlement_from'],
-  ['settlementTo', 'settlement_to'],
-  ['currency', 'currency'],
-  ['splitMethod', 'split_method'],
-  ['expenseId', 'expense_id'],
+const CSV_COLUMNS: ReadonlyArray<[keyof CsvExportRow, TranslationKey]> = [
+  ['recordType', 'csvExport.column.recordType'],
+  ['recordedAt', 'csvExport.column.recordedAt'],
+  ['lastEditedAt', 'csvExport.column.lastEditedAt'],
+  ['category', 'csvExport.column.category'],
+  ['description', 'csvExport.column.description'],
+  ['expenseTotal', 'csvExport.column.expenseTotal'],
+  ['paidBy', 'csvExport.column.paidBy'],
+  ['person', 'csvExport.column.person'],
+  ['personShare', 'csvExport.column.personShare'],
+  ['personPaid', 'csvExport.column.personPaid'],
+  ['balanceContribution', 'csvExport.column.balanceContribution'],
+  ['settlementFlow', 'csvExport.column.settlementFlow'],
+  ['settlementFrom', 'csvExport.column.settlementFrom'],
+  ['settlementTo', 'csvExport.column.settlementTo'],
+  ['currency', 'csvExport.column.currency'],
+  ['splitMethod', 'csvExport.column.splitMethod'],
+  ['expenseId', 'csvExport.column.expenseId'],
 ]
+
+const CATEGORY_TRANSLATION_KEYS: Record<ExpenseCategory, TranslationKey> = {
+  food: 'expense.category.food',
+  transport: 'expense.category.transport',
+  accommodation: 'expense.category.accommodation',
+  entertainment: 'expense.category.entertainment',
+  shopping: 'expense.category.shopping',
+  other: 'expense.category.other',
+  uncategorized: 'expense.category.uncategorized',
+}
+
+const RECORD_TYPE_TRANSLATION_KEYS: Record<CsvExportRow['recordType'], TranslationKey> = {
+  expense: 'csvExport.recordType.expense',
+  settlement: 'csvExport.recordType.settlement',
+}
+
+const SPLIT_METHOD_TRANSLATION_KEYS: Record<Expense['splitMethod'], TranslationKey> = {
+  equal: 'expense.equally',
+  exact: 'expense.exactAmounts',
+}
 
 function memberName(memberMap: Map<string, Member>, memberId: string) {
   return memberMap.get(memberId)?.name ?? memberId
@@ -177,9 +198,19 @@ function csvValue(value: CsvExportRow[keyof CsvExportRow]) {
   return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text
 }
 
-export function serializeCsv(rows: CsvExportRow[]) {
-  const header = CSV_COLUMNS.map(([, label]) => label).join(',')
-  const body = rows.map(row => CSV_COLUMNS.map(([key]) => csvValue(row[key])).join(','))
+function localizedCsvValue(row: CsvExportRow, key: keyof CsvExportRow, locale: AppLocale) {
+  const value = row[key]
+  if (locale === 'en' || value === '') return csvValue(value)
+  if (key === 'recordType') return csvValue(translate(locale, RECORD_TYPE_TRANSLATION_KEYS[row.recordType]))
+  if (key === 'category' && row.category) return csvValue(translate(locale, CATEGORY_TRANSLATION_KEYS[row.category]))
+  if (key === 'splitMethod' && row.splitMethod) return csvValue(translate(locale, SPLIT_METHOD_TRANSLATION_KEYS[row.splitMethod]))
+  if (key === 'description' && row.recordType === 'settlement') return csvValue(translate(locale, 'dashboard.settlementPayment'))
+  return csvValue(value)
+}
+
+export function serializeCsv(rows: CsvExportRow[], locale: AppLocale = 'en') {
+  const header = CSV_COLUMNS.map(([, label]) => translate(locale, label)).join(',')
+  const body = rows.map(row => CSV_COLUMNS.map(([key]) => localizedCsvValue(row, key, locale)).join(','))
   return `\uFEFF${[header, ...body].join('\r\n')}`
 }
 

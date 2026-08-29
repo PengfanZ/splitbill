@@ -61,7 +61,7 @@ export function CsvExportModal({
 
   const exportCsv = () => {
     downloadCsv(
-      serializeCsv(rows),
+      serializeCsv(rows, locale),
       csvExportFilename(group.name, scope.type === 'member' ? selectedMember?.name ?? null : null),
     )
     onDownloaded?.(scope)

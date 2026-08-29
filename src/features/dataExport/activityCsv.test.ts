@@ -110,6 +110,17 @@ describe('activity CSV export', () => {
     expect(csv.split('\r\n')[0].endsWith('expense_id')).toBe(true)
   })
 
+  it('localizes headers and human-readable values for a Chinese interface', () => {
+    const csv = serializeCsv(buildCsvExportRows(group, members, expenses, { type: 'activity' }), 'zh-CN')
+    const [header] = csv.slice(1).split('\r\n')
+
+    expect(header).toBe('记录类型,记录时间,最后编辑时间,分类,说明,支出总额,付款人,成员,成员应承担,成员已垫付,余额影响,还款净流入,还款人,收款人,币种,分摊方式,支出 ID')
+    expect(csv).toContain('支出,2026-08-20T23:30:00.000Z,2026-08-21T00:00:00.000Z,餐饮')
+    expect(csv).toContain(',CNY,指定金额,dinner')
+    expect(csv).toContain('还款,2026-08-21T02:00:00.000Z,,,还款记录,')
+    expect(csv).not.toContain('record_type')
+  })
+
   it('creates safe filenames for all, personal, and punctuation-only activity names', () => {
     const date = new Date('2026-08-28T20:00:00.000Z')
     expect(csvExportFilename(group.name, 'Maya Chen', date)).toBe('tally-上海-trip-maya-chen-2026-08-28.csv')
