@@ -2,7 +2,7 @@ import type { AppLocale, TranslationKey } from '../../i18n/localization'
 
 export const CHANGELOG_SEEN_STORAGE_KEY = 'tally:changelog-seen:v1'
 
-export type ChangelogIcon = 'aiText' | 'aiVoice' | 'aiReview' | 'live' | 'share' | 'settle' | 'polish' | 'theme' | 'receipt'
+export type ChangelogIcon = 'aiText' | 'aiVoice' | 'aiReview' | 'live' | 'share' | 'settle' | 'polish' | 'theme' | 'receipt' | 'csv'
 
 export type ChangelogEntry = {
   id: string
@@ -17,6 +17,24 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
+  {
+    id: '2026-08-csv-export',
+    releasedOn: '2026-08-29',
+    titleKey: 'changelog.release.csvTitle',
+    summaryKey: 'changelog.release.csvSummary',
+    items: [
+      {
+        icon: 'csv',
+        titleKey: 'changelog.item.csvScopeTitle',
+        descriptionKey: 'changelog.item.csvScopeDescription',
+      },
+      {
+        icon: 'csv',
+        titleKey: 'changelog.item.csvDetailsTitle',
+        descriptionKey: 'changelog.item.csvDetailsDescription',
+      },
+    ],
+  },
   {
     id: '2026-08-receipt-splitting',
     releasedOn: '2026-08-23',

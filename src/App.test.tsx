@@ -1028,6 +1028,8 @@ describe('complete app workflows', () => {
     render(<App />)
 
     const update = await screen.findByRole('dialog', { name: 'What’s new in Tally' })
+    expect(update).toHaveTextContent('Export your activity data')
+    expect(update).toHaveTextContent('Choose one person or everyone')
     expect(update).toHaveTextContent('Split a receipt by dish')
     expect(screen.getByLabelText('New updates')).toBeVisible()
 

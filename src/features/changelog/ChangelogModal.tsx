@@ -1,5 +1,6 @@
 import {
   BadgeCheck,
+  FileSpreadsheet,
   ListChecks,
   MessageSquareText,
   Mic2,
@@ -29,6 +30,7 @@ const CHANGELOG_ICONS: Record<ChangelogIcon, LucideIcon> = {
   polish: SlidersHorizontal,
   theme: SunMoon,
   receipt: ReceiptText,
+  csv: FileSpreadsheet,
 }
 
 export function ChangelogModal({ onClose }: { onClose: () => void }) {

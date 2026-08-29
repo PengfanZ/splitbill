@@ -11,6 +11,11 @@ describe('ChangelogModal', () => {
     render(<LocalizationProvider initialLocale="en"><ChangelogModal onClose={onClose} /></LocalizationProvider>)
 
     const dialog = screen.getByRole('dialog', { name: 'What’s new in Tally' })
+    expect(dialog).toHaveTextContent('August 29, 2026')
+    expect(dialog).toHaveTextContent('Export your activity data')
+    expect(dialog).toHaveTextContent('Download one person’s share or the full activity as a spreadsheet-ready CSV')
+    expect(dialog).toHaveTextContent('Choose one person or everyone')
+    expect(dialog).toHaveTextContent('Localized, detailed rows')
     expect(dialog).toHaveTextContent('August 23, 2026')
     expect(dialog).toHaveTextContent('Split a receipt by dish')
     expect(dialog).toHaveTextContent('Tally reads the items, tax, fees, and printed totals')
@@ -32,6 +37,11 @@ describe('ChangelogModal', () => {
   it('renders the same update naturally in Simplified Chinese', () => {
     render(<LocalizationProvider initialLocale="zh-CN"><ChangelogModal onClose={vi.fn()} /></LocalizationProvider>)
     const dialog = screen.getByRole('dialog', { name: 'Tally 最近更新' })
+    expect(dialog).toHaveTextContent('2026年8月29日')
+    expect(dialog).toHaveTextContent('把分账数据导出成 CSV')
+    expect(dialog).toHaveTextContent('可以只导出一位成员，也可以导出整个活动')
+    expect(dialog).toHaveTextContent('按成员或整个活动导出')
+    expect(dialog).toHaveTextContent('本地化的完整数据')
     expect(dialog).toHaveTextContent('2026年8月23日')
     expect(dialog).toHaveTextContent('拍小票，按菜品分账')
     expect(dialog).toHaveTextContent('一道菜可以分给一人或多人')

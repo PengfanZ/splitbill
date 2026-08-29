@@ -661,6 +661,8 @@ test('shows new updates once and keeps the changelog available on mobile', async
   await page.goto('./')
   const update = page.getByRole('dialog', { name: 'What’s new in Tally' })
   await expect(update).toBeVisible()
+  await expect(update).toContainText('Export your activity data')
+  await expect(update).toContainText('Choose one person or everyone')
   await expect(update).toContainText('Sharing, without the guesswork')
   await expect(update).toContainText('Reliable live collaboration')
   await update.evaluate(element => Promise.all(
