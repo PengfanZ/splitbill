@@ -774,7 +774,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .share-choice-action:hover { transform: translateY(-1px); box-shadow: 0 4px 12px var(--shadow-soft); }
 .share-menu-other { margin-top: 17px; }
 .share-menu-other > span { color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.share-menu-other-actions { margin-top: 7px; border: 1px solid var(--line); border-radius: 13px; overflow: hidden; }
 .share-summary-action { width: 100%; min-height: 62px; margin-top: 7px; border: 1px solid var(--line); border-radius: 13px; display: flex; align-items: center; gap: 12px; padding: 9px 11px; background: transparent; text-align: left; }
+.share-menu-other-actions .share-summary-action { margin-top: 0; border: 0; border-radius: 0; }
+.share-menu-other-actions .share-summary-action + .share-summary-action { border-top: 1px solid var(--line); }
 .share-summary-action:hover { background: var(--surface-glass-hover); }
 .share-menu-icon { width: 42px; height: 42px; border-radius: 13px; display: grid; place-items: center; color: var(--coral); background: var(--coral-soft-strong); flex: 0 0 auto; }
 .share-menu-copy { min-width: 0; display: grid; gap: 3px; flex: 1; }
@@ -789,6 +792,39 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .share-menu-danger-copy small { color: var(--muted); font-size: 10px; line-height: 1.4; }
 .share-menu-danger > button { flex: 0 0 auto; }
 .share-menu-cancel { width: 100%; margin-top: 16px; }
+
+.csv-export-body { display: grid; gap: 16px; }
+.csv-export-scopes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.csv-scope { min-width: 0; min-height: 92px; border: 1px solid var(--field-border); border-radius: var(--radius-card); padding: 13px; display: flex; align-items: flex-start; gap: 11px; background: var(--surface-solid); color: var(--ink); text-align: left; transition: border-color .16s ease, background .16s ease, box-shadow .16s ease; }
+.csv-scope:hover { border-color: var(--field-border-hover); background: var(--surface-glass-hover); }
+.csv-scope.is-selected { border-color: var(--green); background: var(--green-soft-strong); box-shadow: inset 0 0 0 1px var(--green); }
+.csv-scope-icon { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; flex: 0 0 auto; color: var(--neutral-icon); background: var(--surface-muted); }
+.csv-scope.is-selected .csv-scope-icon { color: var(--green); background: var(--green-soft); }
+.csv-scope > span:last-child { min-width: 0; display: grid; gap: 4px; }
+.csv-scope b { font-size: 13px; }
+.csv-scope small { color: var(--muted); font-size: 10px; line-height: 1.4; }
+.csv-member-field { display: grid; gap: 7px; color: var(--muted); font-size: 11px; }
+.csv-preview { border: 1px solid var(--green-border-strong); border-radius: var(--radius-card); overflow: hidden; background: var(--green-soft-strong); }
+.csv-preview-heading { padding: 14px 15px; display: flex; align-items: flex-start; gap: 10px; }
+.csv-preview-heading > span { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: 0 0 auto; color: var(--green); background: var(--green-soft); }
+.csv-preview-heading > div { min-width: 0; display: grid; gap: 3px; }
+.csv-preview-heading b { font-size: 13px; }
+.csv-preview-heading small { color: var(--muted); font-size: 10px; line-height: 1.4; }
+.csv-preview-metrics { border-top: 1px solid var(--green-border); display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.csv-preview-metrics > div { min-width: 0; padding: 12px 11px; display: grid; gap: 4px; }
+.csv-preview-metrics > div + div { border-left: 1px solid var(--green-border); }
+.csv-preview-metrics span { overflow: hidden; color: var(--muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.csv-preview-metrics strong { overflow: hidden; color: var(--green); font-family: var(--serif); font-size: 18px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.csv-category-preview { border-top: 1px solid var(--green-border); padding: 12px 15px 14px; display: grid; gap: 8px; }
+.csv-category-preview > span { color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.csv-category-preview > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.csv-category-preview > div > span { min-height: 28px; border: 1px solid var(--green-border); border-radius: 999px; padding: 5px 9px; display: flex; align-items: center; gap: 6px; background: var(--surface-glass); color: var(--green); font-size: 10px; }
+.csv-category-preview b { color: var(--ink); font-weight: 700; }
+.csv-includes { border: 1px solid var(--line); border-radius: 12px; padding: 12px 13px; display: grid; gap: 3px; background: var(--surface-subtle); }
+.csv-includes b { font-size: 11px; }
+.csv-includes p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.45; }
+.csv-export-body .modal-actions { margin-top: 0; }
+.csv-export-body .modal-actions .button--primary { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
 
 .modal label small { color: var(--muted-faint); font-size: 9px; font-weight: 400; }
 .modal textarea { resize: vertical; min-height: 78px; border: 1px solid var(--field-border); border-radius: 10px; background: var(--surface-solid); padding: 12px 13px; outline: 0; color: var(--ink); font: inherit; font-size: 13px; }
@@ -966,6 +1002,11 @@ html[data-theme='dark'] .fresh-illustration i:nth-of-type(3) { background: #9f82
   .modal--wide { width: calc(100vw - 24px); max-width: 430px; }
   .share-menu-copy small { font-size: 12px; }
   .share-menu-choices { grid-template-columns: 1fr; }
+  .csv-export-scopes { grid-template-columns: 1fr; }
+  .csv-scope { min-height: 76px; }
+  .csv-preview-metrics { grid-template-columns: 1fr 1fr; }
+  .csv-preview-metrics > div:nth-child(3) { border-left: 0; border-top: 1px solid var(--green-border); }
+  .csv-preview-metrics > div:nth-child(4) { border-top: 1px solid var(--green-border); }
   .share-choice-copy { min-height: 0; }
   .share-menu-danger { align-items: stretch; flex-direction: column; }
   .share-menu-danger > button { width: 100%; }

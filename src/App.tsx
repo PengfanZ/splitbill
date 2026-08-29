@@ -59,7 +59,7 @@ import { formatLocalizedList } from './i18n/localization'
 import { createAppQueryClient } from './queryClient'
 import { ThemeProvider } from './theme/ThemeContext'
 
-type ModalType = 'group' | 'friend' | 'expense' | 'settlement' | 'identity' | 'join' | 'live-identity' | 'feedback' | null
+type ModalType = 'group' | 'friend' | 'expense' | 'settlement' | 'identity' | 'join' | 'live-identity' | 'feedback' | 'csv-export' | null
 type AppProps = {
   aiExpenseClient?: Pick<AiExpenseClient, 'parseBatch'> | null
   analyticsClient?: AnalyticsClient | null
@@ -78,6 +78,7 @@ const LiveActivityQrModal = lazy(() => import('./features/sharing/LiveActivityQr
 const ChangelogModal = lazy(() => import('./features/changelog/ChangelogModal').then(module => ({ default: module.ChangelogModal })))
 const FeedbackModal = lazy(() => import('./features/feedback/FeedbackModal').then(module => ({ default: module.FeedbackModal })))
 const RatingPrompt = lazy(() => import('./features/feedback/RatingPrompt').then(module => ({ default: module.RatingPrompt })))
+const CsvExportModal = lazy(() => import('./features/dataExport/CsvExportModal').then(module => ({ default: module.CsvExportModal })))
 
 const EXPENSE_INPUT_TAB_EVENTS: Record<ExpenseInputTab, AnalyticsEvent> = {
   manual: 'expense_input_manual_selected',
@@ -341,7 +342,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
       const saved = await live.save(
         { ...liveActivity, expenses: [expense, ...liveActivity.expenses] },
         t('live.addedExpense', { title: expense.title }),
-        JSON.stringify(['add-expense', expense.title, expense.amount, expense.payerId, expense.splitMethod, expense.shares]),
+        JSON.stringify(['add-expense', expense.title, expense.amount, expense.payerId, expense.splitMethod, expense.shares, expense.category]),
       )
       if (saved) {
         analyticsClient?.track('expense_added', 'live', locale)
@@ -362,7 +363,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
       const saved = await live.save(
         { ...liveActivity, expenses: [...expenses, ...liveActivity.expenses] },
         t('live.addedExpenses', { count: expenses.length }),
-        JSON.stringify(['add-expenses', expenses.map(item => [item.title, item.amount, item.payerId, item.splitMethod, item.shares])]),
+        JSON.stringify(['add-expenses', expenses.map(item => [item.title, item.amount, item.payerId, item.splitMethod, item.shares, item.category])]),
       )
       if (saved) {
         analyticsClient?.track('expense_added', 'live', locale)
@@ -381,7 +382,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
       const saved = await live.save({
         ...liveActivity,
         expenses: liveActivity.expenses.map(item => item.id === expense.id ? expense : item),
-      }, t('live.updatedExpense', { title: expense.title }), JSON.stringify(['update-expense', expense.id, expense.title, expense.amount, expense.payerId, expense.splitMethod, expense.shares]))
+      }, t('live.updatedExpense', { title: expense.title }), JSON.stringify(['update-expense', expense.id, expense.title, expense.amount, expense.payerId, expense.splitMethod, expense.shares, expense.category]))
       if (saved) closeExpenseModal()
       return
     }
@@ -582,6 +583,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
                 onCopyShareLink={live.editable && liveSession ? () => sharing.copyCurrentLiveLink(liveSession) : undefined}
                 onEndLive={live.editable && liveEnd ? () => endLiveActivity(liveEnd) : undefined}
                 onShareSummary={() => sharing.shareGroup(liveActivity.group, liveMembers, liveActivity.expenses, 'live', liveSession)}
+                onExportData={() => setModal('csv-export')}
                 onAddFriend={live.editable ? () => setModal('friend') : undefined}
                 onAddExpense={live.editable ? openNewExpense : undefined}
                 onSettleUp={live.editable ? openSettleUp : undefined}
@@ -602,6 +604,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
             onCurrentMemberChange={changeActiveMember}
             onCurrencyChange={changeActivityCurrency}
             onShareSummary={() => sharing.shareGroup(selectedGroup, selectedMembers, selectedExpenses, 'local')}
+            onExportData={() => setModal('csv-export')}
             onShareLive={() => sharing.openLiveShare(selectedGroup, selectedMembers, selectedExpenses)}
             onAddFriend={() => setModal('friend')}
             onAddExpense={openNewExpense}
@@ -639,6 +642,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
       {modal === 'settlement' && activeGroup && settlingDirection ? <SettleUpModal group={activeGroup} settlement={settlingDirection} onClose={closeSettleUpModal} onSave={recordSettlement} saving={live.saving || liveEditBlocked} /> : null}
       {modal === 'live-identity' && liveActivity && liveIdentityMode ? <LiveActivityIdentityModal members={liveMembers} mode={liveIdentityMode} onClose={() => { setModal(null); setLiveIdentityMode(null) }} onSave={viewerId => saveLiveActivityCopy(liveActivity, liveIdentityMode, viewerId)} /> : null}
       {modal === 'join' ? <JoinActivityModal onClose={() => setModal(null)} onJoin={joinSharedActivity} /> : null}
+      {modal === 'csv-export' && activeGroup ? <Suspense fallback={null}><CsvExportModal group={activeGroup} members={activeMembers} expenses={activeExpenses} currentMemberId={activeMemberId} onClose={() => setModal(null)} /></Suspense> : null}
       {qrShare ? <Suspense fallback={null}><LiveActivityQrModal groupName={qrShare.groupName} url={qrShare.url} activityCode={qrShare.activityCode} onClose={sharing.closeQrShare} onCopy={() => sharing.copyQrLink(qrShare)} onShare={() => sharing.shareQrLink(qrShare)} /></Suspense> : null}
       {changelogState.open ? <Suspense fallback={null}><ChangelogModal onClose={closeChangelog} /></Suspense> : null}
       {modal === 'feedback' ? <Suspense fallback={null}><FeedbackModal

@@ -88,6 +88,7 @@ describe('receipt allocation', () => {
       splitMethod: 'exact',
       shares: { a: 12.34 },
       createdAt: '2026-08-22T00:00:00.000Z',
+      category: 'food',
     })
     expect(() => createExpenseFromReceiptSplit({
       createdAt: '', groupId: '', id: '', payerId: 'a', result: { ...result, shares: {} }, title: '',

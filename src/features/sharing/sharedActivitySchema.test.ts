@@ -49,6 +49,14 @@ describe('shared activity schema', () => {
       ...activity,
       expenses: [{ ...expense, shares: { me: 5, missing: 5 } }],
     }).success).toBe(false)
+    expect(sharedActivitySchema.safeParse({
+      ...activity,
+      expenses: [{ ...expense, category: 'food' }],
+    }).success).toBe(true)
+    expect(sharedActivitySchema.safeParse({
+      ...activity,
+      expenses: [{ ...expense, category: 'business' }],
+    }).success).toBe(false)
   })
 
   it('rejects ambiguous identities and participant sets', () => {

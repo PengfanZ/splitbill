@@ -27,6 +27,7 @@ export type Expense = {
   createdAt: string
   updatedAt?: string
   kind?: ExpenseKind
+  category?: import('./expenseCategories').ExpenseCategory
 }
 
 export type PersistedState = {

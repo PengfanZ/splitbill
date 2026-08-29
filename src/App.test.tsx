@@ -599,6 +599,7 @@ describe('small UI building blocks', () => {
     const share = vi.fn()
     const shareQr = vi.fn()
     const shareLive = vi.fn()
+    const exportData = vi.fn()
     const editExpense = vi.fn()
     const deleteExpense = vi.fn()
     const settleUp = vi.fn()
@@ -611,11 +612,12 @@ describe('small UI building blocks', () => {
     rerender(<MembersRail members={[CURRENT_USER, maya]} currentMemberId="maya" onAddFriend={addFriend} />)
     expect(screen.getByLabelText('Current local identity').closest('.member-row')).toHaveTextContent('Maya Chen')
 
-    rerender(<GroupDashboard group={group} members={[CURRENT_USER, maya, jordan]} expenses={[expense()]} query="" activityFeedback="Summary copied." statusLabel="Local" onShareSummary={share} onShareLive={shareLive} onAddFriend={addFriend} onAddExpense={addExpense} onSettleUp={settleUp} onEditExpense={editExpense} onDeleteExpense={deleteExpense} />)
+    rerender(<GroupDashboard group={group} members={[CURRENT_USER, maya, jordan]} expenses={[expense()]} query="" activityFeedback="Summary copied." statusLabel="Local" onShareSummary={share} onExportData={exportData} onShareLive={shareLive} onAddFriend={addFriend} onAddExpense={addExpense} onSettleUp={settleUp} onEditExpense={editExpense} onDeleteExpense={deleteExpense} />)
     expect(screen.getByRole('status')).toHaveTextContent('Summary copied.')
     expect(screen.getByText('Local')).toBeVisible()
     await chooseShareAction(user, 'Start live activity')
-    await chooseShareAction(user, 'Export full summary')
+    await chooseShareAction(user, 'Export share image')
+    await chooseShareAction(user, 'Export CSV data')
     await user.click(screen.getByRole('button', { name: 'Add friend' }))
     await user.click(screen.getByRole('button', { name: 'Add expense' }))
     await user.click(screen.getAllByRole('button', { name: 'Settle up' })[0])
@@ -624,6 +626,7 @@ describe('small UI building blocks', () => {
     expect(addExpense).toHaveBeenCalledOnce()
     expect(share).toHaveBeenCalledOnce()
     expect(shareLive).toHaveBeenCalledOnce()
+    expect(exportData).toHaveBeenCalledOnce()
     expect(editExpense).toHaveBeenCalledWith(expect.objectContaining({ title: 'Dinner' }))
     expect(settleUp).toHaveBeenCalledWith(expect.objectContaining({ amount: 10 }))
 
@@ -736,6 +739,7 @@ describe('modals', () => {
     fireEvent.submit(container.querySelector('form')!)
     expect(onSave).not.toHaveBeenCalled()
     await user.type(screen.getByLabelText('Description'), 'Lunch')
+    await chooseSelectOption(user, 'Category', 'Food & dining')
     await user.type(screen.getByLabelText('Amount'), '10')
     await chooseSelectOption(user, 'Paid by', 'Maya Chen')
     expect(screen.getByText('3 of 3 selected')).toBeVisible()
@@ -748,6 +752,7 @@ describe('modals', () => {
       title: 'Lunch',
       amount: 10,
       payerId: 'maya',
+      category: 'food',
       shares: { me: 5, maya: 5 },
       createdAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
     }))
@@ -834,6 +839,7 @@ describe('modals', () => {
     expect(onSave).toHaveBeenCalledWith({
       ...existing,
       shares: { me: 10, maya: 20, jordan: 0 },
+      category: 'uncategorized',
       updatedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
     })
   })
@@ -1088,6 +1094,11 @@ describe('complete app workflows', () => {
     await user.click(screen.getByRole('button', { name: 'Close' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
+    await chooseShareAction(user, 'Export CSV data')
+    expect(await screen.findByRole('dialog', { name: 'Export CSV data' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
     await user.click(screen.getByRole('button', { name: 'Join activity' }))
     expect(screen.getByRole('dialog', { name: 'Join a shared activity' })).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Close' }))
@@ -1103,7 +1114,7 @@ describe('complete app workflows', () => {
     })
     render(<App />)
 
-    await chooseShareAction(user, 'Export full summary')
+    await chooseShareAction(user, 'Export share image')
     expect(screen.getByRole('status')).toHaveTextContent('Preparing your PNG summary')
 
     act(() => finishEncoding?.(new Blob(['png'], { type: 'image/png' })))
@@ -1122,7 +1133,7 @@ describe('complete app workflows', () => {
     })
     render(<App />)
 
-    await chooseShareAction(user, 'Export full summary')
+    await chooseShareAction(user, 'Export share image')
     expect(await screen.findByRole('status')).toHaveTextContent('Your PNG is ready in the system share sheet')
 
     act(() => finishSharing?.())
@@ -1159,7 +1170,7 @@ describe('complete app workflows', () => {
     expect(screen.getAllByText('$45.00').some(element => element.matches('.expense-amount b'))).toBe(true)
     expect(screen.getByText(/^Edited /)).toBeVisible()
 
-    await chooseShareAction(user, 'Export full summary')
+    await chooseShareAction(user, 'Export share image')
     expect(await screen.findByRole('status')).toHaveTextContent('PNG summary downloaded')
     expect(analyticsClient.track).toHaveBeenCalledWith('summary_export_clicked', 'local', 'en')
 
@@ -1241,6 +1252,10 @@ describe('complete app workflows', () => {
     expect(await screen.findByText('Live · revision 1')).toBeVisible()
     expect(window.location.hash).toBe(new URL(liveUrl).hash)
     expect(client.load).toHaveBeenCalledOnce()
+
+    await chooseShareAction(user, 'Export CSV data')
+    expect(await screen.findByRole('dialog', { name: 'Export CSV data' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Close' }))
 
     await user.click(screen.getByRole('button', { name: 'Join activity' }))
     await user.type(screen.getByLabelText('Shared activity link'), liveUrl)
@@ -1390,7 +1405,7 @@ describe('complete app workflows', () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState({ groups: [group, second] })))
     mockSummaryDownload()
     render(<App />)
-    await chooseShareAction(user, 'Export full summary')
+    await chooseShareAction(user, 'Export share image')
     expect(await screen.findByRole('status')).toHaveTextContent('PNG summary downloaded')
     await user.click(screen.getByRole('button', { name: 'Open Home activity' }))
     expect(screen.getByRole('heading', { name: 'Home' })).toBeVisible()
@@ -2147,7 +2162,7 @@ describe('complete app workflows', () => {
       }
     }
     Object.defineProperty(globalThis, 'Image', { configurable: true, value: LoadedImage })
-    await chooseShareAction(user, 'Export full summary')
+    await chooseShareAction(user, 'Export share image')
     await screen.findByText('PNG summary downloaded.')
     Object.defineProperty(globalThis, 'Image', { configurable: true, value: OriginalImage })
     expect(analyticsClient.track).toHaveBeenCalledWith('summary_export_clicked', 'live', 'en')
@@ -2450,7 +2465,7 @@ describe('in-app feedback integration', () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState({ expenses: [expense()] })))
     render(<App analyticsClient={analyticsClient} feedbackClient={{ submit }} />)
 
-    await chooseShareAction(user, 'Export full summary')
+    await chooseShareAction(user, 'Export share image')
     expect(await screen.findByLabelText('How was Tally?')).toBeVisible()
     expect(screen.getByRole('heading', { name: 'Trip' })).toBeVisible()
     await user.click(screen.getByRole('radio', { name: 'Rate 5 out of 5' }))
@@ -2474,7 +2489,7 @@ describe('in-app feedback integration', () => {
     expect(screen.queryByLabelText('How was Tally?')).not.toBeInTheDocument()
     expect(localStorage.getItem(RATING_PROMPT_STORAGE_KEY)).toBe(LATEST_CHANGELOG_ID)
 
-    await chooseShareAction(user, 'Export full summary')
+    await chooseShareAction(user, 'Export share image')
     expect(screen.queryByLabelText('How was Tally?')).not.toBeInTheDocument()
   })
 
@@ -2484,7 +2499,7 @@ describe('in-app feedback integration', () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState()))
     const first = render(<App feedbackClient={{ submit: vi.fn() }} />)
 
-    await chooseShareAction(user, 'Export full summary')
+    await chooseShareAction(user, 'Export share image')
     await user.click(await screen.findByRole('radio', { name: 'Rate 4 out of 5' }))
     await user.click(await screen.findByRole('button', { name: 'Add a note' }))
     expect(await screen.findByRole('dialog', { name: 'What should Tally do better?' })).toBeVisible()
@@ -2494,7 +2509,7 @@ describe('in-app feedback integration', () => {
     first.unmount()
     localStorage.removeItem(RATING_PROMPT_STORAGE_KEY)
     render(<App feedbackClient={{ submit: vi.fn() }} />)
-    await chooseShareAction(user, 'Export full summary')
+    await chooseShareAction(user, 'Export share image')
     await user.click(await screen.findByRole('button', { name: 'Close' }))
     expect(screen.queryByLabelText('How was Tally?')).not.toBeInTheDocument()
     expect(localStorage.getItem(RATING_PROMPT_STORAGE_KEY)).toBe(LATEST_CHANGELOG_ID)
@@ -2509,14 +2524,14 @@ describe('in-app feedback integration', () => {
     Object.defineProperty(navigator, 'canShare', { configurable: true, value: vi.fn().mockReturnValue(true) })
     const first = render(<App feedbackClient={{ submit: vi.fn() }} />)
 
-    await chooseShareAction(user, 'Export full summary')
+    await chooseShareAction(user, 'Export share image')
     expect(await screen.findByLabelText('How was Tally?')).toBeVisible()
     first.unmount()
 
     localStorage.removeItem(RATING_PROMPT_STORAGE_KEY)
     nativeShare.mockRejectedValueOnce(new DOMException('cancelled', 'AbortError'))
     render(<App feedbackClient={{ submit: vi.fn() }} />)
-    await chooseShareAction(user, 'Export full summary')
+    await chooseShareAction(user, 'Export share image')
     await waitFor(() => expect(nativeShare).toHaveBeenCalledTimes(2))
     expect(screen.queryByLabelText('How was Tally?')).not.toBeInTheDocument()
   })

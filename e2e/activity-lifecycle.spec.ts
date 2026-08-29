@@ -22,6 +22,52 @@ test.beforeEach(async ({ context }) => {
   }))
 })
 
+test('exports categorized CSV data and keeps the export flow usable on mobile', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('./')
+  await page.getByLabel('Display name').fill('CSV Tester')
+  await page.getByRole('button', { name: 'Continue' }).click()
+  await page.getByRole('button', { name: 'Create an activity' }).click()
+  await page.getByLabel('Activity name').fill('Export weekend')
+  await page.getByLabel(/Add friends/).fill('Maya')
+  await page.getByRole('button', { name: 'Create activity' }).click()
+
+  await page.getByRole('button', { name: 'Add expense' }).click()
+  await page.getByLabel('Description').fill('Dinner, noodles')
+  await page.getByRole('button', { name: 'Category' }).click()
+  await page.getByRole('option', { name: 'Food & dining' }).click()
+  await page.getByRole('spinbutton', { name: 'Amount' }).fill('42')
+  await page.getByRole('button', { name: 'Save expense' }).click()
+
+  await page.getByRole('button', { name: 'Share', exact: true }).click()
+  await page.getByRole('button', { name: /^Export CSV data/ }).click()
+  const dialog = page.getByRole('dialog', { name: 'Export CSV data' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByText('Food & dining')).toBeVisible()
+  await dialog.evaluate(element => Promise.all(element.getAnimations().map(animation => animation.finished)))
+  const dialogBounds = await dialog.evaluate(element => {
+    const bounds = element.getBoundingClientRect()
+    return { top: bounds.top, bottom: bounds.bottom, left: bounds.left, right: bounds.right }
+  })
+  expect(dialogBounds.top).toBeGreaterThanOrEqual(12)
+  expect(dialogBounds.bottom).toBeLessThanOrEqual(832)
+  expect(dialogBounds.left).toBeGreaterThanOrEqual(12)
+  expect(dialogBounds.right).toBeLessThanOrEqual(378)
+
+  await dialog.getByRole('button', { name: /Full activity/ }).click()
+  const downloadPromise = page.waitForEvent('download')
+  await dialog.getByRole('button', { name: 'Download CSV' }).click()
+  const download = await downloadPromise
+  expect(download.suggestedFilename()).toMatch(/^tally-export-weekend-all-\d{4}-\d{2}-\d{2}\.csv$/)
+  const downloadPath = await download.path()
+  expect(downloadPath).not.toBeNull()
+  const csv = await readFile(downloadPath!, 'utf8')
+  expect(csv.startsWith('\uFEFFrecord_type,recorded_at')).toBe(true)
+  expect(csv).toContain('food,"Dinner, noodles",42.00')
+  expect(csv).toContain(',CSV Tester,21.00,42.00,21.00,')
+  expect(csv).toContain(',Maya,21.00,0.00,-21.00,')
+})
+
 test('follows the system theme and persists an explicit appearance override', async ({ browser }) => {
   const context = await browser.newContext({ colorScheme: 'dark' })
   const page = await context.newPage()
@@ -370,7 +416,8 @@ test('keeps share and add expense together in the mobile action row', async ({ p
   const shareDialog = page.getByRole('dialog', { name: 'Share activity' })
   await expect(shareDialog).toBeVisible()
   await expect(shareDialog.getByRole('button', { name: 'Start live activity' })).toBeVisible()
-  await expect(shareDialog.getByRole('button', { name: /^Export full summary/ })).toBeVisible()
+  await expect(shareDialog.getByRole('button', { name: /^Export share image/ })).toBeVisible()
+  await expect(shareDialog.getByRole('button', { name: /^Export CSV data/ })).toBeVisible()
   await expect(shareDialog.getByText(/snapshot/i)).toHaveCount(0)
   await page.keyboard.press('Escape')
   await expect(shareDialog).toHaveCount(0)
@@ -534,7 +581,7 @@ test('offers optional written feedback after a successful share rating', async (
   await page.getByRole('button', { name: 'Share', exact: true }).click()
   const firstDownload = page.waitForEvent('download')
   await page.getByRole('dialog', { name: 'Share activity' })
-    .getByRole('button', { name: /^Export full summary/ })
+    .getByRole('button', { name: /^Export share image/ })
     .click()
   await firstDownload
 
@@ -568,7 +615,7 @@ test('offers optional written feedback after a successful share rating', async (
   await page.getByRole('button', { name: 'Share', exact: true }).click()
   const secondDownload = page.waitForEvent('download')
   await page.getByRole('dialog', { name: 'Share activity' })
-    .getByRole('button', { name: /^Export full summary/ })
+    .getByRole('button', { name: /^Export share image/ })
     .click()
   await secondDownload
   await expect(page.getByLabel('How was Tally?')).toHaveCount(0)
@@ -646,7 +693,7 @@ test('tracks local outcomes without sending local activity data or loading third
   const summaryDownload = page.waitForEvent('download')
   await page
     .getByRole('dialog', { name: 'Share activity' })
-    .getByRole('button', { name: /^Export full summary/ })
+    .getByRole('button', { name: /^Export share image/ })
     .click()
   await summaryDownload
 
@@ -828,7 +875,7 @@ test('shares one editable backend activity across isolated browser sessions', as
   await page.getByRole('button', { name: 'Share', exact: true }).click()
   const shareDialog = page.getByRole('dialog', { name: 'Share activity' })
   await expect(shareDialog.getByRole('button', { name: 'Start live activity' })).toBeVisible()
-  await expect(shareDialog.getByRole('button', { name: /^Export full summary/ })).toBeVisible()
+  await expect(shareDialog.getByRole('button', { name: /^Export share image/ })).toBeVisible()
   await expect(shareDialog.getByText(/snapshot/i)).toHaveCount(0)
   await shareDialog.getByRole('button', { name: 'Start live activity' }).click()
   await expect(page.getByRole('dialog', { name: 'Scan to join Shared cabin' })).toBeVisible()
@@ -858,7 +905,7 @@ test('shares one editable backend activity across isolated browser sessions', as
   const liveExportDialog = page.getByRole('dialog', { name: 'Share activity' })
   await expect(liveExportDialog.getByText('Includes every expense, payment, and balance, plus the Live QR invite.')).toBeVisible()
   const liveSummaryDownloadPromise = page.waitForEvent('download')
-  await liveExportDialog.getByRole('button', { name: /^Export full summary/ }).click()
+  await liveExportDialog.getByRole('button', { name: /^Export share image/ }).click()
   const liveSummaryDownload = await liveSummaryDownloadPromise
   const liveSummaryPath = await liveSummaryDownload.path()
   expect(liveSummaryPath).not.toBeNull()

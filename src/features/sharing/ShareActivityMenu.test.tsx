@@ -9,25 +9,29 @@ describe('ShareActivityMenu', () => {
     const onClose = vi.fn()
     const onCollaborateLive = vi.fn()
     const onShareSummary = vi.fn()
+    const onExportData = vi.fn()
     render(<ShareActivityMenu
       groupName="Weekend trip"
       onClose={onClose}
       onCollaborateLive={onCollaborateLive}
       onShareSummary={onShareSummary}
+      onExportData={onExportData}
     />)
 
     expect(screen.getByRole('dialog', { name: 'Share activity' })).toBeVisible()
-    expect(screen.getByText('Invite people to edit Weekend trip together, or export a complete summary.')).toBeVisible()
+    expect(screen.getByText('Invite people to edit Weekend trip together, or export an image or CSV.')).toBeVisible()
     expect(screen.getByText('CAN EDIT · STAYS IN SYNC')).toBeVisible()
     expect(screen.getByText('everyone sees the latest version.', { exact: false })).toBeVisible()
     expect(screen.getByText('Includes every expense, payment, total, and who owes whom.')).toBeVisible()
     expect(screen.queryByText(/snapshot/i)).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Start live activity' }))
-    await user.click(screen.getByRole('button', { name: /^Export full summary/ }))
+    await user.click(screen.getByRole('button', { name: /^Export share image/ }))
+    await user.click(screen.getByRole('button', { name: /^Export CSV data/ }))
 
     expect(onCollaborateLive).toHaveBeenCalledOnce()
     expect(onShareSummary).toHaveBeenCalledOnce()
-    expect(onClose).toHaveBeenCalledTimes(2)
+    expect(onExportData).toHaveBeenCalledOnce()
+    expect(onClose).toHaveBeenCalledTimes(3)
   })
 
   it('uses the live-link action, omits unavailable actions, and supports every close path', async () => {
@@ -62,9 +66,20 @@ describe('ShareActivityMenu', () => {
     const onCopyLink = vi.fn()
     const onShowQr = vi.fn()
     const onShareSummary = vi.fn()
-    const { rerender } = render(<ShareActivityMenu groupName="Cabin" live onClose={onClose} onCopyLink={onCopyLink} onShareSummary={onShareSummary} />)
+    const onExportData = vi.fn()
+    const { rerender } = render(<ShareActivityMenu groupName="Cabin" live onClose={onClose} onCopyLink={onCopyLink} onShareSummary={onShareSummary} onExportData={onExportData} />)
 
     expect(screen.getByText('Includes every expense, payment, and balance, plus the Live QR invite.')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: /^Export CSV data/ }))
+    expect(onExportData).toHaveBeenCalledOnce()
+
+    rerender(<ShareActivityMenu groupName="Cabin" onClose={onClose} onShareSummary={onShareSummary} />)
+    expect(screen.getByRole('button', { name: /^Export share image/ })).toBeVisible()
+    expect(screen.queryByRole('button', { name: /^Export CSV data/ })).not.toBeInTheDocument()
+
+    rerender(<ShareActivityMenu groupName="Cabin" onClose={onClose} onExportData={onExportData} />)
+    expect(screen.queryByRole('button', { name: /^Export share image/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Export CSV data/ })).toBeVisible()
 
     rerender(<ShareActivityMenu groupName="Cabin" live onClose={onClose} onShowQr={onShowQr} />)
     expect(screen.queryByRole('button', { name: 'Copy live invite link' })).not.toBeInTheDocument()

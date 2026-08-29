@@ -156,7 +156,7 @@ export function MembersRail({ members, currentMemberId = 'me', readOnly = false,
   )
 }
 
-export function GroupDashboard({ group, members, expenses, query, activityFeedback, readOnly = false, readOnlyLabel, currentMemberId = 'me', currentUserLabel = 'You', statusLabel, onCurrentMemberChange, onCurrencyChange, onShareSummary, onShareQr, onShareLive, onCopyShareLink, onEndLive, onAddFriend, onAddExpense, onSettleUp, onEditExpense, onDeleteExpense }: {
+export function GroupDashboard({ group, members, expenses, query, activityFeedback, readOnly = false, readOnlyLabel, currentMemberId = 'me', currentUserLabel = 'You', statusLabel, onCurrentMemberChange, onCurrencyChange, onShareSummary, onExportData, onShareQr, onShareLive, onCopyShareLink, onEndLive, onAddFriend, onAddExpense, onSettleUp, onEditExpense, onDeleteExpense }: {
   group: ActivityGroup
   members: Member[]
   expenses: Expense[]
@@ -170,6 +170,7 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
   onCurrentMemberChange?: (memberId: string) => void
   onCurrencyChange?: (currency: CurrencyCode) => void
   onShareSummary?: () => void
+  onExportData?: () => void
   onShareQr?: () => void
   onShareLive?: () => void
   onCopyShareLink?: () => void
@@ -184,7 +185,7 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
   const [shareMenuOpen, setShareMenuOpen] = useState(false)
   const currency = activityCurrency(group)
   const hasExpenses = expenses.length > 0
-  const canShare = Boolean(onShareSummary || onShareQr || onShareLive || onCopyShareLink)
+  const canShare = Boolean(onShareSummary || onExportData || onShareQr || onShareLive || onCopyShareLink)
   return (
     <main className="dashboard">
       <div className="main-column">
@@ -230,6 +231,7 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
         onCopyLink={onCopyShareLink}
         onShowQr={onShareQr}
         onShareSummary={onShareSummary}
+        onExportData={onExportData}
         onEndLive={onEndLive}
       /> : null}
     </main>

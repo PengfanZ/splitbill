@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react'
-import { ChevronRight, CircleStop, Copy, QrCode, Radio, Share2 } from 'lucide-react'
+import { ChevronRight, CircleStop, Copy, FileSpreadsheet, QrCode, Radio, Share2 } from 'lucide-react'
 import { Button } from '../../components/Button'
 import { ModalShell } from '../../components/Dialog'
 import { useLocalization } from '../../i18n/LocalizationContext'
@@ -53,7 +53,7 @@ function ShareSummaryAction({ icon, title, description, onClick }: {
   )
 }
 
-export function ShareActivityMenu({ groupName, live = false, onClose, onCollaborateLive, onCopyLink, onShowQr, onShareSummary, onEndLive }: {
+export function ShareActivityMenu({ groupName, live = false, onClose, onCollaborateLive, onCopyLink, onShowQr, onShareSummary, onExportData, onEndLive }: {
   groupName: string
   live?: boolean
   onClose: () => void
@@ -61,6 +61,7 @@ export function ShareActivityMenu({ groupName, live = false, onClose, onCollabor
   onCopyLink?: ShareAction
   onShowQr?: ShareAction
   onShareSummary?: ShareAction
+  onExportData?: ShareAction
   onEndLive?: ShareAction
 }) {
   const { t } = useLocalization()
@@ -100,7 +101,10 @@ export function ShareActivityMenu({ groupName, live = false, onClose, onCollabor
             </ShareChoice>
           ) : null}
         </div>
-        {onShareSummary ? <div className="share-menu-other"><span>{t('shareMenu.otherTitle')}</span><ShareSummaryAction icon={<Share2 size={20} />} title={t('shareMenu.summary')} description={t(live ? 'shareMenu.summaryHelpLive' : 'shareMenu.summaryHelp')} onClick={() => run(onShareSummary)} /></div> : null}
+        {onShareSummary || onExportData ? <div className="share-menu-other"><span>{t('shareMenu.otherTitle')}</span><div className="share-menu-other-actions">
+          {onShareSummary ? <ShareSummaryAction icon={<Share2 size={20} />} title={t('shareMenu.summary')} description={t(live ? 'shareMenu.summaryHelpLive' : 'shareMenu.summaryHelp')} onClick={() => run(onShareSummary)} /> : null}
+          {onExportData ? <ShareSummaryAction icon={<FileSpreadsheet size={20} />} title={t('shareMenu.csv')} description={t('shareMenu.csvHelp')} onClick={() => run(onExportData)} /> : null}
+        </div></div> : null}
         {live && onEndLive ? (
           <div className="share-menu-danger">
             <span className="share-menu-danger-copy"><CircleStop size={18} /><span><b>{t('shareMenu.endLive')}</b><small>{t('shareMenu.endLiveHelp')}</small></span></span>
