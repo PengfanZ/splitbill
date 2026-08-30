@@ -185,6 +185,29 @@ describe('first-party analytics', () => {
     })
   })
 
+  it('records a completed CSV export without activity or file content', () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
+    const client = createConfiguredAnalyticsClient({
+      VITE_SUPABASE_URL: 'https://project.supabase.co',
+      VITE_SUPABASE_PUBLISHABLE_KEY: 'publishable-key',
+    }, {
+      enabled: true,
+      fetcher,
+      storage: null,
+      crypto: deterministicCrypto(10),
+    })!
+
+    client.track('csv_export_completed', 'live', 'en')
+
+    expect(JSON.parse(fetcher.mock.calls[0][1].body as string)).toEqual({
+      p_event_name: 'csv_export_completed',
+      p_surface: 'live',
+      p_session_token: '0a'.repeat(16),
+      p_locale: 'en',
+      p_currency: null,
+    })
+  })
+
   it('records a successful feedback submission without feedback content', () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
     const client = createConfiguredAnalyticsClient({

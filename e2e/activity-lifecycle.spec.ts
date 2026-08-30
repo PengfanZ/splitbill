@@ -23,6 +23,11 @@ test.beforeEach(async ({ context }) => {
 })
 
 test('exports CSV data and keeps the export flow usable on mobile', async ({ page }) => {
+  const events: AnalyticsPayload[] = []
+  await page.route('https://live-sharing.test/rest/v1/rpc/record_analytics_event', async route => {
+    events.push(route.request().postDataJSON() as AnalyticsPayload)
+    await route.fulfill({ status: 204, body: '' })
+  })
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('./')
   await page.getByLabel('Display name').fill('CSV Tester')
@@ -63,6 +68,12 @@ test('exports CSV data and keeps the export flow usable on mobile', async ({ pag
   expect(csv).toContain(',,"Dinner, noodles",42.00')
   expect(csv).toContain(',CSV Tester,21.00,42.00,21.00,')
   expect(csv).toContain(',Maya,21.00,0.00,-21.00,')
+  await expect.poll(() => events.filter(event => event.p_event_name === 'csv_export_completed').length).toBe(1)
+  expect(events.find(event => event.p_event_name === 'csv_export_completed')).toMatchObject({
+    p_surface: 'local',
+    p_locale: 'en',
+    p_currency: null,
+  })
 
   const prompt = page.getByLabel('How was Tally?')
   await expect(prompt).toBeVisible()
@@ -77,6 +88,7 @@ test('exports CSV data and keeps the export flow usable on mobile', async ({ pag
     .click()
   await secondDownloadPromise
   await expect(page.getByLabel('How was Tally?')).toHaveCount(0)
+  await expect.poll(() => events.filter(event => event.p_event_name === 'csv_export_completed').length).toBe(2)
 })
 
 test('returns to a working app after exporting CSV from an iPhone PWA', async ({ page }) => {

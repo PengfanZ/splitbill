@@ -190,6 +190,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
     if (feedbackClient && shouldShowRatingPrompt(LATEST_CHANGELOG_ID)) setRatingPromptTrigger('share')
   }
   const handleCsvDownloaded = () => {
+    analyticsClient?.track('csv_export_completed', analyticsSurface, locale)
     if (feedbackClient && shouldShowCsvExportRatingPrompt()) setRatingPromptTrigger('csv-export')
   }
   const sharing = useActivitySharing({

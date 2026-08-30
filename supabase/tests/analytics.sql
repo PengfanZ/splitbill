@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(74);
+select plan(77);
 
 select has_table('private', 'analytics_events', 'private analytics storage exists');
 select columns_are(
@@ -224,6 +224,33 @@ select is(
   ),
   1::bigint,
   'daily analytics reports include summary export clicks'
+);
+
+select lives_ok(
+  $$select public.record_analytics_event('csv_export_completed', 'local', '46789abcdef0123456789abcdef01234', 'en')$$,
+  'a completed CSV export is recorded'
+);
+select is(
+  (
+    select count(*)
+    from private.analytics_events
+    where event_name = 'csv_export_completed'
+      and surface = 'local'
+      and locale = 'en'
+      and currency is null
+      and occurred_at is not null
+  ),
+  1::bigint,
+  'completed CSV exports retain only approved anonymous event fields'
+);
+select is(
+  (
+    select events
+    from private.analytics_daily
+    where event_name = 'csv_export_completed' and surface = 'local'
+  ),
+  1::bigint,
+  'daily analytics reports include completed CSV exports'
 );
 
 select lives_ok(

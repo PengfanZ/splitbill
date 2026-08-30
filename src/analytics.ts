@@ -10,6 +10,7 @@ export const ANALYTICS_EVENTS = [
   'expense_added',
   'feedback_submitted',
   'summary_export_clicked',
+  'csv_export_completed',
   'live_share_clicked',
   'live_activity_created',
   'live_activity_opened',

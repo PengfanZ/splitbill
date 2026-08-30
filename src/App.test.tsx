@@ -2416,13 +2416,15 @@ describe('complete app workflows', () => {
 describe('in-app feedback integration', () => {
   it('offers CSV-specific feedback after the first completed export only', async () => {
     const user = userEvent.setup()
+    const analyticsClient = { track: vi.fn() } satisfies AnalyticsClient
     mockSummaryDownload()
     localStorage.setItem(RATING_PROMPT_STORAGE_KEY, LATEST_CHANGELOG_ID)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState({ expenses: [expense()] })))
-    render(<App feedbackClient={{ submit: vi.fn() }} />)
+    render(<App analyticsClient={analyticsClient} feedbackClient={{ submit: vi.fn() }} />)
 
     await chooseShareAction(user, 'Export CSV data')
     await user.click(await screen.findByRole('button', { name: 'Download CSV' }))
+    expect(analyticsClient.track).toHaveBeenCalledWith('csv_export_completed', 'local', 'en')
     const prompt = await screen.findByLabelText('How was Tally?')
     expect(prompt).toHaveTextContent('Your CSV is ready. A quick rating helps us improve.')
     expect(screen.queryByRole('dialog', { name: 'Export CSV data' })).not.toBeInTheDocument()
@@ -2432,6 +2434,7 @@ describe('in-app feedback integration', () => {
     await chooseShareAction(user, 'Export CSV data')
     await user.click(await screen.findByRole('button', { name: 'Download CSV' }))
     expect(screen.queryByLabelText('How was Tally?')).not.toBeInTheDocument()
+    expect(analyticsClient.track.mock.calls.filter(([event]) => event === 'csv_export_completed')).toHaveLength(2)
   })
 
   it('submits feedback without navigating away or changing local activity data', async () => {
