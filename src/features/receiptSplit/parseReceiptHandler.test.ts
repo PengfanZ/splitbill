@@ -50,6 +50,57 @@ function dependencies(overrides: Partial<ParseReceiptHandlerDependencies> = {}) 
 afterEach(() => vi.unstubAllGlobals())
 
 describe('parse receipt Edge Function handler', () => {
+  it('correlates upload, quota, model and validation stages without recording receipt content', async () => {
+    const reportDiagnostic = vi.fn()
+    const requestId = '12345678-1234-4234-8234-123456789abc'
+    const response = await handleParseReceiptRequest(request(body, { 'x-tally-request-id': requestId }), dependencies({ reportDiagnostic }))
+    expect(response.headers.get('x-tally-request-id')).toBe(requestId)
+    const events = reportDiagnostic.mock.calls.map(([event]) => event)
+    expect(events.filter(event => event.event === 'stage_started').map(event => event.stage)).toEqual(['request', 'upload', 'quota', 'provider', 'provider_body', 'validation'])
+    expect(events.every(event => event.requestId === requestId)).toBe(true)
+    expect(events.at(-1)).toMatchObject({ event: 'completed', status: 200 })
+    expect(JSON.stringify(events)).not.toContain('secret-key')
+    expect(JSON.stringify(events)).not.toContain('base64')
+    expect(JSON.stringify(events)).not.toContain(receiptDraftFixture.merchant!)
+  })
+
+  it('records quota and provider failures and tolerates a broken diagnostic sink', async () => {
+    const reportDiagnostic = vi.fn()
+    await handleParseReceiptRequest(request(), dependencies({ reportDiagnostic, consumeQuota: vi.fn().mockRejectedValue(new Error('private error')) }))
+    expect(reportDiagnostic).toHaveBeenCalledWith(expect.objectContaining({ stage: 'quota', reason: 'quota_unavailable' }))
+    expect(JSON.stringify(reportDiagnostic.mock.calls)).not.toContain('private error')
+    await handleParseReceiptRequest(request(), dependencies({ reportDiagnostic, fetcher: vi.fn().mockRejectedValue(new Error('network')) }))
+    expect(reportDiagnostic).toHaveBeenCalledWith(expect.objectContaining({ stage: 'provider', reason: 'provider_network' }))
+    expect((await handleParseReceiptRequest(request(), dependencies({ reportDiagnostic: () => { throw new Error('logging') } }))).status).toBe(200)
+  })
+
+  it('records unexpected server failures with a safe response and correlation ID', async () => {
+    const reportDiagnostic = vi.fn()
+    const response = await handleParseReceiptRequest(request(), dependencies({ reportDiagnostic, getEnvironment: () => { throw new Error('private details') } }))
+    expect(response.status).toBe(500)
+    expect(response.headers.get('x-tally-request-id')).toBeTruthy()
+    expect(reportDiagnostic).toHaveBeenCalledWith(expect.objectContaining({ event: 'failure', reason: 'unexpected_error' }))
+    expect(await response.text()).not.toContain('private details')
+  })
+
+  it('distinguishes an abandoned upload and provider deadline from network and malformed-body failures', async () => {
+    const reportDiagnostic = vi.fn()
+    const aborted = new AbortController()
+    aborted.abort()
+    await handleParseReceiptRequest(new Request('https://example.com', {
+      method: 'POST', headers: { 'x-tally-input-mode': 'receipt' }, body: '{', signal: aborted.signal,
+    }), dependencies({ reportDiagnostic }))
+    expect(reportDiagnostic).toHaveBeenCalledWith(expect.objectContaining({ stage: 'upload', reason: 'client_aborted' }))
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(aborted.signal)
+    try {
+      await handleParseReceiptRequest(request(), dependencies({ reportDiagnostic, fetcher: vi.fn().mockRejectedValue(new Error('abort')) }))
+      expect(reportDiagnostic).toHaveBeenCalledWith(expect.objectContaining({ stage: 'provider', reason: 'provider_timeout' }))
+      await handleParseReceiptRequest(request(), dependencies({ reportDiagnostic, fetcher: vi.fn().mockResolvedValue(new Response('{')) }))
+      expect(reportDiagnostic).toHaveBeenCalledWith(expect.objectContaining({ stage: 'provider_body', reason: 'provider_timeout' }))
+    } finally {
+      timeout.mockRestore()
+    }
+  })
   it('supports the receipt input header and rejects bad methods and modes', async () => {
     expect(RECEIPT_CORS_HEADERS['Access-Control-Allow-Headers']).toContain('x-tally-input-mode')
     const get = await handleParseReceiptRequest(new Request('https://example.com'), dependencies())

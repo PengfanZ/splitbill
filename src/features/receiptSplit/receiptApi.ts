@@ -1,4 +1,5 @@
 import { parseReceiptDraft, parseReceiptRequest, type ParseReceiptRequest } from './receiptContract'
+import { createReceiptDiagnosticReporter, RECEIPT_REQUEST_ID_HEADER, receiptRequestId, type ReceiptClientDiagnostic } from './receiptDiagnostics'
 
 export type ReceiptApiErrorKind =
   | 'configuration'
@@ -23,6 +24,7 @@ type ReceiptConfiguration = {
   publishableKey: string
   functionName?: string
   requestTimeoutMs?: number
+  reportDiagnostic?: (diagnostic: ReceiptClientDiagnostic) => void
 }
 
 export type ReceiptClient = ReturnType<typeof createReceiptClient>
@@ -68,53 +70,76 @@ export function createReceiptClient(configuration: ReceiptConfiguration, fetcher
     throw new ReceiptApiError('configuration', 'Supabase URL and publishable key are required.')
   }
 
+  async function parseAttempt(request: ParseReceiptRequest, requestId: string, signal: AbortSignal, onStatus: (status: number) => void) {
+    let validRequest: ParseReceiptRequest
+    try {
+      validRequest = parseReceiptRequest(request)
+    } catch (cause) {
+      throw new ReceiptApiError('invalid-input', 'Choose a valid receipt photo.', { cause })
+    }
+
+    let response: Response
+    try {
+      response = await fetcher(`${supabaseUrl}/functions/v1/${functionName}`, {
+        method: 'POST',
+        headers: {
+          apikey: publishableKey,
+          'content-type': 'application/json',
+          'x-tally-input-mode': 'receipt',
+          [RECEIPT_REQUEST_ID_HEADER]: requestId,
+        },
+        cache: 'no-store',
+        credentials: 'omit',
+        referrerPolicy: 'no-referrer',
+        signal,
+        body: JSON.stringify(validRequest),
+      })
+    } catch (cause) {
+      throw new ReceiptApiError('network', 'Could not reach the receipt AI service.', { cause })
+    }
+
+    onStatus(response.status)
+    let payload: unknown
+    try {
+      payload = await readResponseJson(response)
+    } catch (cause) {
+      throw new ReceiptApiError('invalid-response', 'The receipt AI service returned unreadable data.', { cause })
+    }
+    if (!response.ok) {
+      const message = isRecord(payload) && typeof payload.message === 'string'
+        ? payload.message
+        : 'Receipt splitting is temporarily unavailable.'
+      throw new ReceiptApiError(errorKind(response.status, payload), message)
+    }
+    if (!isRecord(payload) || !('result' in payload)) {
+      throw new ReceiptApiError('invalid-response', 'The receipt AI service returned an unexpected result.')
+    }
+    try {
+      return parseReceiptDraft(payload.result)
+    } catch (cause) {
+      throw new ReceiptApiError('invalid-response', 'The receipt AI service returned an invalid draft.', { cause })
+    }
+  }
+
   return {
     async parse(request: ParseReceiptRequest) {
-      let validRequest: ParseReceiptRequest
+      const requestId = receiptRequestId(null)
+      const started = performance.now()
+      const signal = AbortSignal.timeout(requestTimeoutMs)
+      let status: number | null = null
+      let outcome: ReceiptClientDiagnostic['outcome'] = 'success'
       try {
-        validRequest = parseReceiptRequest(request)
-      } catch (cause) {
-        throw new ReceiptApiError('invalid-input', 'Choose a valid receipt photo.', { cause })
-      }
-
-      let response: Response
-      try {
-        response = await fetcher(`${supabaseUrl}/functions/v1/${functionName}`, {
-          method: 'POST',
-          headers: {
-            apikey: publishableKey,
-            'content-type': 'application/json',
-            'x-tally-input-mode': 'receipt',
-          },
-          cache: 'no-store',
-          credentials: 'omit',
-          referrerPolicy: 'no-referrer',
-          signal: AbortSignal.timeout(requestTimeoutMs),
-          body: JSON.stringify(validRequest),
-        })
-      } catch (cause) {
-        throw new ReceiptApiError('network', 'Could not reach the receipt AI service.', { cause })
-      }
-
-      let payload: unknown
-      try {
-        payload = await readResponseJson(response)
-      } catch (cause) {
-        throw new ReceiptApiError('invalid-response', 'The receipt AI service returned unreadable data.', { cause })
-      }
-      if (!response.ok) {
-        const message = isRecord(payload) && typeof payload.message === 'string'
-          ? payload.message
-          : 'Receipt splitting is temporarily unavailable.'
-        throw new ReceiptApiError(errorKind(response.status, payload), message)
-      }
-      if (!isRecord(payload) || !('result' in payload)) {
-        throw new ReceiptApiError('invalid-response', 'The receipt AI service returned an unexpected result.')
-      }
-      try {
-        return parseReceiptDraft(payload.result)
-      } catch (cause) {
-        throw new ReceiptApiError('invalid-response', 'The receipt AI service returned an invalid draft.', { cause })
+        return await parseAttempt(request, requestId, signal, value => { status = value })
+      } catch (error) {
+        outcome = signal.aborted ? 'timeout'
+          : error instanceof ReceiptApiError ? error.kind : 'unavailable'
+        throw error
+      } finally {
+        try {
+          configuration.reportDiagnostic?.({ requestId, outcome, status, elapsedMs: performance.now() - started })
+        } catch {
+          // Receipt entry must work even when the diagnostic sink fails.
+        }
       }
     },
   }
@@ -139,6 +164,7 @@ export function createConfiguredReceiptClient(
       supabaseUrl,
       publishableKey,
       functionName: environment.VITE_RECEIPT_FUNCTION_NAME,
+      reportDiagnostic: createReceiptDiagnosticReporter(supabaseUrl.replace(/\/+$/, ''), publishableKey, fetch),
     })
   } catch {
     return null

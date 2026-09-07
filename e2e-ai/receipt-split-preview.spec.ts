@@ -18,6 +18,7 @@ async function openReceiptFlow(page: Page, activityName: string) {
 }
 
 test.beforeEach(async ({ context }) => {
+  await context.route(`${aiPreviewURL}/rest/v1/rpc/record_receipt_client_diagnostic`, route => route.fulfill({ status: 204, body: '' }))
   await context.route(`${aiPreviewURL}/rest/v1/rpc/record_analytics_event`, route => route.fulfill({
     status: 204,
     body: '',
@@ -25,6 +26,16 @@ test.beforeEach(async ({ context }) => {
 })
 
 test('scans, reviews, assigns, and saves a receipt on mobile', async ({ page }) => {
+  const diagnostics: Record<string, unknown>[] = []
+  let requestId: string | undefined
+  page.on('request', request => {
+    if (request.url().endsWith('/functions/v1/parse-receipt')) requestId = request.headers()['x-tally-request-id']
+  })
+  await page.route(`${aiPreviewURL}/rest/v1/rpc/record_receipt_client_diagnostic`, route => {
+    diagnostics.push(route.request().postDataJSON())
+    // A failed diagnostic sink must not break the successful receipt flow.
+    return route.fulfill({ status: 503, body: '' })
+  })
   const analytics: string[] = []
   await page.unroute(`${aiPreviewURL}/rest/v1/rpc/record_analytics_event`)
   await page.route(`${aiPreviewURL}/rest/v1/rpc/record_analytics_event`, route => {
@@ -36,6 +47,9 @@ test('scans, reviews, assigns, and saves a receipt on mobile', async ({ page }) 
   await page.locator('input[type="file"]').nth(1).setInputFiles(path.resolve('public/og.png'))
 
   await expect(page.getByText('Review the receipt')).toBeVisible()
+  await expect.poll(() => diagnostics.length).toBe(1)
+  expect(requestId).toMatch(/^[a-f0-9-]{36}$/)
+  expect(diagnostics[0]).toEqual({ p_request_id: requestId, p_outcome: 'success', p_elapsed_ms: expect.any(Number), p_status: 200 })
   await expect(page.getByLabel('Ramen amount')).toHaveValue('20.00')
   await page.getByRole('button', { name: 'Assign dishes' }).click()
   await expect(page.getByText('Dish 1 of 2')).toBeVisible()

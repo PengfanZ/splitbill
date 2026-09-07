@@ -1,4 +1,5 @@
 import { MAX_RECEIPT_UPLOAD_BYTES, parseReceiptRequest } from './receiptContract.ts'
+import { createReceiptTrace, receiptRequestId, RECEIPT_REQUEST_ID_HEADER, type ReceiptDiagnostic } from './receiptDiagnostics.ts'
 import {
   buildReceiptOpenRouterRequest,
   DEFAULT_OPENROUTER_RECEIPT_FALLBACK_MODEL,
@@ -18,13 +19,16 @@ export const RECEIPT_CORS_HEADERS = {
     'content-type',
     'x-retry-count',
     'x-tally-input-mode',
+    RECEIPT_REQUEST_ID_HEADER,
   ].join(', '),
+  'Access-Control-Expose-Headers': RECEIPT_REQUEST_ID_HEADER,
 }
 
 export type ReceiptQuotaResult = 'allowed' | 'client-limit' | 'global-limit'
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 
 export type ParseReceiptHandlerDependencies = {
+  reportDiagnostic?: (diagnostic: ReceiptDiagnostic) => void
   consumeQuota: (identifier: string) => Promise<ReceiptQuotaResult>
   fetcher?: Fetcher
   getEnvironment: (name: string) => string | undefined
@@ -134,6 +138,24 @@ export async function handleParseReceiptRequest(
   request: Request,
   dependencies: ParseReceiptHandlerDependencies,
 ) {
+  const requestId = receiptRequestId(request.headers.get(RECEIPT_REQUEST_ID_HEADER))
+  const trace = createReceiptTrace(requestId, dependencies.reportDiagnostic)
+  try {
+    const response = await parseReceiptRequestWithTrace(request, dependencies, trace)
+    response.headers.set(RECEIPT_REQUEST_ID_HEADER, requestId)
+    trace.emit('completed', { status: response.status })
+    return response
+  } catch {
+    trace.emit('failure', { status: 500, reason: 'unexpected_error' })
+    return jsonError(500, 'internal_error', 'Receipt splitting is temporarily unavailable.', { [RECEIPT_REQUEST_ID_HEADER]: requestId })
+  }
+}
+
+async function parseReceiptRequestWithTrace(
+  request: Request,
+  dependencies: ParseReceiptHandlerDependencies,
+  trace: ReturnType<typeof createReceiptTrace>,
+) {
   if (request.method !== 'POST') {
     return jsonError(405, 'method_not_allowed', 'Use POST to read a receipt.')
   }
@@ -145,11 +167,14 @@ export async function handleParseReceiptRequest(
     return jsonError(413, 'request_too_large', 'The receipt photo is too large.')
   }
   let parsedRequest
+  trace.stage('upload')
   try {
     const requestText = await readTextWithLimit(request.body, MAX_RECEIPT_REQUEST_BYTES)
     parsedRequest = parseReceiptRequest(JSON.parse(requestText))
     validateImageDataUrl(parsedRequest.image.dataUrl)
+    trace.emit('upload_validated', { requestBytes: new TextEncoder().encode(requestText).byteLength })
   } catch (error) {
+    trace.emit('failure', { reason: request.signal.aborted ? 'client_aborted' : error instanceof RangeError ? 'request_too_large' : 'invalid_request' })
     if (error instanceof RangeError) {
       return jsonError(413, 'request_too_large', 'The receipt photo is too large.')
     }
@@ -157,14 +182,20 @@ export async function handleParseReceiptRequest(
   }
 
   if (dependencies.getEnvironment('AI_RECEIPT_ENABLED') !== 'true') {
+    trace.emit('failure', { reason: 'ai_disabled' })
     return jsonError(503, 'ai_disabled', 'Receipt splitting is currently disabled.')
   }
   const apiKey = dependencies.getEnvironment('OPENROUTER_API_KEY')?.trim() ?? ''
-  if (!apiKey) return jsonError(503, 'ai_not_configured', 'Receipt splitting is not configured.')
+  if (!apiKey) {
+    trace.emit('failure', { reason: 'ai_not_configured' })
+    return jsonError(503, 'ai_not_configured', 'Receipt splitting is not configured.')
+  }
 
+  trace.stage('quota')
   try {
     const quota = await dependencies.consumeQuota(requestIdentifier(request))
     if (quota === 'client-limit') {
+      trace.emit('failure', { reason: 'client_limit' })
       return jsonError(
         429,
         'rate_limit_exceeded',
@@ -173,9 +204,11 @@ export async function handleParseReceiptRequest(
       )
     }
     if (quota === 'global-limit') {
+      trace.emit('failure', { reason: 'global_limit' })
       return jsonError(503, 'ai_budget_exceeded', 'The receipt scanning budget is temporarily unavailable.')
     }
   } catch {
+    trace.emit('failure', { reason: 'quota_unavailable' })
     return jsonError(503, 'rate_limit_unavailable', 'Receipt splitting is temporarily unavailable.')
   }
 
@@ -192,6 +225,8 @@ export async function handleParseReceiptRequest(
     if (remainingMs <= 0) break
 
     let providerResponse: Response
+    const signal = AbortSignal.timeout(remainingMs)
+    trace.stage('provider', { attempt: attemptIndex + 1, model: currentModels[0] })
     try {
       providerResponse = await (dependencies.fetcher ?? fetch)(OPENROUTER_URL, {
         method: 'POST',
@@ -207,17 +242,20 @@ export async function handleParseReceiptRequest(
           currentModels,
           attemptIndex === 0 ? 'json-schema' : 'json-object',
         )),
-        signal: AbortSignal.timeout(remainingMs),
+        signal,
       })
     } catch {
+      trace.emit('failure', { attempt: attemptIndex + 1, reason: signal.aborted ? 'provider_timeout' : 'provider_network' })
       dependencies.reportProviderFailure?.({ models: currentModels, status: 503, errorType: 'network' })
       return jsonError(503, 'provider_unavailable', 'The receipt AI service could not be reached.')
     }
 
     let providerPayload: unknown
+    trace.stage('provider_body', { attempt: attemptIndex + 1, status: providerResponse.status })
     try {
       providerPayload = JSON.parse(await readTextWithLimit(providerResponse.body, MAX_PROVIDER_RESPONSE_BYTES))
     } catch {
+      trace.emit('failure', { reason: signal.aborted ? 'provider_timeout' : 'unreadable_response' })
       dependencies.reportProviderFailure?.({
         models: currentModels,
         status: providerResponse.status,
@@ -229,6 +267,7 @@ export async function handleParseReceiptRequest(
     if (!providerResponse.ok || embeddedFailure) {
       const status = embeddedFailure?.status ?? providerResponse.status
       const errorType = embeddedFailure?.errorType ?? null
+      trace.emit('failure', { status, reason: 'provider_error' })
       dependencies.reportProviderFailure?.({ models: currentModels, status, errorType })
       return providerFailureResponse(status, errorType)
     }
@@ -236,6 +275,7 @@ export async function handleParseReceiptRequest(
     const actualModel = isRecord(providerPayload) && typeof providerPayload.model === 'string'
       ? providerPayload.model
       : currentModels[0]
+    trace.stage('validation', { attempt: attemptIndex + 1, model: actualModel })
     try {
       const result = (dependencies.parseProviderOutput ?? parseOpenRouterReceiptOutput)(providerPayload)
       return Response.json({ result, model: actualModel }, {
@@ -245,6 +285,7 @@ export async function handleParseReceiptRequest(
       const outputError = error instanceof ReceiptModelOutputError
         ? error
         : new ReceiptModelOutputError('schema_validation')
+      trace.emit('failure', { attempt: attemptIndex + 1, reason: outputError.reason, issues: outputError.issues })
       dependencies.reportModelOutputFailure?.({
         models: currentModels,
         model: actualModel,

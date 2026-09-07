@@ -17,6 +17,35 @@ function response(payload: unknown, status = 200) {
 }
 
 describe('receipt API client', () => {
+  it('distinguishes browser timeouts from network errors and correlates the server request', async () => {
+    const reportDiagnostic = vi.fn()
+    const fetcher = vi.fn((_url, options) => new Promise<Response>((_resolve, reject) => {
+      options?.signal?.addEventListener('abort', () => reject(options.signal.reason), { once: true })
+    }))
+    const client = createReceiptClient({ supabaseUrl: 'https://example.com', publishableKey: 'key', requestTimeoutMs: 5, reportDiagnostic }, fetcher)
+    await expect(client.parse(request)).rejects.toMatchObject({ kind: 'network' })
+    expect(reportDiagnostic).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ outcome: 'timeout', status: null }))
+    expect(reportDiagnostic.mock.calls[0][0].requestId).toBe(fetcher.mock.calls[0][1]?.headers['x-tally-request-id'])
+  })
+
+  it('reports successful and rejected outcomes without changing parsing when logging fails', async () => {
+    const reportDiagnostic = vi.fn(() => { throw new Error('logger unavailable') })
+    const client = createReceiptClient({ supabaseUrl: 'https://example.com', publishableKey: 'key', reportDiagnostic }, vi.fn().mockResolvedValue(response({ result: receiptDraftFixture })))
+    await expect(client.parse(request)).resolves.toEqual(receiptDraftFixture)
+    expect(reportDiagnostic).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'success', status: 200 }))
+    const rejected = createReceiptClient({ supabaseUrl: 'https://example.com', publishableKey: 'key', reportDiagnostic }, vi.fn().mockResolvedValue(response({ code: 'rate_limit_exceeded' }, 429)))
+    await expect(rejected.parse(request)).rejects.toMatchObject({ kind: 'rate-limit' })
+    expect(reportDiagnostic).toHaveBeenLastCalledWith(expect.objectContaining({ outcome: 'rate-limit', status: 429 }))
+  })
+
+  it('reports unexpected client exceptions without leaking exception text', async () => {
+    const reportDiagnostic = vi.fn()
+    const malformedResponse = Object.defineProperty(new Response(), 'status', { get() { throw new Error('private error') } })
+    const client = createReceiptClient({ supabaseUrl: 'https://example.com', publishableKey: 'key', reportDiagnostic }, vi.fn().mockResolvedValue(malformedResponse))
+    await expect(client.parse(request)).rejects.toThrow('private error')
+    expect(reportDiagnostic).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'unavailable' }))
+    expect(JSON.stringify(reportDiagnostic.mock.calls)).not.toContain('private error')
+  })
   it('validates configuration and supports secure local development URLs', () => {
     expect(() => createReceiptClient({ supabaseUrl: 'bad', publishableKey: 'key' })).toThrow(ReceiptApiError)
     expect(() => createReceiptClient({ supabaseUrl: 'http://example.com', publishableKey: 'key' })).toThrow('required')
