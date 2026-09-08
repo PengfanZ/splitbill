@@ -14,7 +14,7 @@ import type { ActivityGroup, Expense, Member, PersistedState } from './domain/mo
 import { ActivitySummary, ExpenseList, GroupDashboard, MembersRail, SettlementDirections } from './features/activity/ActivityDashboard'
 import { AddFriendModal, CreateGroupModal, ExpenseModal, SettleUpModal } from './features/activity/ActivityModals'
 import { CHANGELOG_SEEN_STORAGE_KEY, LATEST_CHANGELOG_ID } from './features/changelog/changelog'
-import { CSV_EXPORT_RATING_PROMPT_STORAGE_KEY, RATING_PROMPT_STORAGE_KEY } from './features/feedback/ratingPromptStorage'
+import { AI_RATING_PROMPT_STORAGE_KEY, CSV_EXPORT_RATING_PROMPT_STORAGE_KEY, RATING_PROMPT_STORAGE_KEY } from './features/feedback/ratingPromptStorage'
 import { LiveActivityApiError, type LiveActivityRecord } from './features/liveSharing/liveActivityApi'
 import type { LiveActivityClient } from './features/liveSharing/liveActivityConfig'
 import { buildLiveActivityUrl, LIVE_ACTIVITY_HASH_PREFIX } from './features/liveSharing/liveActivityLink'
@@ -2414,6 +2414,91 @@ describe('complete app workflows', () => {
 })
 
 describe('in-app feedback integration', () => {
+  const aiResult = {
+    status: 'ready_batch', drafts: [{ status: 'ready', title: 'Noodles', amountCents: 2000,
+      payerId: 'me', splitMethod: 'equal', participantIds: ['me', 'maya'], exactSharesCents: [] }],
+  }
+
+  async function requestAiDraft(user: UserEvent) {
+    await user.click(screen.getByRole('button', { name: 'Add expense' }))
+    await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))
+    await user.type(screen.getByLabelText('Expense description'), 'I paid $20 for noodles, split with Maya')
+    await user.click(screen.getByRole('button', { name: 'Create draft' }))
+  }
+
+  it('asks after the first AI save, preserves the draft, and remembers dismissal after reload', async () => {
+    const user = userEvent.setup()
+    const parseBatch = vi.fn().mockResolvedValue(aiResult)
+    const props = { aiExpenseClient: { parseBatch }, feedbackClient: { submit: vi.fn() } }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState()))
+    const first = render(<App {...props} />)
+    await requestAiDraft(user)
+    expect(await screen.findByDisplayValue('Noodles')).toBeVisible()
+    expect(screen.queryByLabelText('How was AI entry?')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Save expense' }))
+    const prompt = await screen.findByLabelText('How was AI entry?')
+    expect(parseState(localStorage.getItem(STORAGE_KEY)).expenses).toHaveLength(1)
+    await user.click(within(prompt).getByRole('button', { name: 'Close' }))
+    expect(localStorage.getItem(AI_RATING_PROMPT_STORAGE_KEY)).toBe('handled')
+    first.unmount()
+    render(<App {...props} />)
+    await requestAiDraft(user)
+    await user.click(await screen.findByRole('button', { name: 'Save expense' }))
+    expect(screen.queryByLabelText('How was AI entry?')).not.toBeInTheDocument()
+  })
+
+  it('allows a failed first AI attempt to lead to problem feedback without needing a star rating', async () => {
+    const user = userEvent.setup()
+    const analyticsClient = { track: vi.fn() }
+    const submit = vi.fn().mockResolvedValue(undefined)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState()))
+    render(<App aiExpenseClient={{ parseBatch: vi.fn().mockRejectedValue(new Error('unavailable')) }} feedbackClient={{ submit }} analyticsClient={analyticsClient} />)
+    await requestAiDraft(user)
+    expect(await screen.findByRole('alert')).toBeVisible()
+    expect(screen.queryByLabelText('How was AI entry?')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await user.click(within(await screen.findByLabelText('How was AI entry?')).getByRole('button', { name: 'Add a note' }))
+    const dialog = await screen.findByRole('dialog', { name: 'What should Tally do better?' })
+    await user.click(within(dialog).getByRole('radio', { name: 'Problem' }))
+    await user.type(within(dialog).getByLabelText('Add a note (optional)'), 'AI could not read my expense.')
+    await user.click(within(dialog).getByRole('button', { name: 'Send feedback' }))
+    await waitFor(() => expect(submit).toHaveBeenCalledWith(expect.objectContaining({ category: 'problem', message: 'AI could not read my expense.', rating: null })))
+    expect(analyticsClient.track).toHaveBeenCalledWith('feedback_submitted', 'local', 'en')
+    expect(localStorage.getItem(AI_RATING_PROMPT_STORAGE_KEY)).toBe('handled')
+    expect(parseState(localStorage.getItem(STORAGE_KEY)).expenses).toHaveLength(0)
+  })
+
+  it('does not prompt for opening an AI tab and waits until a clarification flow is closed', async () => {
+    const user = userEvent.setup()
+    const parseBatch = vi.fn().mockResolvedValue({ status: 'needs_clarification', question: 'Who else had noodles?' })
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState()))
+    render(<App aiExpenseClient={{ parseBatch }} feedbackClient={{ submit: vi.fn() }} />)
+    await user.click(screen.getByRole('button', { name: 'Add expense' }))
+    await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByLabelText('How was AI entry?')).not.toBeInTheDocument()
+    expect(parseBatch).not.toHaveBeenCalled()
+    await requestAiDraft(user)
+    expect(await screen.findByText('Who else had noodles?')).toBeVisible()
+    expect(screen.queryByLabelText('How was AI entry?')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(await screen.findByLabelText('How was AI entry?')).toBeVisible()
+  })
+
+  it('does not ask again when the user chooses the sidebar feedback form instead', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState()))
+    render(<App aiExpenseClient={{ parseBatch: vi.fn().mockResolvedValue(aiResult) }} feedbackClient={{ submit: vi.fn() }} />)
+    await requestAiDraft(user)
+    await user.click(await screen.findByRole('button', { name: 'Save expense' }))
+    expect(await screen.findByLabelText('How was AI entry?')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Send feedback' }))
+    const dialog = await screen.findByRole('dialog', { name: 'What should Tally do better?' })
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByLabelText('How was AI entry?')).not.toBeInTheDocument()
+    expect(localStorage.getItem(AI_RATING_PROMPT_STORAGE_KEY)).toBe('handled')
+  })
+
   it('offers CSV-specific feedback after the first completed export only', async () => {
     const user = userEvent.setup()
     const analyticsClient = { track: vi.fn() } satisfies AnalyticsClient

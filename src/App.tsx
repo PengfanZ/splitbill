@@ -21,6 +21,8 @@ import {
   markLatestChangelogSeen,
 } from './features/changelog/changelog'
 import type { FeedbackClient, FeedbackRating } from './features/feedback/feedbackApi'
+import type { RatingPromptTrigger } from './features/feedback/RatingPrompt'
+import { useAiFeedbackPrompt } from './features/feedback/useAiFeedbackPrompt'
 import type { ReceiptClient } from './features/receiptSplit/receiptApi'
 import { trackReceiptConfirmed, withReceiptAnalytics } from './features/receiptSplit/receiptAnalytics'
 import {
@@ -75,9 +77,7 @@ type ConfirmationRequest = {
   onConfirm: () => boolean | void | Promise<boolean | void>
   title: string
 }
-type RatingPromptTrigger = 'share' | 'csv-export'
-
-function markRatingPromptTriggerHandled(trigger: RatingPromptTrigger | null) {
+function markRatingPromptTriggerHandled(trigger: Exclude<RatingPromptTrigger, 'ai'> | null) {
   if (trigger === 'csv-export') {
     markCsvExportRatingPromptHandled()
     return
@@ -117,7 +117,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
   const [confirmationBusy, setConfirmationBusy] = useState(false)
   const [feedbackNotice, setFeedbackNotice] = useState<string | null>(null)
   const [feedbackInitialRating, setFeedbackInitialRating] = useState<FeedbackRating | null>(null)
-  const [ratingPromptTrigger, setRatingPromptTrigger] = useState<RatingPromptTrigger | null>(null)
+  const [manualRatingPromptTrigger, setRatingPromptTrigger] = useState<Exclude<RatingPromptTrigger, 'ai'> | null>(null)
   const selectedGroupIdAtLoad = state.selectedGroupId ?? state.groups[0]?.id ?? null
   const live = useLiveActivitySession({
     initialSelectedGroupId: selectedGroupIdAtLoad,
@@ -186,6 +186,11 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
     () => withReceiptAnalytics(receiptClient, analyticsClient, analyticsSurface, locale),
     [analyticsClient, analyticsSurface, locale, receiptClient],
   )
+  const aiFeedback = useAiFeedbackPrompt({
+    aiExpenseClient: trackedAiExpenseClient,
+    receiptClient: trackedReceiptClient,
+    enabled: Boolean(feedbackClient),
+  })
   const handleSuccessfulShare = () => {
     if (feedbackClient && shouldShowRatingPrompt(LATEST_CHANGELOG_ID)) setRatingPromptTrigger('share')
   }
@@ -203,6 +208,12 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
     t,
   })
   const qrShare = sharing.qrShare
+  const feedbackBlocked = Boolean(modal || qrShare || changelogState.open || confirmation || !identity)
+  const ratingPromptTrigger = manualRatingPromptTrigger ?? (aiFeedback.pending && !feedbackBlocked ? 'ai' : null)
+  const markCurrentRatingPromptHandled = () => {
+    if (aiFeedback.pending) aiFeedback.dismiss()
+    if (ratingPromptTrigger !== 'ai') markRatingPromptTriggerHandled(ratingPromptTrigger)
+  }
 
   const changeActiveMember = activeIdentityScope
     ? (memberId: string) => setActivityIdentities(current => selectActivityIdentity(current, activeIdentityScope, memberId))
@@ -227,12 +238,13 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
   }
 
   const openFeedback = () => {
+    if (aiFeedback.pending) aiFeedback.dismiss()
     setFeedbackInitialRating(null)
     setModal('feedback')
   }
 
   const openFeedbackFromRatingPrompt = (rating: FeedbackRating | null) => {
-    markRatingPromptTriggerHandled(ratingPromptTrigger)
+    markCurrentRatingPromptHandled()
     setRatingPromptTrigger(null)
     setFeedbackInitialRating(rating)
     setModal('feedback')
@@ -244,13 +256,13 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
   }
 
   const closeRatingPrompt = () => {
-    markRatingPromptTriggerHandled(ratingPromptTrigger)
+    markCurrentRatingPromptHandled()
     setRatingPromptTrigger(null)
   }
 
   const finishFeedback = () => {
     analyticsClient?.track('feedback_submitted', analyticsSurface, locale)
-    markRatingPromptTriggerHandled(ratingPromptTrigger)
+    markCurrentRatingPromptHandled()
     setRatingPromptTrigger(null)
     setFeedbackInitialRating(null)
     setModal(null)
@@ -640,8 +652,8 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
           group={activeGroup}
           members={activeMembers}
           expense={editingExpense ?? undefined}
-          aiExpenseClient={trackedAiExpenseClient}
-          receiptClient={trackedReceiptClient}
+          aiExpenseClient={aiFeedback.aiExpenseClient}
+          receiptClient={aiFeedback.receiptClient}
           currentMemberId={activeMemberId}
           onCurrentMemberChange={changeActiveMember}
           onEntryTabSelect={tab => analyticsClient?.track(EXPENSE_INPUT_TAB_EVENTS[tab], analyticsSurface, locale)}
@@ -687,6 +699,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
         setModal(null)
       }} /> : null}
       {ratingPromptTrigger && feedbackClient ? <Suspense fallback={null}><RatingPrompt
+        key={ratingPromptTrigger}
         client={feedbackClient}
         release={LATEST_CHANGELOG_ID}
         surface={analyticsSurface}

@@ -1,5 +1,22 @@
 export const RATING_PROMPT_STORAGE_KEY = 'tally:feedback-rating-prompt:v1'
 export const CSV_EXPORT_RATING_PROMPT_STORAGE_KEY = 'tally:feedback-rating-prompt:csv-export:v1'
+export const AI_RATING_PROMPT_STORAGE_KEY = 'tally:feedback-rating-prompt:ai:v1'
+
+export function shouldShowAiRatingPrompt(storage: Pick<Storage, 'getItem'> = localStorage) {
+  try {
+    return storage.getItem(AI_RATING_PROMPT_STORAGE_KEY) !== 'handled'
+  } catch {
+    return true
+  }
+}
+
+export function markAiRatingPromptHandled(storage: Pick<Storage, 'setItem'> = localStorage) {
+  try {
+    storage.setItem(AI_RATING_PROMPT_STORAGE_KEY, 'handled')
+  } catch {
+    // A storage failure must not interrupt expense entry or feedback.
+  }
+}
 
 export function shouldShowRatingPrompt(release: string, storage: Pick<Storage, 'getItem'> = localStorage) {
   try {

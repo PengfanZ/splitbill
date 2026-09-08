@@ -13,8 +13,11 @@ function promptErrorKey(error: unknown) {
     : 'feedbackForm.errorUnavailable' as const
 }
 
-function promptDescriptionKey(rating: FeedbackRating | null, trigger: 'share' | 'csv-export'): TranslationKey {
+export type RatingPromptTrigger = 'share' | 'csv-export' | 'ai'
+
+function promptDescriptionKey(rating: FeedbackRating | null, trigger: RatingPromptTrigger): TranslationKey {
   if (rating !== null) return 'ratingPrompt.followUpDescription'
+  if (trigger === 'ai') return 'ratingPrompt.aiDescription'
   return trigger === 'csv-export' ? 'ratingPrompt.csvExportDescription' : 'ratingPrompt.description'
 }
 
@@ -33,12 +36,13 @@ export function RatingPrompt({
   onSubmitted: () => void
   release: string
   surface: AnalyticsSurface
-  trigger?: 'share' | 'csv-export'
+  trigger?: RatingPromptTrigger
 }) {
   const { locale, t } = useLocalization()
   const [rating, setRating] = useState<FeedbackRating | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [errorKey, setErrorKey] = useState<'feedbackForm.errorRateLimit' | 'feedbackForm.errorUnavailable' | null>(null)
+  const titleKey = trigger === 'ai' ? 'ratingPrompt.aiTitle' : 'ratingPrompt.title'
 
   const submitRating = async (selectedRating: FeedbackRating) => {
     setSubmitting(true)
@@ -61,12 +65,12 @@ export function RatingPrompt({
   }
 
   return (
-    <section className="rating-prompt" aria-label={t('ratingPrompt.title')}>
+    <section className="rating-prompt" aria-label={t(titleKey)}>
       <button className="rating-prompt-close" onClick={onDismiss} disabled={submitting} aria-label={t('common.close')}>
         <X size={18} />
       </button>
       <div className="rating-prompt-copy" aria-live="polite">
-        <strong>{t(rating === null ? 'ratingPrompt.title' : 'ratingPrompt.followUpTitle')}</strong>
+        <strong>{t(rating === null ? titleKey : 'ratingPrompt.followUpTitle')}</strong>
         <span>{t(promptDescriptionKey(rating, trigger))}</span>
       </div>
       <FeedbackRatingField

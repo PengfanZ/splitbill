@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { LocalizationProvider } from '../../i18n/LocalizationContext'
 import { FeedbackApiError, type FeedbackClient } from './feedbackApi'
-import { RatingPrompt } from './RatingPrompt'
+import { RatingPrompt, type RatingPromptTrigger } from './RatingPrompt'
 
 function renderPrompt({
   client = { submit: vi.fn().mockResolvedValue(undefined) },
@@ -16,7 +16,7 @@ function renderPrompt({
   onAddNote?: (rating: 1 | 2 | 3 | 4 | 5 | null) => void
   onDismiss?: () => void
   onSubmitted?: () => void
-  trigger?: 'share' | 'csv-export'
+  trigger?: RatingPromptTrigger
 } = {}) {
   return {
     client,
@@ -40,6 +40,23 @@ function renderPrompt({
 }
 
 describe('RatingPrompt', () => {
+  it('invites AI problems and ideas without requiring a rating', async () => {
+    const user = userEvent.setup()
+    const { onAddNote } = renderPrompt({ trigger: 'ai' })
+    expect(screen.getByLabelText('How was AI entry?')).toBeVisible()
+    expect(screen.getByText('Did something go wrong, or have an idea? Tell us how we can improve.')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Add a note' }))
+    expect(onAddNote).toHaveBeenCalledWith(null)
+  })
+
+  it('localizes the AI invitation in Chinese', () => {
+    render(<LocalizationProvider initialLocale="zh-CN"><RatingPrompt
+      client={{ submit: vi.fn() }} release="test" surface="local" trigger="ai"
+      onDismiss={vi.fn()} onAddNote={vi.fn()} onSubmitted={vi.fn()}
+    /></LocalizationProvider>)
+    expect(screen.getByLabelText('AI 录入用着怎么样？')).toBeVisible()
+    expect(screen.getByText('遇到问题，或有想加的功能？欢迎告诉我们。')).toBeVisible()
+  })
   it('explains when the prompt follows a CSV export', () => {
     renderPrompt({ trigger: 'csv-export' })
     expect(screen.getByText('Your CSV is ready. A quick rating helps us improve.')).toBeVisible()
