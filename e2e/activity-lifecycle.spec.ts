@@ -77,7 +77,7 @@ test('exports CSV data and keeps the export flow usable on mobile', async ({ pag
 
   const prompt = page.getByLabel('How was Tally?')
   await expect(prompt).toBeVisible()
-  await expect(prompt).toContainText('Your CSV is ready. A quick rating helps us improve.')
+  await expect(prompt).toContainText('Leave a rating or share an idea. Your feedback helps us improve.')
   await prompt.getByRole('button', { name: 'Close' }).click()
 
   await page.getByRole('button', { name: 'Share', exact: true }).click()

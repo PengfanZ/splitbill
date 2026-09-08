@@ -3,7 +3,6 @@ import { useState } from 'react'
 import { Button } from '../../components/Button'
 import type { AnalyticsSurface } from '../../analytics'
 import { useLocalization } from '../../i18n/LocalizationContext'
-import type { TranslationKey } from '../../i18n/localization'
 import { FeedbackRatingField } from './FeedbackRatingField'
 import { FeedbackApiError, type FeedbackClient, type FeedbackRating } from './feedbackApi'
 
@@ -15,12 +14,6 @@ function promptErrorKey(error: unknown) {
 
 export type RatingPromptTrigger = 'share' | 'csv-export' | 'ai'
 
-function promptDescriptionKey(rating: FeedbackRating | null, trigger: RatingPromptTrigger): TranslationKey {
-  if (rating !== null) return 'ratingPrompt.followUpDescription'
-  if (trigger === 'ai') return 'ratingPrompt.aiDescription'
-  return trigger === 'csv-export' ? 'ratingPrompt.csvExportDescription' : 'ratingPrompt.description'
-}
-
 export function RatingPrompt({
   client,
   onAddNote,
@@ -28,7 +21,6 @@ export function RatingPrompt({
   onSubmitted,
   release,
   surface,
-  trigger = 'share',
 }: {
   client: Pick<FeedbackClient, 'submit'>
   onAddNote: (rating: FeedbackRating | null) => void
@@ -36,13 +28,11 @@ export function RatingPrompt({
   onSubmitted: () => void
   release: string
   surface: AnalyticsSurface
-  trigger?: RatingPromptTrigger
 }) {
   const { locale, t } = useLocalization()
   const [rating, setRating] = useState<FeedbackRating | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [errorKey, setErrorKey] = useState<'feedbackForm.errorRateLimit' | 'feedbackForm.errorUnavailable' | null>(null)
-  const titleKey = trigger === 'ai' ? 'ratingPrompt.aiTitle' : 'ratingPrompt.title'
 
   const submitRating = async (selectedRating: FeedbackRating) => {
     setSubmitting(true)
@@ -65,13 +55,13 @@ export function RatingPrompt({
   }
 
   return (
-    <section className="rating-prompt" aria-label={t(titleKey)}>
+    <section className="rating-prompt" aria-label={t('ratingPrompt.title')}>
       <button className="rating-prompt-close" onClick={onDismiss} disabled={submitting} aria-label={t('common.close')}>
         <X size={18} />
       </button>
       <div className="rating-prompt-copy" aria-live="polite">
-        <strong>{t(rating === null ? titleKey : 'ratingPrompt.followUpTitle')}</strong>
-        <span>{t(promptDescriptionKey(rating, trigger))}</span>
+        <strong>{t(rating === null ? 'ratingPrompt.title' : 'ratingPrompt.followUpTitle')}</strong>
+        <span>{t(rating === null ? 'ratingPrompt.description' : 'ratingPrompt.followUpDescription')}</span>
       </div>
       <FeedbackRatingField
         compact

@@ -703,7 +703,6 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
         client={feedbackClient}
         release={LATEST_CHANGELOG_ID}
         surface={analyticsSurface}
-        trigger={ratingPromptTrigger}
         onDismiss={closeRatingPrompt}
         onAddNote={openFeedbackFromRatingPrompt}
         onSubmitted={finishFeedback}

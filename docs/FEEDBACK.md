@@ -2,6 +2,8 @@
 
 Tally keeps GitHub available for contributors, but ordinary users can rate the experience or send a short note without leaving the current activity. **Send feedback** opens a compact, bilingual dialog in the sidebar. A small optional rating prompt also appears after a successful share (once per release), the first completed CSV export, or the first AI attempt.
 
+All entry points use the same general rating and feedback wording in English and Chinese; the prompt is not specific to AI, sharing, or CSV export.
+
 The AI invitation is shared across text, voice, and receipt entry. It is queued when an AI request finishes, whether it produces a draft, asks for clarification, or fails. It waits until the expense dialog and other overlays are closed, so it never covers a draft or interrupts follow-up answers. Merely selecting an AI tab, recording without submitting, or entering an expense manually does not trigger it. Feedback remains available even if product analytics is disabled.
 
 Selecting stars does not submit or close the prompt. Users can send only the rating, add a note with a **Problem** or **Idea** category, or dismiss it. No rating is required to write a note. Closing the AI invitation or opening its full feedback form marks that invitation handled for this browser, independent of app releases. When storage is unavailable, it is still suppressed for the current app session after dismissal.

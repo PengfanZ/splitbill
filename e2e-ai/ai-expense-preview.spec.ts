@@ -105,18 +105,18 @@ test('collects optional feedback after the first failed AI attempt and never rep
   })
   await createPreviewActivity(page)
   await page.getByRole('button', { name: 'Cancel', exact: true }).click()
-  await expect(page.getByLabel('How was AI entry?')).toHaveCount(0)
+  await expect(page.getByLabel('How was Tally?')).toHaveCount(0)
   const attempt = async () => {
     await page.getByRole('button', { name: 'Add expense', exact: true }).click()
     await page.getByRole('tab', { name: 'Describe with AI' }).click()
     await page.getByLabel('Expense description').fill('I paid $20 for noodles, split with Maya')
     await page.getByRole('button', { name: 'Create draft' }).click()
     await expect(page.getByRole('alert')).toBeVisible()
-    await expect(page.getByLabel('How was AI entry?')).toHaveCount(0)
+    await expect(page.getByLabel('How was Tally?')).toHaveCount(0)
     await page.getByRole('button', { name: 'Cancel', exact: true }).click()
   }
   await attempt()
-  const prompt = page.getByLabel('How was AI entry?')
+  const prompt = page.getByLabel('How was Tally?')
   await expect(prompt).toBeVisible()
   await prompt.getByRole('radio', { name: 'Rate 2 out of 5' }).click()
   await expect(prompt.getByText('Want to tell us more?')).toBeVisible()
@@ -284,12 +284,12 @@ test('turns a description into a reviewable draft before the user saves it', asy
   await expect(page.getByRole('button', { name: 'Paid by' })).toContainText('Maya')
   await expect(page.getByRole('button', { name: 'Save expense' })).toBeVisible()
   await expect(page.getByText('Dinner', { exact: true })).toHaveCount(0)
-  await expect(page.getByLabel('How was AI entry?')).toHaveCount(0)
+  await expect(page.getByLabel('How was Tally?')).toHaveCount(0)
 
   await page.getByRole('button', { name: 'Save expense' }).click()
   await expect(page.getByText('Dinner', { exact: true })).toBeVisible()
   await expect(page.locator('.expense-amount b')).toHaveText('$36.00')
-  await expect(page.getByLabel('How was AI entry?')).toBeVisible()
+  await expect(page.getByLabel('How was Tally?')).toBeVisible()
   expect(aiRequests).toBe(1)
   expect(analyticsRequests.map(request => request.p_event_name)).toEqual(expect.arrayContaining([
     'expense_input_ai_text_selected',
@@ -340,7 +340,7 @@ test('reviews and saves several text expenses together without partial persisten
   await page.getByRole('button', { name: 'Create draft' }).click()
 
   await expect(page.getByText('2 expense drafts ready')).toBeVisible()
-  await expect(page.getByLabel('How was AI entry?')).toHaveCount(0)
+  await expect(page.getByLabel('How was Tally?')).toHaveCount(0)
   await expect(page.getByText('Nothing is saved until you confirm the whole batch.')).toBeVisible()
   await page.getByRole('button', { name: 'Save 2 expenses' }).click()
   await expect(page.getByText('Lunch', { exact: true })).toBeVisible()
@@ -506,7 +506,7 @@ test('turns a short voice recording into a reviewable expense batch', async ({ p
   await page.getByRole('button', { name: 'Save 2 expenses' }).click()
   await expect(page.getByText('Voice dinner', { exact: true })).toBeVisible()
   await expect(page.getByText('Voice taxi', { exact: true })).toBeVisible()
-  await expect(page.getByLabel('How was AI entry?')).toBeVisible()
+  await expect(page.getByLabel('How was Tally?')).toBeVisible()
   expect(aiRequests).toBe(1)
   expect(analyticsRequests.map(request => request.p_event_name)).toEqual(expect.arrayContaining([
     'expense_input_ai_voice_selected',
