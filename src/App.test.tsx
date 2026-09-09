@@ -832,7 +832,7 @@ describe('modals', () => {
     expect(screen.getByLabelText('You share')).toHaveValue(10)
     expect(screen.getByLabelText('Maya Chen share')).toHaveValue(20)
     expect(screen.getByLabelText('Jordan share')).toHaveValue(null)
-    expect(screen.getByText('Saving replaces this expense’s split using all 3 current activity members.')).toBeVisible()
+    expect(screen.getByText('Saving uses the amounts shown for these 3 people.')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Save changes' }))
 
     expect(onSave).toHaveBeenCalledWith({
@@ -847,7 +847,7 @@ describe('modals', () => {
     const onSave = vi.fn()
     render(<ExpenseModal group={group} members={[]} onClose={vi.fn()} onSave={onSave} />)
     expect(screen.getByText('$0.00')).toBeVisible()
-    expect(screen.getByRole('alert')).toHaveTextContent('Select at least one person')
+    expect(screen.getByText('Select at least one person to split this expense.')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Save expense' })).toBeDisabled()
     await user.type(screen.getByLabelText('Description'), 'Fee')
     await user.type(screen.getByLabelText('Amount'), '1')
@@ -1024,10 +1024,12 @@ describe('complete app workflows', () => {
 
   it('shows the latest update once to returning users and keeps it available from the sidebar', async () => {
     const user = userEvent.setup()
-    localStorage.removeItem(CHANGELOG_SEEN_STORAGE_KEY)
+    localStorage.setItem(CHANGELOG_SEEN_STORAGE_KEY, '2026-08-csv-export')
     render(<App />)
 
     const update = await screen.findByRole('dialog', { name: 'What’s new in Tally' })
+    expect(update).toHaveTextContent('Remove friends, keep the history')
+    expect(update).toHaveTextContent('People → Removed friends → Restore')
     expect(update).toHaveTextContent('Export your activity data')
     expect(update).toHaveTextContent('Choose one person or everyone')
     expect(update).toHaveTextContent('Split a receipt by dish')
@@ -1679,6 +1681,7 @@ describe('complete app workflows', () => {
 
   it.each([
     ['network', 'Could not reach the live activity service. Check your connection and try again.'],
+    ['membership-changed', 'The activity’s people changed. Review the payer and split, or refresh the app if you are using an older version. Your expense has not been saved.'],
     ['invalid-input', 'One of the activity fields is too long or the amount is above the supported limit. Update it and try again.'],
   ] as const)('keeps end confirmation open after a %s failure', async (kind, message) => {
     const user = userEvent.setup()

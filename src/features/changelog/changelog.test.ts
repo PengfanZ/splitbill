@@ -23,11 +23,11 @@ describe('changelog', () => {
   it('keeps the latest release first and gives every item a stable localized shape', () => {
     expect(LATEST_CHANGELOG_ID).toBe(CHANGELOG_ENTRIES[0].id)
     expect(CHANGELOG_ENTRIES[0]).toMatchObject({
-      id: '2026-08-csv-export',
-      releasedOn: '2026-08-29',
+      id: '2026-09-friend-removal',
+      releasedOn: '2026-09-09',
       items: [
-        { icon: 'csv' },
-        { icon: 'csv' },
+        { icon: 'polish' },
+        { icon: 'live' },
       ],
     })
   })
@@ -42,6 +42,7 @@ describe('changelog', () => {
     const seen = storageWith(LATEST_CHANGELOG_ID)
     expect(hasSeenLatestChangelog(unseen)).toBe(false)
     expect(hasSeenLatestChangelog(seen)).toBe(true)
+    expect(hasSeenLatestChangelog(storageWith('2026-08-csv-export'))).toBe(false)
 
     markLatestChangelogSeen(unseen)
     expect(unseen.setItem).toHaveBeenCalledWith(CHANGELOG_SEEN_STORAGE_KEY, LATEST_CHANGELOG_ID)

@@ -99,6 +99,12 @@ describe('live activity API client', () => {
     expect(fetcher).not.toHaveBeenCalled()
   })
 
+  it('returns the latest record with a specific participant-change rejection', async () => {
+    fetcher.mockResolvedValue(response([{ code: credentials.code, revision: 2, snapshot, updated_at: updatedAt, conflicted: true, rejection_code: 'activity_membership_changed' }]))
+    const client = createLiveActivityClient({ supabaseUrl: 'https://project.supabase.co', publishableKey: 'key' }, fetcher)
+    await expect(client.update(credentials, snapshot, 2)).rejects.toMatchObject({ kind: 'membership-changed', latestRecord: { code: credentials.code, revision: 2, snapshot, updatedAt } })
+  })
+
   it('rejects a malformed end result', async () => {
     fetcher.mockResolvedValue(response([{ code: 'B1C2D3E4F5' }]))
     const client = createLiveActivityClient({ supabaseUrl: 'https://project.supabase.co', publishableKey: 'key' }, fetcher)

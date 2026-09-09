@@ -1,3 +1,4 @@
+import { activeMemberCount } from '../domain/memberRemoval'
 import { useState } from 'react'
 import {
   ChevronRight,
@@ -59,7 +60,7 @@ export function Sidebar({ groups, selectedId, liveActivityCodes = EMPTY_LIVE_ACT
                 <span className="group-icon green">{group.emoji}</span>
                 <span><b>{group.name}</b><small>{liveActivityCodes[group.id]
                   ? t('nav.liveCode', { code: liveActivityCodes[group.id] })
-                  : t('nav.memberCount', { count: group.memberIds.length, unit: t(group.memberIds.length === 1 ? 'common.person' : 'common.people') })}</small></span>
+                  : t('nav.memberCount', { count: activeMemberCount(group), unit: t(activeMemberCount(group) === 1 ? 'common.person' : 'common.people') })}</small></span>
                 <ChevronRight size={15} />
               </button>
               <IconButton className="group-delete" tone="danger" label={t('nav.deleteActivity', { name: group.name })} title={t('nav.deleteActivityTitle')} onClick={() => onDelete(group)}><Trash2 size={15} /></IconButton>

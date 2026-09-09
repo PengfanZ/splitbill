@@ -11,6 +11,10 @@ describe('ChangelogModal', () => {
     render(<LocalizationProvider initialLocale="en"><ChangelogModal onClose={onClose} /></LocalizationProvider>)
 
     const dialog = screen.getByRole('dialog', { name: 'What’s new in Tally' })
+    expect(dialog.querySelector('h3')).toHaveTextContent('Remove friends, keep the history')
+    expect(dialog).toHaveTextContent('September 9, 2026')
+    expect(dialog).toHaveTextContent('New expenses exclude them')
+    expect(dialog).toHaveTextContent('People → Removed friends → Restore')
     expect(dialog).toHaveTextContent('August 29, 2026')
     expect(dialog).toHaveTextContent('Export your activity data')
     expect(dialog).toHaveTextContent('Download one person’s share or the full activity as a spreadsheet-ready CSV')
@@ -37,6 +41,10 @@ describe('ChangelogModal', () => {
   it('renders the same update naturally in Simplified Chinese', () => {
     render(<LocalizationProvider initialLocale="zh-CN"><ChangelogModal onClose={vi.fn()} /></LocalizationProvider>)
     const dialog = screen.getByRole('dialog', { name: 'Tally 最近更新' })
+    expect(dialog.querySelector('h3')).toHaveTextContent('移除朋友，保留分账记录')
+    expect(dialog).toHaveTextContent('2026年9月9日')
+    expect(dialog).toHaveTextContent('旧账单的分摊需要单独编辑才会改变')
+    expect(dialog).toHaveTextContent('成员 → 已移除的朋友 → 恢复')
     expect(dialog).toHaveTextContent('2026年8月29日')
     expect(dialog).toHaveTextContent('把分账数据导出成 CSV')
     expect(dialog).toHaveTextContent('可以只导出一位成员，也可以导出整个活动')

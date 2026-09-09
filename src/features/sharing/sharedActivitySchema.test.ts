@@ -52,6 +52,12 @@ describe('shared activity schema', () => {
   })
 
   it('rejects ambiguous identities and participant sets', () => {
+    for (const inactiveMemberIds of [['maya'], []]) {
+      expect(sharedActivitySchema.safeParse({ ...activity, group: { ...activity.group, inactiveMemberIds } }).success).toBe(true)
+    }
+    for (const inactiveMemberIds of [['me'], ['missing'], ['maya', 'maya'], 'maya', null]) {
+      expect(sharedActivitySchema.safeParse({ ...activity, group: { ...activity.group, inactiveMemberIds } }).success).toBe(false)
+    }
     expect(sharedActivitySchema.safeParse({
       ...activity,
       sender: { ...CURRENT_USER, id: 'someone-else' },

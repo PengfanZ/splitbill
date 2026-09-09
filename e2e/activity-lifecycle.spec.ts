@@ -22,6 +22,39 @@ test.beforeEach(async ({ context }) => {
   }))
 })
 
+test('aligns People count, identity and remove icons on desktop and mobile', async ({ page }) => {
+  await page.goto('./')
+  await page.getByLabel('Display name').fill('Alex')
+  await page.getByRole('button', { name: 'Continue' }).click()
+  await page.getByRole('button', { name: 'Create an activity' }).click()
+  await page.getByLabel('Activity name').fill('Weekend')
+  await page.getByLabel(/Add friends/).fill('Maya')
+  await page.getByRole('button', { name: 'Create activity' }).click()
+
+  const people = page.locator('.members-panel')
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 })
+    await people.scrollIntoViewIfNeeded()
+    const identity = await people.locator('.member-identity-indicator svg').boundingBox()
+    const count = await people.locator('.rail-heading > span').boundingBox()
+    const remove = await people.getByRole('button', { name: 'Remove Maya from activity' }).locator('svg').boundingBox()
+    expect(identity).not.toBeNull()
+    expect(count).not.toBeNull()
+    expect(remove).not.toBeNull()
+    expect(Math.abs(identity!.x + identity!.width / 2 - remove!.x - remove!.width / 2)).toBeLessThan(1)
+    expect(Math.abs(count!.x + count!.width / 2 - remove!.x - remove!.width / 2)).toBeLessThan(1)
+    for (const row of await people.locator('.member-row').all()) {
+      const bounds = await row.boundingBox()
+      const icon = await row.locator('.member-identity-indicator svg, .icon-button-control svg').boundingBox()
+      expect(Math.abs(bounds!.y + bounds!.height / 2 - icon!.y - icon!.height / 2)).toBeLessThan(1)
+    }
+  }
+  await people.getByRole('button', { name: 'Remove Maya from activity' }).click()
+  await expect(page.getByRole('dialog', { name: 'Remove Maya from future expenses?' })).toBeVisible()
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(people.getByRole('button', { name: 'Remove Maya from activity' })).toBeVisible()
+})
+
 test('exports CSV data and keeps the export flow usable on mobile', async ({ page }) => {
   const events: AnalyticsPayload[] = []
   await page.route('https://live-sharing.test/rest/v1/rpc/record_analytics_event', async route => {
@@ -712,6 +745,7 @@ test('offers optional written feedback after a successful share rating', async (
 test('shows new updates once and keeps the changelog available on mobile', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.addInitScript(() => {
+    if (!localStorage.getItem('tally:changelog-seen:v1')) localStorage.setItem('tally:changelog-seen:v1', '2026-08-csv-export')
     localStorage.setItem('tally:identity:v1', JSON.stringify({
       id: 'me',
       name: 'Returning Tester',
@@ -723,6 +757,8 @@ test('shows new updates once and keeps the changelog available on mobile', async
   await page.goto('./')
   const update = page.getByRole('dialog', { name: 'What’s new in Tally' })
   await expect(update).toBeVisible()
+  await expect(update.locator('h3').first()).toHaveText('Remove friends, keep the history')
+  await expect(update).toContainText('People → Removed friends → Restore')
   await expect(update).toContainText('Export your activity data')
   await expect(update).toContainText('Choose one person or everyone')
   await expect(update).toContainText('Sharing, without the guesswork')

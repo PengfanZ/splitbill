@@ -54,6 +54,8 @@ export function saveSharedActivityCopy(current: PersistedState, activity: Shared
     ...activity.group,
     id: groupId,
     memberIds: activity.group.memberIds.map(memberId => getRemappedMemberId(memberIdMap, memberId)),
+    ...(activity.group.inactiveMemberIds ? { inactiveMemberIds: activity.group.inactiveMemberIds
+      .filter(id => id !== viewerId).map(id => getRemappedMemberId(memberIdMap, id)) } : {}),
   }
   const expenses = activity.expenses.map(expense => ({
     ...expense,

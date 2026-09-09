@@ -8,6 +8,7 @@ import {
   createLocalActivity,
   deleteLocalActivity,
   deleteLocalExpense,
+  removeLocalFriend,
   updateLocalActivityCurrency,
   updateLocalExpense,
 } from './activityState'
@@ -34,6 +35,38 @@ const state: PersistedState = {
 }
 
 describe('local activity state operations', () => {
+  it('rejects stale new splits atomically but retains original shares on historical edits', () => {
+    const removed = removeLocalFriend(state, trip.id, maya.id)
+    const newBill = { ...dinner, id: 'new' }
+    expect(addLocalExpense(removed, newBill)).toBe(removed)
+    expect(addLocalExpense(removed, { ...newBill, groupId: 'missing' })).toBe(removed)
+    expect(addLocalExpenses(removed, [newBill])).toBe(removed)
+    expect(addLocalExpenses(removed, [{ ...newBill, groupId: 'missing' }])).toBe(removed)
+    expect(updateLocalExpense(removed, { ...dinner, title: 'New title' }).expenses[0].shares).toEqual(dinner.shares)
+    expect(updateLocalExpense(removed, { ...dinner, groupId: 'missing' })).toBe(removed)
+    expect(updateLocalExpense(removed, newBill)).toBe(removed)
+    const original = { ...removed, expenses: [{ ...dinner, shares: { me: 30 } }] }
+    expect(updateLocalExpense(original, dinner)).toBe(original)
+  })
+  it('removes friends only from this activity and preserves cross-activity records', () => {
+    expect(removeLocalFriend(state, 'missing', sam.id)).toBe(state)
+    expect(removeLocalFriend(state, trip.id, 'me')).toBe(state)
+    expect(removeLocalFriend(state, trip.id, maya.id).groups[0].inactiveMemberIds).toEqual(['maya'])
+    const withoutSam = removeLocalFriend(state, home.id, sam.id)
+    expect(withoutSam.groups[1].memberIds).toEqual(['me', maya.id, sam.id])
+    expect(withoutSam.groups[1].inactiveMemberIds).toEqual(['sam'])
+    expect(withoutSam.friends).toBe(state.friends)
+    expect(removeLocalFriend(withoutSam, home.id, sam.id)).toBe(withoutSam)
+    expect(removeLocalFriend(state, home.id, sam.id, true)).toBe(state)
+    expect(removeLocalFriend(withoutSam, home.id, sam.id, true).groups[1].inactiveMemberIds).toEqual([])
+    expect(withoutSam.expenses).toBe(state.expenses)
+    const withoutMaya = removeLocalFriend(state, home.id, maya.id)
+    expect(withoutMaya.friends).toBe(state.friends)
+    expect(withoutMaya.groups[0]).toBe(trip)
+    const legacyReferences = { ...state, expenses: [{ ...dinner, groupId: 'legacy', payerId: sam.id }, { ...dinner, shares: { sam: 30 } }] }
+    expect(removeLocalFriend(legacyReferences, home.id, sam.id).friends).toBe(state.friends)
+    expect(removeLocalFriend({ ...state, expenses: [{ ...dinner, shares: { sam: 30 } }] }, home.id, sam.id).friends).toBe(state.friends)
+  })
   it('creates activities and friends with complete relationships', () => {
     const friends = createActivityFriends(['Avery Stone'], 1)
     expect(friends[0]).toMatchObject({ name: 'Avery Stone', initials: 'AS' })

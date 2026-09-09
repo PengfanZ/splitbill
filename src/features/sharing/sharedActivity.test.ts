@@ -34,6 +34,16 @@ const settlement: Expense = {
 }
 
 describe('shared activity domain model', () => {
+  it('remaps inactive identities in independent copies and keeps the new copy owner active', () => {
+    const activity = createSharedActivity({ ...group, inactiveMemberIds: ['maya'] }, [CURRENT_USER, maya], [expense, settlement])
+    const copy = saveSharedActivityCopy(EMPTY_STATE, activity, 'me')
+    expect(copy.groups[0].inactiveMemberIds).toEqual([copy.friends[0].id])
+    expect(copy.expenses[0].shares[copy.friends[0].id]).toBe(15)
+    const ownCopy = saveSharedActivityCopy(EMPTY_STATE, activity, 'maya')
+    expect(ownCopy.groups[0].inactiveMemberIds).toEqual([])
+    expect(ownCopy.expenses[0].shares.me).toBe(15)
+    expect(activity.group.inactiveMemberIds).toEqual(['maya'])
+  })
   it('creates and validates the canonical Live activity payload', () => {
     const activity = createSharedActivity(group, [CURRENT_USER, maya], [expense])
 
