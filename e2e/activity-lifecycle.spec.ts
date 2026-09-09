@@ -22,7 +22,7 @@ test.beforeEach(async ({ context }) => {
   }))
 })
 
-test('aligns People identity and remove icons on desktop and mobile', async ({ page }) => {
+test('aligns People count, identity and remove icons on desktop and mobile', async ({ page }) => {
   await page.goto('./')
   await page.getByLabel('Display name').fill('Alex')
   await page.getByRole('button', { name: 'Continue' }).click()
@@ -36,10 +36,13 @@ test('aligns People identity and remove icons on desktop and mobile', async ({ p
     await page.setViewportSize({ width, height: 900 })
     await people.scrollIntoViewIfNeeded()
     const identity = await people.locator('.member-identity-indicator svg').boundingBox()
+    const count = await people.locator('.rail-heading > span').boundingBox()
     const remove = await people.getByRole('button', { name: 'Remove Maya from activity' }).locator('svg').boundingBox()
     expect(identity).not.toBeNull()
+    expect(count).not.toBeNull()
     expect(remove).not.toBeNull()
     expect(Math.abs(identity!.x + identity!.width / 2 - remove!.x - remove!.width / 2)).toBeLessThan(1)
+    expect(Math.abs(count!.x + count!.width / 2 - remove!.x - remove!.width / 2)).toBeLessThan(1)
     for (const row of await people.locator('.member-row').all()) {
       const bounds = await row.boundingBox()
       const icon = await row.locator('.member-identity-indicator svg, .icon-button-control svg').boundingBox()

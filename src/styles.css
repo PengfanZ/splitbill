@@ -748,6 +748,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .activity-rail { display: flex; flex-direction: column; }
 .members-panel { padding-bottom: 20px; }
 .rail-heading > span { color: var(--muted); font-size: 11px; border: 1px solid var(--line); border-radius: 20px; min-width: 25px; height: 25px; display: grid; place-items: center; }
+.members-panel .rail-heading { display: grid; grid-template-columns: minmax(0, 1fr) var(--control-height); }
+.members-panel .rail-heading > span { justify-self: center; }
 .member-list { border-top: 1px solid var(--line); }
 .member-row { display: flex; align-items: center; gap: 10px; min-height: 55px; border-bottom: 1px solid var(--line); }
 .member-row > b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
