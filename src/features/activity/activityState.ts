@@ -1,7 +1,7 @@
 import type { PersistedState, Expense, Member } from '../../domain/models'
 import type { CurrencyCode } from '../../domain/currency'
 import { ACTIVITY_EMOJIS, FRIEND_COLORS, initialsFor, makeId } from '../../domain/members'
-import { removeActivityFriend } from '../../domain/memberRemoval'
+import { hasEligibleExpenseMembers, removeActivityFriend, restoreActivityFriend } from '../../domain/memberRemoval'
 
 export function createActivityFriends(names: string[], colorOffset: number): Member[] {
   return names.map((name, index) => ({
@@ -51,26 +51,33 @@ export function addLocalFriends(state: PersistedState, groupId: string, names: s
 }
 
 export function addLocalExpense(state: PersistedState, expense: Expense): PersistedState {
+  const group = state.groups.find(item => item.id === expense.groupId)
+  if (!group || !hasEligibleExpenseMembers(group, expense)) return state
   return { ...state, expenses: [expense, ...state.expenses] }
 }
 
-export function removeLocalFriend(state: PersistedState, groupId: string, memberId: string): PersistedState {
+export function removeLocalFriend(state: PersistedState, groupId: string, memberId: string, restore = false): PersistedState {
   const group = state.groups.find(item => item.id === groupId)
   if (!group) return state
-  const removed = removeActivityFriend({ group, friends: state.friends, expenses: state.expenses }, memberId)
+  const removed = (restore ? restoreActivityFriend : removeActivityFriend)({ group, friends: state.friends, expenses: state.expenses }, memberId)
   if (!removed) return state
   const groups = state.groups.map(item => item.id === groupId ? removed.group : item)
-  const usedElsewhere = groups.some(item => item.memberIds.includes(memberId))
-    || state.expenses.some(expense => expense.payerId === memberId || Object.hasOwn(expense.shares, memberId))
-  return { ...state, groups, friends: usedElsewhere ? state.friends : removed.friends }
+  return { ...state, groups }
 }
 
 export function addLocalExpenses(state: PersistedState, expenses: Expense[]): PersistedState {
   if (expenses.length === 0) return state
+  if (expenses.some(expense => {
+    const group = state.groups.find(item => item.id === expense.groupId)
+    return !group || !hasEligibleExpenseMembers(group, expense)
+  })) return state
   return { ...state, expenses: [...expenses, ...state.expenses] }
 }
 
 export function updateLocalExpense(state: PersistedState, expense: Expense): PersistedState {
+  const group = state.groups.find(item => item.id === expense.groupId)
+  const previous = state.expenses.find(item => item.id === expense.id)
+  if (!group || !previous || !hasEligibleExpenseMembers(group, expense, previous)) return state
   return {
     ...state,
     expenses: state.expenses.map(item => item.id === expense.id ? expense : item),

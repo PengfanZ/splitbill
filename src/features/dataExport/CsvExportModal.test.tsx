@@ -23,6 +23,14 @@ afterEach(() => {
 })
 
 describe('CSV export modal', () => {
+  it('keeps removed people available for historical personal exports', async () => {
+    const user = userEvent.setup()
+    render(<CsvExportModal group={{ ...group, inactiveMemberIds: ['maya'] }} members={members} expenses={expenses} currentMemberId="maya" onClose={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Person to export' })).toHaveTextContent('Maya · removed')
+    expect(screen.getByText('Personal spending').nextSibling).toHaveTextContent('$20.00')
+    await user.click(screen.getByRole('button', { name: 'Person to export' }))
+    expect(screen.getByRole('option', { name: 'Maya · removed' })).toBeVisible()
+  })
   it('previews the current person, switches members and scopes, then downloads', async () => {
     const user = userEvent.setup()
     const onClose = vi.fn()

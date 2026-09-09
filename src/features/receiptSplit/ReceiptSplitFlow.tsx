@@ -19,6 +19,7 @@ import { SelectMenu, type SelectMenuOption } from '../../components/SelectMenu'
 import { activityCurrency, currencyLabel, currencySymbol } from '../../domain/currency'
 import { createExpenseTimestamp, money } from '../../domain/expenses'
 import { makeId } from '../../domain/members'
+import { activeActivityMembers } from '../../domain/memberRemoval'
 import type { ActivityGroup, Expense, Member } from '../../domain/models'
 import { useLocalization } from '../../i18n/LocalizationContext'
 import type { Translate } from '../../i18n/localization'
@@ -130,13 +131,14 @@ function buildTipCharge(draft: ReceiptDraft, tipPercent: number): ReceiptChargeS
 export function ReceiptSplitFlow({
   client,
   group,
-  members,
+  members: allMembers,
   onBackToManual,
   onConfirmed,
   onSave,
   saving = false,
 }: ReceiptSplitFlowProps) {
   const { locale, t } = useLocalization()
+  const members = useMemo(() => activeActivityMembers(group, allMembers), [group, allMembers])
   const activityCurrencyCode = activityCurrency(group)
   const cameraInput = useRef<HTMLInputElement>(null)
   const libraryInput = useRef<HTMLInputElement>(null)
@@ -171,6 +173,8 @@ export function ReceiptSplitFlow({
     && (!draft.unresolvedLines.length || unresolvedConfirmed),
   )
   const allItemsAssigned = Boolean(draft?.items.every(item => (assignments[item.id]?.length ?? 0) > 0))
+  const eligibleMemberIds = new Set(members.map(member => member.id))
+  const affectedItemIds = Object.keys(assignments).filter(itemId => assignments[itemId].some(id => !eligibleMemberIds.has(id)))
   const finalCharges = useMemo(() => {
     if (!draft) return charges
     const tip = buildTipCharge(draft, tipPercent)
@@ -280,6 +284,7 @@ export function ReceiptSplitFlow({
       : charge))
   }
 
+  const validPayer = members.some(member => member.id === payerId)
   const saveReceipt = () => {
     const expense = createExpenseFromReceiptSplit({
       createdAt: createExpenseTimestamp(),
@@ -330,6 +335,16 @@ export function ReceiptSplitFlow({
 
   // Review, assignment, and confirmation are reachable only after a draft is set.
   const activeDraft = draft!
+  if (affectedItemIds.length || (step === 'confirm' && !split)) {
+    return <div className="receipt-flow">
+      <p className="form-error" role="alert">{t('members.receiptChanged')}</p>
+      <div className="modal-actions"><Button onClick={onBackToManual}>{t('common.cancel')}</Button><Button variant="primary" onClick={() => {
+        setAssignments(current => Object.fromEntries(Object.entries(current).map(([itemId, ids]) => [itemId, affectedItemIds.includes(itemId) ? [] : ids])))
+        setAssignmentIndex(Math.max(0, activeDraft.items.findIndex(item => affectedItemIds.includes(item.id))))
+        setStep('assign')
+      }}>{t('members.reviewDishes')}</Button></div>
+    </div>
+  }
   const activeReconciliation = reconciliation!
 
   if (step === 'review') {
@@ -440,6 +455,7 @@ export function ReceiptSplitFlow({
       <div className="receipt-step-intro"><span><Check size={22} /></span><div><h3>{t('receipt.confirmTitle')}</h3><p>{t('receipt.confirmHelp')}</p></div></div>
       <div className="form-grid receipt-confirm-fields">
         <label>{t('receipt.description')}<input value={title} maxLength={200} onChange={event => setTitle(event.target.value)} /></label>
+        {!validPayer ? <p role="alert" className="form-error">{t('members.changed')}</p> : null}
         <label>{t('receipt.paidBy')}<SelectMenu value={payerId} options={payerOptions} onChange={setPayerId} ariaLabel={t('receipt.paidBy')} menuLabel={t('receipt.paidBy')} /></label>
       </div>
       {charges.length ? <section className="receipt-charge-methods"><h4>{t('receipt.extraCharges')}</h4>{charges.map(charge => <label key={charge.id}><span><b>{charge.label}</b><small>{money(charge.amountCents / 100, activityCurrencyCode, locale)}</small></span><SelectMenu value={charge.allocationMethod} options={chargeMethodOptions} onChange={method => setChargeMethod(charge.id, method)} ariaLabel={`${charge.label} ${t('receipt.extraCharges')}`} menuLabel={t('receipt.extraCharges')} /></label>)}</section> : null}
@@ -452,7 +468,7 @@ export function ReceiptSplitFlow({
         <footer><span>{t('receipt.personTotal')}</span><strong>{money(confirmedSplit.totalCents / 100, activityCurrencyCode, locale)}</strong></footer>
       </section>
       <div className="split-note receipt-ai-note"><ShieldCheck size={18} /><span>{t('receipt.aiReviewNote')}</span></div>
-      <div className="modal-actions receipt-modal-actions"><Button onClick={() => setStep('assign')}><ArrowLeft size={16} />{t('receipt.backToDishes')}</Button><Button variant="primary" disabled={!split || !title.trim() || !payerId || saving} onClick={saveReceipt}>{t('receipt.save')}</Button></div>
+      <div className="modal-actions receipt-modal-actions"><Button onClick={() => setStep('assign')}><ArrowLeft size={16} />{t('receipt.backToDishes')}</Button><Button variant="primary" disabled={!split || !title.trim() || !validPayer || saving} onClick={saveReceipt}>{t('receipt.save')}</Button></div>
     </div>
   )
 }

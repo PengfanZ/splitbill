@@ -27,6 +27,7 @@ const groupSchema = z.object({
   name: z.string().min(1).max(120),
   emoji: z.string().min(1).max(16),
   memberIds: z.array(memberIdSchema).min(1).max(MAX_ACTIVITY_FRIENDS + 1),
+  inactiveMemberIds: z.array(memberIdSchema).max(MAX_ACTIVITY_FRIENDS).optional(),
   currency: z.enum(SUPPORTED_CURRENCIES).optional(),
 }).passthrough()
 const amountSchema = z.number().min(0).max(MAX_ACTIVITY_AMOUNT)
@@ -72,11 +73,14 @@ function validateActivityReferences(
   const memberIds = new Set(allMemberIds)
   const groupMemberIds = new Set(activity.group.memberIds)
   const expenseIds = new Set(activity.expenses.map(expense => expense.id))
+  const inactiveIds = activity.group.inactiveMemberIds ?? []
   const valid = memberIds.size === allMemberIds.length
     && groupMemberIds.size === activity.group.memberIds.length
     && expenseIds.size === activity.expenses.length
     && groupMemberIds.size === memberIds.size
     && allMemberIds.every(memberId => groupMemberIds.has(memberId))
+    && new Set(inactiveIds).size === inactiveIds.length
+    && inactiveIds.every(id => id !== 'me' && groupMemberIds.has(id))
     && activity.expenses.every(expense => expense.groupId === activity.group.id
       && groupMemberIds.has(expense.payerId)
       && Object.keys(expense.shares).every(memberId => groupMemberIds.has(memberId)))

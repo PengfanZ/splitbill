@@ -13,6 +13,7 @@ import { Avatar } from '../../components/AppShell'
 import { Button, IconButton } from '../../components/Button'
 import { activityCurrency, type CurrencyCode } from '../../domain/currency'
 import { calculateMemberBalance, calculateSettlements, getSettlementRecipientId, isSettlementPayment, money, spendingExpenses } from '../../domain/expenses'
+import { activeActivityMembers, isInactiveMember } from '../../domain/memberRemoval'
 import { CURRENT_USER } from '../../domain/members'
 import type { ActivityGroup, Expense, Member, Settlement } from '../../domain/models'
 import { useLocalization } from '../../i18n/LocalizationContext'
@@ -86,9 +87,10 @@ export function SettlementDirections({ members, expenses, currency = 'USD', curr
   )
 }
 
-export function ExpenseList({ expenses, members, currency = 'USD', query, readOnly = false, onEditExpense, onDeleteExpense }: {
+export function ExpenseList({ expenses, members, inactiveMembers = [], currency = 'USD', query, readOnly = false, onEditExpense, onDeleteExpense }: {
   expenses: Expense[]
   members: Member[]
+  inactiveMembers?: Member[]
   currency?: CurrencyCode
   query: string
   readOnly?: boolean
@@ -115,6 +117,7 @@ export function ExpenseList({ expenses, members, currency = 'USD', query, readOn
           const settlementRecipientId = getSettlementRecipientId(expense)
           const settlementRecipient = settlementRecipientId ? memberMap.get(settlementRecipientId) : undefined
           const settlementPayment = isSettlementPayment(expense)
+          const removedNames = inactiveMembers.filter(member => expense.payerId === member.id || Object.hasOwn(expense.shares, member.id)).map(member => member.name)
           const participantCount = Object.keys(expense.shares).length
           const storedTimestamp = expense.updatedAt ?? expense.createdAt
           const localizedTimestamp = formatDateTime(storedTimestamp)
@@ -125,7 +128,7 @@ export function ExpenseList({ expenses, members, currency = 'USD', query, readOn
           return (
             <div className={`activity-row${settlementPayment ? ' settlement-payment-row' : ''}`} key={expense.id}>
               <span className={`expense-icon${settlementPayment ? ' settlement-icon' : ''}`}>{settlementPayment ? <CircleDollarSign size={18} /> : <ReceiptText size={18} />}</span>
-              <span className="row-copy"><b>{settlementPayment ? t('dashboard.paidPerson', { payer: payer.name, recipient: settlementRecipient?.name ?? unknown }) : expense.title}</b><small>{settlementPayment ? t('dashboard.settlementPayment') : <>{t('dashboard.paidLabel', { payer: payer.name })}<i />{t(expense.splitMethod === 'equal' ? 'dashboard.splitEqually' : 'dashboard.exactSplit')} · {participantCount} {t(participantCount === 1 ? 'common.person' : 'common.people')}</>}</small></span>
+              <span className="row-copy"><b>{settlementPayment ? t('dashboard.paidPerson', { payer: payer.name, recipient: settlementRecipient?.name ?? unknown }) : expense.title}</b><small>{settlementPayment ? t('dashboard.settlementPayment') : <>{t('dashboard.paidLabel', { payer: payer.name })}<i />{t(expense.splitMethod === 'equal' ? 'dashboard.splitEqually' : 'dashboard.exactSplit')} · {participantCount} {t(participantCount === 1 ? 'common.person' : 'common.people')}</>}</small>{removedNames.length && !settlementPayment ? <small>{t('members.historyIncludes', { names: removedNames.join(', ') })}</small> : null}</span>
               <span className="expense-amount"><b>{money(expense.amount, currency, locale)}</b><small>{timestampLabel}</small></span>
               {readOnly ? null : (
                 <span className="expense-actions">
@@ -143,24 +146,32 @@ export function ExpenseList({ expenses, members, currency = 'USD', query, readOn
   )
 }
 
-export function MembersRail({ members, currentMemberId = 'me', readOnly = false, onAddFriend, onRemoveFriend }: { members: Member[]; currentMemberId?: string | null; readOnly?: boolean; onAddFriend?: () => void; onRemoveFriend?: (member: Member) => void }) {
+export function MembersRail({ members, group, currentMemberId = 'me', readOnly = false, onAddFriend, onRemoveFriend, onRestoreFriend }: { members: Member[]; group?: ActivityGroup; currentMemberId?: string | null; readOnly?: boolean; onAddFriend?: () => void; onRemoveFriend?: (member: Member) => void; onRestoreFriend?: (member: Member) => void }) {
   const { t } = useLocalization()
+  const active = group ? activeActivityMembers(group, members) : members
+  const inactive = group ? members.filter(member => isInactiveMember(group, member.id)) : []
   return (
     <aside className="right-rail activity-rail">
       <section className="members-panel">
-        <div className="rail-heading"><h2>{t('dashboard.people')}</h2><span>{members.length}</span></div>
-        <div className="member-list">{members.map(member => <div className="member-row" key={member.id}>
+        <div className="rail-heading"><h2>{t('dashboard.people')}</h2><span>{active.length}</span></div>
+        <div className="member-list">{active.map(member => <div className="member-row" key={member.id}>
           <Avatar member={member} size="sm" /><b>{member.name}</b>
           {member.id === currentMemberId ? <Check size={15} aria-label={t('dashboard.currentIdentity')} /> : null}
           {!readOnly && member.id !== 'me' && onRemoveFriend ? <IconButton tone="danger" label={t('removeFriend.label', { name: member.name })} onClick={() => onRemoveFriend(member)}><Trash2 size={16} /></IconButton> : null}
         </div>)}</div>
         {readOnly ? null : <Button className="add-friend-button" onClick={onAddFriend}><Plus size={16} />{t('dashboard.addFriend')}</Button>}
+        {inactive.length ? <details className="inactive-members"><summary>{t('members.removedCount', { count: inactive.length })}</summary>
+          <p>{t('members.restoreHelp')}</p>
+          {inactive.map(member => <div className="member-row" key={member.id}><Avatar member={member} size="sm" /><b>{member.name}</b>
+            {!readOnly && onRestoreFriend ? <Button variant="ghost" aria-label={t('members.restoreName', { name: member.name })} onClick={() => onRestoreFriend(member)}>{t('members.restore')}</Button> : null}
+          </div>)}
+        </details> : null}
       </section>
     </aside>
   )
 }
 
-export function GroupDashboard({ group, members, expenses, query, activityFeedback, readOnly = false, readOnlyLabel, currentMemberId = 'me', currentUserLabel = 'You', statusLabel, onCurrentMemberChange, onCurrencyChange, onShareSummary, onExportData, onShareQr, onShareLive, onCopyShareLink, onEndLive, onAddFriend, onRemoveFriend, onAddExpense, onSettleUp, onEditExpense, onDeleteExpense }: {
+export function GroupDashboard({ group, members, expenses, query, activityFeedback, readOnly = false, readOnlyLabel, currentMemberId = 'me', currentUserLabel = 'You', statusLabel, onCurrentMemberChange, onCurrencyChange, onShareSummary, onExportData, onShareQr, onShareLive, onCopyShareLink, onEndLive, onAddFriend, onRemoveFriend, onRestoreFriend, onAddExpense, onSettleUp, onEditExpense, onDeleteExpense }: {
   group: ActivityGroup
   members: Member[]
   expenses: Expense[]
@@ -181,6 +192,7 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
   onEndLive?: () => void
   onAddFriend?: () => void
   onRemoveFriend?: (member: Member) => void
+  onRestoreFriend?: (member: Member) => void
   onAddExpense?: () => void
   onSettleUp?: (settlement: Settlement) => void
   onEditExpense?: (expense: Expense) => void
@@ -189,18 +201,21 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
   const { locale, t } = useLocalization()
   const [shareMenuOpen, setShareMenuOpen] = useState(false)
   const currency = activityCurrency(group)
+  const activeCount = activeActivityMembers(group, members).length
+  const historyMembers = members.map(member => isInactiveMember(group, member.id)
+    ? { ...member, name: t('members.inactiveName', { name: member.name }) } : member)
   const hasExpenses = expenses.length > 0
   const canShare = Boolean(onShareSummary || onExportData || onShareQr || onShareLive || onCopyShareLink)
   return (
     <main className="dashboard">
       <div className="main-column">
         <header className="group-welcome">
-          <div className="group-title"><h1>{group.name}</h1><p>{t('dashboard.sharing', { count: members.length, unit: t(members.length === 1 ? 'common.person' : 'common.people') })}</p></div>
+          <div className="group-title"><h1>{group.name}</h1><p>{t('dashboard.sharing', { count: activeCount, unit: t(activeCount === 1 ? 'common.person' : 'common.people') })}</p></div>
           <div className="group-share">
             <div className="group-actions">
               <div className="group-context-actions">
                 {statusLabel ? <span className="read-only-badge live-badge"><Radio size={14} />{statusLabel}</span> : null}
-                {onCurrentMemberChange ? <ActivityIdentityControl memberId={currentMemberId} members={members} onChange={onCurrentMemberChange} /> : null}
+                {onCurrentMemberChange ? <ActivityIdentityControl memberId={currentMemberId} members={historyMembers} onChange={onCurrentMemberChange} /> : null}
                 <ActivityCurrencyControl currency={currency} locale={locale} readOnly={readOnly} onChange={onCurrencyChange} />
                 {readOnly ? <span className="read-only-badge">{readOnlyLabel ?? t('dashboard.readOnly')}</span> : null}
               </div>
@@ -215,8 +230,8 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
         {hasExpenses ? (
           <>
             <ActivitySummary expenses={expenses} currency={currency} currentMemberId={currentMemberId} currentUserLabel={currentUserLabel} />
-            <SettlementDirections members={members} expenses={expenses} currency={currency} currentMemberId={currentMemberId} currentUserLabel={currentUserLabel} onSettleUp={readOnly ? undefined : onSettleUp} />
-            <ExpenseList expenses={expenses} members={members} currency={currency} query={query} readOnly={readOnly} onEditExpense={onEditExpense} onDeleteExpense={onDeleteExpense} />
+            <SettlementDirections members={historyMembers} expenses={expenses} currency={currency} currentMemberId={currentMemberId} currentUserLabel={currentUserLabel} onSettleUp={readOnly ? undefined : onSettleUp} />
+            <ExpenseList expenses={expenses} members={historyMembers} inactiveMembers={members.filter(member => isInactiveMember(group, member.id))} currency={currency} query={query} readOnly={readOnly} onEditExpense={onEditExpense} onDeleteExpense={onDeleteExpense} />
           </>
         ) : (
           <section className="activity-empty">
@@ -227,7 +242,7 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
           </section>
         )}
       </div>
-      <MembersRail members={members} currentMemberId={currentMemberId} readOnly={readOnly} onAddFriend={onAddFriend} onRemoveFriend={onRemoveFriend} />
+      <MembersRail group={group} members={members} currentMemberId={currentMemberId} readOnly={readOnly} onAddFriend={onAddFriend} onRemoveFriend={onRemoveFriend} onRestoreFriend={onRestoreFriend} />
       {shareMenuOpen ? <ShareActivityMenu
         groupName={group.name}
         live={Boolean(onCopyShareLink && !onShareLive)}

@@ -10,6 +10,8 @@ export type ActivityGroup = {
   name: string
   emoji: string
   memberIds: string[]
+  /** Activity-scoped inactive memberships. IDs and historical references are retained. */
+  inactiveMemberIds?: string[]
   currency?: import('./currency').CurrencyCode
 }
 

@@ -1,5 +1,6 @@
-import { useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { ArrowRight, CircleDollarSign, Mic, Pencil, ReceiptText, Sparkles, Users } from 'lucide-react'
+import { expenseEntryMembers, isInactiveMember } from '../../domain/memberRemoval'
 import { Avatar } from '../../components/AppShell'
 import { ModalShell } from '../../components/Dialog'
 import { Button } from '../../components/Button'
@@ -64,7 +65,7 @@ export function CreateGroupModal({ onClose, onCurrencySelect, onSave }: {
   )
 }
 
-export function AddFriendModal({ existingExpenseCount, onClose, onSave, saving = false }: { existingExpenseCount: number; onClose: () => void; onSave: (names: string[]) => void; saving?: boolean }) {
+export function AddFriendModal({ existingExpenseCount, hasRemovedFriends = false, onClose, onSave, saving = false }: { existingExpenseCount: number; hasRemovedFriends?: boolean; onClose: () => void; onSave: (names: string[]) => void; saving?: boolean }) {
   const [draft, setDraft] = useState('')
   const [names, setNames] = useState<string[]>([])
   const { t } = useLocalization()
@@ -80,6 +81,7 @@ export function AddFriendModal({ existingExpenseCount, onClose, onSave, saving =
     <ModalShell eyebrow={t('friend.eyebrow')} title={t('friend.title')} onClose={onClose} mobilePlacement="center">
       <form onSubmit={submit}>
         <FriendNameInput draft={draft} names={names} onDraftChange={setDraft} onNamesChange={setNames} />
+        {hasRemovedFriends ? <p className="field-help">{t('members.restoreInstead')}</p> : null}
         {existingExpenseCount ? <div className="split-note future-note"><Users size={18} /><span><b>{t('friend.futureOnly')}</b><small>{t(existingExpenseCount === 1 ? 'friend.existingOne' : 'friend.existingMany', { count: existingExpenseCount })}</small></span></div> : null}
         <div className="modal-actions"><Button onClick={onClose}>{t('common.cancel')}</Button><Button variant="primary" type="submit" disabled={saving || !pendingNames.length}>{t('friend.add')}</Button></div>
       </form>
@@ -129,7 +131,7 @@ export type ExpenseInputTab = 'manual' | 'ai-text' | 'ai-voice' | 'receipt'
 
 type ExpenseEntryMode = ExpenseInputTab | 'ai-batch'
 
-export function ExpenseModal({ group, members, expense, aiExpenseClient = null, receiptClient = null, currentMemberId = 'me', onCurrentMemberChange, onEntryTabSelect, onReceiptConfirmed, onClose, onSave, onSaveMany, saving = false }: {
+export function ExpenseModal({ group, members: allMembers, expense, aiExpenseClient = null, receiptClient = null, currentMemberId = 'me', onCurrentMemberChange, onEntryTabSelect, onReceiptConfirmed, onClose, onSave, onSaveMany, saving = false }: {
   group: ActivityGroup
   members: Member[]
   expense?: Expense
@@ -147,8 +149,10 @@ export function ExpenseModal({ group, members, expense, aiExpenseClient = null, 
   const { locale, t } = useLocalization()
   const currency = activityCurrency(group)
   const [title, setTitle] = useState(expense?.title ?? '')
+  const members = useMemo(() => expenseEntryMembers(group, allMembers, expense), [group, allMembers, expense])
+  const displayName = (member: Member) => isInactiveMember(group, member.id) ? t('members.inactiveName', { name: member.name }) : member.name
   const [amount, setAmount] = useState(expense ? expense.amount.toString() : '')
-  const [payerId, setPayerId] = useState(expense?.payerId ?? currentMemberId ?? members[0]?.id ?? 'me')
+  const [payerId, setPayerId] = useState(expense?.payerId ?? (members.some(member => member.id === currentMemberId) ? currentMemberId! : members[0]?.id ?? 'me'))
   const [method, setMethod] = useState<SplitMethod>(expense?.splitMethod ?? 'equal')
   const aiAvailable = Boolean(aiExpenseClient && !expense)
   const receiptAvailable = Boolean(receiptClient && !expense)
@@ -160,7 +164,7 @@ export function ExpenseModal({ group, members, expense, aiExpenseClient = null, 
   const [editingBatchIndex, setEditingBatchIndex] = useState<number | null>(null)
   const payerOptions: ReadonlyArray<SelectMenuOption<string>> = members.map(member => ({
     value: member.id,
-    label: member.name,
+    label: displayName(member),
     leading: <Avatar member={member} size="sm" />,
   }))
   const methodOptions: ReadonlyArray<SelectMenuOption<SplitMethod>> = [
@@ -180,7 +184,12 @@ export function ExpenseModal({ group, members, expense, aiExpenseClient = null, 
   const exactTotal = members.reduce((sum, member) => sum + (Number(exactShares[member.id]) || 0), 0)
   const remaining = numericAmount - exactTotal
   const exactValid = Math.abs(remaining) < 0.005
-  const splitValid = method === 'equal' ? equalParticipants.length > 0 : exactValid
+  const knownPayer = members.some(member => member.id === payerId)
+  const knownParticipants = method !== 'equal' || equalParticipantIds.every(id => members.some(member => member.id === id))
+  const membersValid = knownPayer && knownParticipants
+  const batchMembersValid = aiBatchDrafts.every(draft => members.some(member => member.id === draft.payerId)
+    && draft.participantIds.every(id => members.some(member => member.id === id)))
+  const splitValid = membersValid && (method === 'equal' ? equalParticipants.length > 0 : exactValid)
 
   const toggleEqualParticipant = (memberId: string) => {
     setEqualParticipantIds(current => current.includes(memberId)
@@ -275,6 +284,13 @@ export function ExpenseModal({ group, members, expense, aiExpenseClient = null, 
 
   return (
     <ModalShell eyebrow={group.name} title={t(entryMode === 'receipt' ? 'receipt.title' : expense ? 'expense.editTitle' : 'expense.addTitle')} onClose={onClose} size={entryMode === 'receipt' ? 'wide' : 'standard'}>
+      {group.inactiveMemberIds?.length ? <div className="split-note membership-note" role="status"><Users size={18} /><span>{t(expense ? 'members.editExpenseNote' : 'members.newExpenseNote')}</span></div> : null}
+      {!membersValid || !batchMembersValid ? <div className="membership-change-warning" role="alert"><p>{t('members.changed')}</p>
+        {entryMode === 'manual' ? <Button onClick={() => {
+          if (!knownPayer) setPayerId(members[0]?.id ?? 'me')
+          setEqualParticipantIds(ids => ids.filter(id => members.some(member => member.id === id)))
+        }}>{t('members.reviewActive')}</Button> : <p>{t('members.reviewDrafts')}</p>}
+      </div> : null}
       {assistedEntryAvailable && aiBatchDrafts.length === 0 ? (
         <div className={`expense-entry-tabs expense-entry-tabs--${1 + (aiAvailable ? 2 : 0) + (receiptAvailable ? 1 : 0)}`} role="tablist" aria-label={t('expense.entryMethod')}>
           <button type="button" role="tab" aria-selected={entryMode === 'manual'} className={entryMode === 'manual' ? 'active' : ''} onClick={() => selectEntryTab('manual')}><Pencil size={15} />{t('expense.manualTab')}</button>
@@ -322,12 +338,12 @@ export function ExpenseModal({ group, members, expense, aiExpenseClient = null, 
         <AiExpenseBatchReview
           currency={currency}
           drafts={aiBatchDrafts}
-          members={members}
+          members={allMembers.map(member => ({ ...member, name: displayName(member) }))}
           onCancel={onClose}
           onEdit={editBatchDraft}
           onRemove={removeBatchDraft}
           onSave={saveAiBatch}
-          saving={saving}
+          saving={saving || !batchMembersValid}
         />
       ) : entryMode === 'manual' ? <form onSubmit={submit}>
         {aiDraftApplied ? <div className="split-note ai-draft-note" role="status"><Sparkles size={18} /><span><b>{t(editingBatchIndex === null ? 'expense.aiDraftReady' : 'expense.batchEditing', editingBatchIndex === null ? undefined : { current: editingBatchIndex + 1, total: aiBatchDrafts.length })}</b><small>{t(editingBatchIndex === null ? 'expense.aiDraftReview' : 'expense.batchEditingHelp')}</small></span></div> : null}
@@ -343,7 +359,7 @@ export function ExpenseModal({ group, members, expense, aiExpenseClient = null, 
             <div className="equal-member-list">
               {members.map(member => (
                 <label className="equal-member" key={member.id}>
-                  <span><Avatar member={member} size="sm" />{member.name}</span>
+                  <span><Avatar member={member} size="sm" />{displayName(member)}</span>
                   <input
                     aria-label={t('expense.includeMember', { name: member.name })}
                     type="checkbox"
@@ -362,7 +378,7 @@ export function ExpenseModal({ group, members, expense, aiExpenseClient = null, 
         ) : (
           <div className="exact-splits">
             <div className="exact-heading"><span>{t('expense.enterShares')}</span><b className={exactValid ? 'positive' : remaining < 0 ? 'negative' : ''}>{t(remaining >= 0 ? 'expense.left' : 'expense.over', { amount: money(remaining, currency, locale) })}</b></div>
-            {members.map(member => <label className="share-row" key={member.id}><span><Avatar member={member} size="sm" />{member.name}</span><span className="share-input"><i>{currencySymbol(currency, locale)}</i><input aria-label={t('expense.memberShare', { name: member.name })} type="number" inputMode="decimal" min="0" max={MAX_ACTIVITY_AMOUNT} step="0.01" value={exactShares[member.id] ?? ''} onChange={event => setExactShares(current => ({ ...current, [member.id]: event.target.value }))} onFocus={selectInputContents} placeholder="0.00" /></span></label>)}
+            {members.map(member => <label className="share-row" key={member.id}><span><Avatar member={member} size="sm" />{displayName(member)}</span><span className="share-input"><i>{currencySymbol(currency, locale)}</i><input aria-label={t('expense.memberShare', { name: member.name })} type="number" inputMode="decimal" min="0" max={MAX_ACTIVITY_AMOUNT} step="0.01" value={exactShares[member.id] ?? ''} onChange={event => setExactShares(current => ({ ...current, [member.id]: event.target.value }))} onFocus={selectInputContents} placeholder="0.00" /></span></label>)}
           </div>
         )}
         {expense ? <div className="split-note edit-note"><Pencil size={17} /><span>{method === 'equal' ? t('expense.editEqualNote') : t('expense.editExactNote', { count: members.length })}</span></div> : null}

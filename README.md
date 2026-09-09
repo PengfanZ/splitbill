@@ -37,7 +37,7 @@ For launch copy, a privacy-safe demo storyboard, and channel guidance, see the [
 - Record who paid and split expenses equally among everyone or only selected people, or enter exact amounts.
 - Photograph a receipt, review the detected dishes and charges, assign each dish, and save a cent-exact split.
 - Keep historical splits stable when friends join later, then explicitly edit an expense when it should include them.
-- Remove unused friends from an activity with confirmation. Friends referenced by any expense or settlement stay in place to preserve history; live changes synchronize through the existing revision checks.
+- Remove friends from future expenses without changing old bills, balances, or settlements. Review affected records before confirming, and restore the same friend from **People → Removed friends**. Local and live activities follow the same participant rules.
 - See clear person-to-person settlement directions instead of an ambiguous group balance.
 - Record full or partial settlement payments, keep repayment history, and undo mistakes without inflating spending totals.
 - Edit and delete expenses, or delete an entire activity and its local data.

@@ -40,6 +40,46 @@ function liveClient() {
 }
 
 describe('friend removal in local and live activities', () => {
+  it('restores a local friend without replacing their identity or old expenses', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, groups: [{ ...group, inactiveMemberIds: ['sam', 'maya'] }] }))
+    render(<App liveActivityClient={null} />)
+    await user.click(screen.getByText('Removed friends (2)'))
+    await user.click(screen.getByRole('button', { name: 'Restore Sam' }))
+    expect(screen.getByRole('button', { name: 'Remove Sam from activity' })).toBeVisible()
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!)).toEqual({ ...state, groups: [{ ...group, inactiveMemberIds: ['maya'] }] })
+  })
+
+  it('restores a live friend through the same revision-checked session', async () => {
+    const user = userEvent.setup()
+    const client = liveClient()
+    client.load.mockResolvedValue({ ...record, snapshot: { ...snapshot, group: { ...group, inactiveMemberIds: ['sam'] } } })
+    render(<App liveActivityClient={client} />)
+    await user.click(await screen.findByText('Removed friends (1)'))
+    await user.click(screen.getByRole('button', { name: 'Restore Sam' }))
+    await waitFor(() => expect(client.update).toHaveBeenCalledWith(credentials, expect.objectContaining({ group: { ...group, inactiveMemberIds: [] }, expenses: [expense] }), 1))
+    await screen.findByRole('button', { name: 'Remove Sam from activity' })
+  })
+
+  it('keeps a rejected live draft open and lets the user review the current people', async () => {
+    const user = userEvent.setup()
+    const client = liveClient()
+    const latest = { ...record, revision: 2, snapshot: { ...snapshot, group: { ...group, inactiveMemberIds: ['sam'] } } }
+    client.update.mockRejectedValueOnce(new LiveActivityApiError('membership-changed', 'changed', { latestRecord: latest }))
+    render(<App liveActivityClient={client} />)
+    await user.click(await screen.findByRole('button', { name: 'Add expense' }))
+    await user.type(screen.getByLabelText('Description'), 'Coffee')
+    await user.type(screen.getByLabelText('Amount'), '12')
+    await user.click(screen.getByRole('button', { name: 'Save expense' }))
+    await screen.findByRole('button', { name: 'Use current participants' })
+    expect(screen.getByRole('dialog')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Save expense' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Use current participants' }))
+    await user.click(screen.getByRole('button', { name: 'Save expense' }))
+    await waitFor(() => expect(client.update).toHaveBeenCalledTimes(2))
+    expect(client.update.mock.calls[1][1].expenses[0].shares).toEqual({ me: 6, maya: 6 })
+    expect(client.update.mock.calls[1][2]).toBe(2)
+  })
   it('cancels safely then persists removal without changing earlier expenses or identity', async () => {
     const user = userEvent.setup()
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
@@ -55,7 +95,8 @@ describe('friend removal in local and live activities', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Sam was removed')
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)!) as PersistedState
     expect(saved.expenses).toEqual([expense])
-    expect(saved.friends).toEqual([maya])
+    expect(saved.friends).toEqual([sam, maya])
+    expect(saved.groups[0].inactiveMemberIds).toEqual(['sam'])
     view.unmount()
     render(<App liveActivityClient={null} />)
     expect(screen.queryByRole('button', { name: 'Remove Sam from activity' })).not.toBeInTheDocument()
@@ -64,16 +105,17 @@ describe('friend removal in local and live activities', () => {
     expect(screen.queryByRole('option', { name: 'Sam' })).not.toBeInTheDocument()
   })
 
-  it('blocks referenced friends, including after settlement, without changing saved records', async () => {
+  it('lists referenced bills and settlements, then preserves them on removal', async () => {
     const user = userEvent.setup()
     const settled = { ...state, expenses: [expense, { ...expense, id: 'payment', kind: 'settlement' as const, payerId: 'maya', amount: 10, splitMethod: 'exact' as const, shares: { me: 10 } }] }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settled))
     render(<App liveActivityClient={null} />)
     await user.click(screen.getByRole('button', { name: 'Remove Maya from activity' }))
-    const dialog = screen.getByRole('dialog', { name: 'Keep the history intact' })
+    const dialog = screen.getByRole('dialog', { name: 'Remove Maya from future expenses?' })
     expect(within(dialog).getByText('Related records (2)')).toBeVisible()
-    expect(within(dialog).queryByRole('button', { name: 'Remove friend' })).not.toBeInTheDocument()
-    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!)).toEqual(settled)
+    expect(within(dialog).getByRole('button', { name: 'Remove friend' })).toBeEnabled()
+    await user.click(within(dialog).getByRole('button', { name: 'Remove friend' }))
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!)).toEqual({ ...settled, groups: [{ ...group, inactiveMemberIds: ['maya'] }] })
   })
 
   it('saves live removal with revision protection and updates the local recovery mirror', async () => {
@@ -82,10 +124,10 @@ describe('friend removal in local and live activities', () => {
     render(<App liveActivityClient={client} />)
     await user.click(await screen.findByRole('button', { name: 'Remove Sam from activity' }))
     await user.click(screen.getByRole('button', { name: 'Remove friend' }))
-    await waitFor(() => expect(client.update).toHaveBeenCalledWith(credentials, expect.objectContaining({ friends: [maya], expenses: [expense] }), 1))
+    await waitFor(() => expect(client.update).toHaveBeenCalledWith(credentials, expect.objectContaining({ group: { ...group, inactiveMemberIds: ['sam'] }, friends: [sam, maya], expenses: [expense] }), 1))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(screen.getByText('Live · revision 2')).toBeVisible()
-    expect(localStorage.getItem(LIVE_ACTIVITY_MIRRORS_KEY)).not.toContain('"id":"sam"')
+    expect(localStorage.getItem(LIVE_ACTIVITY_MIRRORS_KEY)).toContain('"inactiveMemberIds":["sam"]')
   })
 
   it('does not overwrite a concurrent expense and updates the dialog to explain the new reference', async () => {
@@ -96,10 +138,15 @@ describe('friend removal in local and live activities', () => {
     render(<App liveActivityClient={client} />)
     await user.click(await screen.findByRole('button', { name: 'Remove Sam from activity' }))
     await user.click(screen.getByRole('button', { name: 'Remove friend' }))
-    expect(await screen.findByRole('dialog', { name: 'Keep the history intact' })).toBeVisible()
+    expect(await screen.findByRole('dialog', { name: 'Remove Sam from future expenses?' })).toBeVisible()
     expect(screen.getByRole('alert')).toHaveTextContent('not removed')
     expect(client.update).toHaveBeenCalledTimes(1)
     expect(screen.getByText('Live · revision 2')).toBeVisible()
+    expect(within(screen.getByRole('dialog')).getByText('Taxi')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Remove friend' }))
+    await waitFor(() => expect(client.update).toHaveBeenCalledTimes(2))
+    expect(client.update.mock.calls[1][1].expenses).toEqual(latest.snapshot.expenses)
+    expect(client.update.mock.calls[1][2]).toBe(2)
   })
 
   it('disables an open removal confirmation when the live activity goes offline', async () => {
@@ -126,7 +173,7 @@ describe('friend removal in local and live activities', () => {
     await user.click(await screen.findByRole('button', { name: 'Remove Sam from activity' }))
     await user.click(screen.getByRole('button', { name: 'Remove friend' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Connect and refresh')
-    expect(screen.getByRole('dialog', { name: 'Remove Sam?' })).toBeVisible()
+    expect(screen.getByRole('dialog', { name: 'Remove Sam from future expenses?' })).toBeVisible()
     expect(localStorage.getItem(LIVE_ACTIVITY_MIRRORS_KEY)).toContain('"id":"sam"')
   })
 })

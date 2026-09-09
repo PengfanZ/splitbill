@@ -10,7 +10,7 @@ import { EMPTY_STATE } from './data/storage'
 import { activityCurrency, currencyLabel, type CurrencyCode } from './domain/currency'
 import { isSettlementPayment, money, spendingExpenses } from './domain/expenses'
 import { CURRENT_USER } from './domain/members'
-import { removeActivityFriend } from './domain/memberRemoval'
+import { activeActivityMembers, isInactiveMember, removeActivityFriend, restoreActivityFriend } from './domain/memberRemoval'
 import type { ActivityGroup, Expense, Settlement } from './domain/models'
 import type { AiExpenseClient } from './features/aiExpense/aiExpenseApi'
 import { withAiExpenseAnalytics } from './features/aiExpense/aiExpenseAnalytics'
@@ -172,14 +172,14 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
   }, [activeIdentityScope, activeMembers, activityIdentities, identity?.name, liveActivity])
   const activeMember = activeMembers.find(member => member.id === activeMemberId) ?? null
   const removingFriend = friendRemoval?.scope === activeIdentityScope
-    ? activeMembers.find(member => member.id === friendRemoval?.memberId)
+    ? activeMembers.find(member => member.id === friendRemoval?.memberId && !isInactiveMember(activeGroup!, member.id))
     : undefined
   const liveEditBlocked = Boolean(live.credentials && !live.editable)
   const displayedGroup = liveActivity?.group ?? selectedGroup
   const displayedMemberCount = liveActivity
-    ? liveMembers.length
+    ? activeActivityMembers(liveActivity.group, liveMembers).length
     : selectedGroup
-      ? selectedMembers.length
+      ? activeActivityMembers(selectedGroup, selectedMembers).length
       : 0
   const displayedLiveNotice = live.displayedNotice
   const liveEnd = live.end
@@ -378,7 +378,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
     const message = t('removeFriend.removed', { name: removingFriend.name })
     if (liveActivity) {
       const snapshot = removeActivityFriend(liveActivity, removingFriend.id)
-      /* v8 ignore next -- The dialog uses the same reference guard and hides confirmation for referenced members; the domain rejection paths are unit-tested. */
+      /* v8 ignore next -- Only active non-original members expose removal; domain idempotency is tested separately. */
       if (!snapshot) return
       const saved = await live.save(snapshot, message, JSON.stringify(['remove-friend', removingFriend.id]))
       if (!saved) {
@@ -390,6 +390,20 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
       setActivityFeedback({ groupId: activeGroup.id, message })
     }
     setFriendRemoval(null)
+  }
+
+  const restoreFriend = async (member: { id: string; name: string }) => {
+    /* v8 ignore next -- Restore is available only in an editable activity. */
+    if (!activeGroup || liveEditBlocked || live.saving) return
+    const message = t('members.restored', { name: member.name })
+    if (liveActivity) {
+      const snapshot = restoreActivityFriend(liveActivity, member.id)
+      /* v8 ignore next -- Only inactive members expose Restore; domain idempotency is tested separately. */
+      if (snapshot) await live.save(snapshot, message, JSON.stringify(['restore-friend', member.id]))
+    } else {
+      setState(current => removeLocalFriend(current, activeGroup.id, member.id, true))
+      setActivityFeedback({ groupId: activeGroup.id, message })
+    }
   }
 
   const requestFriendRemoval = (member: { id: string }) => {
@@ -648,6 +662,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
                 onExportData={() => setModal('csv-export')}
                 onAddFriend={live.editable ? () => setModal('friend') : undefined}
                 onRemoveFriend={live.editable ? requestFriendRemoval : undefined}
+                onRestoreFriend={live.editable ? restoreFriend : undefined}
                 onAddExpense={live.editable ? openNewExpense : undefined}
                 onSettleUp={live.editable ? openSettleUp : undefined}
                 onEditExpense={live.editable ? openEditExpense : undefined}
@@ -671,6 +686,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
             onShareLive={() => sharing.openLiveShare(selectedGroup, selectedMembers, selectedExpenses)}
             onAddFriend={() => setModal('friend')}
             onRemoveFriend={requestFriendRemoval}
+            onRestoreFriend={restoreFriend}
             onAddExpense={openNewExpense}
             onSettleUp={openSettleUp}
             onEditExpense={openEditExpense}
@@ -683,7 +699,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
         onCurrencySelect={currency => analyticsClient?.track('currency_selected', 'local', locale, currency)}
         onSave={createGroup}
       /> : null}
-      {modal === 'friend' ? <AddFriendModal existingExpenseCount={spendingExpenses(activeExpenses).length} onClose={() => setModal(null)} onSave={addFriends} saving={live.saving || liveEditBlocked} /> : null}
+      {modal === 'friend' ? <AddFriendModal hasRemovedFriends={Boolean(activeGroup?.inactiveMemberIds?.length)} existingExpenseCount={spendingExpenses(activeExpenses).length} onClose={() => setModal(null)} onSave={addFriends} saving={live.saving || liveEditBlocked} /> : null}
       {removingFriend && activeGroup ? <RemoveFriendModal
         member={removingFriend} group={activeGroup} expenses={activeExpenses} live={Boolean(live.credentials)}
         busy={live.saving} readOnly={liveEditBlocked} error={friendRemovalError}

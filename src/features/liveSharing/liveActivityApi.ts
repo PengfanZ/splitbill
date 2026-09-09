@@ -20,6 +20,7 @@ export type LiveActivityApiErrorKind =
   | 'invalid-input'
   | 'not-found'
   | 'conflict'
+  | 'membership-changed'
   | 'rate-limit'
   | 'backend'
   | 'network'
@@ -58,6 +59,9 @@ function responseErrorKind(body: unknown, status: number): LiveActivityApiErrorK
 
 function throwRejectedResult(value: unknown) {
   if (!isRecord(value) || value.rejection_code == null) return
+  if (value.rejection_code === 'activity_membership_changed') {
+    throw new LiveActivityApiError('membership-changed', 'The activity participants changed. Review the split before saving.', { latestRecord: parseRecord(value, false) })
+  }
   if (value.rejection_code === 'invalid_activity_snapshot') {
     throw new LiveActivityApiError('invalid-input', 'The activity contains data outside the supported limits.')
   }

@@ -758,7 +758,16 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .remove-friend-person small { color: var(--muted); }
 .remove-friend-dialog > p { color: var(--muted); line-height: 1.6; }
 .remove-friend-history { margin-bottom: 16px; padding: 16px; border: 1px solid var(--line); border-radius: 16px; }
-.remove-friend-history ul { margin: 10px 0 0; padding-left: 20px; line-height: 1.8; overflow-wrap: anywhere; }
+.remove-friend-history ul { margin: 10px 0 0; padding: 0; list-style: none; max-height: 220px; overflow-y: auto; overscroll-behavior: contain; overflow-wrap: anywhere; }
+.remove-friend-history li { display: grid; gap: 4px; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.remove-friend-history li:last-child { border-bottom: 0; }
+.remove-friend-balance { margin: 12px 0 0; padding-top: 12px; border-top: 1px solid var(--line); font-size: 13px; font-weight: 600; }
+.remove-friend-scope { font-size: 12px; }
+.inactive-members { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 14px; }
+.inactive-members summary { cursor: pointer; font-size: 13px; font-weight: 600; }
+.inactive-members > p { font-size: 12px; color: var(--muted); line-height: 1.6; }
+.inactive-members .button { padding: 8px; font-size: 12px; }
+.membership-change-warning { margin: 12px 0; padding: 12px; border: 1px solid var(--coral-border); border-radius: 12px; font-size: 13px; }
 .remove-friend-history small { color: var(--muted); }
 .remove-friend-note { display: flex; align-items: flex-start; gap: 10px; padding: 14px; border-radius: 14px; background: var(--green-soft-strong); }
 .remove-friend-note > svg { flex-shrink: 0; margin-top: 2px; color: var(--green); }
@@ -1068,3 +1077,5 @@ html[data-theme='dark'] .fresh-illustration i:nth-of-type(3) { background: #9f82
   font-weight: 700;
   text-decoration: none;
 }
+.membership-note { margin-bottom: 16px; }
+.membership-note > svg { flex: 0 0 18px; }

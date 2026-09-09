@@ -12,6 +12,16 @@ const props = {
 }
 
 describe('RemoveFriendModal', () => {
+  it('shows shares, incoming payments, legacy dates and all balance directions', () => {
+    const record: Expense = { id: '1', groupId: 'trip', title: 'Dinner', amount: 20, payerId: 'me', shares: { sam: 20 }, splitMethod: 'exact', createdAt: 'Today' }
+    const { rerender } = render(<RemoveFriendModal {...props} expenses={[record]} />)
+    expect(screen.getByText('Today')).toBeVisible()
+    expect(screen.getByText('Sam still owes $20.00')).toBeVisible()
+    rerender(<RemoveFriendModal {...props} expenses={[{ ...record, kind: 'settlement', updatedAt: '2026-09-09T12:00:00Z' }]} />)
+    expect(screen.getByText('Payment received: $20.00')).toBeVisible()
+    rerender(<RemoveFriendModal {...props} expenses={[record, { ...record, id: 'payment', kind: 'settlement', payerId: 'sam', shares: { me: 20 } }]} />)
+    expect(screen.getByText('Sam is settled up. History will still be kept.')).toBeVisible()
+  })
   it('explains scope and supports cancellation and confirmation', async () => {
     const user = userEvent.setup()
     render(<RemoveFriendModal {...props} />)
@@ -35,15 +45,15 @@ describe('RemoveFriendModal', () => {
     expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
   })
 
-  it('blocks removal, shows a bounded history list, and never offers destructive action', () => {
+  it('lists every reference and still allows removal without rewriting history', () => {
     const record: Expense = { id: '1', groupId: 'trip', title: 'Dinner', amount: 20, payerId: 'sam', shares: { me: 20 }, splitMethod: 'exact', createdAt: '2026-09-09T12:00:00Z' }
     const { rerender } = render(<RemoveFriendModal {...props} expenses={[record]} />)
-    expect(screen.getByRole('heading', { name: 'Keep the history intact' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Remove Sam from future expenses?' })).toBeVisible()
     expect(screen.getByText('Dinner')).toBeVisible()
-    expect(screen.queryByRole('button', { name: 'Remove friend' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Remove friend' })).toBeEnabled()
     rerender(<RemoveFriendModal {...props} expenses={[record, { ...record, id: '2', kind: 'settlement' }, { ...record, id: '3' }, { ...record, id: '4' }]} />)
     expect(screen.getByText('Settlement payment')).toBeVisible()
-    expect(screen.getAllByRole('listitem')).toHaveLength(3)
-    expect(screen.getByText('And 1 more')).toBeVisible()
+    expect(screen.getAllByRole('listitem')).toHaveLength(4)
+    expect(screen.getByRole('list')).toHaveAccessibleName('Related records (4)')
   })
 })

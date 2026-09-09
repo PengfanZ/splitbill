@@ -1,3 +1,4 @@
+import { isInactiveMember } from '../../domain/memberRemoval'
 import { useMemo, useState } from 'react'
 import { Download, FileSpreadsheet, UserRound, UsersRound } from 'lucide-react'
 import { Avatar } from '../../components/AppShell'
@@ -44,7 +45,7 @@ export function CsvExportModal({
   const nativeFileShare = useMemo(() => canNativeShareCsv(), [])
   const memberOptions: ReadonlyArray<SelectMenuOption<string>> = members.map(member => ({
     value: member.id,
-    label: member.name,
+    label: isInactiveMember(group, member.id) ? t('members.inactiveName', { name: member.name }) : member.name,
     leading: <Avatar member={member} size="sm" />,
   }))
   const selectedMember = members.find(member => member.id === memberId) ?? null

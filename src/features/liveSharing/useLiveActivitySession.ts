@@ -53,6 +53,7 @@ export function liveActivityErrorMessage(error: unknown, t: Translate = englishT
     if (error.kind === 'rate-limit') return t('live.rateLimit')
     if (error.kind === 'network') return t('live.network')
     if (error.kind === 'invalid-input') return t('live.invalidInput')
+    if (error.kind === 'membership-changed') return t('members.changed')
   }
   return t('live.genericError')
 }
@@ -266,10 +267,10 @@ export function useLiveActivitySession({
       setNotice(successMessage)
       return true
     } catch (error) {
-      if (error instanceof LiveActivityApiError && error.kind === 'conflict' && error.latestRecord) {
+      if (error instanceof LiveActivityApiError && (error.kind === 'conflict' || error.kind === 'membership-changed') && error.latestRecord) {
         rejectedSaveFingerprint.current = null
         queryClient.setQueryData(liveActivityQueryKey(activeSession.credentials), error.latestRecord)
-        setNotice(t('live.conflictLoaded'))
+        setNotice(t(error.kind === 'membership-changed' ? 'members.changed' : 'live.conflictLoaded'))
       } else {
         if (error instanceof LiveActivityApiError && error.kind === 'not-found' && mirror) {
           setLiveEnded(true)
