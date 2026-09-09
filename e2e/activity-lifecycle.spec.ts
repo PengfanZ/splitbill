@@ -22,6 +22,36 @@ test.beforeEach(async ({ context }) => {
   }))
 })
 
+test('aligns People identity and remove icons on desktop and mobile', async ({ page }) => {
+  await page.goto('./')
+  await page.getByLabel('Display name').fill('Alex')
+  await page.getByRole('button', { name: 'Continue' }).click()
+  await page.getByRole('button', { name: 'Create an activity' }).click()
+  await page.getByLabel('Activity name').fill('Weekend')
+  await page.getByLabel(/Add friends/).fill('Maya')
+  await page.getByRole('button', { name: 'Create activity' }).click()
+
+  const people = page.locator('.members-panel')
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 })
+    await people.scrollIntoViewIfNeeded()
+    const identity = await people.locator('.member-identity-indicator svg').boundingBox()
+    const remove = await people.getByRole('button', { name: 'Remove Maya from activity' }).locator('svg').boundingBox()
+    expect(identity).not.toBeNull()
+    expect(remove).not.toBeNull()
+    expect(Math.abs(identity!.x + identity!.width / 2 - remove!.x - remove!.width / 2)).toBeLessThan(1)
+    for (const row of await people.locator('.member-row').all()) {
+      const bounds = await row.boundingBox()
+      const icon = await row.locator('.member-identity-indicator svg, .icon-button-control svg').boundingBox()
+      expect(Math.abs(bounds!.y + bounds!.height / 2 - icon!.y - icon!.height / 2)).toBeLessThan(1)
+    }
+  }
+  await people.getByRole('button', { name: 'Remove Maya from activity' }).click()
+  await expect(page.getByRole('dialog', { name: 'Remove Maya from future expenses?' })).toBeVisible()
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(people.getByRole('button', { name: 'Remove Maya from activity' })).toBeVisible()
+})
+
 test('exports CSV data and keeps the export flow usable on mobile', async ({ page }) => {
   const events: AnalyticsPayload[] = []
   await page.route('https://live-sharing.test/rest/v1/rpc/record_analytics_event', async route => {

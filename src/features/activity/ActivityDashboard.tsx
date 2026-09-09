@@ -156,7 +156,7 @@ export function MembersRail({ members, group, currentMemberId = 'me', readOnly =
         <div className="rail-heading"><h2>{t('dashboard.people')}</h2><span>{active.length}</span></div>
         <div className="member-list">{active.map(member => <div className="member-row" key={member.id}>
           <Avatar member={member} size="sm" /><b>{member.name}</b>
-          {member.id === currentMemberId ? <Check size={15} aria-label={t('dashboard.currentIdentity')} /> : null}
+          {member.id === currentMemberId ? <span className="member-identity-indicator"><Check size={16} aria-label={t('dashboard.currentIdentity')} /></span> : null}
           {!readOnly && member.id !== 'me' && onRemoveFriend ? <IconButton tone="danger" label={t('removeFriend.label', { name: member.name })} onClick={() => onRemoveFriend(member)}><Trash2 size={16} /></IconButton> : null}
         </div>)}</div>
         {readOnly ? null : <Button className="add-friend-button" onClick={onAddFriend}><Plus size={16} />{t('dashboard.addFriend')}</Button>}
