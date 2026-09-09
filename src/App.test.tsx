@@ -1024,10 +1024,12 @@ describe('complete app workflows', () => {
 
   it('shows the latest update once to returning users and keeps it available from the sidebar', async () => {
     const user = userEvent.setup()
-    localStorage.removeItem(CHANGELOG_SEEN_STORAGE_KEY)
+    localStorage.setItem(CHANGELOG_SEEN_STORAGE_KEY, '2026-08-csv-export')
     render(<App />)
 
     const update = await screen.findByRole('dialog', { name: 'What’s new in Tally' })
+    expect(update).toHaveTextContent('Remove friends, keep the history')
+    expect(update).toHaveTextContent('People → Removed friends → Restore')
     expect(update).toHaveTextContent('Export your activity data')
     expect(update).toHaveTextContent('Choose one person or everyone')
     expect(update).toHaveTextContent('Split a receipt by dish')

@@ -712,6 +712,7 @@ test('offers optional written feedback after a successful share rating', async (
 test('shows new updates once and keeps the changelog available on mobile', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.addInitScript(() => {
+    if (!localStorage.getItem('tally:changelog-seen:v1')) localStorage.setItem('tally:changelog-seen:v1', '2026-08-csv-export')
     localStorage.setItem('tally:identity:v1', JSON.stringify({
       id: 'me',
       name: 'Returning Tester',
@@ -723,6 +724,8 @@ test('shows new updates once and keeps the changelog available on mobile', async
   await page.goto('./')
   const update = page.getByRole('dialog', { name: 'What’s new in Tally' })
   await expect(update).toBeVisible()
+  await expect(update.locator('h3').first()).toHaveText('Remove friends, keep the history')
+  await expect(update).toContainText('People → Removed friends → Restore')
   await expect(update).toContainText('Export your activity data')
   await expect(update).toContainText('Choose one person or everyone')
   await expect(update).toContainText('Sharing, without the guesswork')

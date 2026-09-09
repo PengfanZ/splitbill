@@ -18,6 +18,24 @@ export type ChangelogEntry = {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    id: '2026-09-friend-removal',
+    releasedOn: '2026-09-09',
+    titleKey: 'changelog.release.friendsTitle',
+    summaryKey: 'changelog.release.friendsSummary',
+    items: [
+      {
+        icon: 'polish',
+        titleKey: 'changelog.item.removeFriendTitle',
+        descriptionKey: 'changelog.item.removeFriendDescription',
+      },
+      {
+        icon: 'live',
+        titleKey: 'changelog.item.restoreFriendTitle',
+        descriptionKey: 'changelog.item.restoreFriendDescription',
+      },
+    ],
+  },
+  {
     id: '2026-08-csv-export',
     releasedOn: '2026-08-29',
     titleKey: 'changelog.release.csvTitle',
