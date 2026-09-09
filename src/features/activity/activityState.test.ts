@@ -8,6 +8,7 @@ import {
   createLocalActivity,
   deleteLocalActivity,
   deleteLocalExpense,
+  removeLocalFriend,
   updateLocalActivityCurrency,
   updateLocalExpense,
 } from './activityState'
@@ -34,6 +35,20 @@ const state: PersistedState = {
 }
 
 describe('local activity state operations', () => {
+  it('removes friends only from this activity and preserves cross-activity records', () => {
+    expect(removeLocalFriend(state, 'missing', sam.id)).toBe(state)
+    expect(removeLocalFriend(state, trip.id, maya.id)).toBe(state)
+    const withoutSam = removeLocalFriend(state, home.id, sam.id)
+    expect(withoutSam.groups[1].memberIds).toEqual(['me', maya.id])
+    expect(withoutSam.friends).toEqual([maya])
+    expect(withoutSam.expenses).toBe(state.expenses)
+    const withoutMaya = removeLocalFriend(state, home.id, maya.id)
+    expect(withoutMaya.friends).toBe(state.friends)
+    expect(withoutMaya.groups[0]).toBe(trip)
+    const legacyReferences = { ...state, expenses: [{ ...dinner, groupId: 'legacy', payerId: sam.id }, { ...dinner, shares: { sam: 30 } }] }
+    expect(removeLocalFriend(legacyReferences, home.id, sam.id).friends).toBe(state.friends)
+    expect(removeLocalFriend({ ...state, expenses: [{ ...dinner, shares: { sam: 30 } }] }, home.id, sam.id).friends).toBe(state.friends)
+  })
   it('creates activities and friends with complete relationships', () => {
     const friends = createActivityFriends(['Avery Stone'], 1)
     expect(friends[0]).toMatchObject({ name: 'Avery Stone', initials: 'AS' })

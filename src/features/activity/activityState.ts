@@ -1,6 +1,7 @@
 import type { PersistedState, Expense, Member } from '../../domain/models'
 import type { CurrencyCode } from '../../domain/currency'
 import { ACTIVITY_EMOJIS, FRIEND_COLORS, initialsFor, makeId } from '../../domain/members'
+import { removeActivityFriend } from '../../domain/memberRemoval'
 
 export function createActivityFriends(names: string[], colorOffset: number): Member[] {
   return names.map((name, index) => ({
@@ -51,6 +52,17 @@ export function addLocalFriends(state: PersistedState, groupId: string, names: s
 
 export function addLocalExpense(state: PersistedState, expense: Expense): PersistedState {
   return { ...state, expenses: [expense, ...state.expenses] }
+}
+
+export function removeLocalFriend(state: PersistedState, groupId: string, memberId: string): PersistedState {
+  const group = state.groups.find(item => item.id === groupId)
+  if (!group) return state
+  const removed = removeActivityFriend({ group, friends: state.friends, expenses: state.expenses }, memberId)
+  if (!removed) return state
+  const groups = state.groups.map(item => item.id === groupId ? removed.group : item)
+  const usedElsewhere = groups.some(item => item.memberIds.includes(memberId))
+    || state.expenses.some(expense => expense.payerId === memberId || Object.hasOwn(expense.shares, memberId))
+  return { ...state, groups, friends: usedElsewhere ? state.friends : removed.friends }
 }
 
 export function addLocalExpenses(state: PersistedState, expenses: Expense[]): PersistedState {

@@ -143,20 +143,24 @@ export function ExpenseList({ expenses, members, currency = 'USD', query, readOn
   )
 }
 
-export function MembersRail({ members, currentMemberId = 'me', readOnly = false, onAddFriend }: { members: Member[]; currentMemberId?: string | null; readOnly?: boolean; onAddFriend?: () => void }) {
+export function MembersRail({ members, currentMemberId = 'me', readOnly = false, onAddFriend, onRemoveFriend }: { members: Member[]; currentMemberId?: string | null; readOnly?: boolean; onAddFriend?: () => void; onRemoveFriend?: (member: Member) => void }) {
   const { t } = useLocalization()
   return (
     <aside className="right-rail activity-rail">
       <section className="members-panel">
         <div className="rail-heading"><h2>{t('dashboard.people')}</h2><span>{members.length}</span></div>
-        <div className="member-list">{members.map(member => <div className="member-row" key={member.id}><Avatar member={member} size="sm" /><b>{member.name}</b>{member.id === currentMemberId ? <Check size={15} aria-label={t('dashboard.currentIdentity')} /> : null}</div>)}</div>
+        <div className="member-list">{members.map(member => <div className="member-row" key={member.id}>
+          <Avatar member={member} size="sm" /><b>{member.name}</b>
+          {member.id === currentMemberId ? <Check size={15} aria-label={t('dashboard.currentIdentity')} /> : null}
+          {!readOnly && member.id !== 'me' && onRemoveFriend ? <IconButton tone="danger" label={t('removeFriend.label', { name: member.name })} onClick={() => onRemoveFriend(member)}><Trash2 size={16} /></IconButton> : null}
+        </div>)}</div>
         {readOnly ? null : <Button className="add-friend-button" onClick={onAddFriend}><Plus size={16} />{t('dashboard.addFriend')}</Button>}
       </section>
     </aside>
   )
 }
 
-export function GroupDashboard({ group, members, expenses, query, activityFeedback, readOnly = false, readOnlyLabel, currentMemberId = 'me', currentUserLabel = 'You', statusLabel, onCurrentMemberChange, onCurrencyChange, onShareSummary, onExportData, onShareQr, onShareLive, onCopyShareLink, onEndLive, onAddFriend, onAddExpense, onSettleUp, onEditExpense, onDeleteExpense }: {
+export function GroupDashboard({ group, members, expenses, query, activityFeedback, readOnly = false, readOnlyLabel, currentMemberId = 'me', currentUserLabel = 'You', statusLabel, onCurrentMemberChange, onCurrencyChange, onShareSummary, onExportData, onShareQr, onShareLive, onCopyShareLink, onEndLive, onAddFriend, onRemoveFriend, onAddExpense, onSettleUp, onEditExpense, onDeleteExpense }: {
   group: ActivityGroup
   members: Member[]
   expenses: Expense[]
@@ -176,6 +180,7 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
   onCopyShareLink?: () => void
   onEndLive?: () => void
   onAddFriend?: () => void
+  onRemoveFriend?: (member: Member) => void
   onAddExpense?: () => void
   onSettleUp?: (settlement: Settlement) => void
   onEditExpense?: (expense: Expense) => void
@@ -222,7 +227,7 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
           </section>
         )}
       </div>
-      <MembersRail members={members} currentMemberId={currentMemberId} readOnly={readOnly} onAddFriend={onAddFriend} />
+      <MembersRail members={members} currentMemberId={currentMemberId} readOnly={readOnly} onAddFriend={onAddFriend} onRemoveFriend={onRemoveFriend} />
       {shareMenuOpen ? <ShareActivityMenu
         groupName={group.name}
         live={Boolean(onCopyShareLink && !onShareLive)}
