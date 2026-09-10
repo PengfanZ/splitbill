@@ -139,7 +139,7 @@ describe('first-party analytics', () => {
     })
   })
 
-  it('records a friend addition without friend details or counts', () => {
+  it.each(['friend_added', 'friend_removed'] as const)('records %s without friend details or counts', event => {
     const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
     const client = createConfiguredAnalyticsClient({
       VITE_SUPABASE_URL: 'https://project.supabase.co',
@@ -151,10 +151,10 @@ describe('first-party analytics', () => {
       crypto: deterministicCrypto(6),
     })!
 
-    client.track('friend_added', 'live', 'en')
+    client.track(event, 'live', 'en')
 
     expect(JSON.parse(fetcher.mock.calls[0][1].body as string)).toEqual({
-      p_event_name: 'friend_added',
+      p_event_name: event,
       p_surface: 'live',
       p_session_token: '06'.repeat(16),
       p_locale: 'en',

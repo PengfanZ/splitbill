@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(77);
+select plan(83);
 
 select has_table('private', 'analytics_events', 'private analytics storage exists');
 select columns_are(
@@ -224,6 +224,35 @@ select is(
   ),
   1::bigint,
   'daily analytics reports include summary export clicks'
+);
+
+select lives_ok(
+  $$select public.record_analytics_event('friend_removed', 'local', '46789abcdef0123456789abcdef01234', 'zh-CN')$$,
+  'a successful local friend removal is recorded'
+);
+select lives_ok(
+  $$select public.record_analytics_event('friend_removed', 'live', '46789abcdef0123456789abcdef01234', 'en')$$,
+  'a successful live friend removal is recorded'
+);
+select is(
+  (select count(*) from private.analytics_events where event_name = 'friend_removed' and currency is null),
+  2::bigint,
+  'friend removals contain only approved anonymous fields'
+);
+select is(
+  (select sum(events)::bigint from private.analytics_daily where event_name = 'friend_removed'),
+  2::bigint,
+  'daily interaction reports include friend removal'
+);
+select is(
+  (select sum(events)::bigint from private.analytics_hourly where event_name = 'friend_removed'),
+  2::bigint,
+  'hourly interaction reports include friend removal'
+);
+select is(
+  (select count(distinct surface) from private.analytics_hourly where event_name = 'friend_removed'),
+  2::bigint,
+  'hourly reports distinguish local and live removals'
 );
 
 select lives_ok(

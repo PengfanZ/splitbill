@@ -28,6 +28,12 @@ async function prepare(context: BrowserContext, locale = 'en') {
 
 test('mobile removal is clear, cancellable, persistent, and protects expense history', async ({ page, context }) => {
   await prepare(context)
+  const removals: Record<string, unknown>[] = []
+  await page.route('**/rest/v1/rpc/record_analytics_event', route => {
+    const event = route.request().postDataJSON()
+    if (event.p_event_name === 'friend_removed') removals.push(event)
+    return route.fulfill({ status: 204, body: '' })
+  })
   await page.setViewportSize({ width: 390, height: 844 })
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
@@ -47,10 +53,13 @@ test('mobile removal is clear, cancellable, persistent, and protects expense his
   await dialog.getByRole('button', { name: 'Cancel' }).click()
   await expect(page.getByRole('button', { name: 'Remove Sam from activity' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Remove Sam from activity' })).toBeFocused()
+  expect(removals).toHaveLength(0)
   await page.getByRole('button', { name: 'Remove Sam from activity' }).click()
   await dialog.getByRole('button', { name: 'Remove friend' }).click()
   await expect(dialog).toHaveCount(0)
   await expect(page.getByRole('status')).toContainText('Sam was removed')
+  await expect.poll(() => removals.length).toBe(1)
+  expect(removals[0]).toEqual({ p_event_name: 'friend_removed', p_surface: 'local', p_locale: 'en', p_currency: null, p_session_token: expect.stringMatching(/^[a-f0-9]{32}$/) })
   await page.reload()
   await expect(page.getByRole('button', { name: 'Remove Sam from activity' })).toHaveCount(0)
   expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)!).expenses, STORAGE_KEY)).toEqual([dinner])
@@ -85,15 +94,22 @@ test('mobile removal is clear, cancellable, persistent, and protects expense his
   await expect(page.getByRole('heading', { name: group.name })).toBeVisible()
   if (process.env.TALLY_CAPTURE_FRIEND_UX) await page.screenshot({ path: '/tmp/tally-inactive-friend-after.png', scale: 'device' })
   expect(errors).toEqual([])
+  expect(removals).toHaveLength(2)
 })
 
 test('live friend removal syncs to another browser without changing expenses', async ({ page, context, browser }) => {
+  const removals: Record<string, unknown>[] = []
   const code = 'A1B2C3D4E5'
   const token = 'a'.repeat(64)
   let snapshot: SharedActivity = createSharedActivity(group, [me, maya, sam], [dinner])
   let revision = 1
   const setup = async (target: BrowserContext) => {
     await prepare(target)
+    await target.route('**/rest/v1/rpc/record_analytics_event', route => {
+      const event = route.request().postDataJSON()
+      if (event.p_event_name === 'friend_removed') removals.push(event)
+      return route.fulfill({ status: 204, body: '' })
+    })
     await target.route('**/rest/v1/rpc/*shared_activity*', async route => {
       const request = route.request().postDataJSON()
       const fn = new URL(route.request().url()).pathname.split('/').at(-1)
@@ -134,6 +150,8 @@ test('live friend removal syncs to another browser without changing expenses', a
     await expect(other.getByRole('button', { name: 'Remove Maya from activity' })).toBeVisible()
     expect(snapshot.expenses).toEqual([dinner])
     expect(snapshot.group.inactiveMemberIds).toEqual(['sam'])
+    await expect.poll(() => removals.length).toBe(2)
+    for (const event of removals) expect(event).toEqual({ p_event_name: 'friend_removed', p_surface: 'live', p_locale: 'en', p_currency: null, p_session_token: expect.stringMatching(/^[a-f0-9]{32}$/) })
   } finally { await otherContext.close() }
 })
 
