@@ -389,6 +389,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
       setState(current => removeLocalFriend(current, activeGroup.id, removingFriend.id))
       setActivityFeedback({ groupId: activeGroup.id, message })
     }
+    analyticsClient?.track('friend_removed', liveActivity ? 'live' : 'local', locale)
     setFriendRemoval(null)
   }
 

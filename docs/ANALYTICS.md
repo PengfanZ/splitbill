@@ -9,6 +9,7 @@ The browser may send only these event names:
 - `app_opened`
 - `activity_created`
 - `friend_added`
+- `friend_removed`
 - `expense_added`
 - `feedback_submitted`
 - `summary_export_clicked`
@@ -44,6 +45,8 @@ Do not add arbitrary metadata to this contract. Analytics must never receive URL
 Opening the app records its initial surface. Successful product actions are measured only after their local state update or live revision save succeeds. A failed expense or settlement save does not produce a success event. Currency selection is intentionally an interaction event: it records a deliberate change in either currency selector, even if the person later cancels activity creation or a live update cannot be saved.
 
 `friend_added` records one event after a successful friend-add action, including activity creation when at least one initial friend is supplied. Adding several friends in one submission still records one event. Failed Live saves do not count, and the request never includes friend names, IDs, or a friend count.
+
+`friend_removed` records one event after a confirmed removal succeeds, with `local` or `live` surface and interface locale. Opening or canceling the dialog, failed/conflicted Live saves, restoration, and another browser receiving the change do not count. No friend names, IDs, activity codes, balances, or bill details are sent. This is a count of successful removal actions, not unique friends or permanent record deletions. Generic event-grouped hourly/daily reports include it automatically; app-open-only reports remain unchanged.
 
 `expense_added` records one event after a successful add action. Saving an AI-generated batch still records one event, matching the single confirmation and atomic state update rather than sending one analytics request per expense. The request never includes the batch size or any expense data.
 

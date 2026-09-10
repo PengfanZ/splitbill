@@ -40,6 +40,45 @@ function liveClient() {
 }
 
 describe('friend removal in local and live activities', () => {
+  it.each(['local', 'live'] as const)('tracks only confirmed successful %s removal, not cancellation, restore or reload', async surface => {
+    const user = userEvent.setup()
+    const track = vi.fn()
+    const client = surface === 'live' ? liveClient() : null
+    if (!client) localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+    const view = render(<App liveActivityClient={client} analyticsClient={{ track }} />)
+    const removals = () => track.mock.calls.filter(([event]) => event === 'friend_removed')
+    await user.click(await screen.findByRole('button', { name: 'Remove Sam from activity' }))
+    expect(removals()).toEqual([])
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(removals()).toEqual([])
+    await user.click(screen.getByRole('button', { name: 'Remove Sam from activity' }))
+    await user.click(screen.getByRole('button', { name: 'Remove friend' }))
+    await waitFor(() => expect(removals()).toEqual([['friend_removed', surface, 'en']]))
+    await user.click(screen.getByText('Removed friends (1)'))
+    await user.click(screen.getByRole('button', { name: 'Restore Sam' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Remove Sam from activity' })).toBeVisible())
+    expect(removals()).toHaveLength(1)
+    view.unmount()
+    render(<App liveActivityClient={client} analyticsClient={{ track }} />)
+    await screen.findByRole('button', { name: 'Remove Sam from activity' })
+    expect(removals()).toHaveLength(1)
+  })
+
+  it.each(['network', 'conflict'] as const)('does not track a failed %s removal and counts a successful retry once', async kind => {
+    const user = userEvent.setup()
+    const client = liveClient()
+    const track = vi.fn()
+    client.update.mockRejectedValueOnce(new LiveActivityApiError(kind, 'failed', kind === 'conflict' ? { latestRecord: record } : undefined))
+    render(<App liveActivityClient={client} analyticsClient={{ track }} />)
+    await user.click(await screen.findByRole('button', { name: 'Remove Sam from activity' }))
+    await user.click(screen.getByRole('button', { name: 'Remove friend' }))
+    await screen.findByRole('alert')
+    expect(track.mock.calls.filter(([event]) => event === 'friend_removed')).toEqual([])
+    if (kind === 'conflict') {
+      await user.click(screen.getByRole('button', { name: 'Remove friend' }))
+      await waitFor(() => expect(track.mock.calls.filter(([event]) => event === 'friend_removed')).toEqual([['friend_removed', 'live', 'en']]))
+    }
+  })
   it('restores a local friend without replacing their identity or old expenses', async () => {
     const user = userEvent.setup()
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, groups: [{ ...group, inactiveMemberIds: ['sam', 'maya'] }] }))
