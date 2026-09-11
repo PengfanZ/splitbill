@@ -31,6 +31,7 @@ export default defineConfig({
       command: 'npm run build:pages && npm run preview -- --host 127.0.0.1 --port 4174 --base=/splitbill/',
       env: {
         ...process.env,
+        VITE_GA_MEASUREMENT_ID: '',
         VITE_AI_EXPENSE_ENABLED: 'true',
         VITE_RECEIPT_SPLIT_ENABLED: 'true',
         VITE_SUPABASE_URL: aiPreviewURL,

@@ -22,9 +22,10 @@ export function resolveSupabaseConnectOrigin(value?: string) {
   }
 }
 
-export function resolveConnectSources(value?: string, development = false) {
+export function resolveConnectSources(value?: string, development = false, googleAnalytics = false) {
   return [
     resolveSupabaseConnectOrigin(value),
     ...(development ? DEVELOPMENT_CONNECT_SOURCES : []),
+    ...(googleAnalytics ? ['https://*.google-analytics.com', 'https://*.analytics.google.com', 'https://www.googletagmanager.com'] : []),
   ].join(' ')
 }

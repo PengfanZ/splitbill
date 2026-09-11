@@ -18,6 +18,6 @@
     "isolatedModules": true,
     "jsx": "react-jsx"
   },
-  "include": ["src", "e2e", "playwright.config.ts", "vite.config.ts", "vitest.config.ts"],
+  "include": ["src", "e2e", "e2e-analytics", "playwright.config.ts", "playwright.analytics.config.ts", "vite.config.ts", "vitest.config.ts"],
   "exclude": ["node_modules"]
 }

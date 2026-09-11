@@ -791,7 +791,7 @@ test('tracks local outcomes without sending local activity data or loading third
   const events: AnalyticsPayload[] = []
   const thirdPartyRequests: string[] = []
   page.on('request', request => {
-    if (request.url().includes('cloudflareinsights.com')) thirdPartyRequests.push(request.url())
+    if (/cloudflareinsights\.com|googletagmanager\.com|google-analytics\.com|analytics\.google\.com/.test(request.url())) thirdPartyRequests.push(request.url())
   })
   await context.route('https://live-sharing.test/rest/v1/rpc/record_analytics_event', async route => {
     events.push(route.request().postDataJSON() as AnalyticsPayload)

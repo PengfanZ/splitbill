@@ -47,6 +47,9 @@ Add these environment variables:
 | `VITE_SUPABASE_URL` | `https://<project-ref>.supabase.co` |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Production publishable key |
 | `VITE_AI_EXPENSE_ENABLED` | `true` |
+| `VITE_GA_MEASUREMENT_ID` | Optional GA4 web stream ID, e.g. `G-MXBM388K79`; blank disables Google Analytics |
+
+The GA variable is public build configuration, not a secret. It is passed only to the production Pages build; preview/development should leave it blank. Before enabling it, review the cookie/consent and Google property settings in [ANALYTICS.md](ANALYTICS.md#google-analytics-4-optional). No consent popup is built into the app. Removing the variable and redeploying removes the Google tag and its CSP permissions from new builds.
 
 In the production Supabase project, configure these Edge Function secrets before the first AI release:
 

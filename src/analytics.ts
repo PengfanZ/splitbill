@@ -47,6 +47,22 @@ export type AnalyticsClient = {
   ) => void
 }
 
+export function combineAnalyticsClients(...candidates: (AnalyticsClient | null)[]): AnalyticsClient | null {
+  const clients = candidates.filter((client): client is AnalyticsClient => client !== null)
+  if (!clients.length) return null
+  return {
+    track(...args) {
+      for (const client of clients) {
+        try {
+          client.track(...args)
+        } catch {
+          // One provider must never prevent another provider or the user action.
+        }
+      }
+    },
+  }
+}
+
 type AnalyticsEnvironment = {
   VITE_SUPABASE_URL?: string
   VITE_SUPABASE_PUBLISHABLE_KEY?: string
