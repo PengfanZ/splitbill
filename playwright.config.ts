@@ -23,6 +23,7 @@ export default defineConfig({
     command: 'npm run build:pages && npm run preview -- --host 127.0.0.1 --port 4173 --base=/splitbill/',
     env: {
       ...process.env,
+      VITE_GA_MEASUREMENT_ID: '',
       VITE_SUPABASE_URL: 'https://live-sharing.test',
       VITE_SUPABASE_PUBLISHABLE_KEY: 'test-publishable-key',
       TALLY_INCLUDE_DEV_CSP: 'true',

@@ -1,8 +1,10 @@
-# First-party analytics
+# Product analytics
 
-Tally measures a deliberately small set of anonymous product outcomes without uploading local activity data or exposing live-link capabilities to third-party JavaScript.
+Tally keeps first-party product events in Supabase and optionally mirrors those allowlisted events to Google Analytics 4. Neither adapter deliberately sends activity data or live-link capabilities. GA4 is cookie-based, unlike the session-scoped first-party store.
 
 ## Event contract
+
+The Supabase contract below is unchanged by GA4. Its event list is shared with the Google adapter in `src/analytics.ts`.
 
 The browser may send only these event names:
 
@@ -13,6 +15,7 @@ The browser may send only these event names:
 - `expense_added`
 - `feedback_submitted`
 - `summary_export_clicked`
+- `csv_export_completed`
 - `live_share_clicked`
 - `live_activity_created`
 - `live_activity_opened`
@@ -21,6 +24,11 @@ The browser may send only these event names:
 - `expense_input_manual_selected`
 - `expense_input_ai_text_selected`
 - `expense_input_ai_voice_selected`
+- `expense_input_receipt_selected`
+- `ai_receipt_requested`
+- `ai_receipt_ready`
+- `ai_receipt_failed`
+- `ai_receipt_confirmed`
 - `ai_text_requested`
 - `ai_text_ready`
 - `ai_text_clarification`
@@ -59,6 +67,29 @@ Opening the app records its initial surface. Successful product actions are meas
 Expense-input tab events measure exploration before any AI request. They are recorded only when someone deliberately switches to manual, AI text, AI voice, or receipt entry; rendering the default manual tab and clicking an already-selected tab do not count. The corresponding selection events therefore show anonymous sessions that explored each optional entry mode even if they never submitted content. `expense_input_manual_selected` shows sessions that returned to manual entry after exploring another mode.
 
 AI entry then uses separate service funnels for `text`, `voice`, and receipt parsing. `requested` is recorded immediately before each real Edge Function request, including model follow-ups. Text and voice record `ready`, `clarification`, or `failed`; receipts record `ready`, `confirmed`, or `failed`. Deterministic local clarification, microphone permission errors, unsupported browsers, and empty recordings do not count as AI requests because they never reach the service. These events contain only the event name, surface, locale, and anonymous session hash. Prompts, clarification answers, audio, receipt images, model output, draft counts, latency, member data, and expense data are never sent to analytics.
+
+## Google Analytics 4 (optional)
+
+Set the public build variable `VITE_GA_MEASUREMENT_ID` to the web stream's `G-…` ID. No extra package, database schema, or per-action integration is needed. `combineAnalyticsClients` keeps failures isolated between providers. The tag loads asynchronously once at application startup, outside React rendering. Blocked requests are not retried, and its pre-load command queue is bounded.
+
+There is currently no in-app consent prompt. A configured production build loads GA4 automatically and uses Analytics cookies to recognize returning browsers. Operators must assess notice and consent obligations for their audience before enabling it; disabled advertising is not a substitute for any required consent. Google receives normal network/device information, so this is not anonymous or cookieless tracking. To disable it, clear the build variable and redeploy (already-open/older cached clients may keep their existing configuration until updated).
+
+Keep **Enhanced measurement OFF** in the web stream, including history-change page views, form interactions, and downloads. Keep Google Signals, advertising integrations, and user-provided data collection off. The app sets `send_page_view: false` and emits one explicit `page_view` on `app_opened`; it does not count each Live poll, modal, or activity selection as a new page view. The existing `app_opened` and other product events are also mirrored, so do not add page views and app opens together to calculate visits. GA4 may still collect its standard session/engagement events.
+
+Each explicit Google event contains only the event name, coarse `surface`, `app_locale`, and an optional `selected_currency` for `currency_selected`, plus a fixed app title, the app's base URL, and the referring origin. The app strips query strings, fragments, and referrer paths, and clears campaign parameters; full UTM campaign reporting is deliberately not enabled. No Supabase session token, activity ID, participant identity, receipt, audio, prompt, balance, amount, or expense description is forwarded.
+
+The Google tag is third-party JavaScript executing in the same page, **not sandboxed** from app state. Sanitizing the configured payload is not a guarantee against a compromised or reconfigured tag. Do not add Tag Manager containers, advertising scripts, automatic form collection, or arbitrary event metadata without reviewing this trust boundary. CSP adds only the required measurement sources, not advertising domains, `unsafe-inline` scripts, or `unsafe-eval`.
+
+To inspect usage in GA4:
+
+- **Reports → Realtime**: confirm current traffic after release.
+- **Reports → Acquisition → Traffic acquisition**: compare available referral sources (apps that suppress referrers may appear as direct traffic).
+- **Reports → Engagement → Events**: inspect existing product event names such as `csv_export_completed`, `ai_text_requested`, and `friend_removed`.
+- Add event-scoped custom dimensions for `surface`, `app_locale`, and `selected_currency` in **Admin → Custom definitions** if you want to break reports down by these fields. Standard reports are not immediate; use Realtime for initial verification.
+
+Keep the property's reporting timezone at **America/New_York** to match the Supabase reports. GA4 cookie-based user/session counts and Supabase tab-scoped session hashes have different definitions and should not be expected to match.
+
+References: [manual page views](https://developers.google.com/analytics/devguides/collection/ga4/views), [configuration fields](https://developers.google.com/analytics/devguides/collection/ga4/reference/config), [CSP sources](https://developers.google.com/tag-platform/security/guides/csp).
 
 ## Reports in Supabase
 
@@ -392,4 +423,4 @@ These are anonymous sessions, not authenticated users. One person can create mul
 
 Events older than 90 days are removed in bounded batches when an app-open event is recorded. The timestamp index keeps cleanup bounded as the table grows.
 
-When a production build has no Supabase configuration, product analytics is disabled. Tally does not load a third-party page-view beacon. Development and test builds do not initialize first-party analytics by default.
+When a production build has no Supabase configuration, first-party analytics is disabled. GA4 is independently disabled when `VITE_GA_MEASUREMENT_ID` is blank or invalid. Development builds initialize neither provider. Browser tests explicitly use a fake measurement ID and intercept the Google tag; they do not send test events to the production GA property.

@@ -1,7 +1,8 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
-import { createConfiguredAnalyticsClient } from './analytics'
+import { combineAnalyticsClients, createConfiguredAnalyticsClient } from './analytics'
+import { createConfiguredGoogleAnalyticsClient } from './googleAnalytics'
 import { createConfiguredAiExpenseClient } from './features/aiExpense/aiExpenseApi'
 import { createConfiguredFeedbackClient } from './features/feedback/feedbackApi'
 import { createConfiguredReceiptClient } from './features/receiptSplit/receiptApi'
@@ -16,7 +17,10 @@ if (!rootElement) throw new Error('Tally requires a root element')
 if (isEmbeddedWindow()) {
   renderFrameProtection(rootElement)
 } else {
-  const analyticsClient = createConfiguredAnalyticsClient()
+  const analyticsClient = combineAnalyticsClients(
+    createConfiguredAnalyticsClient(),
+    createConfiguredGoogleAnalyticsClient(),
+  )
   const aiExpenseClient = createConfiguredAiExpenseClient()
   const feedbackClient = createConfiguredFeedbackClient()
   const receiptClient = createConfiguredReceiptClient()

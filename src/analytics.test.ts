@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ANALYTICS_SESSION_KEY,
+  combineAnalyticsClients,
   createConfiguredAnalyticsClient,
   getOrCreateAnalyticsSessionToken,
 } from './analytics'
@@ -19,6 +20,16 @@ beforeEach(() => {
   document.body.innerHTML = ''
   window.history.replaceState(null, '', '/')
   sessionStorage.clear()
+})
+
+it('composes optional providers, keeping failures isolated and payloads identical', () => {
+  expect(combineAnalyticsClients(null, null)).toBeNull()
+  const first = { track: vi.fn(() => { throw new Error('blocked') }) }
+  const second = { track: vi.fn() }
+  const client = combineAnalyticsClients(first, null, second)!
+  expect(() => client.track('currency_selected', 'live', 'zh-CN', 'CNY')).not.toThrow()
+  expect(first.track).toHaveBeenCalledExactlyOnceWith('currency_selected', 'live', 'zh-CN', 'CNY')
+  expect(second.track).toHaveBeenCalledExactlyOnceWith('currency_selected', 'live', 'zh-CN', 'CNY')
 })
 
 describe('first-party analytics', () => {

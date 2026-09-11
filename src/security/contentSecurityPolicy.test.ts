@@ -7,6 +7,14 @@ import {
 } from './contentSecurityPolicy'
 
 describe('content security policy', () => {
+  it('allows only Google measurement endpoints when explicitly enabled', () => {
+    expect(resolveConnectSources(undefined, false, true)).toBe([
+      DEFAULT_SUPABASE_CONNECT_ORIGIN,
+      'https://*.google-analytics.com', 'https://*.analytics.google.com', 'https://www.googletagmanager.com',
+    ].join(' '))
+    expect(resolveConnectSources()).not.toContain('google')
+    expect(resolveConnectSources(undefined, false, true)).not.toMatch(/doubleclick|googleadservices|unsafe/)
+  })
   it('uses the configured HTTPS origin without paths or trailing slashes', () => {
     expect(resolveSupabaseConnectOrigin(' https://preview.supabase.co/rest/v1/ '))
       .toBe('https://preview.supabase.co')
