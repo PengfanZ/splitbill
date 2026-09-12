@@ -290,6 +290,8 @@ const en = {
   'receipt.reading': 'Reading receipt…',
   'receipt.readingHelp': 'Finding dishes, add-ons, tax, and service charges.',
   'receipt.error': 'Tally could not read this receipt. Try a clearer photo or enter the expense manually.',
+  'receipt.errorTitle': 'Receipt scan didn’t finish',
+  'receipt.invalidResponse': 'The AI could not produce a reliable receipt draft. No expense was saved. Try again or enter it manually.',
   'receipt.rateLimit': 'You’ve reached this network’s receipt scan limit. Try again in about 10 minutes or enter the expense manually.',
   'receipt.credits': 'Receipt scanning has reached its current budget. Try again later or enter the expense manually.',
   'receipt.unavailable': 'Receipt scanning is temporarily unavailable. Try again shortly or enter the expense manually.',
@@ -726,6 +728,8 @@ const zhCN: Record<TranslationKey, string> = {
   'changelog.item.csvDetailsTitle': '本地化的完整数据',
   'changelog.item.csvDetailsDescription': 'CSV 会按当前语言显示列名，并包含记录与编辑时间、付款人、币种、还款和支出 ID。',
   'receipt.rateLimit': '当前网络的小票识别次数已用完。请大约 10 分钟后再试，或改为手动填写。',
+  'receipt.errorTitle': '小票识别未完成',
+  'receipt.invalidResponse': 'AI 未能生成可靠的小票草稿，没有保存任何支出。请重试，或改为手动填写。',
   'receipt.credits': '小票识别已达到当前预算上限。请稍后再试，或改为手动填写。',
   'receipt.unavailable': '小票识别暂时不可用。请稍后重试，或改为手动填写。',
 }

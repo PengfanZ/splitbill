@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
 import { MAX_RECEIPT_AMOUNT_CENTS } from './receiptContract'
 import { receiptDraftFixture } from './receiptContract.test'
 import {
@@ -35,7 +36,7 @@ describe('receipt OpenRouter prompt', () => {
     const promptPart = body.messages[1].content[0]
     expect(typeof promptPart !== 'string' && typeof promptPart.text === 'string'
       ? JSON.parse(promptPart.text).outputSchema
-      : null).toBeUndefined()
+      : null).toEqual(RECEIPT_JSON_SCHEMA)
     expect(body.provider).toMatchObject({ data_collection: 'deny', require_parameters: true, zdr: true })
     expect(JSON.stringify(RECEIPT_JSON_SCHEMA)).not.toMatch(/minLength|maxLength/)
     expect(RECEIPT_JSON_SCHEMA.properties.subtotalCents.type).toEqual(['integer', 'null'])
@@ -49,6 +50,43 @@ describe('receipt OpenRouter prompt', () => {
     ])
     expect(() => buildReceiptOpenRouterRequest(request, ['  '])).toThrow('At least one')
     expect(DEFAULT_OPENROUTER_RECEIPT_FALLBACK_MODEL).not.toBe(DEFAULT_OPENROUTER_RECEIPT_MODEL)
+  })
+
+  it('enforces charge sign rules in the provider schema as well as the local contract', () => {
+    const chargeSchema = z.fromJSONSchema(JSON.parse(JSON.stringify(RECEIPT_JSON_SCHEMA.properties.charges.items)))
+    for (const type of ['tax', 'tip', 'service', 'discount', 'other'] as const) {
+      for (const amountCents of [-100, 0, 100]) {
+        const charge = { ...receiptDraftFixture.charges[0], type, amountCents }
+        expect(chargeSchema.safeParse(charge).success).toBe(type === 'discount' ? amountCents <= 0 : amountCents >= 0)
+      }
+    }
+  })
+
+  it.each([
+    ['discount', 12345, 'positive'],
+    ['other', -12345, 'negative'],
+  ] as const)('explains an invalid %s sign without logging or changing the amount', (type, amountCents, amountSign) => {
+    const draft = { ...receiptDraftFixture, charges: [{ ...receiptDraftFixture.charges[0], type, amountCents, label: 'Private adjustment' }] }
+    let failure: ReceiptModelOutputError | undefined
+    try {
+      parseOpenRouterReceiptOutput({ choices: [{ message: { content: JSON.stringify(draft) } }] })
+    } catch (error) {
+      failure = error as ReceiptModelOutputError
+    }
+    expect(failure?.issues).toEqual([{ code: 'custom', path: 'charges.[]', rule: 'charge_sign', chargeType: type, amountSign }])
+    const retry = buildReceiptOpenRouterRequest(request, ['fallback'], 'json-object', failure)
+    const prompt = JSON.stringify(retry.messages)
+    expect(prompt).toContain('charge_sign')
+    expect(prompt).toContain('Re-read the original image')
+    expect(prompt).not.toContain('Private adjustment')
+    expect(prompt).not.toContain('12345')
+    expect(draft.charges[0].amountCents).toBe(amountCents)
+  })
+
+  it('still rejects duplicate IDs without copying private values into diagnostic issues', () => {
+    expect(() => parseOpenRouterReceiptOutput({ choices: [{ message: { content: JSON.stringify({
+      ...receiptDraftFixture, items: [receiptDraftFixture.items[0], receiptDraftFixture.items[0]],
+    }) } }] })).toThrow(ReceiptModelOutputError)
   })
 
   it('builds a locally validated JSON compatibility request for providers with unreliable schema enforcement', () => {

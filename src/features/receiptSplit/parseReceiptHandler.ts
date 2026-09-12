@@ -1,5 +1,5 @@
 import { MAX_RECEIPT_UPLOAD_BYTES, parseReceiptRequest } from './receiptContract.ts'
-import { createReceiptTrace, receiptRequestId, RECEIPT_REQUEST_ID_HEADER, type ReceiptDiagnostic } from './receiptDiagnostics.ts'
+import { createReceiptTrace, receiptProviderMetadata, receiptRequestId, RECEIPT_REQUEST_ID_HEADER, type ReceiptDiagnostic } from './receiptDiagnostics.ts'
 import {
   buildReceiptOpenRouterRequest,
   DEFAULT_OPENROUTER_RECEIPT_FALLBACK_MODEL,
@@ -219,6 +219,7 @@ async function parseReceiptRequestWithTrace(
   const models = model === fallbackModel ? [model] : [model, fallbackModel]
   const attemptModels = models.length === 1 ? [models] : [models, [fallbackModel]]
   const providerDeadline = Date.now() + PROVIDER_TIMEOUT_MS
+  let previousFailure: ReceiptModelOutputError | undefined
 
   for (const [attemptIndex, currentModels] of attemptModels.entries()) {
     const remainingMs = providerDeadline - Date.now()
@@ -241,6 +242,7 @@ async function parseReceiptRequestWithTrace(
           parsedRequest,
           currentModels,
           attemptIndex === 0 ? 'json-schema' : 'json-object',
+          previousFailure,
         )),
         signal,
       })
@@ -263,6 +265,7 @@ async function parseReceiptRequestWithTrace(
       })
       return jsonError(502, 'provider_error', 'The AI provider returned unreadable receipt data.')
     }
+    trace.emit('provider_response', { attempt: attemptIndex + 1, ...receiptProviderMetadata(providerPayload) })
     const embeddedFailure = getOpenRouterFailure(providerPayload)
     if (!providerResponse.ok || embeddedFailure) {
       const status = embeddedFailure?.status ?? providerResponse.status
@@ -285,6 +288,7 @@ async function parseReceiptRequestWithTrace(
       const outputError = error instanceof ReceiptModelOutputError
         ? error
         : new ReceiptModelOutputError('schema_validation')
+      previousFailure = outputError
       trace.emit('failure', { attempt: attemptIndex + 1, reason: outputError.reason, issues: outputError.issues })
       dependencies.reportModelOutputFailure?.({
         models: currentModels,
@@ -296,5 +300,5 @@ async function parseReceiptRequestWithTrace(
     }
   }
 
-  return jsonError(422, 'invalid_model_response', 'Tally could not safely understand this receipt. Retake the photo or enter it manually.')
+  return jsonError(422, 'invalid_model_response', 'The AI could not produce a reliable receipt draft. No expense was saved. Try again or enter it manually.')
 }

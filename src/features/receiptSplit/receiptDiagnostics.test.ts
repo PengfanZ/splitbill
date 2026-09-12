@@ -1,9 +1,18 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createReceiptDiagnosticReporter, createReceiptTrace, receiptRequestId } from './receiptDiagnostics'
+import { createReceiptDiagnosticReporter, createReceiptTrace, receiptProviderMetadata, receiptRequestId } from './receiptDiagnostics'
 
 const id = '12345678-1234-4234-8234-123456789abc'
 
 describe('receipt diagnostics', () => {
+  it('captures only bounded provider IDs and known finish reasons', () => {
+    expect(receiptProviderMetadata({ id: 'gen-123-abc', choices: [{ finish_reason: 'length', message: { content: 'Private receipt' } }], usage: {}, secret: 'Private key' }))
+      .toEqual({ providerRequestId: 'gen-123-abc', finishReason: 'length' })
+    for (const value of [null, 'text', {}, { id: 12 }, { id: 'private receipt' }, { id: `gen-${'a'.repeat(121)}` },
+      { choices: [null] }, { choices: ['text'] }, { choices: [{}] }, { choices: [{ finish_reason: 42 }] },
+      { choices: [{ finish_reason: 'private text' }] }]) {
+      expect(receiptProviderMetadata(value)).toEqual({})
+    }
+  })
   it('accepts a bounded random correlation ID and replaces arbitrary user content', () => {
     expect(receiptRequestId(id.toUpperCase())).toBe(id)
     expect(receiptRequestId('receipt text / api key')).toMatch(/^[a-f0-9-]{36}$/)

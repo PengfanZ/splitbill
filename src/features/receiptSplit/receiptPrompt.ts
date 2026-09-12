@@ -53,7 +53,7 @@ const ITEM_SCHEMA = {
   required: ['id', 'name', 'quantity', 'unitPriceCents', 'totalCents', 'details', 'sourceLines', 'confidence'],
 } as const
 
-const CHARGE_SCHEMA = {
+const CHARGE_BASE_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   properties: {
@@ -69,6 +69,28 @@ const CHARGE_SCHEMA = {
     confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
   },
   required: ['id', 'type', 'label', 'amountCents', 'rateBasisPoints', 'confidence'],
+} as const
+
+// Keep the provider's sign rules aligned with the local semantic contract.
+const CHARGE_SCHEMA = {
+  anyOf: [
+    {
+      ...CHARGE_BASE_SCHEMA,
+      properties: {
+        ...CHARGE_BASE_SCHEMA.properties,
+        type: { type: 'string', enum: ['discount'] },
+        amountCents: { type: 'integer', minimum: -MAX_RECEIPT_AMOUNT_CENTS, maximum: 0 },
+      },
+    },
+    {
+      ...CHARGE_BASE_SCHEMA,
+      properties: {
+        ...CHARGE_BASE_SCHEMA.properties,
+        type: { type: 'string', enum: ['tax', 'tip', 'service', 'other'] },
+        amountCents: { type: 'integer', minimum: 0, maximum: MAX_RECEIPT_AMOUNT_CENTS },
+      },
+    },
+  ],
 } as const
 
 export const RECEIPT_JSON_SCHEMA = {
@@ -112,6 +134,7 @@ Receipt interpretation:
 - Put receipt-level tax, charged tip, service charges, fees, discounts, and other adjustments in charges.
 - Suggested tip examples are not charged tips. Do not include them in charges or totalCents.
 - Discounts must use a negative amount. Other charges must not be negative.
+- A printed saving of 5.00 is a discount of -500 cents, not +500 cents. Do not change a charge's sign merely to pass validation. If a negative adjustment cannot be confidently classified as a discount, preserve its printed text and amount in unresolvedLines for human review instead of guessing its type.
 - rateBasisPoints is the printed percentage times 100, such as 8% -> 800. Use null when no rate is printed.
 - totalCents must be the value printed on the receipt, even when it appears inconsistent with extracted lines.
 - Use the printed subtotal for subtotalCents. If no subtotal is printed, use null; Tally will derive it from the validated item totals.
@@ -120,6 +143,7 @@ Receipt interpretation:
 - Use confidence low whenever grouping, text, quantity, or price is uncertain; medium for minor uncertainty; high only when clear.
 - Use stable unique IDs such as item-1 and charge-1.
 - Use the currency hint only when the receipt symbol is compatible. Otherwise return null.
+- Return the receipt object itself with version, merchant, currency, purchasedAt, items, charges, subtotalCents, totalCents, and unresolvedLines at the top level. Do not wrap it in result, receipt, or data, or return the schema itself.
 - Return only the requested structured output.`
 
 export function buildReceiptOpenRouterRequest(
@@ -129,6 +153,7 @@ export function buildReceiptOpenRouterRequest(
     DEFAULT_OPENROUTER_RECEIPT_FALLBACK_MODEL,
   ],
   outputMode: 'json-schema' | 'json-object' = 'json-schema',
+  previousFailure?: Pick<ReceiptModelOutputError, 'reason' | 'issues'>,
 ) {
   const models = [...new Set(requestedModels.map(model => model.trim()).filter(Boolean))]
   if (models.length === 0) throw new Error('At least one receipt model is required.')
@@ -145,7 +170,12 @@ export function buildReceiptOpenRouterRequest(
               task: 'Extract this receipt for review.',
               interfaceLocale: request.locale,
               activityCurrencyHint: request.currency,
-              ...(outputMode === 'json-object' ? { outputSchema: RECEIPT_JSON_SCHEMA } : {}),
+              outputSchema: RECEIPT_JSON_SCHEMA,
+              ...(previousFailure ? { retryGuidance: {
+                instruction: 'The previous extraction failed validation. Re-read the original image and return a complete corrected receipt matching outputSchema. Never invent amounts or change signs merely to satisfy validation; put ambiguous adjustments in unresolvedLines for review.',
+                reason: previousFailure.reason,
+                issues: previousFailure.issues,
+              } } : {}),
             }),
           },
           { type: 'image_url', image_url: { url: request.image.dataUrl } },
@@ -188,6 +218,9 @@ export type ReceiptModelOutputFailureReason =
 export type ReceiptModelOutputIssue = {
   code: string
   path: string
+  rule?: 'charge_sign'
+  chargeType?: 'tax' | 'tip' | 'service' | 'discount' | 'other'
+  amountSign?: 'positive' | 'negative'
 }
 
 export class ReceiptModelOutputError extends Error {
@@ -245,10 +278,14 @@ export function parseOpenRouterReceiptOutput(value: unknown): ReceiptDraft {
   }
   const parsed = receiptDraftSchema.safeParse(deriveMissingSubtotal(content))
   if (!parsed.success) {
-    throw new ReceiptModelOutputError('schema_validation', parsed.error.issues.slice(0, 8).map(issue => ({
-      code: issue.code,
-      path: safeIssuePath(issue.path),
-    })))
+    throw new ReceiptModelOutputError('schema_validation', parsed.error.issues.slice(0, 8).map(issue => {
+      const result: ReceiptModelOutputIssue = { code: issue.code, path: safeIssuePath(issue.path) }
+      if (issue.code === 'custom' && issue.params) {
+        // params are generated by our local contract, never copied from model data.
+        Object.assign(result, issue.params)
+      }
+      return result
+    }))
   }
   return parsed.data
 }
