@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MAX_RECEIPT_UPLOAD_BYTES } from './receiptContract'
 import { receiptDraftFixture } from './receiptContract.test'
+import { createReceiptClient } from './receiptApi'
 import {
   DEFAULT_OPENROUTER_RECEIPT_FALLBACK_MODEL,
   DEFAULT_OPENROUTER_RECEIPT_MODEL,
@@ -50,6 +51,51 @@ function dependencies(overrides: Partial<ParseReceiptHandlerDependencies> = {}) 
 afterEach(() => vi.unstubAllGlobals())
 
 describe('parse receipt Edge Function handler', () => {
+  it.each(['missing-fields', 'charge-sign'] as const)('recovers from %s through the handler and browser client without extra quota consumption', async failure => {
+    const correctedDraft = {
+      ...receiptDraftFixture,
+      charges: [{ ...receiptDraftFixture.charges[0], type: 'discount' as const, amountCents: -100, label: 'Discount' }],
+      totalCents: receiptDraftFixture.subtotalCents - 100,
+    }
+    const firstDraft = failure === 'missing-fields' ? {} : {
+      ...correctedDraft, charges: [{ ...correctedDraft.charges[0], amountCents: 100 }],
+    }
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(providerResponse(firstDraft))
+      .mockResolvedValueOnce(providerResponse(correctedDraft))
+    const deps = dependencies({ fetcher })
+    const reportDiagnostic = vi.fn()
+    const client = createReceiptClient({ supabaseUrl: 'https://preview.supabase.co', publishableKey: 'test-key', reportDiagnostic },
+      async (url, init) => handleParseReceiptRequest(new Request(url, init), deps))
+    await expect(client.parse({ ...body, locale: 'en', currency: 'USD' })).resolves.toEqual(correctedDraft)
+    expect(deps.consumeQuota).toHaveBeenCalledTimes(1)
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    const retry = JSON.parse(fetcher.mock.calls[1][1].body)
+    const guidance = JSON.parse(retry.messages[1].content[0].text).retryGuidance
+    expect(guidance.reason).toBe('schema_validation')
+    expect(guidance.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining(failure === 'missing-fields' ? { path: 'version' } : { rule: 'charge_sign', chargeType: 'discount', amountSign: 'positive' }),
+    ]))
+    expect(reportDiagnostic).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'success', status: 200 }))
+  })
+
+  it('reproduces the September incident safely: malformed primary plus invalid fallback stays unsaved and reports a model failure', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(providerResponse({}))
+      .mockResolvedValueOnce(providerResponse({ ...receiptDraftFixture, charges: [{ ...receiptDraftFixture.charges[0], type: 'other', amountCents: -100 }] }))
+    const serverDiagnostic = vi.fn()
+    const reportDiagnostic = vi.fn()
+    const deps = dependencies({ fetcher, reportDiagnostic: serverDiagnostic })
+    const client = createReceiptClient({ supabaseUrl: 'https://preview.supabase.co', publishableKey: 'test-key', reportDiagnostic },
+      async (url, init) => handleParseReceiptRequest(new Request(url, init), deps))
+    await expect(client.parse({ ...body, locale: 'en', currency: 'USD' })).rejects.toMatchObject({ kind: 'invalid-response' })
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    expect(reportDiagnostic).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'invalid-response', status: 422 }))
+    expect(serverDiagnostic).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'failure', attempt: 2, issues: [{ code: 'custom', path: 'charges.[]', rule: 'charge_sign', chargeType: 'other', amountSign: 'negative' }],
+    }))
+  })
+
   it('correlates upload, quota, model and validation stages without recording receipt content', async () => {
     const reportDiagnostic = vi.fn()
     const requestId = '12345678-1234-4234-8234-123456789abc'
@@ -339,7 +385,7 @@ describe('parse receipt Edge Function handler', () => {
     expect(response.status).toBe(422)
     expect(await response.json()).toMatchObject({
       code: 'invalid_model_response',
-      message: expect.stringContaining('Retake'),
+      message: expect.stringContaining('No expense was saved'),
     })
     expect(fetcher).toHaveBeenCalledTimes(2)
     expect(reporter).toHaveBeenCalledTimes(2)

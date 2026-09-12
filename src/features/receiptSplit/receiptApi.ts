@@ -35,6 +35,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function errorKind(status: number, payload: unknown): ReceiptApiErrorKind {
   const code = isRecord(payload) && typeof payload.code === 'string' ? payload.code : ''
+  if (code === 'invalid_model_response') return 'invalid-response'
   if ([400, 413, 422].includes(status)) return 'invalid-input'
   if (code === 'rate_limit_exceeded') return 'rate-limit'
   if (code === 'provider_payment_required' || code === 'ai_budget_exceeded') return 'credits'

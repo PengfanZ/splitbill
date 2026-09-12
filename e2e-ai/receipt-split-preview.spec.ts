@@ -25,6 +25,38 @@ test.beforeEach(async ({ context }) => {
   }))
 })
 
+test('explains a rejected AI draft without blaming the photo and allows a successful retry', async ({ page }) => {
+  const diagnostics: Record<string, unknown>[] = []
+  const runtimeErrors: string[] = []
+  page.on('pageerror', error => runtimeErrors.push(error.message))
+  await page.route(`${aiPreviewURL}/rest/v1/rpc/record_receipt_client_diagnostic`, route => {
+    diagnostics.push(route.request().postDataJSON())
+    return route.fulfill({ status: 204, body: '' })
+  })
+  await page.route(`${aiPreviewURL}/functions/v1/parse-receipt`, route => route.fulfill({
+    status: 422, contentType: 'application/json',
+    body: JSON.stringify({ code: 'invalid_model_response', message: 'Internal provider detail' }),
+  }))
+  await openReceiptFlow(page, 'Receipt error recovery')
+  await page.locator('input[type="file"]').nth(1).setInputFiles(path.resolve('public/og.png'))
+  const alert = page.getByRole('alert')
+  await expect(alert).toContainText('The AI could not produce a reliable receipt draft. No expense was saved.')
+  await expect(alert).not.toContainText('clearer photo')
+  await expect(alert).not.toContainText('Internal provider detail')
+  await expect(page.locator('.expense-amount b')).toHaveCount(0)
+  await expect.poll(() => diagnostics.length).toBe(1)
+  expect(diagnostics[0]).toMatchObject({ p_outcome: 'invalid-response', p_status: 422 })
+  await expect(page).toHaveTitle(/Tally/)
+  await expect(page.locator('vite-error-overlay')).toHaveCount(0)
+  await page.screenshot({ path: '/tmp/tally-receipt-model-error.png' })
+  await alert.getByRole('button', { name: 'Choose another photo' }).click()
+  await page.unroute(`${aiPreviewURL}/functions/v1/parse-receipt`)
+  await page.locator('input[type="file"]').nth(1).setInputFiles(path.resolve('public/og.png'))
+  await expect(page.getByText('Review the receipt')).toBeVisible()
+  await expect(page.getByLabel('Ramen amount')).toHaveValue('20.00')
+  expect(runtimeErrors).toEqual([])
+})
+
 test('scans, reviews, assigns, and saves a receipt on mobile', async ({ page }) => {
   const diagnostics: Record<string, unknown>[] = []
   let requestId: string | undefined

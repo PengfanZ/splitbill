@@ -313,11 +313,19 @@ describe('receipt split flow', () => {
     ['credits', 'Receipt scanning has reached its current budget.'],
     ['model-unavailable', 'Receipt scanning is temporarily unavailable.'],
     ['invalid-input', 'Tally could not read this receipt.'],
+    ['invalid-response', 'The AI could not produce a reliable receipt draft. No expense was saved.'],
   ] as const)('localizes %s receipt failures', async (kind, message) => {
     const { container } = renderFlow({ parseError: new ReceiptApiError(kind, 'Raw server message') })
     await uploadReceipt(container)
     expect(await screen.findByRole('alert')).toHaveTextContent(message)
     expect(screen.getByRole('alert')).not.toHaveTextContent('Raw server message')
+  })
+
+  it('explains AI output failures in Chinese without blaming the photo', async () => {
+    const { container } = renderFlow({ locale: 'zh-CN', parseError: new ReceiptApiError('invalid-response', 'Raw server message') })
+    await uploadReceipt(container)
+    expect(await screen.findByRole('alert')).toHaveTextContent('AI 未能生成可靠的小票草稿，没有保存任何支出')
+    expect(screen.getByRole('alert')).not.toHaveTextContent('更清晰')
   })
 
   it('supports backtracking, unassigning, charge edits, and an already-charged tip', async () => {

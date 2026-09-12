@@ -23,6 +23,10 @@ if no response headers arrived. Client reports are untrusted and best effort:
 offline clients may be unable to report a failure. Missing telemetry does not
 prove a request never happened.
 
+`invalid_model_response` (HTTP 422) is recorded as `invalid-response`, not
+`invalid-input`. It means the AI draft failed validation; it is not evidence of a
+bad photo. Older clients may still classify that same 422 as `invalid-input`.
+
 The recorder accepts only fixed outcome names, a UUID, bounded milliseconds and an
 optional HTTP status. Clients cannot read the table. Writes share the existing
 per-IP analytics limit and project storage budget, deduplicate by request ID, and
@@ -48,6 +52,19 @@ contains the HTTP status. A validation failure followed by another provider
 attempt can recover successfully; inspect the final outcome before counting it
 as a failed scan.
 
+`provider_response` includes an allowlisted OpenRouter generation ID
+(`providerRequestId`) and completion reason (`finishReason`) when available.
+Use the generation ID to correlate provider-side timing and errors. A `length`
+finish reason is evidence of a truncated generation, not a slow upload.
+
+Charge-sign validation issues include `rule: charge_sign`, an allowlisted
+`chargeType`, and `amountSign`. Labels and actual monetary amounts are excluded.
+The provider schema enforces nonpositive discounts and nonnegative other charges.
+Both extraction attempts receive the output schema in the prompt; the single
+fallback also receives safe validation issues from the previous attempt. Ambiguous
+negative adjustments are directed to `unresolvedLines` for human review. Tally
+never automatically flips a sign or invents an amount to make validation pass.
+
 Compare client and server duration using the same ID. A browser timeout with a
 later server success identifies a result the browser stopped waiting for. Long
 upload/quota stages point to delays before inference; a long provider stage points
@@ -56,13 +73,22 @@ application logs: gateway, connection, upload buffering and cold-start delays ne
 Supabase invocation logs or a browser network trace. Do not infer the user's
 location from the selected language.
 
+A server may also finish with an error *before* a browser timeout. Correlate its
+final status and validation issues: the browser's timeout does not override that
+server evidence or establish why the response failed to reach the client.
+
 No receipt images, OCR text, names, expense details, IP addresses, prompts, keys,
 or raw exception messages are added to these diagnostic records.
 
 ## Rollout
 
-Apply the database migration first, then deploy `parse-receipt`, then deploy the
+For the initial diagnostic setup, apply the database migration first, then deploy `parse-receipt`, then deploy the
 frontend. Older clients remain supported; missing IDs are generated server-side.
 If the diagnostics RPC is unavailable, receipt entry still works. The existing
 30-second client and 25-second provider timeouts are unchanged, so these records
 measure the current behavior before tuning it.
+
+The validation-recovery update needs no new migration: `invalid-response` is
+already an accepted client outcome, and the additional metadata stays in Edge
+Function logs. Deploy the function and frontend together for the corrected UI
+classification; existing clients and saved receipts remain compatible.

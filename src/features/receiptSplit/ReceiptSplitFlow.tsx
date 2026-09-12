@@ -64,6 +64,7 @@ function amountInput(cents: number) {
 
 function receiptErrorMessage(cause: unknown, t: Translate) {
   if (cause instanceof ReceiptApiError) {
+    if (cause.kind === 'invalid-response') return t('receipt.invalidResponse')
     if (cause.kind === 'rate-limit') return t('receipt.rateLimit')
     if (cause.kind === 'credits') return t('receipt.credits')
     if (['model-unavailable', 'network', 'unavailable', 'configuration'].includes(cause.kind)) {
@@ -326,7 +327,7 @@ export function ReceiptSplitFlow({
           <input ref={cameraInput} className="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" capture="environment" onChange={readReceipt} />
           <input ref={libraryInput} className="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" onChange={readReceipt} />
         </div>
-        {error ? <div className="receipt-error" role="alert"><AlertCircle size={18} /><span><b>{t('receipt.error')}</b><small>{error}</small></span><Button onClick={resetCapture}>{t('receipt.tryAgain')}</Button></div> : null}
+        {error ? <div className="receipt-error" role="alert"><AlertCircle size={18} /><span><b>{t('receipt.errorTitle')}</b><small>{error}</small></span><Button onClick={resetCapture}>{t('receipt.tryAgain')}</Button></div> : null}
         <div className="split-note ai-privacy-note"><ShieldCheck size={18} /><span>{t('receipt.privacy')}</span></div>
         <div className="modal-actions"><Button onClick={onBackToManual}>{t('common.cancel')}</Button><Button variant="primary" onClick={() => cameraInput.current?.click()}>{t('receipt.takePhoto')}</Button></div>
       </div>

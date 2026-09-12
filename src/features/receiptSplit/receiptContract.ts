@@ -39,7 +39,12 @@ export const receiptChargeSchema = z.object({
   confidence: z.enum(['high', 'medium', 'low']),
 }).strict().superRefine((charge, context) => {
   if (charge.type === 'discount' ? charge.amountCents > 0 : charge.amountCents < 0) {
-    context.addIssue({ code: 'custom', message: 'Charge amount has the wrong sign.' })
+    context.addIssue({
+      code: 'custom',
+      message: 'Charge amount has the wrong sign.',
+      // Safe diagnostics for the repair prompt and logs; no label or amount.
+      params: { rule: 'charge_sign', chargeType: charge.type, amountSign: charge.amountCents > 0 ? 'positive' : 'negative' },
+    })
   }
 })
 

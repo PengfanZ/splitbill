@@ -17,6 +17,13 @@ function response(payload: unknown, status = 200) {
 }
 
 describe('receipt API client', () => {
+  it('records model validation failures separately from bad photo input', async () => {
+    const reportDiagnostic = vi.fn()
+    const client = createReceiptClient({ supabaseUrl: 'https://example.com', publishableKey: 'key', reportDiagnostic },
+      vi.fn().mockResolvedValue(response({ code: 'invalid_model_response' }, 422)))
+    await expect(client.parse(request)).rejects.toMatchObject({ kind: 'invalid-response' })
+    expect(reportDiagnostic).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'invalid-response', status: 422 }))
+  })
   it('distinguishes browser timeouts from network errors and correlates the server request', async () => {
     const reportDiagnostic = vi.fn()
     const fetcher = vi.fn((_url, options) => new Promise<Response>((_resolve, reject) => {
