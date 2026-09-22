@@ -13,7 +13,10 @@ export type ActivityGroup = {
   /** Activity-scoped inactive memberships. IDs and historical references are retained. */
   inactiveMemberIds?: string[]
   currency?: import('./currency').CurrencyCode
+  categories?: ExpenseCategory[]
 }
+
+export type ExpenseCategory = { id: string; name: string; color: string }
 
 export type SplitMethod = 'equal' | 'exact'
 export type ExpenseKind = 'expense' | 'settlement'
@@ -29,6 +32,8 @@ export type Expense = {
   createdAt: string
   updatedAt?: string
   kind?: ExpenseKind
+  /** Missing/null means General, including for legacy expenses. */
+  categoryId?: string | null
 }
 
 export type PersistedState = {

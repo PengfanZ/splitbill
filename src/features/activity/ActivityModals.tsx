@@ -22,6 +22,9 @@ import { ReceiptSplitFlow } from '../receiptSplit/ReceiptSplitFlow'
 import type { ReceiptClient } from '../receiptSplit/receiptApi'
 import { ActivityIdentityControl } from './ActivityIdentityControl'
 import { FriendNameInput } from './FriendNameInput'
+import { CategoryControl } from '../categories/CategoryControl'
+import { CategoryManager } from '../categories/CategoryManager'
+import { activityCategories, type CategoryChange } from '../../domain/categories'
 
 export function CreateGroupModal({ onClose, onCurrencySelect, onSave }: {
   onClose: () => void
@@ -131,7 +134,9 @@ export type ExpenseInputTab = 'manual' | 'ai-text' | 'ai-voice' | 'receipt'
 
 type ExpenseEntryMode = ExpenseInputTab | 'ai-batch'
 
-export function ExpenseModal({ group, members: allMembers, expense, aiExpenseClient = null, receiptClient = null, currentMemberId = 'me', onCurrentMemberChange, onEntryTabSelect, onReceiptConfirmed, onClose, onSave, onSaveMany, saving = false }: {
+export function ExpenseModal({ group, members: allMembers, expense, categoryExpenses = [], aiExpenseClient = null, receiptClient = null, currentMemberId = 'me', onCurrentMemberChange, onEntryTabSelect, onReceiptConfirmed, onClose, onSave, onSaveMany, onCategoriesChange, saving = false }: {
+  categoryExpenses?: Expense[]
+  onCategoriesChange?: (change: CategoryChange) => Promise<boolean>
   group: ActivityGroup
   members: Member[]
   expense?: Expense
@@ -149,6 +154,9 @@ export function ExpenseModal({ group, members: allMembers, expense, aiExpenseCli
   const { locale, t } = useLocalization()
   const currency = activityCurrency(group)
   const [title, setTitle] = useState(expense?.title ?? '')
+  const [categoryId, setCategoryId] = useState<string | null>(expense?.categoryId ?? null)
+  const [managingCategories, setManagingCategories] = useState(false)
+  const categoryValid = categoryId === null || activityCategories(group).some(category => category.id === categoryId)
   const members = useMemo(() => expenseEntryMembers(group, allMembers, expense), [group, allMembers, expense])
   const displayName = (member: Member) => isInactiveMember(group, member.id) ? t('members.inactiveName', { name: member.name }) : member.name
   const [amount, setAmount] = useState(expense ? expense.amount.toString() : '')
@@ -249,7 +257,7 @@ export function ExpenseModal({ group, members: allMembers, expense, aiExpenseCli
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    if (!title.trim() || numericAmount <= 0 || !splitValid) return
+    if (!title.trim() || numericAmount <= 0 || !splitValid || !categoryValid) return
     if (editingBatchIndex !== null) {
       const draft = createAiDraftFromValues({
         amount: numericAmount,
@@ -279,9 +287,11 @@ export function ExpenseModal({ group, members: allMembers, expense, aiExpenseCli
       shares,
       createdAt: expense?.createdAt ?? savedAt,
       ...(expense ? { updatedAt: savedAt } : {}),
+      ...(categoryId !== null || expense?.categoryId !== undefined ? { categoryId } : {}),
     })
   }
 
+  if (managingCategories && onCategoriesChange) return <CategoryManager group={group} expenses={categoryExpenses} onChange={onCategoriesChange} onClose={() => setManagingCategories(false)} />
   return (
     <ModalShell eyebrow={group.name} title={t(entryMode === 'receipt' ? 'receipt.title' : expense ? 'expense.editTitle' : 'expense.addTitle')} onClose={onClose} size={entryMode === 'receipt' ? 'wide' : 'standard'}>
       {group.inactiveMemberIds?.length ? <div className="split-note membership-note" role="status"><Users size={18} /><span>{t(expense ? 'members.editExpenseNote' : 'members.newExpenseNote')}</span></div> : null}
@@ -348,6 +358,8 @@ export function ExpenseModal({ group, members: allMembers, expense, aiExpenseCli
       ) : entryMode === 'manual' ? <form onSubmit={submit}>
         {aiDraftApplied ? <div className="split-note ai-draft-note" role="status"><Sparkles size={18} /><span><b>{t(editingBatchIndex === null ? 'expense.aiDraftReady' : 'expense.batchEditing', editingBatchIndex === null ? undefined : { current: editingBatchIndex + 1, total: aiBatchDrafts.length })}</b><small>{t(editingBatchIndex === null ? 'expense.aiDraftReview' : 'expense.batchEditingHelp')}</small></span></div> : null}
         <label>{t('expense.description')}<input autoFocus value={title} onChange={event => setTitle(event.target.value)} placeholder={t('expense.descriptionPlaceholder')} maxLength={200} required /></label>
+        {editingBatchIndex === null ? <label>{t('categories.label')}<CategoryControl group={group} value={categoryId} onChange={setCategoryId} onManage={onCategoriesChange ? () => setManagingCategories(true) : undefined} /></label> : null}
+        {!categoryValid ? <div role="alert" className="split-note"><span>{t('categories.changed')}</span><Button onClick={() => setCategoryId(null)}>{t('categories.useGeneral')}</Button></div> : null}
         <label>{t('expense.amount')}<span className="modal-amount"><i>{currencySymbol(currency, locale)}</i><input aria-label={t('expense.amount')} value={amount} onChange={event => setAmount(event.target.value)} onFocus={selectInputContents} type="number" inputMode="decimal" min="0.01" max={MAX_ACTIVITY_AMOUNT} step="0.01" placeholder="0.00" required /></span></label>
         <div className="form-grid">
           <label>{t('expense.paidBy')}<SelectMenu value={payerId} options={payerOptions} onChange={setPayerId} ariaLabel={t('expense.paidBy')} menuLabel={t('expense.paidBy')} /></label>
@@ -382,7 +394,7 @@ export function ExpenseModal({ group, members: allMembers, expense, aiExpenseCli
           </div>
         )}
         {expense ? <div className="split-note edit-note"><Pencil size={17} /><span>{method === 'equal' ? t('expense.editEqualNote') : t('expense.editExactNote', { count: members.length })}</span></div> : null}
-        <div className="modal-actions"><Button onClick={editingBatchIndex === null ? onClose : () => { setEditingBatchIndex(null); setEntryMode('ai-batch') }}>{t(editingBatchIndex === null ? 'common.cancel' : 'expense.batchBack')}</Button><Button variant="primary" type="submit" disabled={!splitValid || saving}>{t(editingBatchIndex === null ? (expense ? 'expense.saveChanges' : 'expense.save') : 'expense.batchUpdate')}</Button></div>
+        <div className="modal-actions"><Button onClick={editingBatchIndex === null ? onClose : () => { setEditingBatchIndex(null); setEntryMode('ai-batch') }}>{t(editingBatchIndex === null ? 'common.cancel' : 'expense.batchBack')}</Button><Button variant="primary" type="submit" disabled={!splitValid || !categoryValid || saving}>{t(editingBatchIndex === null ? (expense ? 'expense.saveChanges' : 'expense.save') : 'expense.batchUpdate')}</Button></div>
       </form> : null}
     </ModalShell>
   )
