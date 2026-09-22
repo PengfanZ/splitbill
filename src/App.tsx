@@ -8,6 +8,8 @@ import { removeActivityIdentity, selectActivityIdentity } from './data/activityI
 import { createIdentity } from './data/identity'
 import { EMPTY_STATE } from './data/storage'
 import { activityCurrency, currencyLabel, type CurrencyCode } from './domain/currency'
+import type { CategoryChange } from './domain/categories'
+import { persistCategoryChange } from './features/categories/categoryChanges'
 import { isSettlementPayment, money, spendingExpenses } from './domain/expenses'
 import { CURRENT_USER } from './domain/members'
 import { activeActivityMembers, isInactiveMember, removeActivityFriend, restoreActivityFriend } from './domain/memberRemoval'
@@ -342,6 +344,11 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
     setActivityFeedback({ groupId: activeGroup.id, message })
   }
 
+  const changeActivityCategories = (change: CategoryChange) => persistCategoryChange({
+    activeGroup, activeExpenses, liveActivity, editable: live.editable, saveLive: live.save,
+    setState, setFeedback: setActivityFeedback, message: t('categories.saved'),
+  }, change)
+
   const addFriends = async (names: string[]) => {
     if (!activeGroup) return
     const existingExpenseCount = spendingExpenses(activeExpenses).length
@@ -642,6 +649,8 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
             />
             {liveActivity ? (
               <GroupDashboard
+                key={liveActivity.group.id}
+                onCategoriesChange={live.editable ? changeActivityCategories : undefined}
                 group={liveActivity.group}
                 members={liveMembers}
                 expenses={liveActivity.expenses}
@@ -673,6 +682,8 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
           </>
         ) : selectedGroup ? (
           <GroupDashboard
+            key={selectedGroup.id}
+            onCategoriesChange={changeActivityCategories}
             group={selectedGroup}
             members={selectedMembers}
             expenses={selectedExpenses}
@@ -708,6 +719,8 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
       /> : null}
       {modal === 'expense' && activeGroup ? (
         <ExpenseModal
+          onCategoriesChange={liveEditBlocked ? undefined : changeActivityCategories}
+          categoryExpenses={activeExpenses}
           group={activeGroup}
           members={activeMembers}
           expense={editingExpense ?? undefined}

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { SUPPORTED_CURRENCIES } from '../../domain/currency'
+import { CATEGORY_COLORS, DEFAULT_CATEGORIES, MAX_CATEGORIES } from '../../domain/categories'
 import type { ActivityGroup, Expense, Member } from '../../domain/models'
 import {
   MAX_ACTIVITY_AMOUNT,
@@ -29,6 +30,11 @@ const groupSchema = z.object({
   memberIds: z.array(memberIdSchema).min(1).max(MAX_ACTIVITY_FRIENDS + 1),
   inactiveMemberIds: z.array(memberIdSchema).max(MAX_ACTIVITY_FRIENDS).optional(),
   currency: z.enum(SUPPORTED_CURRENCIES).optional(),
+  categories: z.array(z.object({
+    id: z.string().min(1).max(120),
+    name: z.string().trim().min(1).max(32).refine(name => !['general', '通用'].includes(name.toLowerCase())),
+    color: z.enum(CATEGORY_COLORS),
+  })).max(MAX_CATEGORIES).optional(),
 }).passthrough()
 const amountSchema = z.number().min(0).max(MAX_ACTIVITY_AMOUNT)
 const activityTimestampSchema = z.iso.datetime({ offset: true }).max(120)
@@ -43,6 +49,7 @@ const expenseSchema = z.object({
   createdAt: activityTimestampSchema,
   updatedAt: activityTimestampSchema.optional(),
   kind: z.enum(['expense', 'settlement']).optional(),
+  categoryId: z.string().min(1).max(120).nullable().optional(),
 }).passthrough().superRefine((expense, context) => {
   const recipients = Object.entries(expense.shares)
   const shareTotal = recipients.reduce((total, [, amount]) => total + amount, 0)
@@ -74,7 +81,12 @@ function validateActivityReferences(
   const groupMemberIds = new Set(activity.group.memberIds)
   const expenseIds = new Set(activity.expenses.map(expense => expense.id))
   const inactiveIds = activity.group.inactiveMemberIds ?? []
+  const categories = activity.group.categories ?? DEFAULT_CATEGORIES
+  const categoryIds = new Set(categories.map(category => category.id))
+  const categoryNames = new Set(categories.map(category => category.name.toLowerCase()))
   const valid = memberIds.size === allMemberIds.length
+    && categoryIds.size === categories.length
+    && categoryNames.size === categories.length
     && groupMemberIds.size === activity.group.memberIds.length
     && expenseIds.size === activity.expenses.length
     && groupMemberIds.size === memberIds.size
@@ -82,6 +94,7 @@ function validateActivityReferences(
     && new Set(inactiveIds).size === inactiveIds.length
     && inactiveIds.every(id => id !== 'me' && groupMemberIds.has(id))
     && activity.expenses.every(expense => expense.groupId === activity.group.id
+      && (expense.categoryId == null || (expense.kind !== 'settlement' && categoryIds.has(expense.categoryId)))
       && groupMemberIds.has(expense.payerId)
       && Object.keys(expense.shares).every(memberId => groupMemberIds.has(memberId)))
   if (!valid) context.addIssue({ code: 'custom', message: 'Invalid activity references' })

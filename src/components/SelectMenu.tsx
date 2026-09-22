@@ -30,6 +30,7 @@ export function SelectMenu<Value extends string>({
   autoFocus = false,
   className = '',
   description,
+  footerAction,
   menuLabel,
   onChange,
   options,
@@ -43,6 +44,7 @@ export function SelectMenu<Value extends string>({
   autoFocus?: boolean
   className?: string
   description?: string
+  footerAction?: { label: string; icon?: ReactNode; onClick: () => void }
   menuLabel: string
   onChange: (value: Value) => void
   options: ReadonlyArray<SelectMenuOption<Value>>
@@ -136,9 +138,15 @@ export function SelectMenu<Value extends string>({
       return
     }
     if (event.key === 'Tab') {
+      if (footerAction && !event.shiftKey && !(event.target as HTMLElement).closest('[data-select-footer]')) {
+        event.preventDefault()
+        menuRef.current?.querySelector<HTMLButtonElement>('[data-select-footer]')?.focus()
+        return
+      }
       close()
       return
     }
+    if ((event.target as HTMLElement).closest('[data-select-footer]')) return
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Home' || event.key === 'End') {
       event.preventDefault()
       if (event.key === 'Home') setActiveIndex(0)
@@ -203,8 +211,6 @@ export function SelectMenu<Value extends string>({
           ref={assignMenuRef}
           className={`select-menu-popover select-menu-popover--${variant}`}
           style={position}
-          role="listbox"
-          aria-label={menuLabel}
           onKeyDown={handleOptionKeyDown}
         >
           {title || description ? (
@@ -213,7 +219,7 @@ export function SelectMenu<Value extends string>({
               {description ? <small>{description}</small> : null}
             </div>
           ) : null}
-          <div className="select-menu-options">
+          <div className="select-menu-options" role="listbox" aria-label={menuLabel}>
             {options.map((option, index) => {
               const selected = option.value === value
               return (
@@ -238,6 +244,7 @@ export function SelectMenu<Value extends string>({
               )
             })}
           </div>
+          {footerAction ? <button type="button" data-select-footer className="select-menu-footer" onClick={() => { close(); footerAction.onClick() }}>{footerAction.icon}{footerAction.label}</button> : null}
         </div>,
         document.body,
       ) : null}

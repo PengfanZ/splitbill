@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type CSSProperties } from 'react'
 import {
   Check,
   CircleDollarSign,
@@ -20,6 +20,10 @@ import { useLocalization } from '../../i18n/LocalizationContext'
 import { ShareActivityMenu } from '../sharing/ShareActivityMenu'
 import { ActivityCurrencyControl } from './ActivityCurrencyControl'
 import { ActivityIdentityControl } from './ActivityIdentityControl'
+import { categoryLabel, expenseCategory, type CategoryChange } from '../../domain/categories'
+import { CategorySummary } from '../categories/CategorySummary'
+import { CategoryManager } from '../categories/CategoryManager'
+import './expenseList.css'
 
 export function ActivitySummary({ expenses, currency = 'USD', currentMemberId = 'me', currentUserLabel }: { expenses: Expense[]; currency?: CurrencyCode; currentMemberId?: string | null; currentUserLabel?: string }) {
   const { locale, t } = useLocalization()
@@ -87,7 +91,8 @@ export function SettlementDirections({ members, expenses, currency = 'USD', curr
   )
 }
 
-export function ExpenseList({ expenses, members, inactiveMembers = [], currency = 'USD', query, readOnly = false, onEditExpense, onDeleteExpense }: {
+export function ExpenseList({ expenses, members, group, inactiveMembers = [], currency = 'USD', query, readOnly = false, onEditExpense, onDeleteExpense }: {
+  group?: ActivityGroup
   expenses: Expense[]
   members: Member[]
   inactiveMembers?: Member[]
@@ -126,10 +131,14 @@ export function ExpenseList({ expenses, members, inactiveMembers = [], currency 
             : storedTimestamp === 'Just now' ? t('expense.timeUnavailable') : storedTimestamp
           const unknown = t('common.unknown')
           return (
-            <div className={`activity-row${settlementPayment ? ' settlement-payment-row' : ''}`} key={expense.id}>
+            <div className={`activity-row expense-entry${settlementPayment ? ' settlement-payment-row' : ''}`} key={expense.id}>
               <span className={`expense-icon${settlementPayment ? ' settlement-icon' : ''}`}>{settlementPayment ? <CircleDollarSign size={18} /> : <ReceiptText size={18} />}</span>
               <span className="row-copy"><b>{settlementPayment ? t('dashboard.paidPerson', { payer: payer.name, recipient: settlementRecipient?.name ?? unknown }) : expense.title}</b><small>{settlementPayment ? t('dashboard.settlementPayment') : <>{t('dashboard.paidLabel', { payer: payer.name })}<i />{t(expense.splitMethod === 'equal' ? 'dashboard.splitEqually' : 'dashboard.exactSplit')} · {participantCount} {t(participantCount === 1 ? 'common.person' : 'common.people')}</>}</small>{removedNames.length && !settlementPayment ? <small>{t('members.historyIncludes', { names: removedNames.join(', ') })}</small> : null}</span>
-              <span className="expense-amount"><b>{money(expense.amount, currency, locale)}</b><small>{timestampLabel}</small></span>
+              <span className="expense-amount"><b>{money(expense.amount, currency, locale)}</b></span>
+              <span className="expense-entry-meta">
+                {group && !settlementPayment ? <span className="expense-category-label" style={{ '--category-color': expenseCategory(group, expense).color } as CSSProperties}><span className="category-dot" aria-hidden="true" />{categoryLabel(expenseCategory(group, expense), locale)}</span> : null}
+                <span className="expense-entry-time">{timestampLabel}</span>
+              </span>
               {readOnly ? null : (
                 <span className="expense-actions">
                   {settlementPayment ? null : <IconButton className="expense-edit" tone="success" label={t('dashboard.editExpense', { title: expense.title })} title={t('dashboard.editExpenseTitle')} onClick={() => onEditExpense?.(expense)}><Pencil size={15} /></IconButton>}
@@ -171,7 +180,8 @@ export function MembersRail({ members, group, currentMemberId = 'me', readOnly =
   )
 }
 
-export function GroupDashboard({ group, members, expenses, query, activityFeedback, readOnly = false, readOnlyLabel, currentMemberId = 'me', currentUserLabel = 'You', statusLabel, onCurrentMemberChange, onCurrencyChange, onShareSummary, onExportData, onShareQr, onShareLive, onCopyShareLink, onEndLive, onAddFriend, onRemoveFriend, onRestoreFriend, onAddExpense, onSettleUp, onEditExpense, onDeleteExpense }: {
+export function GroupDashboard({ group, members, expenses, query, activityFeedback, readOnly = false, readOnlyLabel, currentMemberId = 'me', currentUserLabel = 'You', statusLabel, onCurrentMemberChange, onCurrencyChange, onShareSummary, onExportData, onShareQr, onShareLive, onCopyShareLink, onEndLive, onAddFriend, onRemoveFriend, onRestoreFriend, onAddExpense, onSettleUp, onEditExpense, onDeleteExpense, onCategoriesChange }: {
+  onCategoriesChange?: (change: CategoryChange) => Promise<boolean>
   group: ActivityGroup
   members: Member[]
   expenses: Expense[]
@@ -200,6 +210,9 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
 }) {
   const { locale, t } = useLocalization()
   const [shareMenuOpen, setShareMenuOpen] = useState(false)
+  const [categoryView, setCategoryView] = useState(false)
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [manageCategories, setManageCategories] = useState(false)
   const currency = activityCurrency(group)
   const activeCount = activeActivityMembers(group, members).length
   const historyMembers = members.map(member => isInactiveMember(group, member.id)
@@ -227,11 +240,19 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
             {activityFeedback ? <span className="activity-feedback" role="status">{activityFeedback}</span> : null}
           </div>
         </header>
+        {hasExpenses ? <ActivitySummary expenses={expenses} currency={currency} currentMemberId={currentMemberId} currentUserLabel={currentUserLabel} /> : null}
+        <div className="category-view-controls">
+          <div className="category-view-tabs" aria-label={t('categories.summary')}>
+            <button type="button" aria-pressed={!categoryView} onClick={() => { setCategoryView(false); setSelectedCategory(null) }}>{t('dashboard.expenses')}</button>
+            <button type="button" aria-pressed={categoryView} onClick={() => setCategoryView(true)}>{t('categories.summary')}</button>
+          </div>
+          {!readOnly && onCategoriesChange ? <Button variant="ghost" onClick={() => setManageCategories(true)}>{t('categories.manage')}</Button> : null}
+        </div>
+        {categoryView ? <CategorySummary group={group} expenses={expenses} selected={selectedCategory} onSelect={setSelectedCategory} /> : null}
         {hasExpenses ? (
           <>
-            <ActivitySummary expenses={expenses} currency={currency} currentMemberId={currentMemberId} currentUserLabel={currentUserLabel} />
-            <SettlementDirections members={historyMembers} expenses={expenses} currency={currency} currentMemberId={currentMemberId} currentUserLabel={currentUserLabel} onSettleUp={readOnly ? undefined : onSettleUp} />
-            <ExpenseList expenses={expenses} members={historyMembers} inactiveMembers={members.filter(member => isInactiveMember(group, member.id))} currency={currency} query={query} readOnly={readOnly} onEditExpense={onEditExpense} onDeleteExpense={onDeleteExpense} />
+            {categoryView ? null : <SettlementDirections members={historyMembers} expenses={expenses} currency={currency} currentMemberId={currentMemberId} currentUserLabel={currentUserLabel} onSettleUp={readOnly ? undefined : onSettleUp} />}
+            <ExpenseList group={group} expenses={categoryView ? expenses.filter(expense => !isSettlementPayment(expense) && (selectedCategory === null || expenseCategory(group, expense).id === selectedCategory)) : expenses} members={historyMembers} inactiveMembers={members.filter(member => isInactiveMember(group, member.id))} currency={currency} query={query} readOnly={readOnly} onEditExpense={onEditExpense} onDeleteExpense={onDeleteExpense} />
           </>
         ) : (
           <section className="activity-empty">
@@ -243,6 +264,11 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
         )}
       </div>
       <MembersRail group={group} members={members} currentMemberId={currentMemberId} readOnly={readOnly} onAddFriend={onAddFriend} onRemoveFriend={onRemoveFriend} onRestoreFriend={onRestoreFriend} />
+      {manageCategories && !readOnly && onCategoriesChange ? <CategoryManager group={group} expenses={expenses} onChange={async change => {
+        const saved = await onCategoriesChange(change)
+        if (saved && change.kind === 'delete' && selectedCategory === change.id) setSelectedCategory(null)
+        return saved
+      }} onClose={() => setManageCategories(false)} /> : null}
       {shareMenuOpen ? <ShareActivityMenu
         groupName={group.name}
         live={Boolean(onCopyShareLink && !onShareLive)}

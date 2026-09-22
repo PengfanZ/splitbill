@@ -16,6 +16,19 @@ afterEach(() => {
 })
 
 describe('SelectMenu', () => {
+  it('offers a keyboard accessible footer action without selecting a value', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const manage = vi.fn()
+    render(<SelectMenu value="alpha" options={options} onChange={onChange} ariaLabel="Category" menuLabel="Categories" footerAction={{ label: 'Manage categories', onClick: manage }} />)
+    await user.click(screen.getByRole('button', { name: 'Category' }))
+    await user.tab()
+    expect(screen.getByRole('button', { name: 'Manage categories' })).toHaveFocus()
+    await user.keyboard('{Enter}')
+    expect(manage).toHaveBeenCalledOnce()
+    expect(onChange).not.toHaveBeenCalled()
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+  })
   it('renders its value, heading, portal options, and selects with restored focus', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
@@ -124,8 +137,8 @@ describe('SelectMenu', () => {
     const trigger = screen.getByRole('button', { name: 'Compact item' })
     await user.click(trigger)
     const listbox = screen.getByRole('listbox')
-    expect(listbox).toHaveClass('select-menu-popover--compact')
-    expect(listbox).toHaveStyle({ top: '147px', width: '320px' })
+    expect(listbox.parentElement).toHaveClass('select-menu-popover--compact')
+    expect(listbox.parentElement).toHaveStyle({ top: '147px', width: '320px' })
 
     fireEvent.mouseDown(screen.getByRole('option', { name: 'Alpha' }))
     expect(listbox).toBeVisible()

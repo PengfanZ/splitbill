@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap');
+@import './features/categories/categories.css';
 
 :root {
   font-family: 'DM Sans', 'PingFang SC', 'Microsoft YaHei', ui-sans-serif, system-ui, sans-serif;
@@ -987,13 +988,12 @@ html[data-theme='dark'] .fresh-illustration i:nth-of-type(3) { background: #9f82
   .summary > div:first-child { padding-left: 0; }
   .summary > div:last-child { padding-right: 0; }
   .summary strong { font-size: clamp(20px, 6.5vw, 28px); white-space: nowrap; }
-  .summary span { font-size: 10px; white-space: nowrap; }
+  .summary span { font-size: 10px; white-space: normal; overflow-wrap: anywhere; line-height: 1.5; }
   .welcome h1 { font-size: 38px; }
   .welcome .date { padding-left: 2px; }
   .balance-row, .activity-row { padding-inline: 2px; gap: 10px; }
   .settlement-action { gap: 8px; }
   .settle-up-button { padding-inline: 10px; }
-  .activity-row .row-copy small { max-width: 160px; overflow: hidden; white-space: nowrap; }
   .fresh-start { min-height: calc(100vh - 66px); padding-bottom: 60px; }
   .fresh-steps { gap: 12px; flex-direction: column; align-items: flex-start; }
   .group-welcome { align-items: stretch; flex-direction: column; gap: 18px; }
@@ -1032,13 +1032,6 @@ html[data-theme='dark'] .fresh-illustration i:nth-of-type(3) { background: #9f82
 @media (max-width: 430px) {
   .brand { font-size: 34px; }
   .section-heading h2 { font-size: 17px; }
-  .activity-row { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 3px 8px; }
-  .activity-row .expense-icon { grid-column: 1; grid-row: 1 / span 2; }
-  .activity-row .row-copy { grid-column: 2; grid-row: 1; }
-  .activity-row .expense-amount { display: contents; }
-  .activity-row .expense-amount b { grid-column: 3; grid-row: 1; text-align: right; }
-  .activity-row .expense-amount small { grid-column: 2; grid-row: 2; white-space: nowrap; }
-  .activity-row .expense-actions { grid-column: 3; grid-row: 2; justify-self: end; }
   .activity-row > svg { display: none; }
   .expense-icon { width: 32px; height: 32px; }
   .settlement-row { flex-wrap: wrap; }
