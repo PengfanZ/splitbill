@@ -134,7 +134,8 @@ export type ExpenseInputTab = 'manual' | 'ai-text' | 'ai-voice' | 'receipt'
 
 type ExpenseEntryMode = ExpenseInputTab | 'ai-batch'
 
-export function ExpenseModal({ group, members: allMembers, expense, categoryExpenses = [], aiExpenseClient = null, receiptClient = null, currentMemberId = 'me', onCurrentMemberChange, onEntryTabSelect, onReceiptConfirmed, onClose, onSave, onSaveMany, onCategoriesChange, saving = false }: {
+export function ExpenseModal({ group, members: allMembers, expense, categoryExpenses = [], aiExpenseClient = null, receiptClient = null, currentMemberId = 'me', onCurrentMemberChange, onEntryTabSelect, onReceiptConfirmed, onClose, onSave, onSaveMany, onCategoriesChange, onCategorySelect, saving = false }: {
+  onCategorySelect?: () => void
   categoryExpenses?: Expense[]
   onCategoriesChange?: (change: CategoryChange) => Promise<boolean>
   group: ActivityGroup
@@ -358,7 +359,7 @@ export function ExpenseModal({ group, members: allMembers, expense, categoryExpe
       ) : entryMode === 'manual' ? <form onSubmit={submit}>
         {aiDraftApplied ? <div className="split-note ai-draft-note" role="status"><Sparkles size={18} /><span><b>{t(editingBatchIndex === null ? 'expense.aiDraftReady' : 'expense.batchEditing', editingBatchIndex === null ? undefined : { current: editingBatchIndex + 1, total: aiBatchDrafts.length })}</b><small>{t(editingBatchIndex === null ? 'expense.aiDraftReview' : 'expense.batchEditingHelp')}</small></span></div> : null}
         <label>{t('expense.description')}<input autoFocus value={title} onChange={event => setTitle(event.target.value)} placeholder={t('expense.descriptionPlaceholder')} maxLength={200} required /></label>
-        {editingBatchIndex === null ? <label>{t('categories.label')}<CategoryControl group={group} value={categoryId} onChange={setCategoryId} onManage={onCategoriesChange ? () => setManagingCategories(true) : undefined} /></label> : null}
+        {editingBatchIndex === null ? <label>{t('categories.label')}<CategoryControl group={group} value={categoryId} onChange={id => { setCategoryId(id); if (id !== categoryId) onCategorySelect?.() }} onManage={onCategoriesChange ? () => setManagingCategories(true) : undefined} /></label> : null}
         {!categoryValid ? <div role="alert" className="split-note"><span>{t('categories.changed')}</span><Button onClick={() => setCategoryId(null)}>{t('categories.useGeneral')}</Button></div> : null}
         <label>{t('expense.amount')}<span className="modal-amount"><i>{currencySymbol(currency, locale)}</i><input aria-label={t('expense.amount')} value={amount} onChange={event => setAmount(event.target.value)} onFocus={selectInputContents} type="number" inputMode="decimal" min="0.01" max={MAX_ACTIVITY_AMOUNT} step="0.01" placeholder="0.00" required /></span></label>
         <div className="form-grid">

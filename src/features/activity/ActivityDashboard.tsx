@@ -180,7 +180,8 @@ export function MembersRail({ members, group, currentMemberId = 'me', readOnly =
   )
 }
 
-export function GroupDashboard({ group, members, expenses, query, activityFeedback, readOnly = false, readOnlyLabel, currentMemberId = 'me', currentUserLabel = 'You', statusLabel, onCurrentMemberChange, onCurrencyChange, onShareSummary, onExportData, onShareQr, onShareLive, onCopyShareLink, onEndLive, onAddFriend, onRemoveFriend, onRestoreFriend, onAddExpense, onSettleUp, onEditExpense, onDeleteExpense, onCategoriesChange }: {
+export function GroupDashboard({ group, members, expenses, query, activityFeedback, readOnly = false, readOnlyLabel, currentMemberId = 'me', currentUserLabel = 'You', statusLabel, onCurrentMemberChange, onCurrencyChange, onShareSummary, onExportData, onShareQr, onShareLive, onCopyShareLink, onEndLive, onAddFriend, onRemoveFriend, onRestoreFriend, onAddExpense, onSettleUp, onEditExpense, onDeleteExpense, onCategoriesChange, onCategorySummaryOpen }: {
+  onCategorySummaryOpen?: () => void
   onCategoriesChange?: (change: CategoryChange) => Promise<boolean>
   group: ActivityGroup
   members: Member[]
@@ -244,7 +245,7 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
         <div className="category-view-controls">
           <div className="category-view-tabs" aria-label={t('categories.summary')}>
             <button type="button" aria-pressed={!categoryView} onClick={() => { setCategoryView(false); setSelectedCategory(null) }}>{t('dashboard.expenses')}</button>
-            <button type="button" aria-pressed={categoryView} onClick={() => setCategoryView(true)}>{t('categories.summary')}</button>
+            <button type="button" aria-pressed={categoryView} onClick={() => { if (!categoryView) onCategorySummaryOpen?.(); setCategoryView(true) }}>{t('categories.summary')}</button>
           </div>
           {!readOnly && onCategoriesChange ? <Button variant="ghost" onClick={() => setManageCategories(true)}>{t('categories.manage')}</Button> : null}
         </div>

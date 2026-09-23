@@ -32,7 +32,8 @@ it('saves category changes through the live revisioned API without changing expe
     poll: vi.fn(),
     update: vi.fn<LiveActivityClient['update']>().mockImplementation(async (_credentials, next, revision) => ({ code: credentials.code, revision: revision + 1, snapshot: next, updatedAt: '2026-09-22T12:01:00.000Z' })),
   } satisfies LiveActivityClient
-  render(<App liveActivityClient={client} />)
+  const track = vi.fn()
+  render(<App liveActivityClient={client} analyticsClient={{ track }} />)
   await user.click(screen.getByRole('button', { name: 'Join activity' }))
   await user.type(screen.getByLabelText('Shared activity link'), buildLiveActivityUrl(credentials, 'https://example.com/'))
   await user.click(screen.getByRole('button', { name: 'Open activity' }))
@@ -45,21 +46,37 @@ it('saves category changes through the live revisioned API without changing expe
   expect(client.update.mock.calls[0][1].expenses).toEqual(snapshot.expenses)
   expect(client.update.mock.calls[0][1].group.categories).toContainEqual(expect.objectContaining({ name: 'Shared meals' }))
   expect(await screen.findByText('Live · revision 2')).toBeVisible()
+  expect(track).toHaveBeenCalledWith('category_created', 'live', 'en')
+  await user.click(screen.getByRole('button', { name: 'Close' }))
+  await user.click(screen.getByRole('button', { name: 'By category' }))
+  expect(track).toHaveBeenCalledWith('category_summary_opened', 'live', 'en')
+  await user.click(screen.getByRole('button', { name: 'Manage categories' }))
+  await user.click(screen.getByRole('button', { name: 'Edit category Shared meals' }))
+  client.update.mockRejectedValue(new Error('offline'))
+  await user.click(screen.getByRole('button', { name: 'Save category' }))
+  await waitFor(() => expect(screen.getByRole('alert')).toBeVisible())
+  expect(track.mock.calls.filter(([event]) => event === 'category_updated')).toHaveLength(0)
 })
 
 it('persists categories and assignment, then deletes the category without changing the bill', async () => {
   const user = userEvent.setup()
-  render(<App />)
+  const track = vi.fn()
+  render(<App analyticsClient={{ track }} />)
   await user.click(screen.getByRole('button', { name: 'Manage categories' }))
   await user.click(screen.getByRole('button', { name: 'Create category' }))
   await user.type(screen.getByLabelText('Category name'), 'Coffee')
   await user.click(screen.getByRole('button', { name: 'Save category' }))
   await waitFor(() => expect(screen.getByRole('heading', { name: 'Manage categories' })).toBeVisible())
+  await user.click(screen.getByRole('button', { name: 'Edit category Coffee' }))
+  await user.click(screen.getByRole('button', { name: 'Save category' }))
   await user.click(screen.getByRole('button', { name: 'Close' }))
   await user.click(screen.getByRole('button', { name: 'Edit Dinner' }))
   await user.click(screen.getByRole('button', { name: 'Category (optional)' }))
+  await user.click(screen.getByRole('option', { name: 'General' }))
+  await user.click(screen.getByRole('button', { name: 'Category (optional)' }))
   await user.click(screen.getByRole('option', { name: 'Coffee' }))
   await user.click(screen.getByRole('button', { name: 'Save changes' }))
+  await user.click(screen.getByRole('button', { name: 'By category' }))
   await user.click(screen.getByRole('button', { name: 'By category' }))
   await user.click(screen.getByRole('button', { name: /Coffee.*1 expense/ }))
   await user.click(screen.getByRole('button', { name: 'Manage categories' }))
@@ -73,6 +90,11 @@ it('persists categories and assignment, then deletes the category without changi
   expect(screen.getByText('Dinner')).toBeVisible()
   await user.click(screen.getByRole('button', { name: 'Expenses' }))
   expect(screen.getByRole('heading', { name: 'Who owes whom' })).toBeVisible()
+  expect(track.mock.calls.filter(([event]) => event.startsWith('category_'))).toEqual([
+    ['category_created', 'local', 'en'], ['category_updated', 'local', 'en'],
+    ['category_selected', 'local', 'en'], ['category_summary_opened', 'local', 'en'],
+    ['category_deleted', 'local', 'en'],
+  ])
 })
 
 it('requires review if a category disappears while editing and preserves the unsaved form through management', async () => {
