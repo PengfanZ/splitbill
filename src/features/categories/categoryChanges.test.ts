@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest'
 import type { SetStateAction } from 'react'
-import { persistCategoryChange } from './categoryChanges'
+import { categoryMutationEvent, persistCategoryChange } from './categoryChanges'
 import { CATEGORY_COLORS } from '../../domain/categories'
 import type { PersistedState } from '../../domain/models'
 import { CURRENT_USER } from '../../domain/members'
@@ -9,6 +9,12 @@ import { createSharedActivity } from '../sharing/sharedActivity'
 const group = { id: 'trip', name: 'Trip', emoji: '☀', memberIds: ['me'] }
 const category = { id: 'coffee', name: 'Coffee', color: CATEGORY_COLORS[0] }
 const change = { kind: 'save' as const, category }
+it('classifies category mutations without exposing category details', () => {
+  expect(categoryMutationEvent(undefined, change)).toBe('category_created')
+  expect(categoryMutationEvent(group, change)).toBe('category_created')
+  expect(categoryMutationEvent({ ...group, categories: [category] }, change)).toBe('category_updated')
+  expect(categoryMutationEvent(group, { kind: 'delete', id: category.id })).toBe('category_deleted')
+})
 function fixture() {
   let state: PersistedState = { groups: [group, { ...group, id: 'other' }], expenses: [], friends: [], selectedGroupId: 'trip' }
   const context = {

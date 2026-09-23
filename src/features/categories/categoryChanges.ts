@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react'
-import { changeCategories, type CategoryChange } from '../../domain/categories'
+import { activityCategories, changeCategories, type CategoryChange } from '../../domain/categories'
 import type { ActivityGroup, Expense, PersistedState } from '../../domain/models'
 import type { SharedActivity } from '../sharing/sharedActivity'
 import type { ActivityFeedback } from '../sharing/useActivitySharing'
@@ -13,6 +13,11 @@ type CategoryChangeContext = {
   setState: Dispatch<SetStateAction<PersistedState>>
   setFeedback: (feedback: ActivityFeedback) => void
   message: string
+}
+
+export function categoryMutationEvent(group: ActivityGroup | null | undefined, change: CategoryChange) {
+  if (change.kind === 'delete') return 'category_deleted'
+  return activityCategories(group ?? {}).some(category => category.id === change.category.id) ? 'category_updated' : 'category_created'
 }
 
 /** Uses the existing live revision guard, or applies a local change against fresh state. */

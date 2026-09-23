@@ -12,6 +12,12 @@ The browser may send only these event names:
 - `activity_created`
 - `friend_added`
 - `friend_removed`
+- `category_selected`
+- `category_summary_opened`
+- `category_created`
+- `category_updated`
+- `category_deleted`
+
 - `expense_added`
 - `feedback_submitted`
 - `summary_export_clicked`
@@ -37,6 +43,15 @@ The browser may send only these event names:
 - `ai_voice_ready`
 - `ai_voice_clarification`
 - `ai_voice_failed`
+
+Category tracking records only the event name, local/live surface, locale, and existing
+pseudonymous session identifier—never category names/IDs, expense data, or activity links.
+`category_selected` means the user chose a different category in the expense form
+(including General); it measures exploration, not a saved expense. `category_summary_opened`
+fires when entering By category, not on rerenders or clicking the already-open tab.
+Created/updated/deleted events fire only after a successful category save, not on
+cancellation, rejected Live saves, or another browser receiving a change. Existing
+event-grouped reports include these names automatically; app-open counts are unchanged.
 
 Each current event also has exactly one surface (`local` or `live`) and one resolved app locale (`en` or `zh-CN`). Historical rows from versions that supported URL snapshots may still contain the legacy `snapshot` surface. `currency_selected` additionally includes one constrained ISO currency code from Tally’s supported list; every other event must omit it. The locale is the language Tally is currently displaying, including a saved manual choice; it is not a country, GPS coordinate, IP-derived location, or full browser-language fingerprint. The request contains a random 128-bit session token stored in browser session storage. The database stores only its SHA-256 hash, which supports within-session funnels without creating a persistent visitor profile.
 

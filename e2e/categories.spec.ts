@@ -5,7 +5,12 @@ import { CHANGELOG_SEEN_STORAGE_KEY, LATEST_CHANGELOG_ID } from '../src/features
 
 test.use({ deviceScaleFactor: 2 })
 for (const mobile of [false, true]) test(`categories persist without changing splits (${mobile ? 'mobile' : 'desktop'})`, async ({ context, page }) => {
-  await context.route('**/rest/v1/rpc/record_analytics_event', route => route.fulfill({ status: 204, body: '' }))
+  const categoryEvents: Record<string, unknown>[] = []
+  await context.route('**/rest/v1/rpc/record_analytics_event', route => {
+    const body = route.request().postDataJSON()
+    if (body.p_event_name.startsWith('category_')) categoryEvents.push(body)
+    return route.fulfill({ status: 204, body: '' })
+  })
   await context.addInitScript(({ identityKey, storageKey, seenKey, seenId }) => {
     if (localStorage.getItem(identityKey)) return
     localStorage.setItem(identityKey, JSON.stringify({ id: 'me', name: 'Maya', initials: 'M', color: '#ead1b9' }))
@@ -58,6 +63,11 @@ for (const mobile of [false, true]) test(`categories persist without changing sp
   const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)!).expenses[0], STORAGE_KEY)
   expect(saved.amount).toBe(120)
   expect(saved.shares).toEqual({ me: 120 })
+  await expect.poll(() => categoryEvents.map(event => event.p_event_name)).toEqual(['category_created', 'category_selected', 'category_summary_opened', 'category_deleted'])
+  for (const event of categoryEvents) {
+    expect(event).toMatchObject({ p_surface: 'local', p_locale: 'en', p_currency: null })
+    expect(Object.keys(event).sort()).toEqual(['p_currency', 'p_event_name', 'p_locale', 'p_session_token', 'p_surface'])
+  }
   await page.evaluate(({ storageKey, identityKey }) => {
     const state = JSON.parse(localStorage.getItem(storageKey)!)
     state.expenses[0].title = 'Dinner with friends after a long day exploring Kyoto 京都旅行结束后的聚餐和甜点'

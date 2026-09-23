@@ -9,7 +9,7 @@ import { createIdentity } from './data/identity'
 import { EMPTY_STATE } from './data/storage'
 import { activityCurrency, currencyLabel, type CurrencyCode } from './domain/currency'
 import type { CategoryChange } from './domain/categories'
-import { persistCategoryChange } from './features/categories/categoryChanges'
+import { categoryMutationEvent, persistCategoryChange } from './features/categories/categoryChanges'
 import { isSettlementPayment, money, spendingExpenses } from './domain/expenses'
 import { CURRENT_USER } from './domain/members'
 import { activeActivityMembers, isInactiveMember, removeActivityFriend, restoreActivityFriend } from './domain/memberRemoval'
@@ -344,10 +344,15 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
     setActivityFeedback({ groupId: activeGroup.id, message })
   }
 
-  const changeActivityCategories = (change: CategoryChange) => persistCategoryChange({
+  const changeActivityCategories = async (change: CategoryChange) => {
+    const event = categoryMutationEvent(activeGroup, change)
+    const saved = await persistCategoryChange({
     activeGroup, activeExpenses, liveActivity, editable: live.editable, saveLive: live.save,
     setState, setFeedback: setActivityFeedback, message: t('categories.saved'),
-  }, change)
+    }, change)
+    if (saved) analyticsClient?.track(event, analyticsSurface, locale)
+    return saved
+  }
 
   const addFriends = async (names: string[]) => {
     if (!activeGroup) return
@@ -651,6 +656,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
               <GroupDashboard
                 key={liveActivity.group.id}
                 onCategoriesChange={live.editable ? changeActivityCategories : undefined}
+                onCategorySummaryOpen={() => analyticsClient?.track('category_summary_opened', 'live', locale)}
                 group={liveActivity.group}
                 members={liveMembers}
                 expenses={liveActivity.expenses}
@@ -684,6 +690,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
           <GroupDashboard
             key={selectedGroup.id}
             onCategoriesChange={changeActivityCategories}
+            onCategorySummaryOpen={() => analyticsClient?.track('category_summary_opened', 'local', locale)}
             group={selectedGroup}
             members={selectedMembers}
             expenses={selectedExpenses}
@@ -720,6 +727,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
       {modal === 'expense' && activeGroup ? (
         <ExpenseModal
           onCategoriesChange={liveEditBlocked ? undefined : changeActivityCategories}
+          onCategorySelect={() => analyticsClient?.track('category_selected', analyticsSurface, locale)}
           categoryExpenses={activeExpenses}
           group={activeGroup}
           members={activeMembers}
