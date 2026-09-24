@@ -34,19 +34,23 @@ const output = {
 }
 
 describe('OpenRouter expense prompt', () => {
-  it('builds a strict, privacy-conscious request with a pinned free default', () => {
+  it('builds a JSON-mode, privacy-conscious request that keeps the primary model first', () => {
     const built = buildOpenRouterRequest(request)
+    expect(DEFAULT_OPENROUTER_MODEL).toBe('google/gemini-3.1-flash-lite')
+    expect(DEFAULT_OPENROUTER_FALLBACK_MODEL).toBe('google/gemma-4-26b-a4b-it')
+    expect(DEFAULT_OPENROUTER_VOICE_MODEL).toBe('google/gemini-3.1-flash-lite')
     expect(built.models).toEqual([DEFAULT_OPENROUTER_MODEL, DEFAULT_OPENROUTER_FALLBACK_MODEL])
-    expect(built.response_format.json_schema).toMatchObject({ strict: true, schema: AI_EXPENSE_JSON_SCHEMA })
+    expect(built.response_format).toEqual({ type: 'json_object' })
     expect(built.provider).toEqual({
       allow_fallbacks: true,
       data_collection: 'deny',
       preferred_max_latency: { p90: 3 },
       require_parameters: true,
-      sort: { by: 'price', partition: 'none' },
+      sort: { by: 'price', partition: 'model' },
       zdr: true,
     })
-    expect(built).not.toHaveProperty('reasoning')
+    expect(built.reasoning).toEqual({ effort: 'none' })
+    expect(built.messages[0].content).toContain('matching outputSchema')
     expect(built.max_tokens).toBe(700)
     expect(built.messages[0].content).toContain('untrusted data')
     expect(built.messages[0].content).toContain('any language')
@@ -64,6 +68,7 @@ describe('OpenRouter expense prompt', () => {
       members: request.members,
       currentMemberId: 'maya',
       responseMode: 'single',
+      outputSchema: AI_EXPENSE_JSON_SCHEMA,
       expenseDescription: request.text,
     })
     expect(built.messages).toHaveLength(2)
@@ -117,6 +122,7 @@ describe('OpenRouter expense prompt', () => {
           members: request.members,
           currentMemberId: 'maya',
           responseMode: 'single',
+          outputSchema: AI_EXPENSE_JSON_SCHEMA,
           expenseDescription: 'The expense is described in the attached audio.',
         }),
       },
@@ -127,15 +133,11 @@ describe('OpenRouter expense prompt', () => {
   it('builds and parses a batch response without an expense-count cap while retaining single-response compatibility', () => {
     const batchRequest = { ...request, responseMode: 'batch' as const }
     const built = buildOpenRouterRequest(batchRequest)
-    expect(built.response_format.json_schema).toMatchObject({
-      name: 'tally_expense_batch',
-      strict: true,
-      schema: AI_EXPENSE_BATCH_JSON_SCHEMA,
-    })
+    expect(built.response_format).toEqual({ type: 'json_object' })
     expect(built.max_tokens).toBe(8_000)
     const content = built.messages[1].content
     if (typeof content !== 'string') throw new Error('Expected text content')
-    expect(JSON.parse(content)).toMatchObject({ responseMode: 'batch' })
+    expect(JSON.parse(content)).toMatchObject({ responseMode: 'batch', outputSchema: AI_EXPENSE_BATCH_JSON_SCHEMA })
     expect(AI_EXPENSE_BATCH_JSON_SCHEMA.properties.expenses).not.toHaveProperty('maxItems')
     expect(built.messages[0].content).not.toContain('at most 10 expenses')
     expect(built.messages[0].content).toContain('Never return partial drafts')
