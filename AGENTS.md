@@ -40,7 +40,7 @@ Native PNG sharing in `src/features/sharing/shareActivity.ts` passes `{ files: [
 
 - Do not send receipt requests with strict `json_schema` output: Gemini Flash Lite models return a near-empty object or run to the token limit. Use JSON mode with the contract in the prompt plus local Zod validation.
 - Keep OpenRouter `provider.sort.partition` at `'model'` when listing fallback models; `'none'` sorts every model by price and routes to the cheapest fallback first.
-- Change receipt models only after running `scripts/receipt-eval` (see [docs/AI_EXPENSE_PREVIEW.md](docs/AI_EXPENSE_PREVIEW.md#choosing-receipt-models)). Production pins models through Supabase secrets, so code defaults alone do not switch production.
+- Change receipt models only after running `scripts/receipt-eval` (see [docs/AI_EXPENSE_PREVIEW.md](docs/AI_EXPENSE_PREVIEW.md#choosing-receipt-models)). `OPENROUTER_RECEIPT_MODEL` / `OPENROUTER_RECEIPT_FALLBACK_MODEL` secrets override the code defaults; production currently sets neither, so it uses the defaults. Check the project's secret names before assuming otherwise.
 
 ## Workflow
 
