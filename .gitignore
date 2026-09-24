@@ -14,3 +14,6 @@ npm-debug.log*
 # Receipt model eval artifacts and private receipt photos
 /scripts/receipt-eval/.cache
 /scripts/receipt-eval/private
+
+# Text and voice expense eval artifacts
+/scripts/expense-eval/.cache
