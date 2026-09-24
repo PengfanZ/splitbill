@@ -115,6 +115,8 @@ Rules:
 - For an equal split, participantIds contains everyone included and exactSharesCents is empty.
 - For an exact split, participantIds and exactSharesCents contain the same members, and exact shares sum exactly to amountCents.
 - A payer does not have to be included in the split.
+- "Split with", "shared with", or "went halves with" named people includes the speaker (or the named payer) together with them. Exclude the payer only when the description says the expense was only for others, such as "for Leo and Sam" or "I didn't have any".
+- If every participant owes the same share, use an equal split rather than exact shares.
 - Keep the title concise and write it in the same language as the description.
 - Write clarificationQuestion in the description's language. For mixed-language text, use its dominant language; when the language is unclear, use interfaceLocale.
 - Return one JSON object matching outputSchema, with its fields at the top level. Do not wrap it in result, draft, or data, or return the schema itself.

@@ -53,6 +53,9 @@ const MAX_VOICE_REQUEST_BYTES = 3 * 1024 * 1024
 // Measured from request arrival, including upload and quota, so the server always
 // answers before the browser's 23-second deadline in aiExpenseApi.ts.
 const REQUEST_DEADLINE_MS = 20_000
+// Drafts normally finish in about 2 seconds, but an upstream can hang with no response.
+// Capping every attempt but the last leaves the fallback most of the deadline.
+const RETRYABLE_ATTEMPT_TIMEOUT_MS = 8_000
 
 function jsonError(status: number, code: string, message: string) {
   return Response.json({ code, message }, {
@@ -193,7 +196,8 @@ export async function handleParseExpenseRequest(
   for (const [attemptIndex, currentModels] of attemptModels.entries()) {
     const canRetry = attemptIndex < attemptModels.length - 1
     requestedModel = currentModels[0]
-    const signal = AbortSignal.timeout(Math.max(deadline - Date.now(), 1))
+    const remainingMs = Math.max(deadline - Date.now(), 1)
+    const signal = AbortSignal.timeout(canRetry ? Math.min(remainingMs, RETRYABLE_ATTEMPT_TIMEOUT_MS) : remainingMs)
     let providerResponse: Response
     try {
       providerResponse = await (dependencies.fetcher ?? fetch)(OPENROUTER_URL, {
@@ -208,15 +212,25 @@ export async function handleParseExpenseRequest(
         signal,
       })
     } catch {
-      dependencies.reportProviderFailure?.({ models: currentModels, status: 503, errorType: 'network' })
-      if (canRetry && !signal.aborted) continue
+      dependencies.reportProviderFailure?.({
+        models: currentModels,
+        status: 503,
+        errorType: signal.aborted ? 'timeout' : 'network',
+      })
+      if (canRetry) continue
       return jsonError(503, 'provider_unavailable', 'The AI provider could not be reached.')
     }
 
     try {
       providerPayload = await providerResponse.json()
     } catch {
-      dependencies.reportProviderFailure?.({ models: currentModels, status: providerResponse.status, errorType: 'unreadable_response' })
+      dependencies.reportProviderFailure?.({
+        models: currentModels,
+        status: providerResponse.status,
+        errorType: signal.aborted ? 'timeout' : 'unreadable_response',
+      })
+      // A body cut off by the attempt timeout is a hang, not bad data, so the fallback gets a turn.
+      if (canRetry && signal.aborted) continue
       return jsonError(502, 'provider_error', 'The AI provider returned unreadable data.')
     }
 

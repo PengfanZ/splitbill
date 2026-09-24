@@ -483,6 +483,58 @@ describe('parse expense Edge Function handler', () => {
     expect(singleFetcher).toHaveBeenCalledTimes(1)
   })
 
+  it('caps a hung primary attempt so the fallback still answers within the deadline', async () => {
+    // Fire each attempt timeout on demand instead of waiting 8 real seconds.
+    const timeouts: Array<{ ms: number, controller: AbortController }> = []
+    const timeoutSpy = vi.spyOn(AbortSignal, 'timeout').mockImplementation(ms => {
+      const controller = new AbortController()
+      timeouts.push({ ms, controller })
+      return controller.signal
+    })
+    try {
+      const hangUntilAborted = (_input: RequestInfo | URL, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new DOMException('timed out', 'TimeoutError')))
+        timeouts.at(-1)?.controller.abort()
+      })
+      const reportProviderFailure = vi.fn()
+      const fetcher = vi.fn()
+        .mockImplementationOnce(hangUntilAborted)
+        .mockResolvedValueOnce(providerResponse())
+      const response = await handleParseExpenseRequest(request(), dependencies({ fetcher, reportProviderFailure }))
+      expect(await response.json()).toMatchObject({ result: { status: 'ready' } })
+      expect(timeouts[0].ms).toBe(8_000)
+      expect(timeouts[1].ms).toBeGreaterThan(8_000)
+      expect(reportProviderFailure).toHaveBeenCalledWith({
+        models: [DEFAULT_OPENROUTER_MODEL, DEFAULT_OPENROUTER_FALLBACK_MODEL],
+        status: 503,
+        errorType: 'timeout',
+      })
+
+      // A response body that stalls past the attempt timeout also moves on to the fallback.
+      const stalledBody = new Response('{}')
+      vi.spyOn(stalledBody, 'json').mockImplementation(async () => {
+        timeouts.at(-1)?.controller.abort()
+        throw new DOMException('timed out', 'TimeoutError')
+      })
+      const bodyReporter = vi.fn()
+      const recovered = await handleParseExpenseRequest(request(), dependencies({
+        fetcher: vi.fn().mockResolvedValueOnce(stalledBody).mockResolvedValueOnce(providerResponse()),
+        reportProviderFailure: bodyReporter,
+      }))
+      expect(await recovered.json()).toMatchObject({ result: { status: 'ready' } })
+      expect(bodyReporter).toHaveBeenCalledWith(expect.objectContaining({ errorType: 'timeout' }))
+
+      // The last attempt keeps the remaining deadline and reports the timeout to the browser.
+      const finalFetcher = vi.fn().mockImplementation(hangUntilAborted)
+      const exhausted = await handleParseExpenseRequest(request(), dependencies({ fetcher: finalFetcher }))
+      expect(exhausted.status).toBe(503)
+      expect(await exhausted.json()).toMatchObject({ code: 'provider_unavailable' })
+      expect(finalFetcher).toHaveBeenCalledTimes(2)
+    } finally {
+      timeoutSpy.mockRestore()
+    }
+  })
+
   it('handles provider network and unreadable response failures without leaking content', async () => {
     const networkReporter = vi.fn()
     const unavailable = await handleParseExpenseRequest(request(), dependencies({

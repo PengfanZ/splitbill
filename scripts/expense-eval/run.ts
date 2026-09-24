@@ -1,6 +1,6 @@
 // Runs text and voice expense cases through the production parse-expense handler against
 // live OpenRouter models and scores each draft against a known answer.
-//   node scripts/expense-eval/run.ts [--configs production,gemma-only] [--cases a,b] [--repeat 2] [--no-voice]
+//   node scripts/expense-eval/run.ts [--configs production,gemma-only,voice-g35-lite,voice-mimo] [--cases a,b] [--repeat 2] [--no-voice]
 // Requires OPENROUTER_API_KEY in the environment or in supabase/functions/.env.local.
 // Voice clips are synthesized locally with macOS `say`; other platforms skip voice cases.
 import { execFile } from 'node:child_process'
@@ -29,7 +29,19 @@ const CONFIGS: Record<string, Environment> = {
     OPENROUTER_MODEL: DEFAULT_OPENROUTER_FALLBACK_MODEL,
     OPENROUTER_FALLBACK_MODEL: DEFAULT_OPENROUTER_FALLBACK_MODEL,
   },
+  // Voice fallback candidates with audio input and ZDR endpoints. They run only the voice cases.
+  'voice-g35-lite': {
+    OPENROUTER_VOICE_MODEL: 'google/gemini-3.5-flash-lite',
+    OPENROUTER_VOICE_FALLBACK_MODEL: 'google/gemini-3.5-flash-lite',
+  },
+  'voice-mimo': {
+    OPENROUTER_VOICE_MODEL: 'xiaomi/mimo-v2.5',
+    OPENROUTER_VOICE_FALLBACK_MODEL: 'xiaomi/mimo-v2.5',
+  },
 }
+// Text-only and voice-only configs skip the other mode's cases.
+const appliesTo = (config: string, mode: 'text' | 'voice') => config === 'production'
+  || (config.startsWith('voice-') ? mode === 'voice' : mode === 'text')
 
 type ExpectedDraft = {
   amountCents: number
@@ -249,17 +261,32 @@ type Attempt = {
 
 function scoreDraft(draft: Record<string, unknown>, expected: ExpectedDraft) {
   const participants = [...(draft.participantIds as string[])].sort()
-  const shares = Object.fromEntries((draft.exactSharesCents as { memberId: string, amountCents: number }[]).map(share => [share.memberId, share.amountCents]))
+  const exactShares = draft.exactSharesCents as { memberId: string, amountCents: number }[]
+  // Identical exact shares divide the total the same way an equal split does.
+  const effectivelyEqual = exactShares.length > 0 && exactShares.every(share => share.amountCents === exactShares[0].amountCents)
+  const shares = effectivelyEqual ? {} : Object.fromEntries(exactShares.map(share => [share.memberId, share.amountCents]))
+  const sortedShares = (value: Record<string, number>) => JSON.stringify(Object.entries(value).sort())
   return draft.amountCents === expected.amountCents
     && draft.payerId === expected.payerId
     && JSON.stringify(participants) === JSON.stringify([...expected.participantIds].sort())
-    && JSON.stringify(shares) === JSON.stringify(expected.exactSharesCents ?? {})
+    && sortedShares(shares) === sortedShares(expected.exactSharesCents ?? {})
 }
 
 function score(result: Record<string, unknown>, expected: Expected) {
   if (expected.status === 'needs_clarification') return result.status === 'needs_clarification'
-  const drafts = result.status === 'ready' ? [result] : result.status === 'ready_batch' ? result.expenses as Record<string, unknown>[] : []
+  const drafts = result.status === 'ready' ? [result] : result.status === 'ready_batch' ? result.drafts as Record<string, unknown>[] : []
   return drafts.length === expected.drafts.length && drafts.every((draft, index) => scoreDraft(draft, expected.drafts[index]))
+}
+
+function summarize(result: Record<string, unknown> | undefined) {
+  if (!result) return null
+  if (result.status === 'needs_clarification') return `clarify: ${String(result.question)}`
+  const drafts = (result.status === 'ready_batch' ? result.drafts : [result]) as Record<string, unknown>[]
+  return drafts.map(draft => {
+    const shares = (draft.exactSharesCents as { memberId: string, amountCents: number }[])
+      .map(share => `${share.memberId}=${share.amountCents}`).join(',')
+    return `${String(draft.amountCents)} paid by ${String(draft.payerId)} for [${(draft.participantIds as string[]).join(',')}]${shares ? ` exact ${shares}` : ''}`
+  }).join(' ; ')
 }
 
 async function runCase(testCase: Case, request: AiExpenseRequest, config: string, key: string) {
@@ -331,6 +358,8 @@ async function runCase(testCase: Case, request: AiExpenseRequest, config: string
     // True when the handler replaced an invalid model output with its generic recovery question.
     recoveredFromInvalidOutput: recovered,
     correct: body.result ? score(body.result, testCase.expected) && !recovered : false,
+    // Test cases use synthetic names and amounts, so the draft is safe to print for diagnosis.
+    got: summarize(body.result),
     totalMs: Date.now() - started,
     attempts,
   }
@@ -356,8 +385,7 @@ async function main() {
     const request = await buildRequest(testCase, voiceEnabled)
     if (!request) continue
     for (const config of configs) {
-      // Voice never uses the text fallback, so gemma-only would repeat production.
-      if (request.inputMode === 'voice' && config !== 'production') continue
+      if (!appliesTo(config, request.inputMode)) continue
       for (let repeat = 0; repeat < Number(values.repeat); repeat += 1) {
         const result = await runCase(testCase, request, config, key)
         results.push(result)
@@ -371,6 +399,7 @@ async function main() {
           `${result.totalMs}ms`.padStart(7),
           `attempts=${result.attempts.length}`,
           first ? `served=${first.servedModel ?? '-'}@${first.provider ?? '-'}` : 'local',
+          result.correct ? '' : `got=${result.got}`,
           result.recoveredFromInvalidOutput ? `invalid-output keys=${result.attempts.map(a => a.invalidOutputKeys?.join('|')).join(';')}` : '',
         ].join('  '))
       }

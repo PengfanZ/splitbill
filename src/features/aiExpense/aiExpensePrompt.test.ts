@@ -60,6 +60,8 @@ describe('OpenRouter expense prompt', () => {
     expect(built.messages[0].content).toContain('never ask again')
     expect(built.messages[0].content).toContain('vague, unrelated to an expense')
     expect(built.messages[0].content).toContain('Never use status "ready"')
+    expect(built.messages[0].content).toContain('"Split with", "shared with"')
+    expect(built.messages[0].content).toContain('use an equal split rather than exact shares')
     const initialContent = built.messages[1].content
     if (typeof initialContent !== 'string') throw new Error('Expected text content')
     expect(JSON.parse(initialContent)).toEqual({
