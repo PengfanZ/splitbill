@@ -10,9 +10,12 @@ import {
   AiExpenseContractError,
 } from './aiExpenseContract.ts'
 
-export const DEFAULT_OPENROUTER_MODEL = 'google/gemma-4-26b-a4b-it:free'
-export const DEFAULT_OPENROUTER_FALLBACK_MODEL = 'google/gemini-2.5-flash-lite'
-export const DEFAULT_OPENROUTER_VOICE_MODEL = 'google/gemini-2.5-flash-lite'
+// Aligned with the receipt models chosen by scripts/receipt-eval: Gemini 2.5 Flash Lite
+// retires on 2026-10-20. Gemma has many ZDR providers, so it covers Google-only rate limits
+// for text. Gemma 4 26B has no audio input, so voice uses the audio-capable Gemini model only.
+export const DEFAULT_OPENROUTER_MODEL = 'google/gemini-3.1-flash-lite'
+export const DEFAULT_OPENROUTER_FALLBACK_MODEL = 'google/gemma-4-26b-a4b-it'
+export const DEFAULT_OPENROUTER_VOICE_MODEL = 'google/gemini-3.1-flash-lite'
 
 export const AI_EXPENSE_JSON_SCHEMA = {
   type: 'object',
@@ -112,8 +115,11 @@ Rules:
 - For an equal split, participantIds contains everyone included and exactSharesCents is empty.
 - For an exact split, participantIds and exactSharesCents contain the same members, and exact shares sum exactly to amountCents.
 - A payer does not have to be included in the split.
+- "Split with", "shared with", or "went halves with" named people includes the speaker (or the named payer) together with them. Exclude the payer only when the description says the expense was only for others, such as "for Leo and Sam" or "I didn't have any".
+- If every participant owes the same share, use an equal split rather than exact shares.
 - Keep the title concise and write it in the same language as the description.
 - Write clarificationQuestion in the description's language. For mixed-language text, use its dominant language; when the language is unclear, use interfaceLocale.
+- Return one JSON object matching outputSchema, with its fields at the top level. Do not wrap it in result, draft, or data, or return the schema itself.
 - Return only the requested structured output.`
 
 export function buildOpenRouterRequest(
@@ -126,12 +132,14 @@ export function buildOpenRouterRequest(
     | { type: 'text'; text: string }
     | { type: 'input_audio'; input_audio: { data: string; format: 'wav' } }
   >
+  const batchMode = isBatchAiExpenseRequest(request)
   const activityContext = {
     activityCurrency: request.currency,
     interfaceLocale: request.locale,
     members: request.members,
     currentMemberId: request.viewerMemberId ?? null,
-    responseMode: isBatchAiExpenseRequest(request) ? 'batch' : 'single',
+    responseMode: batchMode ? 'batch' : 'single',
+    outputSchema: batchMode ? AI_EXPENSE_BATCH_JSON_SCHEMA : AI_EXPENSE_JSON_SCHEMA,
   }
   const initialContent: MessageContent = isVoiceAiExpenseRequest(request)
     ? [
@@ -156,26 +164,23 @@ export function buildOpenRouterRequest(
     )
   }
 
-  const batchMode = isBatchAiExpenseRequest(request)
   return {
     models,
     messages,
-    response_format: {
-      type: 'json_schema',
-      json_schema: {
-        name: batchMode ? 'tally_expense_batch' : 'tally_expense_draft',
-        strict: true,
-        schema: batchMode ? AI_EXPENSE_BATCH_JSON_SCHEMA : AI_EXPENSE_JSON_SCHEMA,
-      },
-    },
+    // Strict JSON Schema made Gemini Flash Lite return empty or runaway output in the receipt
+    // evaluation; JSON mode plus the schema in the prompt and local Zod validation is reliable.
+    response_format: { type: 'json_object' },
     provider: {
       allow_fallbacks: true,
       data_collection: 'deny',
       preferred_max_latency: { p90: 3 },
       require_parameters: true,
-      sort: { by: 'price', partition: 'none' },
+      // 'model' keeps the primary model first; 'none' would route to the cheaper fallback.
+      sort: { by: 'price', partition: 'model' },
       zdr: true,
     },
+    // Drafting needs no chain of thought; reasoning only adds latency.
+    reasoning: { effort: 'none' },
     temperature: 0,
     max_tokens: batchMode ? 8_000 : 700,
   }

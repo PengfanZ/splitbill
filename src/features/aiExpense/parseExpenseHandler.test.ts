@@ -261,7 +261,7 @@ describe('parse expense Edge Function handler', () => {
     expect(deps.fetcher).not.toHaveBeenCalled()
   })
 
-  it('returns a validated draft and sends a free-first, low-cost fallback request', async () => {
+  it('returns a validated draft and sends a primary-first request with a ZDR fallback', async () => {
     const fetcher = vi.fn().mockResolvedValue(providerResponse())
     const response = await handleParseExpenseRequest(request(), dependencies({ fetcher }))
     expect(response.status).toBe(200)
@@ -313,9 +313,10 @@ describe('parse expense Edge Function handler', () => {
     })
     const body = JSON.parse((fetcher.mock.calls[0][1] as RequestInit).body as string)
     expect(body.max_tokens).toBe(8_000)
-    expect(body.response_format.json_schema.name).toBe('tally_expense_batch')
-    expect(body.response_format.json_schema.schema.properties.expenses).not.toHaveProperty('maxItems')
-    expect(JSON.parse(body.messages[1].content)).toMatchObject({ responseMode: 'batch' })
+    expect(body.response_format).toEqual({ type: 'json_object' })
+    const context = JSON.parse(body.messages[1].content)
+    expect(context).toMatchObject({ responseMode: 'batch' })
+    expect(context.outputSchema.properties.expenses).not.toHaveProperty('maxItems')
   })
 
   it('turns an unsafe partial batch into one clarification instead of saving partial drafts', async () => {
@@ -395,8 +396,9 @@ describe('parse expense Edge Function handler', () => {
     [504, 'model_unavailable', 503],
   ])('maps provider status %s to %s', async (providerStatus, code, expectedStatus) => {
     const reportProviderFailure = vi.fn()
+    const fetcher = vi.fn().mockImplementation(async () => new Response('{}', { status: providerStatus }))
     const response = await handleParseExpenseRequest(request(), dependencies({
-      fetcher: vi.fn().mockResolvedValue(new Response('{}', { status: providerStatus })),
+      fetcher,
       reportProviderFailure,
     }))
     expect(response.status).toBe(expectedStatus)
@@ -406,12 +408,24 @@ describe('parse expense Edge Function handler', () => {
       status: providerStatus,
       errorType: null,
     })
+    // Only temporary failures spend the second request on the fallback model.
+    const transient = [429, 502, 503, 504].includes(providerStatus)
+    expect(fetcher).toHaveBeenCalledTimes(transient ? 2 : 1)
+    if (transient) {
+      expect(JSON.parse((fetcher.mock.calls[1][1] as RequestInit).body as string).models)
+        .toEqual([DEFAULT_OPENROUTER_FALLBACK_MODEL])
+      expect(reportProviderFailure).toHaveBeenLastCalledWith({
+        models: [DEFAULT_OPENROUTER_FALLBACK_MODEL],
+        status: providerStatus,
+        errorType: null,
+      })
+    }
   })
 
   it('recognizes provider failures embedded in an HTTP 200 completion', async () => {
     const reportProviderFailure = vi.fn()
     const response = await handleParseExpenseRequest(request(), dependencies({
-      fetcher: vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      fetcher: vi.fn().mockImplementation(async () => new Response(JSON.stringify({
         choices: [{
           finish_reason: 'error',
           error: {
@@ -430,6 +444,113 @@ describe('parse expense Edge Function handler', () => {
       errorType: 'provider_unavailable',
     }))
     expect(JSON.stringify(reportProviderFailure.mock.calls)).not.toContain('secret upstream detail')
+  })
+
+  it('retries a temporary primary failure on the fallback model and reports the model that answered', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{ error: { code: 429, metadata: { error_type: 'rate_limit_exceeded' } } }],
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        model: 'google/gemma-4-26b-a4b-it-served',
+        choices: [{ message: { content: JSON.stringify(output) } }],
+      })))
+    const response = await handleParseExpenseRequest(request(), dependencies({ fetcher }))
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ result: { status: 'ready' }, model: 'google/gemma-4-26b-a4b-it-served' })
+    expect(JSON.parse((fetcher.mock.calls[1][1] as RequestInit).body as string).models)
+      .toEqual([DEFAULT_OPENROUTER_FALLBACK_MODEL])
+
+    const withoutModel = vi.fn()
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{ message: { content: JSON.stringify(output) } }],
+      })))
+    const recovered = await handleParseExpenseRequest(request(), dependencies({ fetcher: withoutModel }))
+    expect(await recovered.json()).toMatchObject({ model: DEFAULT_OPENROUTER_FALLBACK_MODEL })
+  })
+
+  it('does not retry payment failures', async () => {
+    const paymentFetcher = vi.fn().mockImplementation(async () => new Response(JSON.stringify({
+      error: { code: 402, metadata: { error_type: 'payment_required' } },
+    })))
+    const payment = await handleParseExpenseRequest(request(), dependencies({ fetcher: paymentFetcher }))
+    expect(await payment.json()).toMatchObject({ code: 'provider_payment_required' })
+    expect(paymentFetcher).toHaveBeenCalledTimes(1)
+  })
+
+  it('retries a temporary voice failure once on the same audio model', async () => {
+    const voiceFetcher = vi.fn()
+      .mockResolvedValueOnce(new Response('{}', { status: 503 }))
+      .mockResolvedValueOnce(providerResponse())
+    const voice = await handleParseExpenseRequest(
+      request(voiceBody, { 'x-tally-input-mode': 'voice' }),
+      dependencies({ fetcher: voiceFetcher }),
+    )
+    expect(await voice.json()).toMatchObject({ result: { status: 'ready' }, model: DEFAULT_OPENROUTER_VOICE_MODEL })
+    for (const call of voiceFetcher.mock.calls) {
+      expect(JSON.parse((call[1] as RequestInit).body as string).models).toEqual([DEFAULT_OPENROUTER_VOICE_MODEL])
+    }
+
+    const failing = vi.fn().mockImplementation(async () => new Response('{}', { status: 429 }))
+    const exhausted = await handleParseExpenseRequest(
+      request(voiceBody, { 'x-tally-input-mode': 'voice' }),
+      dependencies({ fetcher: failing }),
+    )
+    expect(await exhausted.json()).toMatchObject({ code: 'provider_rate_limit' })
+    expect(failing).toHaveBeenCalledTimes(2)
+  })
+
+  it('caps a hung primary attempt so the fallback still answers within the deadline', async () => {
+    // Fire each attempt timeout on demand instead of waiting 8 real seconds.
+    const timeouts: Array<{ ms: number, controller: AbortController }> = []
+    const timeoutSpy = vi.spyOn(AbortSignal, 'timeout').mockImplementation(ms => {
+      const controller = new AbortController()
+      timeouts.push({ ms, controller })
+      return controller.signal
+    })
+    try {
+      const hangUntilAborted = (_input: RequestInfo | URL, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new DOMException('timed out', 'TimeoutError')))
+        timeouts.at(-1)?.controller.abort()
+      })
+      const reportProviderFailure = vi.fn()
+      const fetcher = vi.fn()
+        .mockImplementationOnce(hangUntilAborted)
+        .mockResolvedValueOnce(providerResponse())
+      const response = await handleParseExpenseRequest(request(), dependencies({ fetcher, reportProviderFailure }))
+      expect(await response.json()).toMatchObject({ result: { status: 'ready' } })
+      expect(timeouts[0].ms).toBe(8_000)
+      expect(timeouts[1].ms).toBeGreaterThan(8_000)
+      expect(reportProviderFailure).toHaveBeenCalledWith({
+        models: [DEFAULT_OPENROUTER_MODEL, DEFAULT_OPENROUTER_FALLBACK_MODEL],
+        status: 503,
+        errorType: 'timeout',
+      })
+
+      // A response body that stalls past the attempt timeout also moves on to the fallback.
+      const stalledBody = new Response('{}')
+      vi.spyOn(stalledBody, 'json').mockImplementation(async () => {
+        timeouts.at(-1)?.controller.abort()
+        throw new DOMException('timed out', 'TimeoutError')
+      })
+      const bodyReporter = vi.fn()
+      const recovered = await handleParseExpenseRequest(request(), dependencies({
+        fetcher: vi.fn().mockResolvedValueOnce(stalledBody).mockResolvedValueOnce(providerResponse()),
+        reportProviderFailure: bodyReporter,
+      }))
+      expect(await recovered.json()).toMatchObject({ result: { status: 'ready' } })
+      expect(bodyReporter).toHaveBeenCalledWith(expect.objectContaining({ errorType: 'timeout' }))
+
+      // The last attempt keeps the remaining deadline and reports the timeout to the browser.
+      const finalFetcher = vi.fn().mockImplementation(hangUntilAborted)
+      const exhausted = await handleParseExpenseRequest(request(), dependencies({ fetcher: finalFetcher }))
+      expect(exhausted.status).toBe(503)
+      expect(await exhausted.json()).toMatchObject({ code: 'provider_unavailable' })
+      expect(finalFetcher).toHaveBeenCalledTimes(2)
+    } finally {
+      timeoutSpy.mockRestore()
+    }
   })
 
   it('handles provider network and unreadable response failures without leaking content', async () => {

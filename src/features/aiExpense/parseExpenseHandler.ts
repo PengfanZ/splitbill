@@ -50,6 +50,12 @@ export type AiExpenseQuotaResult = 'allowed' | 'client-limit' | 'global-limit'
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
 const MAX_TEXT_REQUEST_BYTES = 32 * 1024
 const MAX_VOICE_REQUEST_BYTES = 3 * 1024 * 1024
+// Measured from request arrival, including upload and quota, so the server always
+// answers before the browser's 23-second deadline in aiExpenseApi.ts.
+const REQUEST_DEADLINE_MS = 20_000
+// Drafts normally finish in about 2 seconds, but an upstream can hang with no response.
+// Capping every attempt but the last leaves the fallback most of the deadline.
+const RETRYABLE_ATTEMPT_TIMEOUT_MS = 8_000
 
 function jsonError(status: number, code: string, message: string) {
   return Response.json({ code, message }, {
@@ -67,6 +73,12 @@ function requestIdentifier(request: Request) {
   return candidate.length <= 64 && /^[0-9a-f:.]+$/i.test(candidate)
     ? candidate
     : 'unknown-client'
+}
+
+// Payment and budget failures are not transient: another model would fail the same way.
+function isTransientProviderFailure(status: number, errorType: string | null) {
+  return [408, 429, 502, 503, 504].includes(status)
+    || ['rate_limit_exceeded', 'provider_overloaded', 'provider_unavailable', 'timeout'].includes(errorType ?? '')
 }
 
 function providerFailureResponse(status: number, errorType: string | null) {
@@ -111,6 +123,7 @@ export async function handleParseExpenseRequest(
   request: Request,
   dependencies: ParseExpenseHandlerDependencies,
 ) {
+  const deadline = Date.now() + REQUEST_DEADLINE_MS
   if (request.method !== 'POST') {
     return jsonError(405, 'method_not_allowed', 'Use POST to create an expense draft.')
   }
@@ -175,43 +188,67 @@ export async function handleParseExpenseRequest(
     ? dependencies.getEnvironment('OPENROUTER_VOICE_FALLBACK_MODEL')?.trim() || DEFAULT_OPENROUTER_VOICE_MODEL
     : dependencies.getEnvironment('OPENROUTER_FALLBACK_MODEL')?.trim() || DEFAULT_OPENROUTER_FALLBACK_MODEL
   const models = model === fallbackModel ? [model] : [model, fallbackModel]
-  let providerResponse: Response
-  try {
-    providerResponse = await (dependencies.fetcher ?? fetch)(OPENROUTER_URL, {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${apiKey}`,
-        'content-type': 'application/json',
-        'http-referer': 'https://pengfanz.github.io/splitbill/',
-        'x-title': 'Tally AI expense preview',
-      },
-      body: JSON.stringify(buildOpenRouterRequest(parsedRequest, model, fallbackModel)),
-      signal: AbortSignal.timeout(20_000),
-    })
-  } catch {
-    dependencies.reportProviderFailure?.({ models, status: 503, errorType: 'network' })
-    return jsonError(503, 'provider_unavailable', 'The AI provider could not be reached.')
-  }
-
+  // OpenRouter cannot switch models once an upstream fails mid-response, so a temporary
+  // primary failure gets one more request on the fallback model. Voice has no audio-capable
+  // fallback that passed the eval, so a single model retries once on itself; hangs were transient.
+  const attemptModels = [models, [fallbackModel]]
   let providerPayload: unknown
-  try {
-    providerPayload = await providerResponse.json()
-  } catch {
-    dependencies.reportProviderFailure?.({ models, status: providerResponse.status, errorType: 'unreadable_response' })
-    return jsonError(502, 'provider_error', 'The AI provider returned unreadable data.')
-  }
+  let requestedModel = model
+  for (const [attemptIndex, currentModels] of attemptModels.entries()) {
+    const canRetry = attemptIndex < attemptModels.length - 1
+    requestedModel = currentModels[0]
+    const remainingMs = Math.max(deadline - Date.now(), 1)
+    const signal = AbortSignal.timeout(canRetry ? Math.min(remainingMs, RETRYABLE_ATTEMPT_TIMEOUT_MS) : remainingMs)
+    let providerResponse: Response
+    try {
+      providerResponse = await (dependencies.fetcher ?? fetch)(OPENROUTER_URL, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${apiKey}`,
+          'content-type': 'application/json',
+          'http-referer': 'https://pengfanz.github.io/splitbill/',
+          'x-title': 'Tally AI expense preview',
+        },
+        body: JSON.stringify(buildOpenRouterRequest(parsedRequest, currentModels[0], currentModels.at(-1))),
+        signal,
+      })
+    } catch {
+      dependencies.reportProviderFailure?.({
+        models: currentModels,
+        status: 503,
+        errorType: signal.aborted ? 'timeout' : 'network',
+      })
+      if (canRetry) continue
+      return jsonError(503, 'provider_unavailable', 'The AI provider could not be reached.')
+    }
 
-  const embeddedFailure = getOpenRouterFailure(providerPayload)
-  if (!providerResponse.ok || embeddedFailure) {
-    const status = embeddedFailure?.status ?? providerResponse.status
-    const errorType = embeddedFailure?.errorType ?? null
-    dependencies.reportProviderFailure?.({ models, status, errorType })
-    return providerFailureResponse(status, errorType)
+    try {
+      providerPayload = await providerResponse.json()
+    } catch {
+      dependencies.reportProviderFailure?.({
+        models: currentModels,
+        status: providerResponse.status,
+        errorType: signal.aborted ? 'timeout' : 'unreadable_response',
+      })
+      // A body cut off by the attempt timeout is a hang, not bad data, so the fallback gets a turn.
+      if (canRetry && signal.aborted) continue
+      return jsonError(502, 'provider_error', 'The AI provider returned unreadable data.')
+    }
+
+    const embeddedFailure = getOpenRouterFailure(providerPayload)
+    if (!providerResponse.ok || embeddedFailure) {
+      const status = embeddedFailure?.status ?? providerResponse.status
+      const errorType = embeddedFailure?.errorType ?? null
+      dependencies.reportProviderFailure?.({ models: currentModels, status, errorType })
+      if (canRetry && isTransientProviderFailure(status, errorType)) continue
+      return providerFailureResponse(status, errorType)
+    }
+    break
   }
 
   const actualModel = isRecord(providerPayload) && typeof providerPayload.model === 'string'
     ? providerPayload.model
-    : model
+    : requestedModel
 
   try {
     const result = isBatchAiExpenseRequest(parsedRequest)

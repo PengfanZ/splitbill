@@ -19,8 +19,8 @@ Production enables the feature only when the Edge Function secrets are configure
 2. The OpenRouter key exists only in the Supabase Edge Function.
 3. Tiny, clearly incomplete category-only descriptions receive a deterministic, localized clarification before any provider request or quota consumption.
 4. Substantive descriptions in any language, dialect, shorthand, or mixed language go to the model; language-specific regexes never block them.
-5. The Edge Function accepts a publishable client request, checks a server-only rate limit, prefers the cheapest model that meets a three-second p90 latency target, opts out of provider data collection, and requires an OpenRouter Zero Data Retention endpoint.
-6. A strict JSON Schema constrains every model-generated expense without imposing a fixed expense-count limit.
+5. The Edge Function accepts a publishable client request, checks a server-only rate limit, tries the primary model first on routes that meet a three-second p90 latency target, opts out of provider data collection, and requires an OpenRouter Zero Data Retention endpoint.
+6. The prompt carries the expense JSON Schema without imposing a fixed expense-count limit, and every model-generated expense must pass local Zod validation.
 7. Titles and clarification questions follow the description's language, with the interface locale used only as a fallback.
 8. Zod and deterministic business rules reject unknown members, invalid cents, duplicate participants, and exact splits that do not equal the total.
 9. Remaining ambiguity becomes a clarification question, and every answer is appended to a bounded structured history so later turns cannot forget earlier details.
@@ -31,9 +31,17 @@ This does not use RAG: there is no external knowledge to retrieve. Reliability c
 
 ## Model and cost control
 
-Typed descriptions use the candidates `google/gemma-4-26b-a4b-it:free` and `google/gemini-2.5-flash-lite`. OpenRouter prefers the cheapest eligible zero-retention route whose recent p90 latency is at most three seconds, while keeping slower eligible routes available as fallbacks. Voice goes directly to the audio-capable `google/gemini-2.5-flash-lite`, avoiding a separate transcription request. Override either model only after confirming it appears in OpenRouter's current ZDR catalog and running the same multilingual voice and browser checks.
+Text and voice use the same model family as receipts, because `google/gemini-2.5-flash-lite` retires on 2026-10-20. Typed descriptions start with `google/gemini-3.1-flash-lite`, with `google/gemma-4-26b-a4b-it` as the fallback. Requests use JSON mode with the expense schema in the prompt and reasoning off; strict JSON Schema is not used because it made Gemini Flash Lite models return empty or runaway output in the receipt evaluation. OpenRouter routing keeps `partition: 'model'`, so the primary model is tried first on a zero-retention route whose recent p90 latency is at most three seconds. If the primary fails with a temporary provider error such as an upstream rate limit, or does not answer within 8 seconds, the handler sends one more request to the fallback model; payment and budget failures are not retried. Drafts normally finish in about two seconds, so the 8-second cap only cuts off a hung upstream and leaves the fallback most of the deadline. Voice goes directly to the audio-capable `google/gemini-3.1-flash-lite`, avoiding a separate transcription request. Gemma 4 26B has no audio input, and the audio-capable ZDR candidates tried in September 2026 (`google/gemini-3.5-flash-lite` and `xiaomi/mimo-v2.5`) either had no route for this request or were slow and misread payers, so voice retries once on the same model instead. Override either model only after confirming it appears in OpenRouter's current ZDR catalog and running `scripts/expense-eval` plus the browser checks.
 
-A successful provider response that does not satisfy the expense contract is treated as an incomplete conversation: the user receives a localized prompt to restate the amount, payer, and participants. A genuine upstream failure is logged without the expense text and shown as a model-specific retry/manual-entry message. The request has a bounded timeout so an unavailable route cannot leave the user waiting indefinitely.
+A successful provider response that does not satisfy the expense contract is treated as an incomplete conversation: the user receives a localized prompt to restate the amount, payer, and participants. A genuine upstream failure is logged without the expense text and shown as a model-specific retry/manual-entry message. The whole request, including upload and quota, has a 20-second server deadline so the browser's 23-second timeout always receives an answer.
+
+Compare text and voice models with `scripts/expense-eval` before changing any drafting model or prompt rule. It runs scored cases through the production handler, including its retry path, against live OpenRouter models: typed English, Chinese, and Spanish, exact shares, multi-expense batches, a vague description, a follow-up answer, a prompt-injection attempt, and voice clips synthesized locally with macOS `say`. It separately counts responses that failed the local contract and were replaced with the generic clarification, which is how a JSON-mode shape mismatch would otherwise go unnoticed.
+
+```bash
+node scripts/expense-eval/run.ts --repeat 3 --configs production,gemma-only,voice-g35-lite,voice-mimo
+```
+
+The runner asks for an OpenRouter key without echoing it; use a separate, credit-limited key. Results stay in the ignored `scripts/expense-eval/.cache`. In the September 2026 run, production answered 30 of 30 text and 12 of 12 voice cases correctly with no contract failures, at a median of about 1.3 seconds for text and 2 seconds for voice. Gemma alone answered 27 of 30; its misses were safe clarification questions on the prompt-injection case. An earlier run found Gemini reading "split with Leo and Sam" as excluding the speaker, which the prompt now addresses.
 
 The server maintains separate cost budgets per normalized client identifier. Text allows 30 requests per 10 minutes and 100 per day; voice allows 10 per 10 minutes and 25 per day. A second, server-only project ceiling defaults to 500 text and 100 voice provider calls per rolling day, stopping distributed traffic that no single-client quota would catch. Administrators can lower a ceiling or disable one mode in `private.ai_expense_budget_limits`. Counters are consumed before the provider call, including provider failures, and the stricter limit wins. OpenRouter account limits remain the final hard cost ceiling. Use a preview-only key with a deliberately small limit, but leave enough unused budget for OpenRouter to authorize one worst-case voice request; an almost-exhausted `$0.01` key can reject a recording before the model runs. Never reuse a broad personal key.
 
@@ -80,9 +88,9 @@ Create a dedicated Supabase preview project. Apply the candidate branch's migrat
 ```text
 AI_EXPENSE_ENABLED=true
 OPENROUTER_API_KEY=<preview-only key>
-OPENROUTER_MODEL=google/gemma-4-26b-a4b-it:free
-OPENROUTER_FALLBACK_MODEL=google/gemini-2.5-flash-lite
-OPENROUTER_VOICE_MODEL=google/gemini-2.5-flash-lite
+OPENROUTER_MODEL=google/gemini-3.1-flash-lite
+OPENROUTER_FALLBACK_MODEL=google/gemma-4-26b-a4b-it
+OPENROUTER_VOICE_MODEL=google/gemini-3.1-flash-lite
 ```
 
 Keep the production project reference out of the preview deployment environment. The database function `consume_ai_expense_quota_v2` is executable only by the service role used inside the Edge Function; browser clients cannot call it directly or read the private budget table.
