@@ -122,6 +122,12 @@ function getOpenRouterFailure(value: unknown) {
   }
 }
 
+// Payment and budget failures are not transient: another model would fail the same way.
+function isTransientProviderFailure(status: number, errorType: string | null) {
+  return [408, 429, 502, 503, 504].includes(status)
+    || ['rate_limit_exceeded', 'provider_overloaded', 'provider_unavailable', 'timeout'].includes(errorType ?? '')
+}
+
 function providerFailureResponse(status: number, errorType: string | null) {
   if (status === 402 || errorType === 'payment_required') {
     return jsonError(503, 'provider_payment_required', 'Receipt AI credits are currently unavailable.')
@@ -254,6 +260,7 @@ async function parseReceiptRequestWithTrace(
       dependencies.reportProviderFailure?.({ models: currentModels, status: 503, errorType: 'network' })
       // After an invalid first draft, the draft is the actionable cause, not the retry's transport.
       if (previousFailure) return invalidModelResponse()
+      if (!signal.aborted && attemptIndex < attemptModels.length - 1) continue
       return jsonError(503, 'provider_unavailable', 'The receipt AI service could not be reached.')
     }
 
@@ -278,6 +285,9 @@ async function parseReceiptRequestWithTrace(
       const errorType = embeddedFailure?.errorType ?? null
       trace.emit('failure', { status, reason: 'provider_error' })
       dependencies.reportProviderFailure?.({ models: currentModels, status, errorType })
+      // OpenRouter cannot switch models once an upstream fails mid-response, so a temporary
+      // primary failure uses the remaining attempt on the fallback model.
+      if (!previousFailure && attemptIndex < attemptModels.length - 1 && isTransientProviderFailure(status, errorType)) continue
       return providerFailureResponse(status, errorType)
     }
 

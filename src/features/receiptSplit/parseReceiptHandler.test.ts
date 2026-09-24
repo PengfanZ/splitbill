@@ -283,29 +283,47 @@ describe('parse receipt Edge Function handler', () => {
   })
 
   it.each([
-    [402, null, 503, 'provider_payment_required'],
-    [429, null, 429, 'provider_rate_limit'],
-    [408, null, 503, 'model_unavailable'],
-    [502, null, 503, 'model_unavailable'],
-    [503, null, 503, 'model_unavailable'],
-    [504, null, 503, 'model_unavailable'],
-    [500, null, 502, 'provider_error'],
-    [200, 'payment_required', 503, 'provider_payment_required'],
-    [200, 'rate_limit_exceeded', 429, 'provider_rate_limit'],
-    [200, 'provider_overloaded', 503, 'model_unavailable'],
-    [200, 'something_else', 502, 'provider_error'],
-  ])('maps provider failure %s/%s', async (providerStatus, errorType, expectedStatus, code) => {
+    [402, null, 503, 'provider_payment_required', 1],
+    [429, null, 429, 'provider_rate_limit', 2],
+    [408, null, 503, 'model_unavailable', 2],
+    [502, null, 503, 'model_unavailable', 2],
+    [503, null, 503, 'model_unavailable', 2],
+    [504, null, 503, 'model_unavailable', 2],
+    [500, null, 502, 'provider_error', 1],
+    [200, 'payment_required', 503, 'provider_payment_required', 1],
+    [200, 'rate_limit_exceeded', 429, 'provider_rate_limit', 2],
+    [200, 'provider_overloaded', 503, 'model_unavailable', 2],
+    [200, 'something_else', 502, 'provider_error', 1],
+  ])('maps provider failure %s/%s and tries the fallback only when it is transient', async (providerStatus, errorType, expectedStatus, code, calls) => {
     const payload = errorType
       ? { error: { code: providerStatus === 200 ? 500 : providerStatus, metadata: { error_type: errorType } } }
       : {}
     const reporter = vi.fn()
-    const response = await handleParseReceiptRequest(request(), dependencies({
-      fetcher: vi.fn().mockResolvedValue(new Response(JSON.stringify(payload), { status: providerStatus })),
-      reportProviderFailure: reporter,
-    }))
+    const fetcher = vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify(payload), { status: providerStatus })))
+    const response = await handleParseReceiptRequest(request(), dependencies({ fetcher, reportProviderFailure: reporter }))
     expect(response.status).toBe(expectedStatus)
     expect(await response.json()).toMatchObject({ code })
     expect(reporter).toHaveBeenCalledWith(expect.objectContaining({ errorType }))
+    expect(fetcher).toHaveBeenCalledTimes(calls)
+  })
+
+  it.each([
+    ['an upstream rate limit inside a 200 response', () => Promise.resolve(new Response(JSON.stringify({
+      choices: [{ error: { code: 429, message: 'temporarily rate-limited upstream', metadata: { error_type: 'rate_limit_exceeded' } } }],
+    })))],
+    ['a network failure', () => Promise.reject(new Error('socket hang up'))],
+  ])('recovers from %s on the primary with the fallback model', async (_case, primaryFailure) => {
+    // Regression: OpenRouter cannot switch models after an upstream fails mid-response, so a
+    // Google-only rate limit on the primary reached users as "models are busy".
+    const fetcher = vi.fn()
+      .mockImplementationOnce(primaryFailure)
+      .mockResolvedValueOnce(providerResponse(receiptDraftFixture, 200, DEFAULT_OPENROUTER_RECEIPT_FALLBACK_MODEL))
+    const deps = dependencies({ fetcher })
+    const response = await handleParseReceiptRequest(request(), deps)
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ result: receiptDraftFixture, model: DEFAULT_OPENROUTER_RECEIPT_FALLBACK_MODEL })
+    expect(JSON.parse(fetcher.mock.calls[1][1].body as string).models).toEqual([DEFAULT_OPENROUTER_RECEIPT_FALLBACK_MODEL])
+    expect(deps.consumeQuota).toHaveBeenCalledTimes(1)
   })
 
   it('recognizes embedded choice failures and nonnumeric error codes', async () => {
