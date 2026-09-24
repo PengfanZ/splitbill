@@ -92,3 +92,11 @@ The validation-recovery update needs no new migration: `invalid-response` is
 already an accepted client outcome, and the additional metadata stays in Edge
 Function logs. Deploy the function and frontend together for the corrected UI
 classification; existing clients and saved receipts remain compatible.
+
+The receipt model update also needs no migration. The 25-second server deadline now
+starts when the request arrives, so upload and quota time count against it and the
+server answers before the 30-second client timeout. If upload and quota use the whole
+deadline, the failure reason is `deadline_exceeded`. A retry that times out or returns
+an unreadable body after an invalid first draft is reported as `invalid_model_response`,
+because the rejected draft is the actionable cause. Update the production receipt model
+secrets in the same deploy (see [DEPLOYMENT.md](DEPLOYMENT.md)).

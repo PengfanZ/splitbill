@@ -1,0 +1,60 @@
+[
+  {
+    "id": "us-fine-meal", "title": "A fine bill for a fine meal!.jpg", "license": "CC BY 2.0", "author": "Roland Tanglao", "locale": "en",
+    "notes": "Vancouver tapas check; LIQUOR TAXSUBTOTAL is a tax base, not a charge.",
+    "truth": { "currency": "CAD", "itemCount": 10, "itemTotals": [1000, 600, 900, 1000, 800, 1200, 800, 1500, 500, 600], "charges": [{ "type": "tax", "cents": 623 }, { "type": "tax", "cents": 200 }], "subtotalCents": 8900, "totalCents": 9723 }
+  },
+  {
+    "id": "us-harpoon-harrys", "title": "Harpoon Harry’s, Key West, Florida - “In God We Trust” receipt.jpg", "license": "CC BY 2.0", "author": "Sharon Hahn Darlin", "locale": "en",
+    "notes": "Angled table photo; amounts print offset from their labels; free tap water line.",
+    "truth": { "currency": "USD", "itemCount": 2, "itemTotals": [0, 1295], "charges": [{ "type": "tax", "cents": 97 }], "subtotalCents": 1295, "totalCents": 1392 }
+  },
+  {
+    "id": "us-taqueria-maria", "title": "Taqueria Maria - January 2025 - Sarah Stierch 10.jpg", "license": "CC0", "author": "Missvain", "locale": "en",
+    "truth": { "currency": "USD", "itemCount": 3, "itemTotals": [1700, 450, 700], "charges": [{ "type": "tax", "cents": 222 }], "subtotalCents": 2850, "totalCents": 3072 }
+  },
+  {
+    "id": "us-oro-di-napoli", "title": "L'Oro di Napoli - January 2025 - Sarah Stierch 22.jpg", "license": "CC0", "author": "Missvain", "locale": "en",
+    "truth": { "currency": "USD", "itemCount": 3, "itemTotals": [1400, 2200, 1200], "charges": [{ "type": "tax", "cents": 445 }], "subtotalCents": 4800, "totalCents": 5245 }
+  },
+  {
+    "id": "us-caseys-pizza", "title": "OSE Food Apprenticeship Receipt - Casey’s Pizza 23 July 2021.jpeg", "license": "CC BY-SA 4.0", "author": "Cryptogoth", "locale": "en",
+    "notes": "Crumpled; amounts print one line below item names; 15 zero-priced add-ons.",
+    "truth": { "currency": "USD", "itemCount": 6, "itemTotals": [1399, 998, 349, 1199, 1199, 1599], "charges": [{ "type": "tax", "cents": 675 }], "subtotalCents": 6743, "totalCents": 7418 }
+  },
+  {
+    "id": "uk-pink-peacock", "title": "Pink Peacock receipt.jpg", "license": "CC BY-SA 4.0", "author": "Pink Peacock", "locale": "en",
+    "notes": "Handwritten pay-what-you-can slip.",
+    "truth": { "currency": "GBP", "itemCount": 2, "itemTotals": [300, 200], "charges": [], "subtotalCents": 500, "totalCents": 500 }
+  },
+  {
+    "id": "cn-pizza-hut", "title": "SZ 深圳 Shenzhen 南山區 Nanshan 常興路 ChangXing Road Rainbow mall shop Pizza Hut Restaurant bill September 2025 R12S 05.jpg", "license": "CC0", "author": "WEN Menualp TongaUU", "locale": "zh-CN",
+    "notes": "Promotion discount may be read as a receipt charge or folded into the item.",
+    "truth": { "currency": "CNY", "itemCount": 1, "itemTotals": [1990], "charges": [{ "type": "discount", "cents": -990 }], "subtotalCents": 1990, "totalCents": 1000 },
+    "alternatives": [{ "currency": "CNY", "itemCount": 1, "itemTotals": [1000], "charges": [], "subtotalCents": 1000, "totalCents": 1000 }]
+  },
+  {
+    "id": "cn-mcdonalds", "title": "麦当劳小票订单号39581 (202411141911).jpg", "license": "CC BY-SA 4.0", "author": "茅野ふたば", "locale": "zh-CN",
+    "truth": { "currency": "CNY", "itemCount": 1, "itemTotals": [990], "charges": [], "subtotalCents": 990, "totalCents": 990 }
+  },
+  {
+    "id": "cn-seven-fresh", "title": "SZ 深圳 Shenzhen 福田 Futian 金田路 Jintian Road 七鮮超市 Seven Fresh Supermarket checkout bill February 2024 R12S 20.jpg", "license": "CC0", "author": "YEING Luwem Hai Wangs", "locale": "zh-CN",
+    "notes": "Sideways photo; weighed items; zero-value discount line.",
+    "truth": { "currency": "CNY", "itemCount": 6, "itemTotals": [990, 3632, 1080, 990, 4011, 745], "charges": [], "subtotalCents": 11448, "totalCents": 11448 }
+  },
+  {
+    "id": "hk-banquet-seafood", "title": "HK SYP 西環 Sai Ying Pun 德輔道西 308 Des Voeux Road West 食神麗宮酒家 Chinese Banquet Seafood Restaurant bill receipt January 2026 N13P 02.jpg", "license": "CC0", "author": "EVOW Sahgyune Paiem KAASEI 02238", "locale": "zh-CN",
+    "notes": "10% service charge plus a rounding adjustment (約數差額).",
+    "truth": { "currency": "HKD", "itemCount": 6, "itemTotals": [10800, 19800, 11800, 18800, 4500, 23800], "charges": [{ "type": "service", "cents": 8950 }, { "type": "other", "cents": 50 }], "subtotalCents": 89500, "totalCents": 98500 }
+  },
+  {
+    "id": "jp-family-cuisine", "title": "JP 日本 Japan 沖繩 OKINAWA Family Cuisine Restaurant January 2025 R12S 01.jpg", "license": "CC0", "author": "Naha Mama Pavilionz", "locale": "en",
+    "notes": "Tax is included (内消費税), not added; cash tendered and change are decoys. Tally stores JPY with two decimals.",
+    "truth": { "currency": "JPY", "itemCount": 4, "itemTotals": [79000, 196000, 69000, 69000], "charges": [], "subtotalCents": 413000, "totalCents": 413000 }
+  },
+  {
+    "id": "jp-beef-bbq", "title": "JP 日本 Japan 沖繩 OKINAWA 燒肉琉球之牛 Beef BBQ Restaurant January 2025 R12S 01.jpg", "license": "CC0", "author": "Naha Mama Pavilionz", "locale": "en",
+    "notes": "Per-person cover charge is inside the printed subtotal; 10% tax is included; cash and change are decoys.",
+    "truth": { "currency": "JPY", "itemCount": 2, "itemTotals": [1535600, 77000], "charges": [], "subtotalCents": 1612600, "totalCents": 1612600 }
+  }
+]

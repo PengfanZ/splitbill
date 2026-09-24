@@ -225,7 +225,7 @@ describe('parse receipt Edge Function handler', () => {
     expect(giant.status).toBe(413)
   })
 
-  it('returns a validated draft and sends strict low-cost provider settings', async () => {
+  it('returns a validated draft and sends private, primary-first provider settings', async () => {
     const fetcher = vi.fn().mockResolvedValue(providerResponse(receiptDraftFixture, 200, 'answering-model'))
     const response = await handleParseReceiptRequest(request(), dependencies({ fetcher }))
     expect(response.status).toBe(200)
@@ -237,11 +237,14 @@ describe('parse receipt Edge Function handler', () => {
       DEFAULT_OPENROUTER_RECEIPT_MODEL,
       DEFAULT_OPENROUTER_RECEIPT_FALLBACK_MODEL,
     ])])
-    expect(providerBody.response_format).toMatchObject({
-      type: 'json_schema',
-      json_schema: { name: 'tally_receipt', strict: true },
+    // Regression: strict JSON Schema made the September production model return ~4 tokens
+    // for every full-size receipt, so every scan paid for a slow second call.
+    expect(providerBody.response_format).toEqual({ type: 'json_object' })
+    // Regression: partition 'none' sorts all models by price and would route to the cheaper fallback first.
+    expect(providerBody.provider).toMatchObject({
+      data_collection: 'deny', require_parameters: true, zdr: true, sort: { by: 'price', partition: 'model' },
     })
-    expect(providerBody.provider).toMatchObject({ data_collection: 'deny', require_parameters: true, zdr: true })
+    expect(providerBody.reasoning).toEqual({ effort: 'none' })
     expect(init.headers).toMatchObject({ authorization: 'Bearer secret-key' })
     expect(init.signal).toBeInstanceOf(AbortSignal)
   })
@@ -280,29 +283,47 @@ describe('parse receipt Edge Function handler', () => {
   })
 
   it.each([
-    [402, null, 503, 'provider_payment_required'],
-    [429, null, 429, 'provider_rate_limit'],
-    [408, null, 503, 'model_unavailable'],
-    [502, null, 503, 'model_unavailable'],
-    [503, null, 503, 'model_unavailable'],
-    [504, null, 503, 'model_unavailable'],
-    [500, null, 502, 'provider_error'],
-    [200, 'payment_required', 503, 'provider_payment_required'],
-    [200, 'rate_limit_exceeded', 429, 'provider_rate_limit'],
-    [200, 'provider_overloaded', 503, 'model_unavailable'],
-    [200, 'something_else', 502, 'provider_error'],
-  ])('maps provider failure %s/%s', async (providerStatus, errorType, expectedStatus, code) => {
+    [402, null, 503, 'provider_payment_required', 1],
+    [429, null, 429, 'provider_rate_limit', 2],
+    [408, null, 503, 'model_unavailable', 2],
+    [502, null, 503, 'model_unavailable', 2],
+    [503, null, 503, 'model_unavailable', 2],
+    [504, null, 503, 'model_unavailable', 2],
+    [500, null, 502, 'provider_error', 1],
+    [200, 'payment_required', 503, 'provider_payment_required', 1],
+    [200, 'rate_limit_exceeded', 429, 'provider_rate_limit', 2],
+    [200, 'provider_overloaded', 503, 'model_unavailable', 2],
+    [200, 'something_else', 502, 'provider_error', 1],
+  ])('maps provider failure %s/%s and tries the fallback only when it is transient', async (providerStatus, errorType, expectedStatus, code, calls) => {
     const payload = errorType
       ? { error: { code: providerStatus === 200 ? 500 : providerStatus, metadata: { error_type: errorType } } }
       : {}
     const reporter = vi.fn()
-    const response = await handleParseReceiptRequest(request(), dependencies({
-      fetcher: vi.fn().mockResolvedValue(new Response(JSON.stringify(payload), { status: providerStatus })),
-      reportProviderFailure: reporter,
-    }))
+    const fetcher = vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify(payload), { status: providerStatus })))
+    const response = await handleParseReceiptRequest(request(), dependencies({ fetcher, reportProviderFailure: reporter }))
     expect(response.status).toBe(expectedStatus)
     expect(await response.json()).toMatchObject({ code })
     expect(reporter).toHaveBeenCalledWith(expect.objectContaining({ errorType }))
+    expect(fetcher).toHaveBeenCalledTimes(calls)
+  })
+
+  it.each([
+    ['an upstream rate limit inside a 200 response', () => Promise.resolve(new Response(JSON.stringify({
+      choices: [{ error: { code: 429, message: 'temporarily rate-limited upstream', metadata: { error_type: 'rate_limit_exceeded' } } }],
+    })))],
+    ['a network failure', () => Promise.reject(new Error('socket hang up'))],
+  ])('recovers from %s on the primary with the fallback model', async (_case, primaryFailure) => {
+    // Regression: OpenRouter cannot switch models after an upstream fails mid-response, so a
+    // Google-only rate limit on the primary reached users as "models are busy".
+    const fetcher = vi.fn()
+      .mockImplementationOnce(primaryFailure)
+      .mockResolvedValueOnce(providerResponse(receiptDraftFixture, 200, DEFAULT_OPENROUTER_RECEIPT_FALLBACK_MODEL))
+    const deps = dependencies({ fetcher })
+    const response = await handleParseReceiptRequest(request(), deps)
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ result: receiptDraftFixture, model: DEFAULT_OPENROUTER_RECEIPT_FALLBACK_MODEL })
+    expect(JSON.parse(fetcher.mock.calls[1][1].body as string).models).toEqual([DEFAULT_OPENROUTER_RECEIPT_FALLBACK_MODEL])
+    expect(deps.consumeQuota).toHaveBeenCalledTimes(1)
   })
 
   it('recognizes embedded choice failures and nonnumeric error codes', async () => {
@@ -363,7 +384,7 @@ describe('parse receipt Edge Function handler', () => {
     const firstRequest = JSON.parse(fetcher.mock.calls[0][1].body as string)
     const compatibilityRequest = JSON.parse(fetcher.mock.calls[1][1].body as string)
     expect(firstRequest.models).toEqual(['primary', 'fallback'])
-    expect(firstRequest.response_format.type).toBe('json_schema')
+    expect(firstRequest.response_format).toEqual({ type: 'json_object' })
     expect(compatibilityRequest.models).toEqual(['fallback'])
     expect(compatibilityRequest.response_format).toEqual({ type: 'json_object' })
     expect(JSON.parse(compatibilityRequest.messages[1].content[0].text).outputSchema).toBeDefined()
@@ -397,7 +418,7 @@ describe('parse receipt Edge Function handler', () => {
     expect(JSON.stringify(reporter.mock.calls)).not.toContain('Private Merchant')
   })
 
-  it('does not start a validation retry after the provider deadline', async () => {
+  it('does not start a validation retry after the request deadline', async () => {
     vi.spyOn(Date, 'now')
       .mockReturnValueOnce(0)
       .mockReturnValueOnce(1)
@@ -406,6 +427,39 @@ describe('parse receipt Edge Function handler', () => {
     const response = await handleParseReceiptRequest(request(), dependencies({ fetcher }))
     expect(response.status).toBe(422)
     expect(fetcher).toHaveBeenCalledTimes(1)
+  })
+
+  it('counts upload and quota time against the deadline so the browser gets an answer first', async () => {
+    // Regression: the deadline used to start after quota, so slow uploads let the server
+    // outlive the browser's 30-second timeout.
+    const now = vi.spyOn(Date, 'now').mockReturnValue(0)
+    const reportDiagnostic = vi.fn()
+    const fetcher = vi.fn()
+    const consumeQuota = vi.fn(async () => {
+      now.mockReturnValue(25_001)
+      return 'allowed' as const
+    })
+    const response = await handleParseReceiptRequest(request(), dependencies({ consumeQuota, fetcher, reportDiagnostic }))
+    expect(response.status).toBe(503)
+    expect(await response.json()).toMatchObject({ code: 'model_unavailable' })
+    expect(fetcher).not.toHaveBeenCalled()
+    expect(reportDiagnostic).toHaveBeenCalledWith(expect.objectContaining({ event: 'failure', reason: 'deadline_exceeded' }))
+  })
+
+  it.each([
+    ['times out', () => Promise.reject(new Error('abort'))],
+    ['returns an unreadable body', () => Promise.resolve(new Response('{'))],
+  ])('reports the invalid draft when the retry %s', async (_case, retry) => {
+    // Regression: a retry failure after an invalid first draft was shown as a service outage.
+    const reportProviderFailure = vi.fn()
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(providerResponse({ ...receiptDraftFixture, items: [] }))
+      .mockImplementationOnce(retry)
+    const response = await handleParseReceiptRequest(request(), dependencies({ fetcher, reportProviderFailure }))
+    expect(response.status).toBe(422)
+    expect(await response.json()).toMatchObject({ code: 'invalid_model_response' })
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    expect(reportProviderFailure).toHaveBeenCalledTimes(1)
   })
 
   it('sanitizes an unexpected local parser failure', async () => {

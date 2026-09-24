@@ -9,8 +9,11 @@ import {
   type ReceiptDraft,
 } from './receiptContract.ts'
 
-export const DEFAULT_OPENROUTER_RECEIPT_MODEL = 'google/gemini-2.5-flash-lite'
-export const DEFAULT_OPENROUTER_RECEIPT_FALLBACK_MODEL = 'google/gemini-2.5-flash'
+// Chosen with scripts/receipt-eval (docs/AI_EXPENSE_PREVIEW.md): the most accurate and
+// fastest ZDR candidate in JSON mode. Gemma has many ZDR providers, so it covers
+// Google-only rate limits on the primary.
+export const DEFAULT_OPENROUTER_RECEIPT_MODEL = 'google/gemini-3.1-flash-lite'
+export const DEFAULT_OPENROUTER_RECEIPT_FALLBACK_MODEL = 'google/gemma-4-26b-a4b-it'
 
 // Keep the provider schema inside Gemini's supported JSON Schema subset.
 // The local Zod contract remains the source of truth for string bounds and semantic checks.
@@ -135,6 +138,7 @@ Receipt interpretation:
 - Suggested tip examples are not charged tips. Do not include them in charges or totalCents.
 - Discounts must use a negative amount. Other charges must not be negative.
 - A printed saving of 5.00 is a discount of -500 cents, not +500 cents. Do not change a charge's sign merely to pass validation. If a negative adjustment cannot be confidently classified as a discount, preserve its printed text and amount in unresolvedLines for human review instead of guessing its type.
+- Every field ending in Cents is the printed amount multiplied by 100, for every currency. This includes currencies usually printed without decimals: ¥790 is 79000 and ₩12,000 is 1200000.
 - rateBasisPoints is the printed percentage times 100, such as 8% -> 800. Use null when no rate is printed.
 - totalCents must be the value printed on the receipt, even when it appears inconsistent with extracted lines.
 - Use the printed subtotal for subtotalCents. If no subtotal is printed, use null; Tally will derive it from the validated item totals.
@@ -152,7 +156,9 @@ export function buildReceiptOpenRouterRequest(
     DEFAULT_OPENROUTER_RECEIPT_MODEL,
     DEFAULT_OPENROUTER_RECEIPT_FALLBACK_MODEL,
   ],
-  outputMode: 'json-schema' | 'json-object' = 'json-schema',
+  // Strict JSON Schema made Gemini return empty or runaway output on real receipts;
+  // JSON mode plus the schema in the prompt and local Zod validation is reliable.
+  outputMode: 'json-schema' | 'json-object' = 'json-object',
   previousFailure?: Pick<ReceiptModelOutputError, 'reason' | 'issues'>,
 ) {
   const models = [...new Set(requestedModels.map(model => model.trim()).filter(Boolean))]
@@ -197,9 +203,12 @@ export function buildReceiptOpenRouterRequest(
       data_collection: 'deny',
       preferred_max_latency: { p90: 5 },
       require_parameters: true,
-      sort: { by: 'price', partition: 'none' },
+      // 'model' keeps the primary model first; 'none' would route to the cheaper fallback.
+      sort: { by: 'price', partition: 'model' },
       zdr: true,
     },
+    // Extraction needs no chain of thought; reasoning only added latency in the eval.
+    reasoning: { effort: 'none' },
     temperature: 0,
     max_tokens: 6_000,
   }

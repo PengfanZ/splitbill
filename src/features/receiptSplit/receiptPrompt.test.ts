@@ -25,7 +25,11 @@ describe('receipt OpenRouter prompt', () => {
       DEFAULT_OPENROUTER_RECEIPT_FALLBACK_MODEL,
     ])])
     expect(body.messages[1].content[1]).toEqual({ type: 'image_url', image_url: { url: request.image.dataUrl } })
-    expect(body.response_format).toEqual({
+    expect(body.response_format).toEqual({ type: 'json_object' })
+    expect(body.reasoning).toEqual({ effort: 'none' })
+    expect(body.provider.sort).toEqual({ by: 'price', partition: 'model' })
+    // Strict schema remains available for model comparisons in scripts/receipt-eval.
+    expect(buildReceiptOpenRouterRequest(request, undefined, 'json-schema').response_format).toEqual({
       type: 'json_schema',
       json_schema: {
         name: 'tally_receipt',
@@ -40,6 +44,13 @@ describe('receipt OpenRouter prompt', () => {
     expect(body.provider).toMatchObject({ data_collection: 'deny', require_parameters: true, zdr: true })
     expect(JSON.stringify(RECEIPT_JSON_SCHEMA)).not.toMatch(/minLength|maxLength/)
     expect(RECEIPT_JSON_SCHEMA.properties.subtotalCents.type).toEqual(['integer', 'null'])
+  })
+
+  it('defines cents for currencies printed without decimals', () => {
+    // Tally stores every currency with two decimals, so a model returning ¥790 as 790 would save ¥7.90.
+    const systemPrompt = buildReceiptOpenRouterRequest({ ...request, currency: 'JPY' }).messages[0].content
+    expect(systemPrompt).toContain('¥790 is 79000')
+    expect(systemPrompt).toContain('₩12,000 is 1200000')
   })
 
   it('deduplicates and validates requested models', () => {

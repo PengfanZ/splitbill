@@ -10,3 +10,7 @@
 *.tsbuildinfo
 npm-debug.log*
 .DS_Store
+
+# Receipt model eval artifacts and private receipt photos
+/scripts/receipt-eval/.cache
+/scripts/receipt-eval/private
