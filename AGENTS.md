@@ -36,6 +36,12 @@ Backend work: `npm run backend:start`, `npm run backend:reset`, `npm run test:ba
 
 Native PNG sharing in `src/features/sharing/shareActivity.ts` passes `{ files: [file] }` only — adding `title`/`text`/`url` breaks WebKit/WeChat. If native share fails or is unsupported, download the PNG rather than substituting text.
 
+## Receipt AI gotchas
+
+- Do not send receipt requests with strict `json_schema` output: Gemini Flash Lite models return a near-empty object or run to the token limit. Use JSON mode with the contract in the prompt plus local Zod validation.
+- Keep OpenRouter `provider.sort.partition` at `'model'` when listing fallback models; `'none'` sorts every model by price and routes to the cheapest fallback first.
+- Change receipt models only after running `scripts/receipt-eval` (see [docs/AI_EXPENSE_PREVIEW.md](docs/AI_EXPENSE_PREVIEW.md#choosing-receipt-models)). Production pins models through Supabase secrets, so code defaults alone do not switch production.
+
 ## Workflow
 
 - Work on a feature branch and open a PR to `main`; merging to `main` runs CI and deploys (migrations → Edge Functions → GitHub Pages).

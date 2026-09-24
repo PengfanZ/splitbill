@@ -118,11 +118,25 @@ Deploy the same receipt handler under the isolated `parse-receipt-preview` Edge 
 
 ```text
 AI_RECEIPT_ENABLED=true
-OPENROUTER_RECEIPT_MODEL=google/gemini-2.5-flash-lite
-OPENROUTER_RECEIPT_FALLBACK_MODEL=google/gemini-2.5-flash
+OPENROUTER_RECEIPT_MODEL=google/gemini-3.1-flash-lite
+OPENROUTER_RECEIPT_FALLBACK_MODEL=google/gemma-4-26b-a4b-it
 ```
 
-Receipt extraction starts with `google/gemini-2.5-flash-lite` because it accepts images and is fast and inexpensive. The first request asks OpenRouter to enforce the receipt contract as strict JSON Schema, and Tally validates the result again with its local Zod contract. If that result fails local validation, the same request receives one bounded compatibility retry with `google/gemini-2.5-flash` in JSON mode, with the complete contract included in the prompt and the same local validation applied afterward. This handles model endpoints that advertise structured output but return an incomplete object; it is not an open-ended retry loop. Nothing reaches an expense without deterministic reconciliation and human confirmation. Reconsider a free model only after the full receipt contract suite passes against it.
+Receipt extraction starts with `google/gemini-3.1-flash-lite` in JSON mode with reasoning off. The complete receipt contract is in the prompt, and Tally validates every result with its local Zod contract. Strict JSON Schema is not used: in the receipt evaluation it made Gemini Flash Lite models return a near-empty object or run to the token limit on almost every real receipt, which in production forced a slow second call for every scan. OpenRouter routing keeps `partition: 'model'`, so the primary model is always tried first; `google/gemma-4-26b-a4b-it` has many zero-retention providers and serves the request only when the Gemini route is unavailable. If the first result fails local validation, one bounded retry goes to the fallback model with safe validation issues; it is not an open-ended retry loop. The whole request, including upload and quota, has a 25-second server deadline so the browser's 30-second timeout always receives an answer. Nothing reaches an expense without deterministic reconciliation and human confirmation.
+
+### Choosing receipt models
+
+Compare models with `scripts/receipt-eval` before changing either receipt model. It sends the production prompt and validation to each candidate and scores exact totals, items, and charges against known answers:
+
+```bash
+node scripts/receipt-eval/render.ts     # synthetic receipts with computed answers
+node scripts/receipt-eval/commons.ts    # openly licensed Wikimedia Commons photos with verified answers
+node scripts/receipt-eval/run.ts --repeat 2 --configs production,g31-lite/object-nothink
+```
+
+The runner asks for an OpenRouter key without echoing it. Use a separate, credit-limited key and delete it afterward. Images and results stay in the ignored `scripts/receipt-eval/.cache`; optional private photos go in the ignored `scripts/receipt-eval/private` with a matching `.json` answer file.
+
+The September 2026 comparison (22 receipts in English, Chinese, French, and Japanese, run twice) chose Gemini 3.1 Flash Lite: every answered request passed validation, 85% of drafts were exactly right with no edits, median latency was about 3 seconds, and cost was about $1.60 per thousand scans. The previous strict-schema Flash Lite request passed validation on none of them. Japanese receipts remain weaker: models sometimes add included consumption tax as a charge or return yen without Tally's two-decimal scaling, so reviewers must check those drafts.
 
 The browser converts a selected receipt to a bounded JPEG before upload. The Edge Function drains and validates that bounded upload before consuming quota, accepts only JPEG, PNG, or WebP input, and limits both request and provider-response bytes. This lets a rate-limit response reach the browser promptly instead of racing the upload timeout. Tally does not ask the model to decide who paid or how to split the bill. The model returns only reviewable receipt facts—merchant, items, printed details, subtotal when present, charges, total, and unresolved lines. If the receipt omits a subtotal, Tally derives it only from the validated item totals. Deterministic application code assigns shared dishes, allocates tax, service charges, discounts, and optional tips, reconciles every cent, and creates the final exact-split expense only after confirmation.
 

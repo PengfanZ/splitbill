@@ -50,7 +50,9 @@ export type ParseReceiptHandlerDependencies = {
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
 const MAX_RECEIPT_REQUEST_BYTES = Math.ceil(MAX_RECEIPT_UPLOAD_BYTES * 4 / 3) + 2_048
 const MAX_PROVIDER_RESPONSE_BYTES = 256 * 1024
-const PROVIDER_TIMEOUT_MS = 25_000
+// Measured from request arrival, including upload and quota, so the server always
+// answers before the browser's 30-second deadline in receiptApi.ts.
+const REQUEST_DEADLINE_MS = 25_000
 const DATA_URL_PATTERN = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/]+={0,2})$/
 
 function jsonError(status: number, code: string, message: string, headers: HeadersInit = {}) {
@@ -138,10 +140,11 @@ export async function handleParseReceiptRequest(
   request: Request,
   dependencies: ParseReceiptHandlerDependencies,
 ) {
+  const deadline = Date.now() + REQUEST_DEADLINE_MS
   const requestId = receiptRequestId(request.headers.get(RECEIPT_REQUEST_ID_HEADER))
   const trace = createReceiptTrace(requestId, dependencies.reportDiagnostic)
   try {
-    const response = await parseReceiptRequestWithTrace(request, dependencies, trace)
+    const response = await parseReceiptRequestWithTrace(request, dependencies, trace, deadline)
     response.headers.set(RECEIPT_REQUEST_ID_HEADER, requestId)
     trace.emit('completed', { status: response.status })
     return response
@@ -155,6 +158,7 @@ async function parseReceiptRequestWithTrace(
   request: Request,
   dependencies: ParseReceiptHandlerDependencies,
   trace: ReturnType<typeof createReceiptTrace>,
+  deadline: number,
 ) {
   if (request.method !== 'POST') {
     return jsonError(405, 'method_not_allowed', 'Use POST to read a receipt.')
@@ -218,11 +222,10 @@ async function parseReceiptRequestWithTrace(
     || DEFAULT_OPENROUTER_RECEIPT_FALLBACK_MODEL
   const models = model === fallbackModel ? [model] : [model, fallbackModel]
   const attemptModels = models.length === 1 ? [models] : [models, [fallbackModel]]
-  const providerDeadline = Date.now() + PROVIDER_TIMEOUT_MS
   let previousFailure: ReceiptModelOutputError | undefined
 
   for (const [attemptIndex, currentModels] of attemptModels.entries()) {
-    const remainingMs = providerDeadline - Date.now()
+    const remainingMs = deadline - Date.now()
     if (remainingMs <= 0) break
 
     let providerResponse: Response
@@ -241,7 +244,7 @@ async function parseReceiptRequestWithTrace(
         body: JSON.stringify(buildReceiptOpenRouterRequest(
           parsedRequest,
           currentModels,
-          attemptIndex === 0 ? 'json-schema' : 'json-object',
+          'json-object',
           previousFailure,
         )),
         signal,
@@ -249,6 +252,8 @@ async function parseReceiptRequestWithTrace(
     } catch {
       trace.emit('failure', { attempt: attemptIndex + 1, reason: signal.aborted ? 'provider_timeout' : 'provider_network' })
       dependencies.reportProviderFailure?.({ models: currentModels, status: 503, errorType: 'network' })
+      // After an invalid first draft, the draft is the actionable cause, not the retry's transport.
+      if (previousFailure) return invalidModelResponse()
       return jsonError(503, 'provider_unavailable', 'The receipt AI service could not be reached.')
     }
 
@@ -263,6 +268,7 @@ async function parseReceiptRequestWithTrace(
         status: providerResponse.status,
         errorType: 'unreadable_response',
       })
+      if (previousFailure) return invalidModelResponse()
       return jsonError(502, 'provider_error', 'The AI provider returned unreadable receipt data.')
     }
     trace.emit('provider_response', { attempt: attemptIndex + 1, ...receiptProviderMetadata(providerPayload) })
@@ -300,5 +306,14 @@ async function parseReceiptRequestWithTrace(
     }
   }
 
+  // Only reachable without a failed draft when upload and quota used the whole deadline.
+  if (!previousFailure) {
+    trace.emit('failure', { reason: 'deadline_exceeded' })
+    return jsonError(503, 'model_unavailable', 'The receipt AI models could not respond.')
+  }
+  return invalidModelResponse()
+}
+
+function invalidModelResponse() {
   return jsonError(422, 'invalid_model_response', 'The AI could not produce a reliable receipt draft. No expense was saved. Try again or enter it manually.')
 }

@@ -60,11 +60,11 @@ OPENROUTER_MODEL=google/gemma-4-26b-a4b-it:free
 OPENROUTER_FALLBACK_MODEL=google/gemini-2.5-flash-lite
 OPENROUTER_VOICE_MODEL=google/gemini-2.5-flash-lite
 AI_RECEIPT_ENABLED=true
-OPENROUTER_RECEIPT_MODEL=google/gemini-2.5-flash-lite
-OPENROUTER_RECEIPT_FALLBACK_MODEL=google/gemini-2.5-flash
+OPENROUTER_RECEIPT_MODEL=google/gemini-3.1-flash-lite
+OPENROUTER_RECEIPT_FALLBACK_MODEL=google/gemma-4-26b-a4b-it
 ```
 
-Receipt extraction uses the same server-only OpenRouter key. Flash Lite handles the normal strict-schema path; full Flash is a single JSON-compatibility recovery attempt only when local receipt validation rejects the first result. The recovery request includes the complete receipt contract and must pass the same local Zod validation. When a receipt has no printed subtotal, Tally derives it only from the validated item totals before reconciliation. The model names have reviewed defaults in source and may be overridden only when an alternative has passed the receipt contract suite.
+Receipt extraction uses the same server-only OpenRouter key. Both receipt attempts use JSON mode with the complete contract in the prompt and must pass local Zod validation; strict JSON Schema is not used because it made Gemini return empty or runaway output on real receipts. Gemini 3.1 Flash Lite answers first. Gemma 4 26B has many zero-retention providers, so OpenRouter uses it when the Gemini route is rate-limited, and it handles the single recovery attempt when local validation rejects the first result. Existing production projects that set the receipt model secrets must update them; code defaults do not override configured secrets. When a receipt has no printed subtotal, Tally derives it only from the validated item totals before reconciliation. The model names have reviewed defaults in source and may be overridden only when an alternative has passed the receipt contract suite.
 
 Use a dedicated key with a deliberate account limit. Never expose it as a `VITE_` variable; only the Supabase Edge Function may read it.
 
