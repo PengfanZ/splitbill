@@ -189,8 +189,9 @@ export async function handleParseExpenseRequest(
     : dependencies.getEnvironment('OPENROUTER_FALLBACK_MODEL')?.trim() || DEFAULT_OPENROUTER_FALLBACK_MODEL
   const models = model === fallbackModel ? [model] : [model, fallbackModel]
   // OpenRouter cannot switch models once an upstream fails mid-response, so a temporary
-  // primary failure gets one more request on the fallback model.
-  const attemptModels = models.length === 1 ? [models] : [models, [fallbackModel]]
+  // primary failure gets one more request on the fallback model. Voice has no audio-capable
+  // fallback that passed the eval, so a single model retries once on itself; hangs were transient.
+  const attemptModels = [models, [fallbackModel]]
   let providerPayload: unknown
   let requestedModel = model
   for (const [attemptIndex, currentModels] of attemptModels.entries()) {

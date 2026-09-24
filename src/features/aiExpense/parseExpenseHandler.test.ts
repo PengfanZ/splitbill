@@ -470,17 +470,35 @@ describe('parse expense Edge Function handler', () => {
     expect(await recovered.json()).toMatchObject({ model: DEFAULT_OPENROUTER_FALLBACK_MODEL })
   })
 
-  it('does not retry payment failures or a single configured model', async () => {
+  it('does not retry payment failures', async () => {
     const paymentFetcher = vi.fn().mockImplementation(async () => new Response(JSON.stringify({
       error: { code: 402, metadata: { error_type: 'payment_required' } },
     })))
     const payment = await handleParseExpenseRequest(request(), dependencies({ fetcher: paymentFetcher }))
     expect(await payment.json()).toMatchObject({ code: 'provider_payment_required' })
     expect(paymentFetcher).toHaveBeenCalledTimes(1)
+  })
 
-    const singleFetcher = vi.fn().mockImplementation(async () => new Response('{}', { status: 429 }))
-    await handleParseExpenseRequest(request(voiceBody, { 'x-tally-input-mode': 'voice' }), dependencies({ fetcher: singleFetcher }))
-    expect(singleFetcher).toHaveBeenCalledTimes(1)
+  it('retries a temporary voice failure once on the same audio model', async () => {
+    const voiceFetcher = vi.fn()
+      .mockResolvedValueOnce(new Response('{}', { status: 503 }))
+      .mockResolvedValueOnce(providerResponse())
+    const voice = await handleParseExpenseRequest(
+      request(voiceBody, { 'x-tally-input-mode': 'voice' }),
+      dependencies({ fetcher: voiceFetcher }),
+    )
+    expect(await voice.json()).toMatchObject({ result: { status: 'ready' }, model: DEFAULT_OPENROUTER_VOICE_MODEL })
+    for (const call of voiceFetcher.mock.calls) {
+      expect(JSON.parse((call[1] as RequestInit).body as string).models).toEqual([DEFAULT_OPENROUTER_VOICE_MODEL])
+    }
+
+    const failing = vi.fn().mockImplementation(async () => new Response('{}', { status: 429 }))
+    const exhausted = await handleParseExpenseRequest(
+      request(voiceBody, { 'x-tally-input-mode': 'voice' }),
+      dependencies({ fetcher: failing }),
+    )
+    expect(await exhausted.json()).toMatchObject({ code: 'provider_rate_limit' })
+    expect(failing).toHaveBeenCalledTimes(2)
   })
 
   it('caps a hung primary attempt so the fallback still answers within the deadline', async () => {
