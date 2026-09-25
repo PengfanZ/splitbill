@@ -544,23 +544,27 @@ describe('small UI building blocks', () => {
 
   it('summarizes who settles with the viewer and opens their balances', async () => {
     const user = userEvent.setup()
-    const onShowBalances = vi.fn()
+    const onSettle = vi.fn()
     const members = [CURRENT_USER, maya, jordan]
-    const { rerender } = render(<ActivitySummary expenses={[expense()]} members={members} onShowBalances={onShowBalances} />)
+    const { rerender } = render(<ActivitySummary expenses={[expense()]} members={members} onSettle={onSettle} />)
     await user.click(screen.getByRole('button', { name: /Maya Chen and Jordan owe you/ }))
-    expect(onShowBalances).toHaveBeenCalledOnce()
-    rerender(<ActivitySummary expenses={[expense({ payerId: 'maya' })]} members={members} onShowBalances={onShowBalances} />)
-    expect(screen.getByRole('button', { name: /You owe Maya Chen/ })).toBeVisible()
-    rerender(<ActivitySummary expenses={[expense()]} members={members} currentUserLabel="Alex" onShowBalances={onShowBalances} />)
+    expect(onSettle).toHaveBeenCalledWith([
+      expect.objectContaining({ from: maya, to: CURRENT_USER, amount: 10 }),
+      expect.objectContaining({ from: jordan, to: CURRENT_USER, amount: 10 }),
+    ])
+    rerender(<ActivitySummary expenses={[expense({ payerId: 'maya' })]} members={members} onSettle={onSettle} />)
+    await user.click(screen.getByRole('button', { name: /You owe Maya Chen/ }))
+    expect(onSettle).toHaveBeenLastCalledWith([expect.objectContaining({ from: CURRENT_USER, to: maya, amount: 10 })])
+    rerender(<ActivitySummary expenses={[expense()]} members={members} currentUserLabel="Alex" onSettle={onSettle} />)
     expect(screen.getByText('Maya Chen and Jordan owe Alex')).toBeVisible()
-    rerender(<ActivitySummary expenses={[expense({ payerId: 'maya' })]} members={members} currentUserLabel="Alex" onShowBalances={onShowBalances} />)
+    rerender(<ActivitySummary expenses={[expense({ payerId: 'maya' })]} members={members} currentUserLabel="Alex" onSettle={onSettle} />)
     expect(screen.getByText('Alex owes Maya Chen')).toBeVisible()
     const onePerson = [expense({ shares: { me: 15, maya: 15 } })]
-    rerender(<ActivitySummary expenses={onePerson} members={members} onShowBalances={onShowBalances} />)
+    rerender(<ActivitySummary expenses={onePerson} members={members} onSettle={onSettle} />)
     expect(screen.getByText('Maya Chen owes you')).toBeVisible()
-    rerender(<ActivitySummary expenses={onePerson} members={members} currentUserLabel="Alex" onShowBalances={onShowBalances} />)
+    rerender(<ActivitySummary expenses={onePerson} members={members} currentUserLabel="Alex" onSettle={onSettle} />)
     expect(screen.getByText('Maya Chen owes Alex')).toBeVisible()
-    rerender(<ActivitySummary expenses={[expense({ payerId: 'maya', shares: { me: 15, maya: 15 } })]} members={members} currentMemberId="jordan" onShowBalances={onShowBalances} />)
+    rerender(<ActivitySummary expenses={[expense({ payerId: 'maya', shares: { me: 15, maya: 15 } })]} members={members} currentMemberId="jordan" onSettle={onSettle} />)
     expect(screen.queryByRole('button')).toBeNull()
     rerender(<ActivitySummary expenses={[expense()]} members={members} />)
     expect(screen.queryByRole('button')).toBeNull()
@@ -713,10 +717,12 @@ describe('small UI building blocks', () => {
     const dashboard = container.querySelector('.dashboard')!
     expect(screen.getByRole('tab', { name: 'Expenses' })).toHaveAttribute('aria-selected', 'true')
 
+    expect(container.querySelector('.settlements-panel')).not.toHaveClass('settlements-panel--highlighted')
     await user.click(screen.getByRole('button', { name: /Maya Chen and Jordan owe you/ }))
     expect(screen.getByRole('tab', { name: 'Balances' })).toHaveAttribute('aria-selected', 'true')
     expect(dashboard).toHaveClass('dashboard--view-balances')
     expect(screen.getByRole('heading', { name: 'Who owes whom' })).toHaveFocus()
+    expect(container.querySelector('.settlements-panel')).toHaveClass('settlements-panel--highlighted')
 
     await user.click(screen.getByRole('tab', { name: 'By category' }))
     await user.click(screen.getByRole('tab', { name: 'By category' }))
@@ -746,6 +752,23 @@ describe('small UI building blocks', () => {
     expect(within(screen.getByRole('dialog', { name: 'Activity options' })).queryByRole('button', { name: 'Manage categories' })).toBeNull()
     await user.click(screen.getByRole('button', { name: 'Close' }))
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('opens Settle up directly when the viewer settles with one person', async () => {
+    const user = userEvent.setup()
+    const onSettleUp = vi.fn()
+    const oneDebt = [expense({ shares: { me: 15, maya: 15 } })]
+    const props = { group, members: [CURRENT_USER, maya, jordan], expenses: oneDebt, query: '', activityFeedback: null }
+    const { rerender } = render(<GroupDashboard {...props} onSettleUp={onSettleUp} />)
+    await user.click(screen.getByRole('button', { name: /Maya Chen owes you/ }))
+    expect(onSettleUp).toHaveBeenCalledWith(expect.objectContaining({ from: maya, to: CURRENT_USER, amount: 15 }))
+    expect(screen.getByRole('tab', { name: 'Expenses' })).toHaveAttribute('aria-selected', 'true')
+
+    // Read-only viewers, or dashboards without settling, go to the balances instead.
+    rerender(<GroupDashboard {...props} readOnly onSettleUp={onSettleUp} />)
+    await user.click(screen.getByRole('button', { name: /Maya Chen owes you/ }))
+    expect(onSettleUp).toHaveBeenCalledOnce()
+    expect(screen.getByRole('tab', { name: 'Balances' })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('handles large groups, add-only actions, and empty or read-only category views', async () => {

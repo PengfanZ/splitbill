@@ -49,13 +49,14 @@ function AvatarStack({ members, limit = 5 }: { members: Member[]; limit?: number
   )
 }
 
-export function ActivitySummary({ expenses, members = [], currency = 'USD', currentMemberId = 'me', currentUserLabel, onShowBalances }: {
+export function ActivitySummary({ expenses, members = [], currency = 'USD', currentMemberId = 'me', currentUserLabel, onSettle }: {
   expenses: Expense[]
   members?: Member[]
   currency?: CurrencyCode
   currentMemberId?: string | null
   currentUserLabel?: string
-  onShowBalances?: () => void
+  /** Receives the suggested payments between the viewer and other people. */
+  onSettle?: (settlements: Settlement[]) => void
 }) {
   const { locale, t } = useLocalization()
   const viewer = useViewerNaming(currentUserLabel)
@@ -106,8 +107,8 @@ export function ActivitySummary({ expenses, members = [], currency = 'USD', curr
           <div><dt>{viewer.named ? t('dashboard.memberShare', { name: viewer.label }) : t('dashboard.yourShare')}</dt><dd>{currentMemberId ? money(share, currency, locale) : '—'}</dd></div>
         </dl>
       </div>
-      {onShowBalances && counterparts.length ? (
-        <button type="button" className="balance-card-settle" onClick={onShowBalances}>
+      {onSettle && counterparts.length ? (
+        <button type="button" className="balance-card-settle" onClick={() => onSettle(incoming.length ? incoming : outgoing)}>
           <AvatarStack members={counterparts} />
           <span className="balance-card-settle-copy">{settleCopy}</span>
           <span className={`balance-card-settle-action${incoming.length ? ' positive' : ''}`}>{t('dashboard.settleUp')}<ChevronRight size={16} aria-hidden="true" /></span>
@@ -125,7 +126,7 @@ function settlementTone(settlement: Settlement, currentMemberId: string | null) 
   return undefined
 }
 
-export function SettlementDirections({ members, expenses, currency = 'USD', currentMemberId = 'me', currentUserLabel, headingId, onSettleUp }: { members: Member[]; expenses: Expense[]; currency?: CurrencyCode; currentMemberId?: string | null; currentUserLabel?: string; headingId?: string; onSettleUp?: (settlement: Settlement) => void }) {
+export function SettlementDirections({ members, expenses, currency = 'USD', currentMemberId = 'me', currentUserLabel, headingId, highlighted = false, onSettleUp }: { members: Member[]; expenses: Expense[]; currency?: CurrencyCode; currentMemberId?: string | null; currentUserLabel?: string; headingId?: string; highlighted?: boolean; onSettleUp?: (settlement: Settlement) => void }) {
   const { locale, t } = useLocalization()
   const settlements = useMemo(() => calculateSettlements(members, expenses), [expenses, members])
   const currentUserOwes = currentUserLabel && currentUserLabel !== 'You' && currentUserLabel !== t('common.you')
@@ -133,7 +134,7 @@ export function SettlementDirections({ members, expenses, currency = 'USD', curr
     : t('dashboard.youOwe')
 
   return (
-    <section className="content-section settlements-panel">
+    <section className={`content-section settlements-panel${highlighted ? ' settlements-panel--highlighted' : ''}`}>
       <div className="section-heading"><h2 id={headingId} tabIndex={headingId ? -1 : undefined}>{t('dashboard.whoOwes')}</h2><span className="section-meta">{t('dashboard.suggestedSettlements')}</span></div>
       <div className="balance-list">
         {settlements.length ? settlements.map(settlement => (
@@ -349,10 +350,14 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
     if (next !== 'categories') setSelectedCategory(null)
     setView(next)
   }
-  // On wide screens balances sit beside the list and the Balances tab is hidden, so only focus moves.
+  // On wide screens balances sit beside the list and the Balances tab is hidden, so the panel is highlighted instead.
   const showBalances = () => {
     if (getComputedStyle(balancesTab.current!).display !== 'none') selectView('balances')
     setBalancesFocusRequest(request => request + 1)
+  }
+  const settleFromSummary = (viewerSettlements: Settlement[]) => {
+    if (viewerSettlements.length === 1 && onSettleUp && !readOnly) onSettleUp(viewerSettlements[0])
+    else showBalances()
   }
   const openCategoryManager = () => {
     setOptionsOpen(false)
@@ -400,7 +405,7 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
             {activityFeedback ? <span className="activity-feedback" role="status">{activityFeedback}</span> : null}
           </div>
         </header>
-        {hasExpenses ? <ActivitySummary expenses={expenses} members={historyMembers} currency={currency} currentMemberId={currentMemberId} currentUserLabel={currentUserLabel} onShowBalances={showBalances} /> : null}
+        {hasExpenses ? <ActivitySummary expenses={expenses} members={historyMembers} currency={currency} currentMemberId={currentMemberId} currentUserLabel={currentUserLabel} onSettle={settleFromSummary} /> : null}
         <div className="dashboard-tabs" role="tablist" aria-label={t('dashboard.viewTabs')}>
           {tab('expenses', t('dashboard.expenses'))}
           {tab('balances', t('dashboard.balancesTab'))}
@@ -421,7 +426,7 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
         </div>
       </div>
       <aside className="right-rail activity-rail">
-        <SettlementDirections members={historyMembers} expenses={expenses} currency={currency} currentMemberId={currentMemberId} currentUserLabel={currentUserLabel} headingId={balancesHeadingId} onSettleUp={readOnly ? undefined : onSettleUp} />
+        <SettlementDirections key={balancesFocusRequest} highlighted={balancesFocusRequest > 0} members={historyMembers} expenses={expenses} currency={currency} currentMemberId={currentMemberId} currentUserLabel={currentUserLabel} headingId={balancesHeadingId} onSettleUp={readOnly ? undefined : onSettleUp} />
         <MembersRail group={group} members={members} expenses={expenses} currency={currency} currentMemberId={currentMemberId} readOnly={readOnly} onAddFriend={onAddFriend} onRemoveFriend={onRemoveFriend} onRestoreFriend={onRestoreFriend} />
       </aside>
       {optionsOpen ? (

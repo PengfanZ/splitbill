@@ -31,6 +31,8 @@
 
 .activity-rail .settlements-panel h2:focus { outline: none; }
 .activity-rail .settlements-panel h2:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 3px; border-radius: 4px; }
+.settlements-panel--highlighted { border-radius: var(--radius-card); animation: settlements-highlight 1.6s ease-out; }
+@keyframes settlements-highlight { from { background: var(--green-soft); box-shadow: 0 0 0 8px var(--green-soft); } to { background: transparent; box-shadow: 0 0 0 8px transparent; } }
 .activity-rail .section-heading { margin-inline: 0; }
 .activity-rail .section-meta { display: none; }
 .activity-rail .settlement-row { min-height: 60px; padding: 10px 0; gap: 10px; }
