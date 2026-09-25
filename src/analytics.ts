@@ -13,6 +13,8 @@ export const ANALYTICS_EVENTS = [
   'category_created',
   'category_updated',
   'category_deleted',
+  'category_suggestion_kept',
+  'category_suggestion_changed',
   'expense_added',
   'feedback_submitted',
   'summary_export_clicked',

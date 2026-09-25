@@ -50,7 +50,7 @@ describe('expense membership rules', () => {
     await user.click(screen.getByRole('button', { name: 'Use current participants' }))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Save expense' }))
-    expect(props.onSave).toHaveBeenCalledWith(expect.objectContaining({ payerId: 'me', shares: { me: 12 } }))
+    expect(props.onSave).toHaveBeenCalledWith(expect.objectContaining({ payerId: 'me', shares: { me: 12 }, categoryId: 'food' }), 'kept')
   })
 
   it('cannot save when no eligible people remain, including after explicit review', async () => {

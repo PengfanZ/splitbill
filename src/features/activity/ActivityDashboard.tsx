@@ -12,7 +12,7 @@ import {
 import { Avatar } from '../../components/AppShell'
 import { Button, IconButton } from '../../components/Button'
 import { activityCurrency, type CurrencyCode } from '../../domain/currency'
-import { calculateMemberBalance, calculateSettlements, getSettlementRecipientId, isSettlementPayment, money, spendingExpenses } from '../../domain/expenses'
+import { calculateMemberBalance, calculateSettlements, getSettlementRecipientId, isSettlementPayment, memberExpenseNet, money, spendingExpenses } from '../../domain/expenses'
 import { activeActivityMembers, isInactiveMember } from '../../domain/memberRemoval'
 import { CURRENT_USER } from '../../domain/members'
 import type { ActivityGroup, Expense, Member, Settlement } from '../../domain/models'
@@ -68,6 +68,14 @@ export function ActivitySummary({ expenses, currency = 'USD', currentMemberId = 
   )
 }
 
+/** Colors a settlement from the viewer's side: money coming to them, money they pay, or neither. */
+function settlementTone(settlement: Settlement, currentMemberId: string | null) {
+  if (!currentMemberId) return undefined
+  if (settlement.to.id === currentMemberId) return 'settlement-amount--incoming'
+  if (settlement.from.id === currentMemberId) return 'settlement-amount--outgoing'
+  return undefined
+}
+
 export function SettlementDirections({ members, expenses, currency = 'USD', currentMemberId = 'me', currentUserLabel, onSettleUp }: { members: Member[]; expenses: Expense[]; currency?: CurrencyCode; currentMemberId?: string | null; currentUserLabel?: string; onSettleUp?: (settlement: Settlement) => void }) {
   const { locale, t } = useLocalization()
   const settlements = useMemo(() => calculateSettlements(members, expenses), [expenses, members])
@@ -83,7 +91,7 @@ export function SettlementDirections({ members, expenses, currency = 'USD', curr
           <div className="balance-row settlement-row" key={`${settlement.from.id}-${settlement.to.id}`}>
             <span className="settlement-avatars"><Avatar member={settlement.from} /><i>→</i><Avatar member={settlement.to} /></span>
             <span className="row-copy"><b>{currentMemberId && settlement.from.id === currentMemberId ? `${currentUserOwes} ${settlement.to.name}` : t('dashboard.owesPerson', { from: settlement.from.name, to: settlement.to.name })}</b><small>{t('dashboard.suggestedPayment')}</small></span>
-            <span className="settlement-action"><strong>{money(settlement.amount, currency, locale)}</strong>{onSettleUp ? <Button className="settle-up-button" onClick={() => onSettleUp(settlement)}>{t('dashboard.settleUp')}</Button> : null}</span>
+            <span className="settlement-action"><strong className={settlementTone(settlement, currentMemberId)}>{money(settlement.amount, currency, locale)}</strong>{onSettleUp ? <Button className="settle-up-button" onClick={() => onSettleUp(settlement)}>{t('dashboard.settleUp')}</Button> : null}</span>
           </div>
         )) : <div className="all-settled"><span><Check size={18} /></span><div><b>{t('dashboard.everyoneSettled')}</b><p>{t('dashboard.addExpensePrompt')}</p></div></div>}
       </div>
@@ -91,8 +99,10 @@ export function SettlementDirections({ members, expenses, currency = 'USD', curr
   )
 }
 
-export function ExpenseList({ expenses, members, group, inactiveMembers = [], currency = 'USD', query, readOnly = false, onEditExpense, onDeleteExpense }: {
+export function ExpenseList({ expenses, members, group, inactiveMembers = [], currency = 'USD', query, readOnly = false, currentMemberId = null, currentUserLabel, onEditExpense, onDeleteExpense }: {
   group?: ActivityGroup
+  currentMemberId?: string | null
+  currentUserLabel?: string
   expenses: Expense[]
   members: Member[]
   inactiveMembers?: Member[]
@@ -105,6 +115,7 @@ export function ExpenseList({ expenses, members, group, inactiveMembers = [], cu
   const { locale, t, formatDateTime } = useLocalization()
   const memberMap = useMemo(() => new Map(members.map(member => [member.id, member])), [members])
   const normalizedQuery = query.toLowerCase()
+  const namedViewer = Boolean(currentUserLabel && currentUserLabel !== 'You' && currentUserLabel !== t('common.you'))
   const visible = useMemo(() => expenses.filter(expense => {
     if (expense.title.toLowerCase().includes(normalizedQuery)) return true
     if (!isSettlementPayment(expense)) return false
@@ -130,13 +141,18 @@ export function ExpenseList({ expenses, members, group, inactiveMembers = [], cu
             ? t(expense.updatedAt ? 'expense.editedAt' : 'expense.createdAt', { date: localizedTimestamp })
             : storedTimestamp === 'Just now' ? t('expense.timeUnavailable') : storedTimestamp
           const unknown = t('common.unknown')
+          const category = group && !settlementPayment ? expenseCategory(group, expense) : null
+          const viewerNet = currentMemberId && !settlementPayment ? memberExpenseNet(currentMemberId, expense) : 0
+          const viewerShareKey = viewerNet > 0
+            ? namedViewer ? 'dashboard.memberLent' : 'dashboard.youLent'
+            : namedViewer ? 'dashboard.memberBorrowed' : 'dashboard.youBorrowed'
           return (
             <div className={`activity-row expense-entry${settlementPayment ? ' settlement-payment-row' : ''}`} key={expense.id}>
               <span className={`expense-icon${settlementPayment ? ' settlement-icon' : ''}`}>{settlementPayment ? <CircleDollarSign size={18} /> : <ReceiptText size={18} />}</span>
               <span className="row-copy"><b>{settlementPayment ? t('dashboard.paidPerson', { payer: payer.name, recipient: settlementRecipient?.name ?? unknown }) : expense.title}</b><small>{settlementPayment ? t('dashboard.settlementPayment') : <>{t('dashboard.paidLabel', { payer: payer.name })}<i />{t(expense.splitMethod === 'equal' ? 'dashboard.splitEqually' : 'dashboard.exactSplit')} · {participantCount} {t(participantCount === 1 ? 'common.person' : 'common.people')}</>}</small>{removedNames.length && !settlementPayment ? <small>{t('members.historyIncludes', { names: removedNames.join(', ') })}</small> : null}</span>
-              <span className="expense-amount"><b>{money(expense.amount, currency, locale)}</b></span>
+              <span className="expense-amount"><b>{money(expense.amount, currency, locale)}</b>{viewerNet ? <small className={`expense-share expense-share--${viewerNet > 0 ? 'lent' : 'owe'}`}>{t(viewerShareKey, { name: currentUserLabel ?? '', amount: money(viewerNet, currency, locale) })}</small> : null}</span>
               <span className="expense-entry-meta">
-                {group && !settlementPayment ? <span className="expense-category-label" style={{ '--category-color': expenseCategory(group, expense).color } as CSSProperties}><span className="category-dot" aria-hidden="true" />{categoryLabel(expenseCategory(group, expense), locale)}</span> : null}
+                {category?.id ? <span className="expense-category-label" style={{ '--category-color': category.color } as CSSProperties}><span className="category-dot" aria-hidden="true" />{categoryLabel(category, locale)}</span> : null}
                 <span className="expense-entry-time">{timestampLabel}</span>
               </span>
               {readOnly ? null : (
@@ -253,7 +269,7 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
         {hasExpenses ? (
           <>
             {categoryView ? null : <SettlementDirections members={historyMembers} expenses={expenses} currency={currency} currentMemberId={currentMemberId} currentUserLabel={currentUserLabel} onSettleUp={readOnly ? undefined : onSettleUp} />}
-            <ExpenseList group={group} expenses={categoryView ? expenses.filter(expense => !isSettlementPayment(expense) && (selectedCategory === null || expenseCategory(group, expense).id === selectedCategory)) : expenses} members={historyMembers} inactiveMembers={members.filter(member => isInactiveMember(group, member.id))} currency={currency} query={query} readOnly={readOnly} onEditExpense={onEditExpense} onDeleteExpense={onDeleteExpense} />
+            <ExpenseList group={group} currentMemberId={currentMemberId} currentUserLabel={currentUserLabel} expenses={categoryView ? expenses.filter(expense => !isSettlementPayment(expense) && (selectedCategory === null || expenseCategory(group, expense).id === selectedCategory)) : expenses} members={historyMembers} inactiveMembers={members.filter(member => isInactiveMember(group, member.id))} currency={currency} query={query} readOnly={readOnly} onEditExpense={onEditExpense} onDeleteExpense={onDeleteExpense} />
           </>
         ) : (
           <section className="activity-empty">

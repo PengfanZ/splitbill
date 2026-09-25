@@ -36,8 +36,9 @@ test('mirrors app interactions without leaking names, amounts or URL capabilitie
   await expect(page.getByText('Private dinner', { exact: true })).toBeVisible()
   const commands = await page.evaluate(() => (window as unknown as { gaTestCommands: unknown[][] }).gaTestCommands)
   const gaEvents = commands.filter(command => command[0] === 'event')
-  expect(gaEvents.map(command => command[1])).toEqual(['page_view', 'app_opened', 'activity_created', 'expense_added'])
-  expect(events.map(event => event.p_event_name)).toEqual(['app_opened', 'activity_created', 'expense_added'])
+  // "Private dinner" keeps its suggested Food & drinks category, which is mirrored like every allowlisted event.
+  expect(gaEvents.map(command => command[1])).toEqual(['page_view', 'app_opened', 'activity_created', 'expense_added', 'category_suggestion_kept'])
+  expect(events.map(event => event.p_event_name)).toEqual(['app_opened', 'activity_created', 'expense_added', 'category_suggestion_kept'])
   expect(JSON.stringify(commands)).not.toMatch(/Private|Secret|Sensitive|42\.37|#live=/)
   expect(gaEvents.every(command => (command[2] as { page_location: string }).page_location === 'http://127.0.0.1:4175/splitbill/')).toBe(true)
   expect(googleRequests).toHaveLength(1)

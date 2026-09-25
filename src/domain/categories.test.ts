@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activityCategories, CATEGORY_COLORS, categoryLabel, categoryNameError, categorySummary, changeCategories, DEFAULT_CATEGORIES, expenseCategory, GENERAL_CATEGORY } from './categories'
+import { activityCategories, CATEGORY_COLORS, categoryLabel, categoryNameError, categorySummary, changeCategories, DEFAULT_CATEGORIES, expenseCategory, GENERAL_CATEGORY, suggestCategoryId } from './categories'
 import type { ActivityGroup, Expense } from './models'
 import { calculateMemberBalance } from './expenses'
 import { parseState } from '../data/storage'
@@ -91,5 +91,27 @@ describe('expense categories', () => {
     expect(copied.expenses[0].categoryId).toBe(coffee.id)
     for (const categories of [[coffee, coffee], [{ ...coffee, name: 'General' }], [{ ...coffee, color: 'red' }], []]) expect(isSharedActivity({ ...shared, group: { ...categorizedGroup, categories } })).toBe(false)
     expect(isSharedActivity({ ...shared, expenses: [{ ...expenses[0], categoryId: 'missing' }] })).toBe(false)
+  })
+
+  it('suggests built-in categories from description keywords in English and Chinese', () => {
+    expect(suggestCategoryId('Dinner at Cervejaria Ramiro', DEFAULT_CATEGORIES)).toBe('food')
+    expect(suggestCategoryId('Airbnb – 4 nights', DEFAULT_CATEGORIES)).toBe('stay')
+    expect(suggestCategoryId('Tram tickets', DEFAULT_CATEGORIES)).toBe('transport')
+    expect(suggestCategoryId('Hotel breakfast', DEFAULT_CATEGORIES)).toBe('stay')
+    expect(suggestCategoryId('MUSEUM', DEFAULT_CATEGORIES)).toBe('activities')
+    expect(suggestCategoryId('周五晚餐', DEFAULT_CATEGORIES)).toBe('food')
+    expect(suggestCategoryId('机场打车', DEFAULT_CATEGORIES)).toBe('transport')
+    expect(suggestCategoryId('Sonder barbecue', DEFAULT_CATEGORIES)).toBeNull()
+    expect(suggestCategoryId('Pastéis de nata', DEFAULT_CATEGORIES)).toBeNull()
+    expect(suggestCategoryId('', DEFAULT_CATEGORIES)).toBeNull()
+  })
+
+  it('suggests only built-ins the activity still has under their original name', () => {
+    const withoutFood = DEFAULT_CATEGORIES.filter(category => category.id !== 'food')
+    const renamedFood = [{ ...DEFAULT_CATEGORIES[0], name: 'Gifts' }, ...DEFAULT_CATEGORIES.slice(1)]
+    expect(suggestCategoryId('Lunch', withoutFood)).toBeNull()
+    expect(suggestCategoryId('Lunch', renamedFood)).toBeNull()
+    expect(suggestCategoryId('Lunch', [coffee])).toBeNull()
+    expect(suggestCategoryId('Taxi', renamedFood)).toBe('transport')
   })
 })

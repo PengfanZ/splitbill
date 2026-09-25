@@ -115,3 +115,105 @@ it('requires review if a category disappears while editing and preserves the uns
   await user.click(screen.getByRole('button', { name: 'Save changes' }))
   expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ title: 'Changed dinner', amount: 10, shares: { me: 10 }, categoryId: null }))
 })
+
+it('suggests a category from a new expense description without counting it as a person’s choice', async () => {
+  const user = userEvent.setup()
+  const onSave = vi.fn()
+  const onCategorySelect = vi.fn()
+  const props = { group, members: [CURRENT_USER], onClose: vi.fn(), onSave, onCategorySelect }
+  const { unmount } = render(<ExpenseModal {...props} />)
+  expect(screen.queryByText(/Suggested from the description/)).toBeNull()
+  await user.type(screen.getByLabelText('Description'), 'Taxi to the airport')
+  expect(screen.getByRole('button', { name: 'Category (optional)' })).toHaveTextContent('Transport')
+  expect(screen.getByText('Suggested from the description. Change it any time.')).toBeVisible()
+  await user.type(screen.getByLabelText('Amount'), '24')
+  await user.click(screen.getByRole('button', { name: 'Save expense' }))
+  expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Taxi to the airport', categoryId: 'transport' }), 'kept')
+  expect(onCategorySelect).not.toHaveBeenCalled()
+  unmount()
+
+  render(<ExpenseModal {...props} />)
+  await user.type(screen.getByLabelText('Description'), 'Dinner')
+  expect(screen.getByRole('button', { name: 'Category (optional)' })).toHaveTextContent('Food & drinks')
+  await user.click(screen.getByRole('button', { name: 'Category (optional)' }))
+  await user.click(screen.getByRole('option', { name: 'Stay' }))
+  expect(onCategorySelect).toHaveBeenCalledOnce()
+  expect(screen.queryByText(/Suggested from the description/)).toBeNull()
+  // A later edit to the description no longer overrides the person's choice.
+  await user.type(screen.getByLabelText('Description'), ' and taxi')
+  expect(screen.getByRole('button', { name: 'Category (optional)' })).toHaveTextContent('Stay')
+  await user.type(screen.getByLabelText('Amount'), '40')
+  await user.click(screen.getByRole('button', { name: 'Save expense' }))
+  expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ categoryId: 'stay' }), 'changed')
+  await user.click(screen.getByRole('button', { name: 'Category (optional)' }))
+  await user.click(screen.getByRole('option', { name: 'Food & drinks' }))
+  await user.click(screen.getByRole('button', { name: 'Save expense' }))
+  expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ categoryId: 'food' }), 'kept')
+})
+
+it('leaves expenses without a keyword, and chosen categories without a suggestion, unreported', async () => {
+  const user = userEvent.setup()
+  const onSave = vi.fn()
+  const props = { group, members: [CURRENT_USER], onClose: vi.fn(), onSave }
+  const { unmount } = render(<ExpenseModal {...props} />)
+  await user.type(screen.getByLabelText('Description'), 'Pastéis de nata')
+  expect(screen.getByRole('button', { name: 'Category (optional)' })).toHaveTextContent('General')
+  await user.type(screen.getByLabelText('Amount'), '9')
+  await user.click(screen.getByRole('button', { name: 'Save expense' }))
+  expect(onSave.mock.lastCall).toHaveLength(1)
+  expect(onSave.mock.lastCall![0]).not.toHaveProperty('categoryId')
+  await user.click(screen.getByRole('button', { name: 'Category (optional)' }))
+  await user.click(screen.getByRole('option', { name: 'Activities' }))
+  await user.click(screen.getByRole('button', { name: 'Save expense' }))
+  expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ categoryId: 'activities' }))
+  unmount()
+
+  render(<ExpenseModal {...props} expense={expense} />)
+  expect(screen.getByRole('button', { name: 'Category (optional)' })).toHaveTextContent('General')
+  await user.click(screen.getByRole('button', { name: 'Save changes' }))
+  expect(onSave).toHaveBeenLastCalledWith(expect.not.objectContaining({ categoryId: expect.anything() }))
+})
+
+it('records the suggestion outcome only after a new expense saves', async () => {
+  const user = userEvent.setup()
+  const track = vi.fn()
+  render(<App analyticsClient={{ track }} />)
+  await user.click(screen.getByRole('button', { name: 'Add expense' }))
+  await user.type(screen.getByLabelText('Description'), 'Hotel')
+  await user.type(screen.getByLabelText('Amount'), '120')
+  await user.click(screen.getByRole('button', { name: 'Save expense' }))
+  await waitFor(() => expect(track).toHaveBeenCalledWith('category_suggestion_kept', 'local', 'en'))
+  expect(track.mock.calls.map(([event]) => event)).not.toContain('category_selected')
+  expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).expenses[0]).toMatchObject({ title: 'Hotel', categoryId: 'stay' })
+})
+
+it('records a live suggestion outcome after the revision is accepted, and none when the save fails', async () => {
+  const user = userEvent.setup()
+  const credentials = { code: 'A1B2C3D4E5', editToken: 'a'.repeat(64) }
+  const snapshot = createSharedActivity(group, [CURRENT_USER], [expense])
+  const client = {
+    create: vi.fn(),
+    load: vi.fn().mockResolvedValue({ code: credentials.code, revision: 1, snapshot, updatedAt: '2026-09-22T12:00:00.000Z' }),
+    poll: vi.fn(),
+    update: vi.fn<LiveActivityClient['update']>().mockImplementation(async (_credentials, next, revision) => ({ code: credentials.code, revision: revision + 1, snapshot: next, updatedAt: '2026-09-22T12:01:00.000Z' })),
+  } satisfies LiveActivityClient
+  const track = vi.fn()
+  render(<App liveActivityClient={client} analyticsClient={{ track }} />)
+  await user.click(screen.getByRole('button', { name: 'Join activity' }))
+  await user.type(screen.getByLabelText('Shared activity link'), buildLiveActivityUrl(credentials, 'https://example.com/'))
+  await user.click(screen.getByRole('button', { name: 'Open activity' }))
+  expect(await screen.findByText('Live · revision 1')).toBeVisible()
+  const addTaxi = async () => {
+    await user.click(screen.getByRole('button', { name: 'Add expense' }))
+    await user.type(screen.getByLabelText('Description'), 'Taxi')
+    await user.type(screen.getByLabelText('Amount'), '18')
+    await user.click(screen.getByRole('button', { name: 'Save expense' }))
+  }
+  client.update.mockRejectedValueOnce(new Error('offline'))
+  await addTaxi()
+  await waitFor(() => expect(client.update).toHaveBeenCalledOnce())
+  expect(track.mock.calls.map(([event]) => event)).not.toContain('category_suggestion_kept')
+  await user.click(screen.getByRole('button', { name: 'Save expense' }))
+  await waitFor(() => expect(track).toHaveBeenCalledWith('category_suggestion_kept', 'live', 'en'))
+  expect(client.update.mock.lastCall![1].expenses[0]).toMatchObject({ title: 'Taxi', categoryId: 'transport' })
+})

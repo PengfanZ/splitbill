@@ -24,7 +24,7 @@ import { ActivityIdentityControl } from './ActivityIdentityControl'
 import { FriendNameInput } from './FriendNameInput'
 import { CategoryControl } from '../categories/CategoryControl'
 import { CategoryManager } from '../categories/CategoryManager'
-import { activityCategories, type CategoryChange } from '../../domain/categories'
+import { activityCategories, suggestCategoryId, type CategoryChange } from '../../domain/categories'
 
 export function CreateGroupModal({ onClose, onCurrencySelect, onSave }: {
   onClose: () => void
@@ -131,6 +131,8 @@ export function SettleUpModal({ group, settlement, onClose, onSave, saving = fal
 }
 
 export type ExpenseInputTab = 'manual' | 'ai-text' | 'ai-voice' | 'receipt'
+/** Whether a new expense kept the category suggested from its description. */
+export type CategorySuggestionOutcome = 'kept' | 'changed'
 
 type ExpenseEntryMode = ExpenseInputTab | 'ai-batch'
 
@@ -148,7 +150,7 @@ export function ExpenseModal({ group, members: allMembers, expense, categoryExpe
   onEntryTabSelect?: (tab: ExpenseInputTab) => void
   onReceiptConfirmed?: () => void
   onClose: () => void
-  onSave: (expense: Expense) => void
+  onSave: (expense: Expense, categorySuggestion?: CategorySuggestionOutcome) => void
   onSaveMany?: (expenses: Expense[]) => void
   saving?: boolean
 }) {
@@ -156,8 +158,14 @@ export function ExpenseModal({ group, members: allMembers, expense, categoryExpe
   const currency = activityCurrency(group)
   const [title, setTitle] = useState(expense?.title ?? '')
   const [categoryId, setCategoryId] = useState<string | null>(expense?.categoryId ?? null)
+  // Until someone picks a category, a new expense follows the category suggested by its description.
+  const [categoryChosen, setCategoryChosen] = useState(Boolean(expense))
+  const [overriddenSuggestion, setOverriddenSuggestion] = useState<string | null>(null)
   const [managingCategories, setManagingCategories] = useState(false)
-  const categoryValid = categoryId === null || activityCategories(group).some(category => category.id === categoryId)
+  const [editingBatchIndex, setEditingBatchIndex] = useState<number | null>(null)
+  const suggestedCategoryId = categoryChosen || editingBatchIndex !== null ? null : suggestCategoryId(title, activityCategories(group))
+  const selectedCategoryId = categoryChosen ? categoryId : suggestedCategoryId
+  const categoryValid = selectedCategoryId === null || activityCategories(group).some(category => category.id === selectedCategoryId)
   const members = useMemo(() => expenseEntryMembers(group, allMembers, expense), [group, allMembers, expense])
   const displayName = (member: Member) => isInactiveMember(group, member.id) ? t('members.inactiveName', { name: member.name }) : member.name
   const [amount, setAmount] = useState(expense ? expense.amount.toString() : '')
@@ -170,7 +178,6 @@ export function ExpenseModal({ group, members: allMembers, expense, categoryExpe
   const [entryMode, setEntryMode] = useState<ExpenseEntryMode>('manual')
   const [aiDraftApplied, setAiDraftApplied] = useState(false)
   const [aiBatchDrafts, setAiBatchDrafts] = useState<AiExpenseReadyDraft[]>([])
-  const [editingBatchIndex, setEditingBatchIndex] = useState<number | null>(null)
   const payerOptions: ReadonlyArray<SelectMenuOption<string>> = members.map(member => ({
     value: member.id,
     label: displayName(member),
@@ -253,7 +260,7 @@ export function ExpenseModal({ group, members: allMembers, expense, categoryExpe
     const savedAt = createExpenseTimestamp()
     const expenses = aiBatchDrafts.map(draft => createExpenseFromAiDraft(group.id, draft, members, makeId('expense'), savedAt))
     if (onSaveMany) onSaveMany(expenses)
-    else expenses.forEach(onSave)
+    else expenses.forEach(item => onSave(item))
   }
 
   const submit = (event: FormEvent) => {
@@ -278,7 +285,10 @@ export function ExpenseModal({ group, members: allMembers, expense, categoryExpe
       ? createEqualShares(equalParticipants, numericAmount)
       : createExactShares(members, exactShares)
     const savedAt = createExpenseTimestamp()
-    onSave({
+    const categorySuggestion: CategorySuggestionOutcome | undefined = !categoryChosen
+      ? suggestedCategoryId ? 'kept' : undefined
+      : overriddenSuggestion ? overriddenSuggestion === categoryId ? 'kept' : 'changed' : undefined
+    const saved: Expense = {
       id: expense?.id ?? makeId('expense'),
       groupId: group.id,
       title: title.trim(),
@@ -288,8 +298,10 @@ export function ExpenseModal({ group, members: allMembers, expense, categoryExpe
       shares,
       createdAt: expense?.createdAt ?? savedAt,
       ...(expense ? { updatedAt: savedAt } : {}),
-      ...(categoryId !== null || expense?.categoryId !== undefined ? { categoryId } : {}),
-    })
+      ...(selectedCategoryId !== null || expense?.categoryId !== undefined ? { categoryId: selectedCategoryId } : {}),
+    }
+    if (categorySuggestion) onSave(saved, categorySuggestion)
+    else onSave(saved)
   }
 
   if (managingCategories && onCategoriesChange) return <CategoryManager group={group} expenses={categoryExpenses} onChange={onCategoriesChange} onClose={() => setManagingCategories(false)} />
@@ -359,8 +371,13 @@ export function ExpenseModal({ group, members: allMembers, expense, categoryExpe
       ) : entryMode === 'manual' ? <form onSubmit={submit}>
         {aiDraftApplied ? <div className="split-note ai-draft-note" role="status"><Sparkles size={18} /><span><b>{t(editingBatchIndex === null ? 'expense.aiDraftReady' : 'expense.batchEditing', editingBatchIndex === null ? undefined : { current: editingBatchIndex + 1, total: aiBatchDrafts.length })}</b><small>{t(editingBatchIndex === null ? 'expense.aiDraftReview' : 'expense.batchEditingHelp')}</small></span></div> : null}
         <label>{t('expense.description')}<input autoFocus value={title} onChange={event => setTitle(event.target.value)} placeholder={t('expense.descriptionPlaceholder')} maxLength={200} required /></label>
-        {editingBatchIndex === null ? <label>{t('categories.label')}<CategoryControl group={group} value={categoryId} onChange={id => { setCategoryId(id); if (id !== categoryId) onCategorySelect?.() }} onManage={onCategoriesChange ? () => setManagingCategories(true) : undefined} /></label> : null}
-        {!categoryValid ? <div role="alert" className="split-note"><span>{t('categories.changed')}</span><Button onClick={() => setCategoryId(null)}>{t('categories.useGeneral')}</Button></div> : null}
+        {editingBatchIndex === null ? <label>{t('categories.label')}<CategoryControl group={group} value={selectedCategoryId} onChange={id => {
+          if (!categoryChosen) setOverriddenSuggestion(suggestedCategoryId)
+          setCategoryChosen(true)
+          setCategoryId(id)
+          if (id !== selectedCategoryId) onCategorySelect?.()
+        }} onManage={onCategoriesChange ? () => setManagingCategories(true) : undefined} />{suggestedCategoryId ? <small className="category-suggestion-note">{t('categories.suggested')}</small> : null}</label> : null}
+        {!categoryValid ? <div role="alert" className="split-note"><span>{t('categories.changed')}</span><Button onClick={() => { setCategoryChosen(true); setCategoryId(null) }}>{t('categories.useGeneral')}</Button></div> : null}
         <label>{t('expense.amount')}<span className="modal-amount"><i>{currencySymbol(currency, locale)}</i><input aria-label={t('expense.amount')} value={amount} onChange={event => setAmount(event.target.value)} onFocus={selectInputContents} type="number" inputMode="decimal" min="0.01" max={MAX_ACTIVITY_AMOUNT} step="0.01" placeholder="0.00" required /></span></label>
         <div className="form-grid">
           <label>{t('expense.paidBy')}<SelectMenu value={payerId} options={payerOptions} onChange={setPayerId} ariaLabel={t('expense.paidBy')} menuLabel={t('expense.paidBy')} /></label>

@@ -26,6 +26,11 @@ export function calculateMemberBalance(memberId: string, expenses: Expense[]) {
   ), 0)
 }
 
+/** A member's net effect from one expense, rounded to cents: positive when they lent, negative when they owe. */
+export function memberExpenseNet(memberId: string, expense: Expense) {
+  return Math.round(calculateMemberBalance(memberId, [expense]) * 100) / 100
+}
+
 export function getSettlementRecipientId(expense: Expense) {
   if (!isSettlementPayment(expense)) return null
   return Object.keys(expense.shares).find(memberId => memberId !== expense.payerId) ?? null

@@ -8,7 +8,7 @@
 .category-view-tabs button[aria-pressed=true] { border-color: var(--coral); color: var(--ink); font-weight: 700; }
 .category-bar { display: grid; grid-template-columns: 12px minmax(90px,140px) minmax(30px,1fr) auto 16px; gap: 12px; align-items: center; width: 100%; padding: 14px 4px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--ink); text-align: left; font: inherit; cursor: pointer; }
 .category-bar:hover,.category-bar[aria-pressed=true] { background: var(--surface-hover); }
-.category-bar-name { overflow-wrap: anywhere; font-size: 13px; }.category-bar-name small { display: block; font-size: 11px; color: var(--muted); margin-top: 4px; }
+.category-bar-name { overflow-wrap: anywhere; font-size: 13px; }.category-bar-name small { display: block; font-size: 12px; color: var(--muted); margin-top: 4px; }
 .category-bar strong { font-size: 14px; font-variant-numeric: tabular-nums; }
 .category-bar-track { height: 8px; border-radius: 8px; background: var(--surface-muted); overflow: hidden; }.category-bar-track > span { display: block; height: 100%; border-radius: inherit; }
 .category-manager { display: grid; gap: 20px; }
@@ -31,7 +31,7 @@
 .category-create-button { width: 100%; min-height: 48px; }
 .category-editor-preview { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 24px; border-radius: 18px; background: color-mix(in srgb, var(--category-color) 20%, var(--surface-solid)); color: var(--ink); font-weight: 600; overflow-wrap: anywhere; }
 .category-colors { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 12px; }.category-colors legend { margin-bottom: 12px; }.category-colors button { display: grid; place-items: center; color: #252320; width: 40px; height: 40px; border-radius: 50%; border: 3px solid var(--surface); outline: 2px solid transparent; cursor: pointer; }.category-colors button[aria-pressed=true] { outline-color: var(--ink); }
-.expense-category-label { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--ink); background: color-mix(in srgb, var(--category-color) 22%, var(--surface-solid)); border: 1px solid color-mix(in srgb, var(--category-color) 40%, transparent); border-radius: 20px; padding: 5px 9px; max-width: 140px; overflow-wrap: anywhere; }
+.expense-category-label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--ink); background: color-mix(in srgb, var(--category-color) 22%, var(--surface-solid)); border: 1px solid color-mix(in srgb, var(--category-color) 40%, transparent); border-radius: 20px; padding: 5px 9px; max-width: 140px; overflow-wrap: anywhere; }
 .expense-category-label .category-dot { width: 6px; height: 6px; background: var(--category-color); }
 @media (max-width: 700px) {
   .category-view-controls { flex-wrap: wrap; }.category-view-tabs { gap: 16px; }

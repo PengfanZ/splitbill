@@ -823,7 +823,7 @@ test('tracks local outcomes without sending local activity data or loading third
     .click()
   await summaryDownload
 
-  await expect.poll(() => events.length).toBe(7)
+  await expect.poll(() => events.length).toBe(8)
   const sessionTokens = new Set(events.map(event => event.p_session_token))
   expect(events.map(({ p_event_name, p_surface, p_locale, p_currency }) => ({ p_event_name, p_surface, p_locale, p_currency }))).toEqual([
     { p_event_name: 'app_opened', p_surface: 'local', p_locale: 'en', p_currency: null },
@@ -832,6 +832,8 @@ test('tracks local outcomes without sending local activity data or loading third
     { p_event_name: 'friend_added', p_surface: 'local', p_locale: 'en', p_currency: null },
     { p_event_name: 'currency_selected', p_surface: 'local', p_locale: 'en', p_currency: 'EUR' },
     { p_event_name: 'expense_added', p_surface: 'local', p_locale: 'en', p_currency: null },
+    // "Private dinner description" gets a suggested Food & drinks category that is kept.
+    { p_event_name: 'category_suggestion_kept', p_surface: 'local', p_locale: 'en', p_currency: null },
     { p_event_name: 'summary_export_clicked', p_surface: 'local', p_locale: 'en', p_currency: null },
   ])
   expect(sessionTokens.size).toBe(1)

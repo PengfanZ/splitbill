@@ -150,7 +150,7 @@ describe('first-party analytics', () => {
     })
   })
 
-  it.each(['friend_added', 'friend_removed', 'category_selected', 'category_summary_opened', 'category_created', 'category_updated', 'category_deleted'] as const)('records %s without user content or identifiers', event => {
+  it.each(['friend_added', 'friend_removed', 'category_selected', 'category_summary_opened', 'category_created', 'category_updated', 'category_deleted', 'category_suggestion_kept', 'category_suggestion_changed'] as const)('records %s without user content or identifiers', event => {
     const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
     const client = createConfiguredAnalyticsClient({
       VITE_SUPABASE_URL: 'https://project.supabase.co',
