@@ -378,7 +378,6 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
 
   return (
     <main className={`dashboard dashboard--view-${view}${showPrimaryActions ? ' dashboard--with-actions' : ''}`}>
-      <div className="main-column">
         <header className="group-welcome">
           <div className="group-title">
             <h1>{group.name}</h1>
@@ -404,11 +403,13 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
             {activityFeedback ? <span className="activity-feedback" role="status">{activityFeedback}</span> : null}
           </div>
         </header>
+      <div className="dashboard-body">
+      <div className="main-column">
         {hasExpenses ? <ActivitySummary expenses={expenses} members={historyMembers} currency={currency} currentMemberId={currentMemberId} currentUserLabel={currentUserLabel} onSettle={settleFromSummary} /> : null}
         <div className="dashboard-tabs" role="tablist" aria-label={t('dashboard.viewTabs')}>
           {tab('expenses', t('dashboard.expenses'))}
           {tab('balances', t('dashboard.balancesTab'))}
-          {tab('categories', t('categories.summary'))}
+          {tab('categories', t('dashboard.categoriesTab'))}
         </div>
         <div className="dashboard-panel">
           {view === 'categories' ? <CategorySummary group={group} expenses={expenses} selected={selectedCategory} onSelect={setSelectedCategory} onManage={canManageCategories ? () => setManageCategories(true) : undefined} /> : null}
@@ -428,6 +429,7 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
         <SettlementDirections key={balancesFocusRequest} highlighted={balancesFocusRequest > 0} members={historyMembers} expenses={expenses} currency={currency} currentMemberId={currentMemberId} currentUserLabel={currentUserLabel} headingId={balancesHeadingId} onSettleUp={readOnly ? undefined : onSettleUp} />
         <MembersRail group={group} members={members} expenses={expenses} currency={currency} currentMemberId={currentMemberId} readOnly={readOnly} onAddFriend={onAddFriend} onRemoveFriend={onRemoveFriend} onRestoreFriend={onRestoreFriend} />
       </aside>
+      </div>
       {optionsOpen ? (
         <ModalShell eyebrow={group.name} title={t('dashboard.activityOptions')} description={t('dashboard.activityOptionsHelp')} onClose={() => setOptionsOpen(false)} mobilePlacement="center">
           <div className="activity-options">

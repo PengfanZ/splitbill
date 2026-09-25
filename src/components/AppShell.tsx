@@ -44,17 +44,12 @@ export function Sidebar({ groups, selectedId, liveActivityCodes = EMPTY_LIVE_ACT
 }) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const { locale, t } = useLocalization()
-  // The row is narrow, so it shows a signed amount and gives screen readers the full sentence.
   const balanceDetail = (group: ActivityGroup, balance: number) => {
     if (balance === 0) return <small>{t('nav.settled')}</small>
     const amount = money(balance, activityCurrency(group), locale)
-    const owed = balance > 0
-    return (
-      <small className={`nav-balance nav-balance--${owed ? 'owed' : 'owe'}`}>
-        <span aria-hidden="true">{owed ? '+' : '−'}{amount}</span>
-        <span className="visually-hidden">{t(owed ? 'nav.youAreOwed' : 'nav.youOwe', { amount })}</span>
-      </small>
-    )
+    return balance > 0
+      ? <small className="nav-balance nav-balance--owed">{t('nav.youAreOwed', { amount })}</small>
+      : <small className="nav-balance nav-balance--owe">{t('nav.youOwe', { amount })}</small>
   }
 
   return (

@@ -46,7 +46,7 @@ for (const mobile of [false, true]) test(`categories persist without changing sp
   await page.reload()
   await expect(page.locator('.expense-category-label')).toHaveText('Coffee stops')
   await expect(page.locator('.expense-category-label')).toHaveCSS('--category-color', '#a78ab8')
-  await page.getByRole('tab', { name: 'By category', exact: true }).click()
+  await page.getByRole('tab', { name: 'Categories', exact: true }).click()
   await expect(page.getByRole('region', { name: 'By category' })).toContainText('$120.00')
   await expect(page.locator('vite-error-overlay')).toHaveCount(0)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)

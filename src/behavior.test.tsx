@@ -129,7 +129,7 @@ describe('happy paths', () => {
     expect(screen.getByText('You owe Maya', { selector: '.balance-row b' }).closest('.balance-row')).toHaveTextContent('$60.00')
     expect(screen.getByLabelText('Activity summary').querySelector('.balance-card-balance')).toHaveTextContent('You owe$60.00')
     expect(screen.getByText('−$60.00', { selector: '.member-balance' })).toBeVisible()
-    expect(screen.getByText('You owe $60.00')).toHaveClass('visually-hidden')
+    expect(screen.getByText('You owe $60.00')).toHaveClass('nav-balance--owe')
     expect(screen.getByText('Cabin')).toBeVisible()
   })
 

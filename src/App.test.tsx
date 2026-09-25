@@ -465,10 +465,8 @@ describe('small UI building blocks', () => {
     expect(screen.getByText('3 people')).toBeVisible()
     const third = { ...home, id: 'third', name: 'Ski weekend', currency: 'EUR' as const }
     rerender(<Sidebar groups={[home, group, third]} selectedId={null} activityBalances={{ home: 12.5, trip: -4, third: 0 }} onSelect={onSelect} onCreate={onCreate} onJoin={onJoin} onShowChangelog={onShowChangelog} onSendFeedback={onSendFeedback} onDelete={onDelete} onReset={onReset} />)
-    expect(screen.getByText('You’re owed $12.50').closest('small')).toHaveClass('nav-balance--owed')
-    expect(screen.getByText('+$12.50')).toHaveAttribute('aria-hidden', 'true')
-    expect(screen.getByText('You owe $4.00').closest('small')).toHaveClass('nav-balance--owe')
-    expect(screen.getByText('−$4.00')).toBeVisible()
+    expect(screen.getByText('You’re owed $12.50')).toHaveClass('nav-balance--owed')
+    expect(screen.getByText('You owe $4.00')).toHaveClass('nav-balance--owe')
     expect(screen.getByText('All settled up')).toBeVisible()
     rerender(<Sidebar groups={[home, group]} selectedId={null} liveActivityCodes={{ trip: 'A1B2C3D4E5' }} onSelect={onSelect} onCreate={onCreate} onJoin={onJoin} onShowChangelog={onShowChangelog} onSendFeedback={onSendFeedback} onDelete={onDelete} onReset={onReset} />)
     expect(screen.getByText('Live · A1B2C3D4E5')).toBeVisible()
@@ -727,8 +725,8 @@ describe('small UI building blocks', () => {
     expect(screen.getByRole('heading', { name: 'Who owes whom' })).toHaveFocus()
     expect(container.querySelector('.settlements-panel')).toHaveClass('settlements-panel--highlighted')
 
-    await user.click(screen.getByRole('tab', { name: 'By category' }))
-    await user.click(screen.getByRole('tab', { name: 'By category' }))
+    await user.click(screen.getByRole('tab', { name: 'Categories' }))
+    await user.click(screen.getByRole('tab', { name: 'Categories' }))
     expect(onCategorySummaryOpen).toHaveBeenCalledOnce()
     expect(screen.getByRole('heading', { name: 'Expenses' })).not.toHaveClass('visually-hidden')
     await user.click(within(screen.getByRole('region', { name: 'By category' })).getByRole('button', { name: 'Manage categories' }))
@@ -783,7 +781,7 @@ describe('small UI building blocks', () => {
     expect(container.querySelector('.avatar-stack-more')).toHaveTextContent('+1')
     expect(screen.getByRole('button', { name: 'Add expense' })).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Share' })).toBeNull()
-    await user.click(screen.getByRole('tab', { name: 'By category' }))
+    await user.click(screen.getByRole('tab', { name: 'Categories' }))
     expect(within(screen.getByRole('region', { name: 'By category' })).queryByRole('button', { name: 'Manage categories' })).toBeNull()
 
     rerender(<GroupDashboard group={bigGroup} members={[CURRENT_USER, ...crowd]} expenses={[]} query="" activityFeedback={null} />)

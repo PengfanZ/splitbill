@@ -1,5 +1,8 @@
 /* styles.css loads after this file, so layout overrides use the workspace scope. */
-.workspace .dashboard { grid-template-columns: minmax(0, 1fr) 340px; }
+.workspace .dashboard { display: block; padding: 32px 40px 48px; }
+.dashboard-body { margin-top: 24px; display: grid; grid-template-columns: minmax(0, 1fr) 340px; align-items: start; gap: 32px; }
+.workspace .main-column { padding: 0; }
+.workspace .right-rail { border: 0; padding: 0; }
 
 .group-meta { margin-top: 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .group-title .group-meta p { margin: 0; }
@@ -16,7 +19,7 @@
 .group-meta .read-only-badge { min-height: 32px; }
 .dashboard-panel { position: relative; }
 
-.balance-card { margin: 28px 0 22px; padding: 20px 24px; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface-solid); display: grid; gap: 14px; }
+.balance-card { margin: 0 0 22px; padding: 20px 24px; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface-solid); display: grid; gap: 14px; }
 .balance-card-main { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 18px 32px; }
 .balance-card-balance { display: grid; gap: 6px; }
 .balance-card-balance > span { color: var(--muted); font-size: 14px; font-weight: 600; }
@@ -42,7 +45,8 @@
 .activity-rail .section-heading { margin-inline: 0; }
 .activity-rail .section-meta { display: none; }
 .activity-rail .settlement-row { min-height: 60px; padding: 10px 0; gap: 10px; }
-.activity-rail .settlement-avatars { display: none; }
+.activity-rail .settlement-avatars { min-width: 0; }
+.activity-rail .settlement-avatars i, .activity-rail .settlement-avatars .avatar:last-child { display: none; }
 .activity-rail .settlement-row .row-copy small { display: none; }
 .activity-rail .settlement-row .row-copy b { white-space: normal; }
 .activity-rail .settlement-action { gap: 8px; }
@@ -76,19 +80,33 @@
   .activity-rail .balance-list { border-top: 0; }
   .activity-rail .balance-row:last-child, .activity-rail .member-row:last-child { border-bottom: 0; }
   .activity-rail .all-settled { border-bottom: 0; }
+  .activity-rail .member-balance-bar { display: none; }
+  .activity-rail .member-copy { gap: 0; }
+  .balance-card-settle { display: none; }
+  .activity-row.expense-entry { grid-template-columns: 36px minmax(0, 1fr) 120px 160px; }
+  .expense-entry .expense-amount { display: contents; }
+  .expense-entry .expense-amount b, .expense-entry .expense-share { text-align: right; }
+  .expense-entry .expense-amount b { grid-column: 3; }
+  .expense-entry .expense-share { grid-column: 4; }
 }
 
 @media (hover: hover) and (min-width: 921px) {
   .group-row .group-delete { opacity: 0; transition: opacity .15s ease; }
   .group-row:hover .group-delete, .group-row:focus-within .group-delete { opacity: 1; }
+  .group-select .group-icon, .group-select > svg { display: none; }
+  .activity-rail .member-row .icon-button-control { opacity: 0; transition: opacity .15s ease; }
+  .activity-rail .member-row:hover .icon-button-control, .activity-rail .member-row:focus-within .icon-button-control { opacity: 1; }
 }
 
 @media (max-width: 1120px) {
-  .workspace .dashboard { grid-template-columns: minmax(0, 1fr) 300px; }
+  .workspace .dashboard { padding: 30px 26px 44px; }
+  .dashboard-body { grid-template-columns: minmax(0, 1fr) 300px; gap: 24px; }
 }
 
 @media (max-width: 720px) {
   .topbar .topbar-context { display: none; }
+  .workspace .dashboard { padding: 24px 20px 30px; }
+  .dashboard-body { display: block; margin-top: 0; }
   .group-welcome { position: relative; }
   .dashboard-panel > .activity-section:first-child > .section-heading { justify-content: flex-end; }
   .group-title h1 { padding-right: 52px; }
@@ -112,7 +130,7 @@
   .dashboard--view-balances .dashboard-panel { display: none; }
   .dashboard:not(.dashboard--view-balances) .activity-rail { display: none; }
   .dashboard--view-balances .activity-rail { border-top: 0; padding-top: 0; }
-  .dashboard--with-actions { padding-bottom: 92px; }
+  .workspace .dashboard--with-actions { padding-bottom: 92px; }
   .group-primary-actions { position: fixed; right: 0; bottom: 0; left: 0; z-index: 25; padding: 12px 16px max(12px, env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--paper); }
   .group-primary-actions .button { min-height: 52px; border-radius: 14px; font-size: 15px; }
   .group-actions .share-button { min-width: 52px; }
