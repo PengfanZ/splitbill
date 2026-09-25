@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react'
-import { ArrowRight, CircleDollarSign, Mic, Pencil, ReceiptText, Sparkles, Trash2, Users } from 'lucide-react'
+import { ArrowRight, ChevronRight, CircleDollarSign, Mic, Pencil, ReceiptText, Sparkles, Trash2, Users } from 'lucide-react'
 import { expenseEntryMembers, isInactiveMember } from '../../domain/memberRemoval'
 import { Avatar } from '../../components/AppShell'
 import { ModalShell } from '../../components/Dialog'
@@ -210,6 +210,19 @@ export function ExpenseModal({ group, members: allMembers, expense, categoryExpe
     && draft.participantIds.every(id => members.some(member => member.id === id)))
   const splitValid = membersValid && (method === 'equal' ? equalParticipants.length > 0 : exactValid)
   const showSplitDetails = splitExpanded || !membersValid
+  const payerMember = members.find(member => member.id === payerId)
+  const viewer = members.find(member => member.id === currentMemberId)
+  const splitSummary = t('expense.equalSummary', { count: equalParticipants.length, unit: t(equalParticipants.length === 1 ? 'common.person' : 'common.people') })
+  const splitEach = t('expense.eachAmount', { amount: money(equalParticipants.length ? numericAmount / equalParticipants.length : 0, currency, locale) })
+  // What this expense means for the person entering it, before they save.
+  const viewerShare = viewer && numericAmount > 0 && membersValid
+    ? method === 'equal'
+      ? createEqualShares(equalParticipants, numericAmount)[viewer.id] ?? 0
+      : Number(exactShares[viewer.id]) || 0
+    : 0
+  const viewerNet = viewer && numericAmount > 0 && membersValid
+    ? Math.round(((payerId === viewer.id ? numericAmount : 0) - viewerShare) * 100) / 100
+    : 0
 
   const toggleEqualParticipant = (memberId: string) => {
     setEqualParticipantIds(current => current.includes(memberId)
@@ -373,7 +386,7 @@ export function ExpenseModal({ group, members: allMembers, expense, categoryExpe
           onSave={saveAiBatch}
           saving={saving || !batchMembersValid}
         />
-      ) : entryMode === 'manual' ? <form onSubmit={submit}>
+      ) : entryMode === 'manual' ? <form className="expense-form" onSubmit={submit}>
         {aiDraftApplied ? <div className="split-note ai-draft-note" role="status"><Sparkles size={18} /><span><b>{t(editingBatchIndex === null ? 'expense.aiDraftReady' : 'expense.batchEditing', editingBatchIndex === null ? undefined : { current: editingBatchIndex + 1, total: aiBatchDrafts.length })}</b><small>{t(editingBatchIndex === null ? 'expense.aiDraftReview' : 'expense.batchEditingHelp')}</small></span></div> : null}
         <label className="modal-amount-field">{t('expense.amount')}<span className="modal-amount modal-amount--hero"><i>{currencySymbol(currency, locale)}</i><input autoFocus aria-label={t('expense.amount')} value={amount} onChange={event => setAmount(event.target.value)} onFocus={selectInputContents} type="number" inputMode="decimal" min="0.01" max={MAX_ACTIVITY_AMOUNT} step="0.01" placeholder="0.00" required /></span></label>
         <label>{t('expense.description')}<input value={title} onChange={event => setTitle(event.target.value)} placeholder={t('expense.descriptionPlaceholder')} maxLength={200} required /></label>
@@ -419,15 +432,33 @@ export function ExpenseModal({ group, members: allMembers, expense, categoryExpe
         )}
         </> : (
           <div className="split-summary">
-            <span className="split-summary-copy">
-              <b>{t('expense.paidBySummary', { payer: displayName(members.find(member => member.id === payerId)!) })}</b>
-              <small>{t('expense.equalSummary', { count: equalParticipants.length, unit: t(equalParticipants.length === 1 ? 'common.person' : 'common.people'), amount: money(numericAmount / equalParticipants.length, currency, locale) })}</small>
-            </span>
-            <Button className="split-summary-change" aria-expanded="false" onClick={() => setSplitExpanded(true)}>{t('expense.changeSplit')}</Button>
+            <button type="button" className="split-summary-row" aria-expanded="false" aria-label={`${t('expense.paidBy')} ${displayName(payerMember!)}`} onClick={() => setSplitExpanded(true)}>
+              <span className="split-summary-label">{t('expense.paidBy')}</span>
+              <span className="split-summary-payer" aria-hidden="true"><Avatar member={payerMember!} size="sm" /></span>
+              <span className="split-summary-copy"><b>{displayName(payerMember!)}</b></span>
+              <ChevronRight size={16} aria-hidden="true" />
+            </button>
+            <button type="button" className="split-summary-row" aria-expanded="false" aria-label={`${t('expense.splitLabel')} ${splitSummary}, ${splitEach}`} onClick={() => setSplitExpanded(true)}>
+              <span className="split-summary-label">{t('expense.splitLabel')}</span>
+              <span className="split-summary-copy">
+                <b>{splitSummary}</b>
+                <small>{splitEach}</small>
+              </span>
+              <ChevronRight size={16} aria-hidden="true" />
+            </button>
           </div>
         )}
+        {viewerNet && viewer ? (
+          <div className={`expense-your-share expense-your-share--${viewerNet > 0 ? 'lent' : 'owe'}`}>
+            <Avatar member={viewer} size="sm" />
+            <span>{t('expense.yourShare')}</span>
+            <b>{viewerNet > 0
+              ? t('expense.youLentAmount', { amount: money(viewerNet, currency, locale) })
+              : t('expense.youOwePayer', { payer: displayName(payerMember!), amount: money(viewerNet, currency, locale) })}</b>
+          </div>
+        ) : null}
         {expense ? <div className="split-note edit-note"><Pencil size={17} /><span>{method === 'equal' ? t('expense.editEqualNote') : t('expense.editExactNote', { count: members.length })}</span></div> : null}
-        <div className="modal-actions">{expense && onDelete ? <Button variant="ghost" className="expense-delete-action" onClick={onDelete}><Trash2 size={16} />{t('expense.delete')}</Button> : null}<Button onClick={editingBatchIndex === null ? onClose : () => { setEditingBatchIndex(null); setEntryMode('ai-batch') }}>{t(editingBatchIndex === null ? 'common.cancel' : 'expense.batchBack')}</Button><Button variant="primary" type="submit" disabled={!splitValid || !categoryValid || saving}>{t(editingBatchIndex === null ? (expense ? 'expense.saveChanges' : 'expense.save') : 'expense.batchUpdate')}</Button></div>
+        <div className="modal-actions">{expense && onDelete ? <Button variant="ghost" className="expense-delete-action" onClick={onDelete}><Trash2 size={16} />{t('expense.delete')}</Button> : null}<Button className={editingBatchIndex === null ? 'modal-cancel' : undefined} onClick={editingBatchIndex === null ? onClose : () => { setEditingBatchIndex(null); setEntryMode('ai-batch') }}>{t(editingBatchIndex === null ? 'common.cancel' : 'expense.batchBack')}</Button><Button variant="primary" type="submit" disabled={!splitValid || !categoryValid || saving}>{t(editingBatchIndex === null ? (expense ? 'expense.saveChanges' : 'expense.save') : 'expense.batchUpdate')}</Button></div>
       </form> : null}
     </ModalShell>
   )

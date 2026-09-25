@@ -18,6 +18,8 @@
 .group-meta .activity-identity-control .select-menu-leading { width: 28px; height: 28px; border-radius: 50%; }
 .group-meta .read-only-badge { min-height: 32px; }
 .dashboard-panel { position: relative; }
+.activity-switcher { display: none; }
+.activity-switcher svg { color: var(--muted); }
 
 .balance-card { margin: 0 0 22px; padding: 20px 24px; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface-solid); display: grid; gap: 14px; }
 .balance-card-main { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 18px 32px; }
@@ -98,6 +100,10 @@
   .activity-rail .member-row:hover .icon-button-control, .activity-rail .member-row:focus-within .icon-button-control { opacity: 1; }
 }
 
+@media (max-width: 920px) {
+  .activity-switcher { display: grid; }
+}
+
 @media (max-width: 1120px) {
   .workspace .dashboard { padding: 30px 26px 44px; }
   .dashboard-body { grid-template-columns: minmax(0, 1fr) 300px; gap: 24px; }
@@ -107,9 +113,15 @@
   .topbar .topbar-context { display: none; }
   .workspace .dashboard { padding: 24px 20px 30px; }
   .dashboard-body { display: block; margin-top: 0; }
-  .group-welcome { position: relative; }
-  .dashboard-panel > .activity-section:first-child > .section-heading { justify-content: flex-end; }
-  .group-title h1 { padding-right: 52px; }
+  .workspace .group-welcome { position: relative; align-items: stretch; }
+  .dashboard-panel > .activity-section:first-child > .section-heading { display: none; }
+  .dashboard--view-balances .balance-card-settle { display: none; }
+  .group-title-row { display: flex; align-items: center; gap: 2px; }
+  .group-meta { flex-wrap: nowrap; gap: 8px; }
+  .group-meta .activity-identity-control { margin-left: auto; min-height: 32px; padding: 0 12px; }
+  .group-meta .activity-identity-control .select-menu-leading, .group-meta .activity-identity-control .select-menu-chevron { display: none; }
+  .group-meta .activity-identity-control .select-menu-value b { font-size: 13px; font-weight: 600; }
+  .group-title-row { padding-right: 52px; }
   .group-actions .activity-options-button { position: absolute; top: -4px; right: 0; }
   .activity-rail .settlement-row { flex-wrap: nowrap; }
   .activity-rail .settlement-row .row-copy { min-width: 0; }

@@ -23,6 +23,19 @@
 .expense-entry .expense-share--lent { color: var(--green); }
 .expense-entry .expense-share--owe { color: var(--coral-ink); }
 .expense-entry .expense-category-label { max-width: 100%; line-height: 1.4; }
+.expense-entry .row-copy .expense-details-compact, .expense-share-compact { display: none; }
+.activity-list .expense-icon { width: 40px; height: 40px; border-radius: 12px; }
+.expense-share-compact { grid-column: 3; justify-items: end; gap: 1px; text-align: right; }
+.expense-share-compact small { font-size: 12px; }
+.expense-share-compact b { font-size: 16px; font-variant-numeric: tabular-nums; }
+.expense-share-compact--lent { color: var(--green); }
+.expense-share-compact--owe { color: var(--coral-ink); }
+@media (max-width: 720px) {
+  .expense-entry .row-copy .expense-details-wide { display: none; }
+  .expense-entry .row-copy .expense-details-compact { display: block; }
+  .expense-entry--has-share .expense-amount { display: none; }
+  .expense-entry--has-share .expense-share-compact { display: grid; }
+}
 @media (max-width: 600px) {
   .activity-row.expense-entry { grid-template-columns: 36px minmax(0, 1fr) auto; gap: 2px 12px; padding: 10px 0; }
   .expense-entry .expense-amount { max-width: 130px; }

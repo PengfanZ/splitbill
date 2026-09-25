@@ -113,6 +113,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
   })
   const { locale, t } = useLocalization()
   const [query, setQuery] = useState('')
+  const [navigationOpen, setNavigationOpen] = useState(false)
   const [modal, setModal] = useState<ModalType>(null)
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
   const [settlingDirection, setSettlingDirection] = useState<Settlement | null>(null)
@@ -620,6 +621,8 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
         selectedId={live.credentials ? bookmarkedLiveGroupId : selectedGroup?.id ?? null}
         liveActivityCodes={liveActivityCodes}
         activityBalances={activityBalances}
+        open={navigationOpen}
+        onOpenChange={setNavigationOpen}
         onSelect={openActivity}
         onCreate={() => {
           if (live.credentials) closeLiveActivity()
@@ -672,6 +675,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
             {liveActivity ? (
               <GroupDashboard
                 key={liveActivity.group.id}
+                onSwitchActivity={() => setNavigationOpen(true)}
                 onCategoriesChange={live.editable ? changeActivityCategories : undefined}
                 onCategorySummaryOpen={() => analyticsClient?.track('category_summary_opened', 'live', locale)}
                 group={liveActivity.group}
@@ -706,6 +710,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
         ) : selectedGroup ? (
           <GroupDashboard
             key={selectedGroup.id}
+            onSwitchActivity={() => setNavigationOpen(true)}
             onCategoriesChange={changeActivityCategories}
             onCategorySummaryOpen={() => analyticsClient?.track('category_summary_opened', 'local', locale)}
             group={selectedGroup}

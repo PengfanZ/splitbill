@@ -83,7 +83,7 @@ test('mobile removal is clear, cancellable, persistent, and protects expense his
   expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)!).expenses[0].shares, STORAGE_KEY)).toEqual(dinner.shares)
   await page.getByRole('button', { name: 'Add expense', exact: true }).click()
   await expect(page.getByText(/New expenses include active friends only/)).toBeVisible()
-  await page.getByRole('button', { name: 'Change', exact: true }).click()
+  await page.getByRole('button', { name: /^Split Equally/ }).click()
   await expect(page.getByRole('checkbox')).toHaveCount(1)
   await page.getByLabel('Description').fill('Coffee')
   await page.getByLabel('Amount', { exact: true }).fill('12')

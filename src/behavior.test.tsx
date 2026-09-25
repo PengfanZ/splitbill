@@ -117,7 +117,7 @@ describe('happy paths', () => {
     await user.click(screen.getByRole('button', { name: 'Add expense' }))
     await user.type(screen.getByLabelText('Description'), 'Cabin')
     await user.type(screen.getByLabelText('Amount'), '100')
-    await user.click(screen.getByRole('button', { name: 'Change' }))
+    await user.click(screen.getByRole('button', { name: /^Split Equally/ }))
     await user.click(screen.getByRole('button', { name: 'Paid by' }))
     await user.click(screen.getByRole('option', { name: 'Maya' }))
     await user.click(screen.getByRole('button', { name: 'Split method' }))
@@ -171,7 +171,7 @@ describe('happy paths', () => {
     })
 
     await user.click(screen.getByRole('button', { name: 'Add expense' }))
-    await user.click(screen.getByRole('button', { name: 'Change' }))
+    await user.click(screen.getByRole('button', { name: /^Split Equally/ }))
     await user.click(screen.getByRole('button', { name: 'Paid by' }))
     expect(screen.getByRole('option', { name: 'Jordan' })).toBeVisible()
     await user.keyboard('{Escape}')
@@ -205,7 +205,7 @@ describe('happy paths', () => {
     await user.click(screen.getByRole('button', { name: 'Add expense' }))
     await user.type(screen.getByLabelText('Description'), 'Museum tickets')
     await user.type(screen.getByLabelText('Amount'), '60')
-    await user.click(screen.getByRole('button', { name: 'Change' }))
+    await user.click(screen.getByRole('button', { name: /^Split Equally/ }))
     await user.click(screen.getByLabelText('Include Jordan in equal split'))
 
     expect(screen.getByText('2 of 3 selected')).toBeVisible()
@@ -302,7 +302,7 @@ describe('edge cases', () => {
 
     await user.type(screen.getByLabelText('Description'), 'Tiny split')
     await user.type(screen.getByLabelText('Amount'), '0.30')
-    await user.click(screen.getByRole('button', { name: 'Change' }))
+    await user.click(screen.getByRole('button', { name: /^Split Equally/ }))
     await user.click(screen.getByRole('button', { name: 'Split method' }))
     await user.click(screen.getByRole('option', { name: 'Exact amounts' }))
     await user.type(screen.getByLabelText('You share'), '0.10')

@@ -27,12 +27,15 @@ export function Avatar({ member, size = 'md' }: { member: Member; size?: 'sm' | 
   return <span className={`avatar avatar--${size}`} style={{ background: member.color }}>{member.initials}</span>
 }
 
-export function Sidebar({ groups, selectedId, liveActivityCodes = EMPTY_LIVE_ACTIVITY_CODES, activityBalances = EMPTY_ACTIVITY_BALANCES, onSelect, onCreate, onJoin, onShowChangelog, onSendFeedback, onDelete, onReset, hasUnreadChangelog = false }: {
+export function Sidebar({ groups, selectedId, liveActivityCodes = EMPTY_LIVE_ACTIVITY_CODES, activityBalances = EMPTY_ACTIVITY_BALANCES, open, onOpenChange, onSelect, onCreate, onJoin, onShowChangelog, onSendFeedback, onDelete, onReset, hasUnreadChangelog = false }: {
   groups: ActivityGroup[]
   selectedId: string | null
   liveActivityCodes?: Record<string, string>
   /** The viewer's balance in each local activity that has spending. */
   activityBalances?: Record<string, number>
+  /** Lets the page open the mobile activity list; uncontrolled when omitted. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
   onSelect: (id: string) => void
   onCreate: () => void
   onJoin: () => void
@@ -42,7 +45,9 @@ export function Sidebar({ groups, selectedId, liveActivityCodes = EMPTY_LIVE_ACT
   onReset: () => void
   hasUnreadChangelog?: boolean
 }) {
-  const [mobileOpen, setMobileOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+  const mobileOpen = open ?? internalOpen
+  const setMobileOpen = onOpenChange ?? setInternalOpen
   const { locale, t } = useLocalization()
   const balanceDetail = (group: ActivityGroup, balance: number) => {
     if (balance === 0) return <small>{t('nav.settled')}</small>

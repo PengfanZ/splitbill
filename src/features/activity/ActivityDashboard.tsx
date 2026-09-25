@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react'
 import {
   Check,
+  ChevronDown,
   ChevronRight,
   CircleDollarSign,
   Ellipsis,
@@ -218,6 +219,10 @@ export function ExpenseList({ expenses, members, group, inactiveMembers = [], cu
     const viewerShareKey = viewerNet > 0
       ? namedViewer ? 'dashboard.memberLent' : 'dashboard.youLent'
       : namedViewer ? 'dashboard.memberBorrowed' : 'dashboard.youBorrowed'
+    const viewerShareLabelKey = viewerNet > 0
+      ? namedViewer ? 'dashboard.memberLentLabel' : 'dashboard.youLentLabel'
+      : namedViewer ? 'dashboard.memberOwesLabel' : 'dashboard.youOweLabel'
+    const shareTone = viewerNet > 0 ? 'lent' : 'owe'
     const detailsId = `${rowIdPrefix}-${expense.id}-details`
     const amountId = `${rowIdPrefix}-${expense.id}-amount`
     const content = <>
@@ -225,15 +230,17 @@ export function ExpenseList({ expenses, members, group, inactiveMembers = [], cu
       <span className="row-copy">
         <b>{settlementPayment ? t('dashboard.paidPerson', { payer: payer.name, recipient: settlementRecipient?.name ?? unknown }) : expense.title}</b>
         <span className="expense-meta-line">
-          <small id={detailsId}>{settlementPayment ? t('dashboard.settlementPayment') : <>{t('dashboard.paidLabel', { payer: payer.name })}<i /><span className="expense-split-method">{t(expense.splitMethod === 'equal' ? 'dashboard.splitEqually' : 'dashboard.exactSplit')} · </span>{participantCount} {t(participantCount === 1 ? 'common.person' : 'common.people')}</>}</small>
+          <small id={detailsId} className={settlementPayment ? undefined : 'expense-details-wide'}>{settlementPayment ? t('dashboard.settlementPayment') : <>{t('dashboard.paidLabel', { payer: payer.name })}<i /><span className="expense-split-method">{t(expense.splitMethod === 'equal' ? 'dashboard.splitEqually' : 'dashboard.exactSplit')} · </span>{participantCount} {t(participantCount === 1 ? 'common.person' : 'common.people')}</>}</small>
+          {settlementPayment ? null : <small className="expense-details-compact" aria-hidden="true">{t('dashboard.paidAmount', { payer: payer.name, amount: money(expense.amount, currency, locale) })}</small>}
           {category?.id ? <span className="expense-category-label" style={{ '--category-color': category.color } as CSSProperties}><span className="category-dot" aria-hidden="true" />{categoryLabel(category, locale)}</span> : null}
           {expense.updatedAt ? <span className="expense-edited">{t('dashboard.edited')}</span> : null}
         </span>
         {removedNames.length && !settlementPayment ? <small>{t('members.historyIncludes', { names: removedNames.join(', ') })}</small> : null}
       </span>
-      <span className="expense-amount" id={amountId}><b>{money(expense.amount, currency, locale)}</b>{viewerNet ? <small className={`expense-share expense-share--${viewerNet > 0 ? 'lent' : 'owe'}`}>{t(viewerShareKey, { name: currentUserLabel ?? '', amount: money(viewerNet, currency, locale) })}</small> : null}</span>
+      <span className="expense-amount" id={amountId}><b>{money(expense.amount, currency, locale)}</b>{viewerNet ? <small className={`expense-share expense-share--${shareTone}`}>{t(viewerShareKey, { name: currentUserLabel ?? '', amount: money(viewerNet, currency, locale) })}</small> : null}</span>
+      {viewerNet ? <span className={`expense-share-compact expense-share-compact--${shareTone}`} aria-hidden="true"><small>{t(viewerShareLabelKey, { name: currentUserLabel ?? '' })}</small><b>{money(viewerNet, currency, locale)}</b></span> : null}
     </>
-    const rowClass = `activity-row expense-entry${settlementPayment ? ' settlement-payment-row' : ''}`
+    const rowClass = `activity-row expense-entry${settlementPayment ? ' settlement-payment-row' : ''}${viewerNet ? ' expense-entry--has-share' : ''}`
     if (!readOnly && !settlementPayment && onEditExpense) {
       return <button type="button" className={`${rowClass} expense-entry--editable`} key={expense.id} title={timestampLabel} aria-label={t('dashboard.editExpense', { title: expense.title })} aria-describedby={`${detailsId} ${amountId}`} onClick={() => onEditExpense(expense)}>{content}</button>
     }
@@ -293,9 +300,11 @@ export function MembersRail({ members, group, expenses = [], currency = 'USD', c
   )
 }
 
-export function GroupDashboard({ group, members, expenses, query, activityFeedback, readOnly = false, readOnlyLabel, currentMemberId = 'me', currentUserLabel = 'You', statusLabel, onCurrentMemberChange, onCurrencyChange, onShareSummary, onExportData, onShareQr, onShareLive, onCopyShareLink, onEndLive, onAddFriend, onRemoveFriend, onRestoreFriend, onAddExpense, onSettleUp, onEditExpense, onDeleteExpense, onCategoriesChange, onCategorySummaryOpen }: {
+export function GroupDashboard({ group, members, expenses, query, activityFeedback, onSwitchActivity, readOnly = false, readOnlyLabel, currentMemberId = 'me', currentUserLabel = 'You', statusLabel, onCurrentMemberChange, onCurrencyChange, onShareSummary, onExportData, onShareQr, onShareLive, onCopyShareLink, onEndLive, onAddFriend, onRemoveFriend, onRestoreFriend, onAddExpense, onSettleUp, onEditExpense, onDeleteExpense, onCategoriesChange, onCategorySummaryOpen }: {
   onCategorySummaryOpen?: () => void
   onCategoriesChange?: (change: CategoryChange) => Promise<boolean>
+  /** Opens the activity list; only offered where the sidebar is a drawer. */
+  onSwitchActivity?: () => void
   group: ActivityGroup
   members: Member[]
   expenses: Expense[]
@@ -380,7 +389,10 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
     <main className={`dashboard dashboard--view-${view}${showPrimaryActions ? ' dashboard--with-actions' : ''}`}>
         <header className="group-welcome">
           <div className="group-title">
-            <h1>{group.name}</h1>
+            <div className="group-title-row">
+              <h1>{group.name}</h1>
+              {onSwitchActivity ? <IconButton className="activity-switcher" label={t('dashboard.switchActivity')} onClick={onSwitchActivity}><ChevronDown size={22} /></IconButton> : null}
+            </div>
             <div className="group-meta">
               <AvatarStack members={active} />
               <p>{t('dashboard.peopleAndCurrency', { count: activeCount, unit: t(activeCount === 1 ? 'common.person' : 'common.people'), currency })}</p>
