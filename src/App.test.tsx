@@ -855,6 +855,8 @@ describe('small UI building blocks', () => {
 
     rerender(<GroupDashboard group={group} members={[CURRENT_USER, maya, jordan]} expenses={[expense()]} query="" activityFeedback={null} statusLabel="Live · revision 2" onShareQr={shareQr} onCopyShareLink={vi.fn()} />)
     expect(screen.getByText('Live · revision 2')).toBeVisible()
+    expect(screen.getByText('Live · revision 2').closest('.live-badge')).toHaveAttribute('title', 'Live · revision 2')
+    expect(document.querySelector('.live-badge-short')).not.toBeInTheDocument()
     await chooseShareAction(user, 'Show live QR')
     expect(shareQr).toHaveBeenCalledOnce()
 
@@ -1510,6 +1512,9 @@ describe('complete app workflows', () => {
     await user.type(screen.getByLabelText('Shared activity link'), liveUrl)
     await user.click(screen.getByRole('button', { name: 'Open activity' }))
     expect(await screen.findByText('Live · revision 1')).toBeVisible()
+    // Phones show the short label; the full one stays in the badge for screen readers.
+    expect(screen.getByText('Live · revision 1')).toHaveClass('live-badge-full')
+    expect(screen.getByText('Live', { selector: '.live-badge-short' })).toHaveAttribute('aria-hidden', 'true')
     expect(window.location.hash).toBe(new URL(liveUrl).hash)
     expect(client.load).toHaveBeenCalledOnce()
     await user.click(screen.getByRole('button', { name: 'Switch activity' }))

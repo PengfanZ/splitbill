@@ -14,11 +14,17 @@
 .group-actions .activity-options-button { border: 1px solid var(--control-border); border-radius: var(--radius-control); }
 .workspace .group-welcome { align-items: flex-end; }
 .workspace .group-actions { display: flex; align-items: center; gap: 9px; }
+.group-actions .button { white-space: nowrap; }
 .group-meta .activity-identity-control { width: auto; min-height: 36px; padding: 2px 12px 2px 4px; border-radius: 999px; }
 .group-meta .activity-identity-control .select-menu-leading { width: 28px; height: 28px; border-radius: 50%; }
 .group-meta .read-only-badge { min-height: 32px; }
 .dashboard-panel { position: relative; }
-.activity-switcher { display: none; }
+.group-title-row { display: flex; align-items: center; gap: 2px; }
+.group-title-row h1 { min-width: 0; overflow-wrap: anywhere; }
+/* Doubled class: styles.css loads later and gives every .icon-button-control display: grid. */
+.activity-switcher.activity-switcher { display: none; }
+.live-badge-short, .avatar-stack--compact { display: none; }
+.add-person-chip, .group-meta .read-only-badge { white-space: nowrap; }
 .activity-switcher svg { color: var(--muted); }
 
 .balance-card { margin: 0 0 22px; padding: 20px 24px; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface-solid); display: grid; gap: 14px; }
@@ -101,7 +107,7 @@
 }
 
 @media (max-width: 920px) {
-  .activity-switcher { display: grid; }
+  .activity-switcher.activity-switcher { display: grid; flex-shrink: 0; }
 }
 
 @media (max-width: 1120px) {
@@ -116,9 +122,16 @@
   .workspace .group-welcome { position: relative; align-items: stretch; }
   .dashboard-panel > .activity-section:first-child > .section-heading { display: none; }
   .dashboard--view-balances .balance-card-settle { display: none; }
-  .group-title-row { display: flex; align-items: center; gap: 2px; }
-  .group-meta { flex-wrap: nowrap; gap: 8px; }
-  .group-meta .activity-identity-control { margin-left: auto; min-height: 32px; padding: 0 12px; }
+  .group-meta { gap: 8px; }
+  .group-meta > * { flex-shrink: 0; }
+  .avatar-stack--wide { display: none; }
+  .avatar-stack--compact { display: inline-flex; }
+  .add-person-chip { width: 32px; min-height: 32px; margin-left: -4px; padding: 0; justify-content: center; }
+  .add-person-chip-label { display: none; }
+  .group-meta .read-only-badge { min-height: 32px; padding-inline: 10px; }
+  .live-badge-full { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .live-badge-short { display: inline; }
+  .group-meta .activity-identity-control { flex-shrink: 1; min-width: 0; max-width: 100%; min-height: 32px; padding: 0 12px; }
   .group-meta .activity-identity-control .select-menu-leading, .group-meta .activity-identity-control .select-menu-chevron { display: none; }
   .group-meta .activity-identity-control .select-menu-value b { font-size: 13px; font-weight: 600; }
   .group-title-row { padding-right: 52px; }
