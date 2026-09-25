@@ -168,8 +168,10 @@ function groupExpensesByDay(expenses: Expense[], label: (value: string) => strin
   return [...days.values()]
 }
 
-export function ExpenseList({ expenses, members, group, inactiveMembers = [], currency = 'USD', query, readOnly = false, currentMemberId = null, currentUserLabel, onEditExpense, onDeleteExpense }: {
+export function ExpenseList({ expenses, members, group, inactiveMembers = [], currency = 'USD', query, readOnly = false, currentMemberId = null, currentUserLabel, hideTitle = false, onEditExpense, onDeleteExpense }: {
   group?: ActivityGroup
+  /** Keeps the heading for screen readers when a visible tab already names the list. */
+  hideTitle?: boolean
   currentMemberId?: string | null
   currentUserLabel?: string
   expenses: Expense[]
@@ -245,7 +247,7 @@ export function ExpenseList({ expenses, members, group, inactiveMembers = [], cu
 
   return (
     <section className="content-section activity-section">
-      <div className="section-heading"><h2>{t('dashboard.expenses')}</h2><span className="section-meta">{visible.length} {t(visible.length === 1 ? 'dashboard.entry' : 'dashboard.entries')}</span></div>
+      <div className="section-heading"><h2 className={hideTitle ? 'visually-hidden' : undefined}>{t('dashboard.expenses')}</h2><span className="section-meta">{visible.length} {t(visible.length === 1 ? 'dashboard.entry' : 'dashboard.entries')}</span></div>
       <div className="activity-list">
         {days.length ? days.map(day => (
           <div className="expense-day" key={day.key}>
@@ -266,7 +268,7 @@ export function MembersRail({ members, group, expenses = [], currency = 'USD', c
   const largest = Math.max(0, ...[...balances.values()].map(Math.abs))
   return (
     <section className="members-panel">
-      <div className="rail-heading"><h2>{t('dashboard.people')}</h2><span>{active.length}</span></div>
+      <div className="rail-heading"><h2>{t('dashboard.people')}</h2>{readOnly ? null : <Button variant="ghost" className="add-friend-button" onClick={onAddFriend}><Plus size={16} />{t('dashboard.addFriend')}</Button>}<span>{active.length}</span></div>
       <div className="member-list">{active.map(member => {
         const balance = balances.get(member.id)!
         return <div className="member-row" key={member.id}>
@@ -281,7 +283,6 @@ export function MembersRail({ members, group, expenses = [], currency = 'USD', c
             : <IconButton tone="danger" label={t('removeFriend.label', { name: member.name })} onClick={() => onRemoveFriend(member)}><Trash2 size={16} /></IconButton> : null}
         </div>
       })}</div>
-      {readOnly ? null : <Button className="add-friend-button" onClick={onAddFriend}><Plus size={16} />{t('dashboard.addFriend')}</Button>}
       {inactive.length ? <details className="inactive-members"><summary>{t('members.removedCount', { count: inactive.length })}</summary>
         <p>{t('members.restoreHelp')}</p>
         {inactive.map(member => <div className="member-row" key={member.id}><Avatar member={member} size="sm" /><b>{member.name}</b>
@@ -383,18 +384,16 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
             <h1>{group.name}</h1>
             <div className="group-meta">
               <AvatarStack members={active} />
-              <p>{t('dashboard.sharing', { count: activeCount, unit: t(activeCount === 1 ? 'common.person' : 'common.people') })}</p>
+              <p>{t('dashboard.peopleAndCurrency', { count: activeCount, unit: t(activeCount === 1 ? 'common.person' : 'common.people'), currency })}</p>
               {!readOnly && onAddFriend ? <button type="button" className="add-person-chip" aria-label={t('dashboard.addFriend')} onClick={onAddFriend}><Plus size={14} aria-hidden="true" />{t('dashboard.addPerson')}</button> : null}
+              {statusLabel ? <span className="read-only-badge live-badge"><Radio size={14} />{statusLabel}</span> : null}
+              {readOnly ? <span className="read-only-badge">{readOnlyLabel ?? t('dashboard.readOnly')}</span> : null}
+              {onCurrentMemberChange ? <ActivityIdentityControl memberId={currentMemberId} members={historyMembers} onChange={onCurrentMemberChange} /> : null}
             </div>
           </div>
           <div className="group-share">
             <div className="group-actions">
-              <div className="group-context-actions">
-                {statusLabel ? <span className="read-only-badge live-badge"><Radio size={14} />{statusLabel}</span> : null}
-                {onCurrentMemberChange ? <ActivityIdentityControl memberId={currentMemberId} members={historyMembers} onChange={onCurrentMemberChange} /> : null}
-                {readOnly ? <span className="read-only-badge">{readOnlyLabel ?? t('dashboard.readOnly')}</span> : null}
-                <IconButton className="activity-options-button" label={t('dashboard.activityOptions')} onClick={() => setOptionsOpen(true)}><Ellipsis size={20} /></IconButton>
-              </div>
+              <IconButton className="activity-options-button" label={t('dashboard.activityOptions')} onClick={() => setOptionsOpen(true)}><Ellipsis size={20} /></IconButton>
               {showPrimaryActions ? (
                 <div className="group-primary-actions">
                   {canShare ? <Button className="share-button" onClick={() => setShareMenuOpen(true)}><Share2 size={16} />{t('dashboard.share')}</Button> : null}
@@ -414,7 +413,7 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
         <div className="dashboard-panel">
           {view === 'categories' ? <CategorySummary group={group} expenses={expenses} selected={selectedCategory} onSelect={setSelectedCategory} onManage={canManageCategories ? () => setManageCategories(true) : undefined} /> : null}
           {hasExpenses ? (
-            <ExpenseList group={group} currentMemberId={currentMemberId} currentUserLabel={currentUserLabel} expenses={view === 'categories' ? expenses.filter(expense => !isSettlementPayment(expense) && (selectedCategory === null || expenseCategory(group, expense).id === selectedCategory)) : expenses} members={historyMembers} inactiveMembers={inactiveMembers} currency={currency} query={query} readOnly={readOnly} onEditExpense={onEditExpense} onDeleteExpense={onDeleteExpense} />
+            <ExpenseList group={group} hideTitle={view !== 'categories'} currentMemberId={currentMemberId} currentUserLabel={currentUserLabel} expenses={view === 'categories' ? expenses.filter(expense => !isSettlementPayment(expense) && (selectedCategory === null || expenseCategory(group, expense).id === selectedCategory)) : expenses} members={historyMembers} inactiveMembers={inactiveMembers} currency={currency} query={query} readOnly={readOnly} onEditExpense={onEditExpense} onDeleteExpense={onDeleteExpense} />
           ) : view === 'categories' ? null : (
             <section className="activity-empty">
               <span><ReceiptText size={25} /></span>

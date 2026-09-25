@@ -189,7 +189,7 @@ describe('happy paths', () => {
 
     unmount()
     render(<App />)
-    expect(screen.getByText('3 people sharing expenses together.')).toBeVisible()
+    expect(screen.getByText('3 people · USD')).toBeVisible()
     expect(screen.getByText((_, node) => node?.tagName === 'SMALL' && node.textContent === 'You paidSplit equally · 2 people')).toBeVisible()
     expect(screen.getByText((_, node) => node?.tagName === 'SMALL' && node.textContent === 'You paidSplit equally · 3 people')).toBeVisible()
   })

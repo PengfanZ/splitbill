@@ -8,7 +8,13 @@
 .avatar-stack-more { width: 32px; height: 32px; border-radius: 50%; display: inline-grid; place-items: center; background: var(--surface-muted); color: var(--muted); font-size: 12px; font-weight: 700; }
 .add-person-chip { min-height: 36px; border: 1px dashed var(--control-border); border-radius: 999px; padding: 0 12px; display: inline-flex; align-items: center; gap: 4px; background: transparent; color: var(--ink); font-size: 13px; font-weight: 600; }
 .add-person-chip:hover { border-style: solid; background: var(--surface-glass-strong); }
-.activity-options-button { border: 1px solid var(--control-border); border-radius: var(--radius-control); }
+.group-actions .activity-options-button { border: 1px solid var(--control-border); border-radius: var(--radius-control); }
+.workspace .group-welcome { align-items: flex-end; }
+.workspace .group-actions { display: flex; align-items: center; gap: 9px; }
+.group-meta .activity-identity-control { width: auto; min-height: 36px; padding: 2px 12px 2px 4px; border-radius: 999px; }
+.group-meta .activity-identity-control .select-menu-leading { width: 28px; height: 28px; border-radius: 50%; }
+.group-meta .read-only-badge { min-height: 32px; }
+.dashboard-panel { position: relative; }
 
 .balance-card { margin: 28px 0 22px; padding: 20px 24px; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface-solid); display: grid; gap: 14px; }
 .balance-card-main { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 18px 32px; }
@@ -43,6 +49,8 @@
 .activity-rail .settlement-action > strong { font-size: 17px; }
 .activity-rail .members-panel { margin-top: 32px; }
 .members-panel .member-row { min-height: 56px; }
+.workspace .members-panel .rail-heading { grid-template-columns: minmax(0, 1fr) auto var(--control-height); gap: 4px; }
+.workspace .add-friend-button { width: auto; min-height: 36px; margin-top: 0; padding-inline: 8px; color: var(--green); }
 .member-copy { flex: 1; min-width: 0; display: grid; gap: 6px; }
 .member-copy > b { min-width: 0; display: flex; align-items: center; gap: 6px; overflow: hidden; font-size: 13px; white-space: nowrap; text-overflow: ellipsis; }
 .member-copy .member-identity-indicator { width: auto; height: auto; display: inline-grid; }
@@ -60,18 +68,36 @@
 .activity-options-field { display: grid; gap: 8px; color: var(--muted); font-size: 13px; }
 .activity-options .activity-currency { width: 100%; }
 
+@media (min-width: 721px) {
+  .add-person-chip { display: none; }
+  .dashboard-panel > .activity-section:first-child > .section-heading { position: absolute; top: -47px; right: 4px; margin: 0; }
+  .activity-rail .settlements-panel, .activity-rail .members-panel { padding: 14px 16px 4px; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface-solid); }
+  .activity-rail .members-panel { margin-top: 16px; background: var(--surface); }
+  .activity-rail .balance-list { border-top: 0; }
+  .activity-rail .balance-row:last-child, .activity-rail .member-row:last-child { border-bottom: 0; }
+  .activity-rail .all-settled { border-bottom: 0; }
+}
+
+@media (hover: hover) and (min-width: 921px) {
+  .group-row .group-delete { opacity: 0; transition: opacity .15s ease; }
+  .group-row:hover .group-delete, .group-row:focus-within .group-delete { opacity: 1; }
+}
+
 @media (max-width: 1120px) {
   .workspace .dashboard { grid-template-columns: minmax(0, 1fr) 300px; }
 }
 
 @media (max-width: 720px) {
   .topbar .topbar-context { display: none; }
+  .group-welcome { position: relative; }
+  .dashboard-panel > .activity-section:first-child > .section-heading { justify-content: flex-end; }
+  .group-title h1 { padding-right: 52px; }
+  .group-actions .activity-options-button { position: absolute; top: -4px; right: 0; }
   .activity-rail .settlement-row { flex-wrap: nowrap; }
   .activity-rail .settlement-row .row-copy { min-width: 0; }
   .activity-rail .settlement-action { width: auto; }
   .group-meta { margin-top: 10px; }
   .group-title .group-meta p { display: none; }
-  .group-context-actions .activity-options-button { margin-left: auto; }
   .balance-card { margin: 18px 0 16px; padding: 16px; }
   .balance-card-main { flex-wrap: nowrap; gap: 12px; }
   .balance-card-balance > strong { font-size: clamp(34px, 11vw, 44px); }

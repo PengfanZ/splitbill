@@ -716,6 +716,9 @@ describe('small UI building blocks', () => {
     const { container, rerender } = render(<GroupDashboard {...props} onCurrencyChange={onCurrencyChange} onCategorySummaryOpen={onCategorySummaryOpen} onCategoriesChange={onCategoriesChange} onSettleUp={vi.fn()} />)
     const dashboard = container.querySelector('.dashboard')!
     expect(screen.getByRole('tab', { name: 'Expenses' })).toHaveAttribute('aria-selected', 'true')
+    // The Expenses tab already names the list, so its heading stays only for screen readers.
+    expect(screen.getByRole('heading', { name: 'Expenses' })).toHaveClass('visually-hidden')
+    expect(screen.getByText('3 people · USD')).toBeVisible()
 
     expect(container.querySelector('.settlements-panel')).not.toHaveClass('settlements-panel--highlighted')
     await user.click(screen.getByRole('button', { name: /Maya Chen and Jordan owe you/ }))
@@ -727,6 +730,7 @@ describe('small UI building blocks', () => {
     await user.click(screen.getByRole('tab', { name: 'By category' }))
     await user.click(screen.getByRole('tab', { name: 'By category' }))
     expect(onCategorySummaryOpen).toHaveBeenCalledOnce()
+    expect(screen.getByRole('heading', { name: 'Expenses' })).not.toHaveClass('visually-hidden')
     await user.click(within(screen.getByRole('region', { name: 'By category' })).getByRole('button', { name: 'Manage categories' }))
     expect(screen.getByRole('heading', { name: 'Manage categories' })).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Close' }))
