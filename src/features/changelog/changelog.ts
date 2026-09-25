@@ -18,6 +18,18 @@ export type ChangelogEntry = {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    id: '2026-09-ui-polish',
+    releasedOn: '2026-09-25',
+    titleKey: 'changelog.release.uiPolishTitle',
+    summaryKey: 'changelog.release.uiPolishSummary',
+    items: [
+      { icon: 'polish', titleKey: 'changelog.item.yourShareTitle', descriptionKey: 'changelog.item.yourShareDescription' },
+      { icon: 'settle', titleKey: 'changelog.item.settlementColorsTitle', descriptionKey: 'changelog.item.settlementColorsDescription' },
+      { icon: 'polish', titleKey: 'changelog.item.suggestedCategoryTitle', descriptionKey: 'changelog.item.suggestedCategoryDescription' },
+      { icon: 'theme', titleKey: 'changelog.item.readabilityTitle', descriptionKey: 'changelog.item.readabilityDescription' },
+    ],
+  },
+  {
     id: '2026-09-expense-categories',
     releasedOn: '2026-09-22',
     titleKey: 'changelog.release.categoriesTitle',
