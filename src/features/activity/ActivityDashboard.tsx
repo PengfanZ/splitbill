@@ -40,10 +40,10 @@ function useViewerNaming(currentUserLabel?: string) {
   return { named, label: currentUserLabel ?? t('common.you') }
 }
 
-function AvatarStack({ members, limit = 5 }: { members: Member[]; limit?: number }) {
+function AvatarStack({ members, limit = 5, className }: { members: Member[]; limit?: number; className?: string }) {
   const hidden = members.length - limit
   return (
-    <span className="avatar-stack" aria-hidden="true">
+    <span className={className ? `avatar-stack ${className}` : 'avatar-stack'} aria-hidden="true">
       {members.slice(0, limit).map(member => <Avatar key={member.id} member={member} size="sm" />)}
       {hidden > 0 ? <span className="avatar-stack-more">+{hidden}</span> : null}
     </span>
@@ -300,7 +300,7 @@ export function MembersRail({ members, group, expenses = [], currency = 'USD', c
   )
 }
 
-export function GroupDashboard({ group, members, expenses, query, activityFeedback, onSwitchActivity, readOnly = false, readOnlyLabel, currentMemberId = 'me', currentUserLabel = 'You', statusLabel, onCurrentMemberChange, onCurrencyChange, onShareSummary, onExportData, onShareQr, onShareLive, onCopyShareLink, onEndLive, onAddFriend, onRemoveFriend, onRestoreFriend, onAddExpense, onSettleUp, onEditExpense, onDeleteExpense, onCategoriesChange, onCategorySummaryOpen }: {
+export function GroupDashboard({ group, members, expenses, query, activityFeedback, onSwitchActivity, readOnly = false, readOnlyLabel, currentMemberId = 'me', currentUserLabel = 'You', statusLabel, statusShortLabel, onCurrentMemberChange, onCurrencyChange, onShareSummary, onExportData, onShareQr, onShareLive, onCopyShareLink, onEndLive, onAddFriend, onRemoveFriend, onRestoreFriend, onAddExpense, onSettleUp, onEditExpense, onDeleteExpense, onCategoriesChange, onCategorySummaryOpen }: {
   onCategorySummaryOpen?: () => void
   onCategoriesChange?: (change: CategoryChange) => Promise<boolean>
   /** Opens the activity list; only offered where the sidebar is a drawer. */
@@ -315,6 +315,8 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
   currentMemberId?: string | null
   currentUserLabel?: string
   statusLabel?: string
+  /** Shown instead of statusLabel on phones, where the header row is narrow. */
+  statusShortLabel?: string
   onCurrentMemberChange?: (memberId: string) => void
   onCurrencyChange?: (currency: CurrencyCode) => void
   onShareSummary?: () => void
@@ -394,10 +396,11 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
               {onSwitchActivity ? <IconButton className="activity-switcher" label={t('dashboard.switchActivity')} onClick={onSwitchActivity}><ChevronDown size={22} /></IconButton> : null}
             </div>
             <div className="group-meta">
-              <AvatarStack members={active} />
+              <AvatarStack members={active} className="avatar-stack--wide" />
+              <AvatarStack members={active} limit={3} className="avatar-stack--compact" />
               <p>{t('dashboard.peopleAndCurrency', { count: activeCount, unit: t(activeCount === 1 ? 'common.person' : 'common.people'), currency })}</p>
-              {!readOnly && onAddFriend ? <button type="button" className="add-person-chip" aria-label={t('dashboard.addFriend')} onClick={onAddFriend}><Plus size={14} aria-hidden="true" />{t('dashboard.addPerson')}</button> : null}
-              {statusLabel ? <span className="read-only-badge live-badge"><Radio size={14} />{statusLabel}</span> : null}
+              {!readOnly && onAddFriend ? <button type="button" className="add-person-chip" aria-label={t('dashboard.addFriend')} onClick={onAddFriend}><Plus size={14} aria-hidden="true" /><span className="add-person-chip-label">{t('dashboard.addPerson')}</span></button> : null}
+              {statusLabel ? <span className="read-only-badge live-badge" title={statusLabel}><Radio size={14} aria-hidden="true" /><span className={statusShortLabel ? 'live-badge-full' : undefined}>{statusLabel}</span>{statusShortLabel ? <span className="live-badge-short" aria-hidden="true">{statusShortLabel}</span> : null}</span> : null}
               {readOnly ? <span className="read-only-badge">{readOnlyLabel ?? t('dashboard.readOnly')}</span> : null}
               {onCurrentMemberChange ? <ActivityIdentityControl memberId={currentMemberId} members={historyMembers} onChange={onCurrentMemberChange} /> : null}
             </div>

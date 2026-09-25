@@ -156,6 +156,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
   )
   const liveActivity = live.activity
   const liveSession = live.session
+  const connectedLiveSession = live.connectionState === 'connected' ? liveSession : null
   const liveMembers = live.members
   const activeGroup = liveActivity?.group ?? selectedGroup
   const activeMembers = liveActivity ? liveMembers : selectedMembers
@@ -688,9 +689,10 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
                 currentMemberId={activeMemberId}
                 currentUserLabel={activeMember?.name ?? getSharedActivitySender(liveActivity).name}
                 onCurrentMemberChange={changeActiveMember}
-                statusLabel={live.connectionState === 'connected' && liveSession
-                  ? t('dashboard.liveRevision', { revision: liveSession.record.revision })
+                statusLabel={connectedLiveSession
+                  ? t('dashboard.liveRevision', { revision: connectedLiveSession.record.revision })
                   : t('dashboard.savedRevision', { revision: live.mirror!.revision })}
+                statusShortLabel={t(connectedLiveSession ? 'dashboard.liveShort' : 'dashboard.savedShort')}
                 onCurrencyChange={live.editable ? changeActivityCurrency : undefined}
                 onShareQr={live.editable && liveSession ? () => sharing.openCurrentLiveQr(liveSession) : undefined}
                 onCopyShareLink={live.editable && liveSession ? () => sharing.copyCurrentLiveLink(liveSession) : undefined}
