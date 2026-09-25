@@ -19,6 +19,40 @@ export function categoryLabel(category: ExpenseCategory, locale: string) {
 export function expenseCategory(group: Pick<ActivityGroup, 'categories'>, expense: Pick<Expense, 'categoryId'>) {
   return activityCategories(group).find(category => category.id === expense.categoryId) ?? GENERAL_CATEGORY
 }
+// Checked in this order, so "Hotel breakfast" is a stay and "Tram tickets" is transport.
+const CATEGORY_KEYWORDS: ReadonlyArray<{ id: string; words: ReadonlySet<string>; chinese: readonly string[] }> = [
+  {
+    id: 'stay',
+    words: new Set(['hotel', 'hotels', 'hostel', 'airbnb', 'motel', 'lodging', 'accommodation', 'apartment', 'cabin', 'resort', 'rent']),
+    chinese: ['酒店', '住宿', '民宿', '宾馆', '旅馆', '房租'],
+  },
+  {
+    id: 'transport',
+    words: new Set(['taxi', 'uber', 'lyft', 'cab', 'bus', 'train', 'tram', 'metro', 'subway', 'flight', 'flights', 'airfare', 'ferry', 'fuel', 'petrol', 'parking', 'toll', 'tolls']),
+    chinese: ['打车', '出租车', '滴滴', '地铁', '公交', '火车', '高铁', '机票', '航班', '加油', '停车', '过路费'],
+  },
+  {
+    id: 'activities',
+    words: new Set(['museum', 'tour', 'concert', 'movie', 'movies', 'cinema', 'ticket', 'tickets', 'zoo', 'gallery', 'ski', 'spa', 'bowling', 'karaoke']),
+    chinese: ['门票', '电影', '博物馆', '演唱会', '景区', '滑雪', '按摩'],
+  },
+  {
+    id: 'food',
+    words: new Set(['dinner', 'lunch', 'breakfast', 'brunch', 'meal', 'restaurant', 'cafe', 'café', 'coffee', 'bar', 'drinks', 'beer', 'wine', 'pizza', 'sushi', 'groceries', 'grocery', 'supermarket', 'snacks', 'dessert', 'bakery', 'takeaway', 'takeout']),
+    chinese: ['餐', '饭', '咖啡', '奶茶', '酒吧', '超市', '买菜', '外卖', '火锅', '烧烤', '零食'],
+  },
+]
+
+/** Suggests a built-in category from an expense description, only while that built-in is still in the activity unchanged. */
+export function suggestCategoryId(title: string, categories: ExpenseCategory[]): string | null {
+  const text = title.toLowerCase()
+  const words = text.split(/[^\p{L}\p{N}]+/u)
+  const match = CATEGORY_KEYWORDS.find(({ words: keywords, chinese }) => words.some(word => keywords.has(word)) || chinese.some(term => text.includes(term)))
+  if (!match) return null
+  const builtIn = DEFAULT_CATEGORIES.find(category => category.id === match.id)!
+  return categories.some(category => category.id === builtIn.id && category.name === builtIn.name) ? builtIn.id : null
+}
+
 export function categoryNameError(name: string, categories: ExpenseCategory[], editingId?: string): 'empty' | 'long' | 'duplicate' | null {
   const normalized = name.trim().toLowerCase()
   if (!normalized) return 'empty'

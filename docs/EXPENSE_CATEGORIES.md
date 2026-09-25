@@ -12,8 +12,13 @@ participants, shares, settlements, or balances.
 - Deleting a category moves its expenses to General in the same atomic update.
 - By category summarizes expense totals only; repayments are excluded. Selecting a
   category filters the expense list.
-- AI and receipt entry do not infer categories. Users can assign a category when
-  editing the resulting expense.
+- The expense form suggests a built-in category (Food & drinks, Stay, Transport,
+  Activities) from English or Chinese keywords in a new expense's description. The
+  suggestion is shown preselected with a note and follows the description until someone
+  picks a category; after that their choice wins. It is only offered while that built-in
+  still exists under its original name. Edits never change an existing category.
+  Single AI drafts pass through this form and get suggestions; AI batches and receipts
+  do not infer categories. See [ANALYTICS.md](ANALYTICS.md) for the kept/changed events.
 
 ## Storage and collaboration
 

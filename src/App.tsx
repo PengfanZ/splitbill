@@ -18,7 +18,7 @@ import type { AiExpenseClient } from './features/aiExpense/aiExpenseApi'
 import { withAiExpenseAnalytics } from './features/aiExpense/aiExpenseAnalytics'
 import { GroupDashboard } from './features/activity/ActivityDashboard'
 import { RemoveFriendModal } from './features/activity/RemoveFriendModal'
-import { AddFriendModal, CreateGroupModal, ExpenseModal, SettleUpModal, type ExpenseInputTab } from './features/activity/ActivityModals'
+import { AddFriendModal, CreateGroupModal, ExpenseModal, SettleUpModal, type CategorySuggestionOutcome, type ExpenseInputTab } from './features/activity/ActivityModals'
 import {
   hasSeenLatestChangelog,
   LATEST_CHANGELOG_ID,
@@ -426,7 +426,10 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
     setFriendRemoval({ scope: activeIdentityScope, memberId: member.id })
   }
 
-  const addExpense = async (expense: Expense) => {
+  const addExpense = async (expense: Expense, categorySuggestion?: CategorySuggestionOutcome) => {
+    const trackCategorySuggestion = (surface: AnalyticsSurface) => {
+      if (categorySuggestion) analyticsClient?.track(`category_suggestion_${categorySuggestion}`, surface, locale)
+    }
     if (liveActivity) {
       const saved = await live.save(
         { ...liveActivity, expenses: [expense, ...liveActivity.expenses] },
@@ -435,12 +438,14 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
       )
       if (saved) {
         analyticsClient?.track('expense_added', 'live', locale)
+        trackCategorySuggestion('live')
         closeExpenseModal()
       }
       return
     }
     setState(current => addLocalExpense(current, expense))
     analyticsClient?.track('expense_added', 'local', locale)
+    trackCategorySuggestion('local')
     setEditingExpense(null)
     setModal(null)
   }

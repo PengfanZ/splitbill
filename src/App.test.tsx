@@ -540,6 +540,25 @@ describe('small UI building blocks', () => {
     expect(screen.getByText('Jordan owes Maya Chen')).toBeVisible()
   })
 
+  it('colors each settlement amount from the viewer’s side', () => {
+    const members = [CURRENT_USER, maya, jordan]
+    const expenses = [
+      expense({ id: 'a', amount: 10, payerId: 'me', shares: { jordan: 10 } }),
+      expense({ id: 'b', amount: 20, payerId: 'maya', shares: { jordan: 20 } }),
+    ]
+    const amountFor = (text: string) => screen.getByText(text).closest('.balance-row')!.querySelector('.settlement-action strong')!
+    const { rerender } = render(<SettlementDirections members={members} expenses={expenses} />)
+
+    expect(amountFor('Jordan owes You')).toHaveClass('settlement-amount--incoming')
+    expect(amountFor('Jordan owes Maya Chen')).not.toHaveAttribute('class')
+
+    rerender(<SettlementDirections members={members} expenses={[expense({ amount: 20, payerId: 'maya', shares: { me: 20 } })]} />)
+    expect(amountFor('You owe Maya Chen')).toHaveClass('settlement-amount--outgoing')
+
+    rerender(<SettlementDirections members={members} expenses={expenses} currentMemberId={null} />)
+    expect(amountFor('Jordan owes You')).not.toHaveAttribute('class')
+  })
+
   it('forwards a suggested direction from its settle-up button', async () => {
     const user = userEvent.setup()
     const onSettleUp = vi.fn()
@@ -591,6 +610,32 @@ describe('small UI building blocks', () => {
     expect(screen.getByText('You paid Unknown')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Delete You payment to Unknown' }))
     expect(onDelete).toHaveBeenCalledWith(malformedPayment)
+  })
+
+  it('shows the viewer’s share of each expense and hides the default General category', () => {
+    const categorized: ActivityGroup = { ...group, categories: [{ id: 'food', name: 'Food & drinks', color: '#e48e7e' }] }
+    const lent = expense({ id: 'lent', title: 'Dinner' })
+    const owed = expense({ id: 'owed', title: 'Taxi', payerId: 'maya', categoryId: 'food' })
+    const even = expense({ id: 'even', title: 'Own coffee', amount: 4, shares: { me: 4 } })
+    const notInvolved = expense({ id: 'other', title: 'Museum', payerId: 'maya', shares: { maya: 15, jordan: 15 } })
+    const payment = expense({ id: 'payment', kind: 'settlement', title: 'Settlement payment', amount: 10, payerId: 'maya', splitMethod: 'exact', shares: { me: 10 } })
+    const list = (props: { currentMemberId?: string | null; currentUserLabel?: string }) => (
+      <ExpenseList group={categorized} expenses={[lent, owed, even, notInvolved, payment]} members={[CURRENT_USER, maya]} query="" {...props} />
+    )
+    const { container, rerender } = render(list({ currentMemberId: 'me' }))
+
+    expect(screen.getByText('you lent $20.00')).toHaveClass('expense-share--lent')
+    expect(screen.getByText('you owe $10.00')).toHaveClass('expense-share--owe')
+    expect(container.querySelectorAll('.expense-share')).toHaveLength(2)
+    expect(container.querySelectorAll('.expense-category-label')).toHaveLength(1)
+    expect(container.querySelector('.expense-category-label')).toHaveTextContent('Food & drinks')
+
+    rerender(list({ currentMemberId: 'maya', currentUserLabel: 'Maya Chen' }))
+    expect(screen.getByText('Maya Chen owes $10.00')).toBeVisible()
+    expect(screen.getByText('Maya Chen lent $20.00')).toBeVisible()
+
+    rerender(list({ currentMemberId: null }))
+    expect(container.querySelectorAll('.expense-share')).toHaveLength(0)
   })
 
   it('renders members and forwards rail and dashboard actions', async () => {
@@ -754,7 +799,8 @@ describe('modals', () => {
       payerId: 'maya',
       shares: { me: 5, maya: 5 },
       createdAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
-    }))
+      categoryId: 'food',
+    }), 'kept')
     expect(onSave.mock.calls[0][0].updatedAt).toBeUndefined()
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(onClose).toHaveBeenCalledOnce()
@@ -807,7 +853,7 @@ describe('modals', () => {
     await user.clear(screen.getByLabelText('You share'))
     await user.type(screen.getByLabelText('You share'), '20')
     await user.click(screen.getByRole('button', { name: 'Save expense' }))
-    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ splitMethod: 'exact', shares: { me: 20, maya: 0 } }))
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ splitMethod: 'exact', shares: { me: 20, maya: 0 }, categoryId: 'stay' }), 'kept')
   })
 
   it('prefills and updates an existing exact expense with every current member', async () => {
@@ -960,6 +1006,7 @@ describe('complete app workflows', () => {
       ['friend_added', 'local', 'en'],
       ['friend_added', 'local', 'en'],
       ['expense_added', 'local', 'en'],
+      ['category_suggestion_kept', 'local', 'en'],
       ['settlement_recorded', 'local', 'en'],
     ])
   })

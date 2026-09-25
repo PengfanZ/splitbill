@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calculateMemberBalance, calculateSettlements, createEqualShares, createExactShares, createExpenseTimestamp, createSettlementPayment, formatExpenseTimestamp, getSettlementRecipientId, isSettlementPayment, money, spendingExpenses } from './expenses'
+import { calculateMemberBalance, calculateSettlements, createEqualShares, createExactShares, createExpenseTimestamp, createSettlementPayment, formatExpenseTimestamp, getSettlementRecipientId, isSettlementPayment, memberExpenseNet, money, spendingExpenses } from './expenses'
 import type { Expense, Member } from './models'
 
 const alex: Member = { id: 'alex', name: 'Alex', initials: 'AL', color: '#aaa' }
@@ -124,5 +124,14 @@ describe('expense domain', () => {
       blair: '',
       casey: 'not-a-number',
     })).toEqual({ alex: 4.25, blair: 0, casey: 0 })
+  })
+
+  it('reports one member\'s net effect from a single expense in cents', () => {
+    const dinner = expense({ amount: 10, splitMethod: 'equal', shares: { alex: 3.34, blair: 3.33, casey: 3.33 } })
+
+    expect(memberExpenseNet(alex.id, dinner)).toBe(6.66)
+    expect(memberExpenseNet(blair.id, dinner)).toBe(-3.33)
+    expect(memberExpenseNet('dana', dinner)).toBe(0)
+    expect(memberExpenseNet(alex.id, expense({ amount: 0.3, shares: { alex: 0.1, blair: 0.2 } }))).toBe(0.2)
   })
 })

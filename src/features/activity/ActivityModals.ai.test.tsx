@@ -136,7 +136,8 @@ describe('AI-assisted expense modal', () => {
       payerId: 'maya',
       splitMethod: 'equal',
       shares: { me: 15.01, maya: 15 },
-    }))
+      categoryId: 'food',
+    }), 'kept')
   })
 
   it('prefills exact shares and leaves uninvolved members at zero', async () => {
@@ -169,7 +170,8 @@ describe('AI-assisted expense modal', () => {
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
       splitMethod: 'exact',
       shares: { me: 10, maya: 20, jordan: 0 },
-    }))
+      categoryId: 'activities',
+    }), 'kept')
   })
 
   it('reviews, edits, removes, and saves a multi-expense batch in one callback', async () => {

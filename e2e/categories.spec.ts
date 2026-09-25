@@ -59,7 +59,9 @@ for (const mobile of [false, true]) test(`categories persist without changing sp
   await expect(page.getByRole('heading', { name: 'Manage categories' })).toBeVisible()
   await page.getByRole('button', { name: 'Close', exact: true }).click()
   await page.reload()
-  await expect(page.locator('.expense-category-label')).toHaveText('General')
+  // General is the default, so the list shows no category chip for it.
+  await expect(page.getByRole('button', { name: 'Edit Dinner', exact: true })).toBeVisible()
+  await expect(page.locator('.expense-category-label')).toHaveCount(0)
   const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)!).expenses[0], STORAGE_KEY)
   expect(saved.amount).toBe(120)
   expect(saved.shares).toEqual({ me: 120 })
