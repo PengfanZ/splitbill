@@ -1,0 +1,149 @@
+/* styles.css loads after this file, so layout overrides use the workspace scope. */
+.workspace .dashboard { display: block; padding: 32px 40px 48px; }
+.dashboard-body { margin-top: 24px; display: grid; grid-template-columns: minmax(0, 1fr) 340px; align-items: start; gap: 32px; }
+.workspace .main-column { padding: 0; }
+.workspace .right-rail { border: 0; padding: 0; }
+
+.group-meta { margin-top: 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.group-title .group-meta p { margin: 0; }
+.avatar-stack { display: inline-flex; align-items: center; padding-left: 6px; }
+.avatar-stack .avatar, .avatar-stack-more { margin-left: -6px; box-shadow: 0 0 0 2px var(--paper); }
+.avatar-stack-more { width: 32px; height: 32px; border-radius: 50%; display: inline-grid; place-items: center; background: var(--surface-muted); color: var(--muted); font-size: 12px; font-weight: 700; }
+.add-person-chip { min-height: 36px; border: 1px dashed var(--control-border); border-radius: 999px; padding: 0 12px; display: inline-flex; align-items: center; gap: 4px; background: transparent; color: var(--ink); font-size: 13px; font-weight: 600; }
+.add-person-chip:hover { border-style: solid; background: var(--surface-glass-strong); }
+.group-actions .activity-options-button { border: 1px solid var(--control-border); border-radius: var(--radius-control); }
+.workspace .group-welcome { align-items: flex-end; }
+.workspace .group-actions { display: flex; align-items: center; gap: 9px; }
+.group-meta .activity-identity-control { width: auto; min-height: 36px; padding: 2px 12px 2px 4px; border-radius: 999px; }
+.group-meta .activity-identity-control .select-menu-leading { width: 28px; height: 28px; border-radius: 50%; }
+.group-meta .read-only-badge { min-height: 32px; }
+.dashboard-panel { position: relative; }
+.activity-switcher { display: none; }
+.activity-switcher svg { color: var(--muted); }
+
+.balance-card { margin: 0 0 22px; padding: 20px 24px; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface-solid); display: grid; gap: 14px; }
+.balance-card-main { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 18px 32px; }
+.balance-card-balance { display: grid; gap: 6px; }
+.balance-card-balance > span { color: var(--muted); font-size: 14px; font-weight: 600; }
+.balance-card-balance > strong { font-family: var(--serif); font-size: clamp(40px, 5vw, 54px); font-weight: 400; line-height: 1; letter-spacing: -1px; }
+.balance-card-stats { margin: 0; display: flex; flex-wrap: wrap; gap: 12px 32px; }
+.balance-card-stats > div { display: grid; gap: 4px; }
+.balance-card-stats dt { color: var(--muted); font-size: 13px; }
+.balance-card-stats dd { margin: 0; font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.balance-card-settle { width: 100%; min-height: 48px; border: 0; border-top: 1px solid var(--line); padding: 12px 0 0; display: flex; align-items: center; gap: 12px; background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.balance-card-settle .avatar-stack .avatar { box-shadow: 0 0 0 2px var(--surface-solid); }
+.balance-card-settle-copy { flex: 1; min-width: 0; color: var(--muted); font-size: 14px; }
+.balance-card-settle-action { display: inline-flex; align-items: center; gap: 2px; color: var(--coral-ink); font-size: 14px; font-weight: 700; white-space: nowrap; }
+
+.dashboard-tabs { width: fit-content; margin: 0 0 12px; padding: 4px; border-radius: 12px; background: var(--surface-muted); display: flex; gap: 4px; }
+.dashboard-tab { min-height: var(--control-height); border: 0; border-radius: 9px; padding: 0 18px; background: transparent; color: var(--muted); font-size: 14px; font-weight: 600; }
+.dashboard-tab[aria-selected='true'], .dashboard--view-balances .dashboard-tab--expenses { background: var(--surface-solid); color: var(--ink); font-weight: 700; box-shadow: 0 1px 3px var(--shadow-soft); }
+.dashboard-tab--balances { display: none; }
+
+.activity-rail .settlements-panel h2:focus { outline: none; }
+.activity-rail .settlements-panel h2:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 3px; border-radius: 4px; }
+.settlements-panel--highlighted { border-radius: var(--radius-card); animation: settlements-highlight 1.6s ease-out; }
+@keyframes settlements-highlight { from { background: var(--green-soft); box-shadow: 0 0 0 8px var(--green-soft); } to { background: transparent; box-shadow: 0 0 0 8px transparent; } }
+.activity-rail .section-heading { margin-inline: 0; }
+.activity-rail .section-meta { display: none; }
+.activity-rail .settlement-row { min-height: 60px; padding: 10px 0; gap: 10px; }
+.activity-rail .settlement-avatars { min-width: 0; }
+.activity-rail .settlement-avatars i, .activity-rail .settlement-avatars .avatar:last-child { display: none; }
+.activity-rail .settlement-row .row-copy small { display: none; }
+.activity-rail .settlement-row .row-copy b { white-space: normal; }
+.activity-rail .settlement-action { gap: 8px; }
+.activity-rail .settlement-action > strong { font-size: 17px; }
+.activity-rail .members-panel { margin-top: 32px; }
+.members-panel .member-row { min-height: 56px; }
+.workspace .members-panel .rail-heading { grid-template-columns: minmax(0, 1fr) auto var(--control-height); gap: 4px; }
+.workspace .add-friend-button { width: auto; min-height: 36px; margin-top: 0; padding-inline: 8px; color: var(--green); }
+.member-copy { flex: 1; min-width: 0; display: grid; gap: 6px; }
+.member-copy > b { min-width: 0; display: flex; align-items: center; gap: 6px; overflow: hidden; font-size: 13px; white-space: nowrap; text-overflow: ellipsis; }
+.member-copy .member-identity-indicator { width: auto; height: auto; display: inline-grid; }
+.member-balance-bar { width: 100%; max-width: 120px; height: 5px; border-radius: 3px; background: var(--surface-muted); overflow: hidden; }
+.member-balance-bar > span { display: block; height: 100%; border-radius: inherit; }
+.member-balance-bar > .positive-bar { background: var(--green); }
+.member-balance-bar > .negative-bar { background: var(--coral-ink); }
+.member-action-placeholder { width: var(--control-height); flex: 0 0 auto; }
+.member-balance { min-width: 76px; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+
+.group-row .nav-balance--owed { color: var(--green); font-weight: 600; }
+.group-row .nav-balance--owe { color: var(--coral-ink); font-weight: 600; }
+
+.activity-options { display: grid; gap: 16px; }
+.activity-options-field { display: grid; gap: 8px; color: var(--muted); font-size: 13px; }
+.activity-options .activity-currency { width: 100%; }
+
+@media (min-width: 721px) {
+  .add-person-chip { display: none; }
+  .dashboard-panel > .activity-section:first-child > .section-heading { position: absolute; top: -47px; right: 4px; margin: 0; }
+  .activity-rail .settlements-panel, .activity-rail .members-panel { padding: 14px 16px 4px; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface-solid); }
+  .activity-rail .members-panel { margin-top: 16px; background: var(--surface); }
+  .activity-rail .balance-list { border-top: 0; }
+  .activity-rail .balance-row:last-child, .activity-rail .member-row:last-child { border-bottom: 0; }
+  .activity-rail .all-settled { border-bottom: 0; }
+  .activity-rail .member-balance-bar { display: none; }
+  .activity-rail .member-copy { gap: 0; }
+  .balance-card-settle { display: none; }
+  .activity-row.expense-entry { grid-template-columns: 36px minmax(0, 1fr) 120px 160px; }
+  .expense-entry .expense-amount { display: contents; }
+  .expense-entry .expense-amount b, .expense-entry .expense-share { text-align: right; }
+  .expense-entry .expense-amount b { grid-column: 3; }
+  .expense-entry .expense-share { grid-column: 4; }
+}
+
+@media (hover: hover) and (min-width: 921px) {
+  .group-row .group-delete { opacity: 0; transition: opacity .15s ease; }
+  .group-row:hover .group-delete, .group-row:focus-within .group-delete { opacity: 1; }
+  .group-select .group-icon, .group-select > svg { display: none; }
+  .activity-rail .member-row .icon-button-control { opacity: 0; transition: opacity .15s ease; }
+  .activity-rail .member-row:hover .icon-button-control, .activity-rail .member-row:focus-within .icon-button-control { opacity: 1; }
+}
+
+@media (max-width: 920px) {
+  .activity-switcher { display: grid; }
+}
+
+@media (max-width: 1120px) {
+  .workspace .dashboard { padding: 30px 26px 44px; }
+  .dashboard-body { grid-template-columns: minmax(0, 1fr) 300px; gap: 24px; }
+}
+
+@media (max-width: 720px) {
+  .topbar .topbar-context { display: none; }
+  .workspace .dashboard { padding: 24px 20px 30px; }
+  .dashboard-body { display: block; margin-top: 0; }
+  .workspace .group-welcome { position: relative; align-items: stretch; }
+  .dashboard-panel > .activity-section:first-child > .section-heading { display: none; }
+  .dashboard--view-balances .balance-card-settle { display: none; }
+  .group-title-row { display: flex; align-items: center; gap: 2px; }
+  .group-meta { flex-wrap: nowrap; gap: 8px; }
+  .group-meta .activity-identity-control { margin-left: auto; min-height: 32px; padding: 0 12px; }
+  .group-meta .activity-identity-control .select-menu-leading, .group-meta .activity-identity-control .select-menu-chevron { display: none; }
+  .group-meta .activity-identity-control .select-menu-value b { font-size: 13px; font-weight: 600; }
+  .group-title-row { padding-right: 52px; }
+  .group-actions .activity-options-button { position: absolute; top: -4px; right: 0; }
+  .activity-rail .settlement-row { flex-wrap: nowrap; }
+  .activity-rail .settlement-row .row-copy { min-width: 0; }
+  .activity-rail .settlement-action { width: auto; }
+  .group-meta { margin-top: 10px; }
+  .group-title .group-meta p { display: none; }
+  .balance-card { margin: 18px 0 16px; padding: 16px; }
+  .balance-card-main { flex-wrap: nowrap; gap: 12px; }
+  .balance-card-balance > strong { font-size: clamp(34px, 11vw, 44px); }
+  .balance-card-stats { flex-direction: column; align-items: flex-end; gap: 4px; }
+  .balance-card-stats > div { display: flex; align-items: baseline; justify-content: flex-end; gap: 6px; }
+  .balance-card-stats dd { font-size: 13px; }
+  .dashboard-tabs { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .dashboard-tab { padding-inline: 6px; }
+  .dashboard-tab--balances { display: block; }
+  .dashboard--view-balances .dashboard-tab--expenses { background: transparent; color: var(--muted); font-weight: 600; box-shadow: none; }
+  .dashboard--view-balances .dashboard-tab--balances { background: var(--surface-solid); color: var(--ink); font-weight: 700; box-shadow: 0 1px 3px var(--shadow-soft); }
+  .dashboard--view-balances .dashboard-panel { display: none; }
+  .dashboard:not(.dashboard--view-balances) .activity-rail { display: none; }
+  .dashboard--view-balances .activity-rail { border-top: 0; padding-top: 0; }
+  .workspace .dashboard--with-actions { padding-bottom: 92px; }
+  .group-primary-actions { position: fixed; right: 0; bottom: 0; left: 0; z-index: 25; padding: 12px 16px max(12px, env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--paper); }
+  .group-primary-actions .button { min-height: 52px; border-radius: 14px; font-size: 15px; }
+  .group-actions .share-button { min-width: 52px; }
+}

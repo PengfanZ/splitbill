@@ -97,8 +97,16 @@ async function chooseShareAction(user: UserEvent, actionName: string) {
 }
 
 async function chooseActivityCurrency(user: UserEvent, currentCurrency: string, nextCurrency: string) {
+  await user.click(screen.getByRole('button', { name: 'Activity options' }))
   await user.click(screen.getByRole('button', { name: `Activity currency, ${currentCurrency}` }))
   await user.click(screen.getByRole('option', { name: nextCurrency }))
+  await user.click(within(screen.getByRole('dialog', { name: 'Activity options' })).getByRole('button', { name: 'Close' }))
+}
+
+async function expectActivityCurrency(user: UserEvent, currency: string) {
+  await user.click(screen.getByRole('button', { name: 'Activity options' }))
+  expect(screen.getByRole('button', { name: `Activity currency, ${currency}` })).toBeVisible()
+  await user.click(within(screen.getByRole('dialog', { name: 'Activity options' })).getByRole('button', { name: 'Close' }))
 }
 
 async function chooseSelectOption(user: UserEvent, label: string | RegExp, option: string) {
@@ -455,6 +463,16 @@ describe('small UI building blocks', () => {
     rerender(<Sidebar groups={[home, group]} selectedId="home" onSelect={onSelect} onCreate={onCreate} onJoin={onJoin} onShowChangelog={onShowChangelog} onSendFeedback={onSendFeedback} onDelete={onDelete} onReset={onReset} />)
     expect(screen.getByText('1 person')).toBeVisible()
     expect(screen.getByText('3 people')).toBeVisible()
+    const onOpenChange = vi.fn()
+    rerender(<Sidebar groups={[home]} selectedId="home" open onOpenChange={onOpenChange} onSelect={onSelect} onCreate={onCreate} onJoin={onJoin} onShowChangelog={onShowChangelog} onSendFeedback={onSendFeedback} onDelete={onDelete} onReset={onReset} />)
+    expect(document.querySelector('.sidebar')).toHaveClass('sidebar--open')
+    await user.click(screen.getAllByRole('button', { name: 'Close navigation' })[0])
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    const third = { ...home, id: 'third', name: 'Ski weekend', currency: 'EUR' as const }
+    rerender(<Sidebar groups={[home, group, third]} selectedId={null} activityBalances={{ home: 12.5, trip: -4, third: 0 }} onSelect={onSelect} onCreate={onCreate} onJoin={onJoin} onShowChangelog={onShowChangelog} onSendFeedback={onSendFeedback} onDelete={onDelete} onReset={onReset} />)
+    expect(screen.getByText('You’re owed $12.50')).toHaveClass('nav-balance--owed')
+    expect(screen.getByText('You owe $4.00')).toHaveClass('nav-balance--owe')
+    expect(screen.getByText('All settled up')).toBeVisible()
     rerender(<Sidebar groups={[home, group]} selectedId={null} liveActivityCodes={{ trip: 'A1B2C3D4E5' }} onSelect={onSelect} onCreate={onCreate} onJoin={onJoin} onShowChangelog={onShowChangelog} onSendFeedback={onSendFeedback} onDelete={onDelete} onReset={onReset} />)
     expect(screen.getByText('Live · A1B2C3D4E5')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Open Trip activity' }))
@@ -495,30 +513,64 @@ describe('small UI building blocks', () => {
   })
 
   it('renders positive, negative, and settled summaries', () => {
+    const balance = () => screen.getByLabelText('Activity summary').querySelector('.balance-card-balance')!
     const { rerender } = render(<ActivitySummary expenses={[expense()]} />)
-    expect(screen.getByText('+$20.00')).toHaveClass('positive')
+    expect(balance()).toHaveTextContent('You’re owed$20.00')
+    expect(balance().querySelector('strong')).toHaveClass('positive')
+    expect(screen.getByText('Your share').nextElementSibling).toHaveTextContent('$10.00')
     rerender(<ActivitySummary expenses={[expense({ payerId: 'maya' })]} />)
-    expect(screen.getByText('−$10.00')).toHaveClass('negative')
+    expect(balance()).toHaveTextContent('You owe$10.00')
+    expect(balance().querySelector('strong')).toHaveClass('negative')
     rerender(<ActivitySummary expenses={[expense({ shares: {} })]} />)
-    expect(screen.getByText('+$30.00')).toHaveClass('positive')
+    expect(balance()).toHaveTextContent('You’re owed$30.00')
     rerender(<ActivitySummary expenses={[]} />)
-    expect(screen.getAllByText('$0.00')[2]).toHaveClass('settled')
+    expect(balance()).toHaveTextContent('Your balance$0.00')
+    expect(balance().querySelector('strong')).toHaveClass('settled')
     rerender(<ActivitySummary expenses={[expense(), expense({ id: 'payment', kind: 'settlement', title: 'Settlement payment', amount: 5, payerId: 'maya', splitMethod: 'exact', shares: { me: 5 } })]} />)
     const summary = screen.getByLabelText('Activity summary')
     expect(within(summary).getAllByText('$30.00')).toHaveLength(2)
-    expect(within(summary).getByText('+$15.00')).toHaveClass('positive')
+    expect(balance()).toHaveTextContent('You’re owed$15.00')
     rerender(<ActivitySummary expenses={[expense()]} currentUserLabel="Alex" />)
     expect(screen.getByText('Alex is owed')).toBeVisible()
+    expect(screen.getByText('Alex’s share')).toBeVisible()
     rerender(<ActivitySummary expenses={[expense({ payerId: 'maya' })]} currentUserLabel="Alex" />)
     expect(screen.getByText('Alex owes')).toBeVisible()
     rerender(<ActivitySummary expenses={[]} currentUserLabel="Alex" />)
     expect(screen.getByText('Alex balance')).toBeVisible()
     rerender(<ActivitySummary expenses={[expense()]} currentMemberId="maya" currentUserLabel="Maya Chen" />)
-    expect(screen.getByText('Maya Chen owes')).toBeVisible()
-    expect(screen.getByText('−$10.00')).toHaveClass('negative')
+    expect(balance()).toHaveTextContent('Maya Chen owes$10.00')
     rerender(<ActivitySummary expenses={[expense()]} currentMemberId={null} />)
     expect(screen.getAllByText('Choose who you are')).toHaveLength(2)
-    expect(screen.getAllByText('—')).toHaveLength(2)
+    expect(screen.getAllByText('—')).toHaveLength(3)
+    expect(balance().querySelector('strong')).not.toHaveAttribute('class', expect.stringContaining('positive'))
+  })
+
+  it('summarizes who settles with the viewer and opens their balances', async () => {
+    const user = userEvent.setup()
+    const onSettle = vi.fn()
+    const members = [CURRENT_USER, maya, jordan]
+    const { rerender } = render(<ActivitySummary expenses={[expense()]} members={members} onSettle={onSettle} />)
+    await user.click(screen.getByRole('button', { name: /Maya Chen and Jordan owe you/ }))
+    expect(onSettle).toHaveBeenCalledWith([
+      expect.objectContaining({ from: maya, to: CURRENT_USER, amount: 10 }),
+      expect.objectContaining({ from: jordan, to: CURRENT_USER, amount: 10 }),
+    ])
+    rerender(<ActivitySummary expenses={[expense({ payerId: 'maya' })]} members={members} onSettle={onSettle} />)
+    await user.click(screen.getByRole('button', { name: /You owe Maya Chen/ }))
+    expect(onSettle).toHaveBeenLastCalledWith([expect.objectContaining({ from: CURRENT_USER, to: maya, amount: 10 })])
+    rerender(<ActivitySummary expenses={[expense()]} members={members} currentUserLabel="Alex" onSettle={onSettle} />)
+    expect(screen.getByText('Maya Chen and Jordan owe Alex')).toBeVisible()
+    rerender(<ActivitySummary expenses={[expense({ payerId: 'maya' })]} members={members} currentUserLabel="Alex" onSettle={onSettle} />)
+    expect(screen.getByText('Alex owes Maya Chen')).toBeVisible()
+    const onePerson = [expense({ shares: { me: 15, maya: 15 } })]
+    rerender(<ActivitySummary expenses={onePerson} members={members} onSettle={onSettle} />)
+    expect(screen.getByText('Maya Chen owes you')).toBeVisible()
+    rerender(<ActivitySummary expenses={onePerson} members={members} currentUserLabel="Alex" onSettle={onSettle} />)
+    expect(screen.getByText('Maya Chen owes Alex')).toBeVisible()
+    rerender(<ActivitySummary expenses={[expense({ payerId: 'maya', shares: { me: 15, maya: 15 } })]} members={members} currentMemberId="jordan" onSettle={onSettle} />)
+    expect(screen.queryByRole('button')).toBeNull()
+    rerender(<ActivitySummary expenses={[expense()]} members={members} />)
+    expect(screen.queryByRole('button')).toBeNull()
   })
 
   it('calculates settlement directions for multiple debtors and the current user', () => {
@@ -575,20 +627,24 @@ describe('small UI building blocks', () => {
     const unknownPayer = expense({ id: 'e2', title: 'Taxi', payerId: 'missing', splitMethod: 'exact' })
     const { rerender } = render(<ExpenseList expenses={[expense(), unknownPayer]} members={[CURRENT_USER, maya]} query="" onEditExpense={onEdit} onDeleteExpense={onDelete} />)
     expect(screen.getByText('2 entries')).toBeVisible()
-    expect(screen.getByText((_, node) => node?.textContent === 'You paidSplit equally · 3 people')).toBeVisible()
-    expect(screen.getByText((_, node) => node?.textContent === 'You paidExact split · 3 people')).toBeVisible()
+    expect(screen.getByText((_, node) => node?.tagName === 'SMALL' && node.textContent === 'You paidSplit equally · 3 people')).toBeVisible()
+    expect(screen.getByText((_, node) => node?.tagName === 'SMALL' && node.textContent === 'You paidExact split · 3 people')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Edit Dinner' }))
     expect(onEdit).toHaveBeenCalledWith(expect.objectContaining({ title: 'Dinner' }))
-    await user.click(screen.getByRole('button', { name: 'Delete Dinner' }))
-    expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ title: 'Dinner' }))
+    expect(screen.getByRole('button', { name: 'Edit Dinner' })).toHaveAccessibleDescription(/You paid.*\$30\.00/)
+    expect(screen.queryByRole('button', { name: 'Delete Dinner' })).not.toBeInTheDocument()
     rerender(<ExpenseList expenses={[expense()]} members={[CURRENT_USER]} query="zzz" onEditExpense={onEdit} onDeleteExpense={onDelete} />)
     expect(screen.getByText('No expenses match your search.')).toBeVisible()
     rerender(<ExpenseList expenses={[expense({ shares: { me: 30 } })]} members={[CURRENT_USER]} query="" onEditExpense={onEdit} onDeleteExpense={onDelete} />)
-    expect(screen.getByText((_, node) => node?.textContent === 'You paidSplit equally · 1 person')).toBeVisible()
+    expect(screen.getByText((_, node) => node?.tagName === 'SMALL' && node.textContent === 'You paidSplit equally · 1 person')).toBeVisible()
     rerender(<ExpenseList expenses={[expense({ createdAt: 'Just now' })]} members={[CURRENT_USER]} query="" onEditExpense={onEdit} onDeleteExpense={onDelete} />)
-    expect(screen.getByText('Time not recorded')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Edit Dinner' })).toHaveAttribute('title', 'Time not recorded')
+    expect(screen.getByRole('heading', { name: 'Date not recorded' })).toBeVisible()
     rerender(<ExpenseList expenses={[expense({ createdAt: 'Today' })]} members={[CURRENT_USER]} query="" onEditExpense={onEdit} onDeleteExpense={onDelete} />)
-    expect(screen.getByText('Today')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Edit Dinner' })).toHaveAttribute('title', 'Today')
+    rerender(<ExpenseList expenses={[expense({ updatedAt: '2026-07-15T01:00:00.000Z' })]} members={[CURRENT_USER]} query="" onEditExpense={onEdit} onDeleteExpense={onDelete} />)
+    expect(screen.getByText('Edited')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Edit Dinner' })).toHaveAttribute('title', expect.stringMatching(/^Edited /))
     rerender(<ExpenseList expenses={[]} members={[CURRENT_USER]} query="" onEditExpense={onEdit} onDeleteExpense={onDelete} />)
     expect(screen.getByText('No expenses yet. Add the first one when you’re ready.')).toBeVisible()
 
@@ -638,6 +694,127 @@ describe('small UI building blocks', () => {
     expect(container.querySelectorAll('.expense-share')).toHaveLength(0)
   })
 
+  it('groups expenses by day, newest first, with undated expenses last', () => {
+    const expenses = [
+      expense({ id: 'undated', title: 'Old receipt', createdAt: 'Just now' }),
+      expense({ id: 'older', title: 'Breakfast', createdAt: '2026-07-13T09:00:00.000Z' }),
+      expense({ id: 'newer', title: 'Lunch', createdAt: '2026-07-14T12:00:00.000Z' }),
+      expense({ id: 'same-day', title: 'Dinner', createdAt: '2026-07-14T01:00:00.000Z' }),
+    ]
+    render(<ExpenseList expenses={expenses} members={[CURRENT_USER]} query="" />)
+    const days = screen.getAllByRole('heading', { level: 3 }).map(heading => heading.textContent)
+    expect(days).toHaveLength(3)
+    expect(days[2]).toBe('Date not recorded')
+    const titles = [...document.querySelectorAll('.expense-entry .row-copy > b')].map(title => title.textContent)
+    expect(titles).toEqual(['Lunch', 'Dinner', 'Breakfast', 'Old receipt'])
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  it('switches between expenses, balances, and categories and keeps activity options together', async () => {
+    const user = userEvent.setup()
+    const onCurrencyChange = vi.fn()
+    const onCategorySummaryOpen = vi.fn()
+    const onCategoriesChange = vi.fn().mockResolvedValue(true)
+    const props = { group, members: [CURRENT_USER, maya, jordan], expenses: [expense()], query: '', activityFeedback: null }
+    const { container, rerender } = render(<GroupDashboard {...props} onCurrencyChange={onCurrencyChange} onCategorySummaryOpen={onCategorySummaryOpen} onCategoriesChange={onCategoriesChange} onSettleUp={vi.fn()} />)
+    const dashboard = container.querySelector('.dashboard')!
+    expect(screen.getByRole('tab', { name: 'Expenses' })).toHaveAttribute('aria-selected', 'true')
+    // The Expenses tab already names the list, so its heading stays only for screen readers.
+    expect(screen.getByRole('heading', { name: 'Expenses' })).toHaveClass('visually-hidden')
+    expect(screen.getByText('3 people · USD')).toBeVisible()
+
+    expect(container.querySelector('.settlements-panel')).not.toHaveClass('settlements-panel--highlighted')
+    await user.click(screen.getByRole('button', { name: /Maya Chen and Jordan owe you/ }))
+    expect(screen.getByRole('tab', { name: 'Balances' })).toHaveAttribute('aria-selected', 'true')
+    expect(dashboard).toHaveClass('dashboard--view-balances')
+    expect(screen.getByRole('heading', { name: 'Who owes whom' })).toHaveFocus()
+    expect(container.querySelector('.settlements-panel')).toHaveClass('settlements-panel--highlighted')
+
+    await user.click(screen.getByRole('tab', { name: 'Categories' }))
+    await user.click(screen.getByRole('tab', { name: 'Categories' }))
+    expect(onCategorySummaryOpen).toHaveBeenCalledOnce()
+    expect(screen.getByRole('heading', { name: 'Expenses' })).not.toHaveClass('visually-hidden')
+    await user.click(within(screen.getByRole('region', { name: 'By category' })).getByRole('button', { name: 'Manage categories' }))
+    expect(screen.getByRole('heading', { name: 'Manage categories' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+
+    // Wide layouts hide the Balances tab because balances already sit beside the list.
+    await user.click(screen.getByRole('tab', { name: 'Expenses' }))
+    screen.getByRole('tab', { name: 'Balances', hidden: true }).style.display = 'none'
+    await user.click(screen.getByRole('button', { name: /owe you/ }))
+    expect(screen.getByRole('tab', { name: 'Expenses', hidden: true })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('heading', { name: 'Who owes whom' })).toHaveFocus()
+
+    await user.click(screen.getByRole('button', { name: 'Activity options' }))
+    const options = screen.getByRole('dialog', { name: 'Activity options' })
+    await chooseSelectOption(user, 'Activity currency, USD', 'EUR')
+    expect(onCurrencyChange).toHaveBeenCalledWith('EUR')
+    await user.click(within(options).getByRole('button', { name: 'Manage categories' }))
+    expect(screen.queryByRole('dialog', { name: 'Activity options' })).toBeNull()
+    expect(screen.getByRole('heading', { name: 'Manage categories' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+
+    rerender(<GroupDashboard {...props} readOnly />)
+    await user.click(screen.getByRole('button', { name: 'Activity options' }))
+    expect(within(screen.getByRole('dialog', { name: 'Activity options' })).queryByRole('button', { name: 'Manage categories' })).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('opens the activity list from a local activity title', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState({ expenses: [expense()] })))
+    render(<App />)
+    expect(document.querySelector('.sidebar')).not.toHaveClass('sidebar--open')
+    await user.click(screen.getByRole('button', { name: 'Switch activity' }))
+    expect(document.querySelector('.sidebar')).toHaveClass('sidebar--open')
+  })
+
+  it('opens the activity list from the title and shows phone row details', async () => {
+    const user = userEvent.setup()
+    const onSwitchActivity = vi.fn()
+    const { container } = render(<GroupDashboard group={group} members={[CURRENT_USER, maya, jordan]} expenses={[expense(), expense({ id: 'b', title: 'Taxi', payerId: 'maya' })]} query="" activityFeedback={null} onSwitchActivity={onSwitchActivity} onEditExpense={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'Switch activity' }))
+    expect(onSwitchActivity).toHaveBeenCalledOnce()
+    expect(screen.getByText('You paid $30.00')).toHaveClass('expense-details-compact')
+    const compact = [...container.querySelectorAll('.expense-share-compact')].map(element => element.textContent)
+    expect(compact).toEqual(['you lent$20.00', 'you owe$10.00'])
+    expect(container.querySelectorAll('.expense-entry--has-share')).toHaveLength(2)
+  })
+
+  it('opens Settle up directly when the viewer settles with one person', async () => {
+    const user = userEvent.setup()
+    const onSettleUp = vi.fn()
+    const oneDebt = [expense({ shares: { me: 15, maya: 15 } })]
+    const props = { group, members: [CURRENT_USER, maya, jordan], expenses: oneDebt, query: '', activityFeedback: null }
+    const { rerender } = render(<GroupDashboard {...props} onSettleUp={onSettleUp} />)
+    await user.click(screen.getByRole('button', { name: /Maya Chen owes you/ }))
+    expect(onSettleUp).toHaveBeenCalledWith(expect.objectContaining({ from: maya, to: CURRENT_USER, amount: 15 }))
+    expect(screen.getByRole('tab', { name: 'Expenses' })).toHaveAttribute('aria-selected', 'true')
+
+    // Read-only viewers, or dashboards without settling, go to the balances instead.
+    rerender(<GroupDashboard {...props} readOnly onSettleUp={onSettleUp} />)
+    await user.click(screen.getByRole('button', { name: /Maya Chen owes you/ }))
+    expect(onSettleUp).toHaveBeenCalledOnce()
+    expect(screen.getByRole('tab', { name: 'Balances' })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('handles large groups, add-only actions, and empty or read-only category views', async () => {
+    const user = userEvent.setup()
+    const crowd = ['ana', 'bo', 'cy', 'di', 'ed'].map(id => ({ id, name: id.toUpperCase(), initials: id[0].toUpperCase(), color: '#ddd' }))
+    const bigGroup = { ...group, memberIds: ['me', ...crowd.map(member => member.id)] }
+    const { container, rerender } = render(<GroupDashboard group={bigGroup} members={[CURRENT_USER, ...crowd]} expenses={[expense()]} query="" activityFeedback={null} onAddExpense={vi.fn()} />)
+    expect(container.querySelector('.avatar-stack-more')).toHaveTextContent('+1')
+    expect(screen.getByRole('button', { name: 'Add expense' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Share' })).toBeNull()
+    await user.click(screen.getByRole('tab', { name: 'Categories' }))
+    expect(within(screen.getByRole('region', { name: 'By category' })).queryByRole('button', { name: 'Manage categories' })).toBeNull()
+
+    rerender(<GroupDashboard group={bigGroup} members={[CURRENT_USER, ...crowd]} expenses={[]} query="" activityFeedback={null} />)
+    expect(screen.queryByText('No expenses yet')).toBeNull()
+    expect(screen.getByText('Add an expense to see spending by category.')).toBeVisible()
+  })
+
   it('renders members and forwards rail and dashboard actions', async () => {
     const user = userEvent.setup()
     const addFriend = vi.fn()
@@ -664,11 +841,11 @@ describe('small UI building blocks', () => {
     await chooseShareAction(user, 'Start live activity')
     await chooseShareAction(user, 'Export share image')
     await chooseShareAction(user, 'Export CSV data')
-    await user.click(screen.getByRole('button', { name: 'Add friend' }))
+    for (const button of screen.getAllByRole('button', { name: 'Add friend' })) await user.click(button)
     await user.click(screen.getByRole('button', { name: 'Add expense' }))
     await user.click(screen.getAllByRole('button', { name: 'Settle up' })[0])
     await user.click(screen.getByRole('button', { name: 'Edit Dinner' }))
-    expect(addFriend).toHaveBeenCalledTimes(2)
+    expect(addFriend).toHaveBeenCalledTimes(3)
     expect(addExpense).toHaveBeenCalledOnce()
     expect(share).toHaveBeenCalledOnce()
     expect(shareLive).toHaveBeenCalledOnce()
@@ -786,6 +963,10 @@ describe('modals', () => {
     expect(onSave).not.toHaveBeenCalled()
     await user.type(screen.getByLabelText('Description'), 'Lunch')
     await user.type(screen.getByLabelText('Amount'), '10')
+    expect(screen.getByRole('button', { name: /^Paid by You/ })).toBeVisible()
+    expect(screen.getByText('Equally between 3 people')).toBeVisible()
+    expect(screen.getByText('$3.33 each')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: /^Split Equally/ }))
     await chooseSelectOption(user, 'Paid by', 'Maya Chen')
     expect(screen.getByText('3 of 3 selected')).toBeVisible()
     expect(screen.getByText('$3.33')).toBeVisible()
@@ -837,12 +1018,40 @@ describe('modals', () => {
     expect(onClose).toHaveBeenCalledOnce()
   })
 
+  it('previews what a new expense means for the person entering it', async () => {
+    const user = userEvent.setup()
+    render(<ExpenseModal group={group} members={[CURRENT_USER, maya, jordan]} currentMemberId="me" onClose={vi.fn()} onSave={vi.fn()} />)
+    expect(screen.queryByText('Your share')).toBeNull()
+    await user.type(screen.getByLabelText('Amount'), '30')
+    expect(document.querySelector('.expense-your-share')).toHaveTextContent('Your shareyou lent $20.00')
+    await user.click(screen.getByRole('button', { name: /^Paid by You/ }))
+    await chooseSelectOption(user, 'Paid by', 'Maya Chen')
+    expect(document.querySelector('.expense-your-share')).toHaveTextContent('you owe Maya Chen $10.00')
+    await user.click(screen.getByLabelText('Include You in equal split'))
+    expect(screen.queryByText('Your share')).toBeNull()
+    await user.click(screen.getByLabelText('Include You in equal split'))
+    await chooseSelectOption(user, 'Split method', 'Exact amounts')
+    expect(screen.queryByText('Your share')).toBeNull()
+    await user.type(screen.getByLabelText('You share'), '12.5')
+    expect(document.querySelector('.expense-your-share')).toHaveTextContent('you owe Maya Chen $12.50')
+    await chooseSelectOption(user, 'Paid by', 'You')
+    await user.clear(screen.getByLabelText('You share'))
+    await user.type(screen.getByLabelText('You share'), '30')
+    expect(screen.queryByText('Your share')).toBeNull()
+  })
+
+  it('keeps Cancel for new expenses and Back while editing an AI batch draft', () => {
+    render(<ExpenseModal group={group} members={[CURRENT_USER, maya]} onClose={vi.fn()} onSave={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveClass('modal-cancel')
+  })
+
   it('validates exact splits for left, over, and balanced totals', async () => {
     const user = userEvent.setup()
     const onSave = vi.fn()
     render(<ExpenseModal group={group} members={[CURRENT_USER, maya]} onClose={vi.fn()} onSave={onSave} />)
     await user.type(screen.getByLabelText('Description'), 'Hotel')
     await user.type(screen.getByLabelText('Amount'), '20')
+    await user.click(screen.getByRole('button', { name: /^Split Equally/ }))
     await chooseSelectOption(user, 'Split method', 'Exact amounts')
     expect(screen.getByLabelText('You share').closest('.share-input')).toBeTruthy()
     expect(screen.getByLabelText('Maya Chen share').closest('.share-input')).toBeTruthy()
@@ -965,7 +1174,7 @@ describe('complete app workflows', () => {
     expect(document.title).toBe('Tally — 多人分账工具')
     expect(screen.getByRole('heading', { name: '设置' })).toBeVisible()
     expect(screen.getByRole('button', { name: '保存设置' })).toBeVisible()
-    expect(screen.getByText(/^创建于 /)).toBeVisible()
+    expect(document.querySelector('[title^="创建于 "]')).not.toBeNull()
     expect(localStorage.getItem('tally:locale:v1')).toBe('zh-CN')
 
     await user.click(screen.getByRole('button', { name: '保存设置' }))
@@ -1209,15 +1418,15 @@ describe('complete app workflows', () => {
     await user.type(screen.getByLabelText('Description'), 'Gas')
     await user.type(screen.getByLabelText('Amount'), '30')
     await user.click(screen.getByRole('button', { name: 'Save expense' }))
-    expect(screen.getByText('+$20.00')).toBeVisible()
-    expect(screen.getByText(/^Created /)).toBeVisible()
+    expect(screen.getByLabelText('Activity summary').querySelector('.balance-card-balance')).toHaveTextContent('$20.00')
+    expect(screen.getByRole('button', { name: 'Edit Gas' })).toHaveAttribute('title', expect.stringMatching(/^Created /))
 
     await user.click(screen.getByRole('button', { name: 'Edit Gas' }))
     await user.clear(screen.getByLabelText('Amount'))
     await user.type(screen.getByLabelText('Amount'), '45')
     await user.click(screen.getByRole('button', { name: 'Save changes' }))
     expect(screen.getAllByText('$45.00').some(element => element.matches('.expense-amount b'))).toBe(true)
-    expect(screen.getByText(/^Edited /)).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Edit Gas' })).toHaveAttribute('title', expect.stringMatching(/^Edited /))
 
     await chooseShareAction(user, 'Export share image')
     expect(await screen.findByRole('status')).toHaveTextContent('PNG summary downloaded')
@@ -1227,11 +1436,13 @@ describe('complete app workflows', () => {
     expect(screen.getByText('No expenses match your search.')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Clear search' }))
 
-    await user.click(screen.getByRole('button', { name: 'Delete Gas' }))
+    await user.click(screen.getByRole('button', { name: 'Edit Gas' }))
+    await user.click(screen.getByRole('button', { name: 'Delete expense' }))
     expect(screen.getByRole('dialog', { name: 'Delete this record?' })).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(screen.getByText('Gas')).toBeVisible()
-    await user.click(screen.getByRole('button', { name: 'Delete Gas' }))
+    await user.click(screen.getByRole('button', { name: 'Edit Gas' }))
+    await user.click(screen.getByRole('button', { name: 'Delete expense' }))
     await confirmDialogAction(user, 'Delete')
     expect(screen.queryByText('Gas')).not.toBeInTheDocument()
 
@@ -1256,7 +1467,7 @@ describe('complete app workflows', () => {
     await user.type(screen.getByLabelText('Activity name'), 'Shanghai trip')
     await chooseSelectOption(user, /Activity currency/, 'CNY')
     await user.click(screen.getByRole('button', { name: 'Create activity' }))
-    expect(screen.getByRole('button', { name: 'Activity currency, CNY' })).toBeVisible()
+    await expectActivityCurrency(user, 'CNY')
     expect(screen.getByText('No expenses yet')).toBeVisible()
     expect(screen.queryByText('¥0.00')).not.toBeInTheDocument()
 
@@ -1278,7 +1489,7 @@ describe('complete app workflows', () => {
 
     unmount()
     render(<App />)
-    expect(screen.getByRole('button', { name: 'Activity currency, EUR' })).toBeVisible()
+    await expectActivityCurrency(user, 'EUR')
     expect(screen.getAllByText('€24.00').length).toBeGreaterThan(0)
   })
 
@@ -1301,6 +1512,10 @@ describe('complete app workflows', () => {
     expect(await screen.findByText('Live · revision 1')).toBeVisible()
     expect(window.location.hash).toBe(new URL(liveUrl).hash)
     expect(client.load).toHaveBeenCalledOnce()
+    await user.click(screen.getByRole('button', { name: 'Switch activity' }))
+    expect(document.querySelector('.sidebar')).toHaveClass('sidebar--open')
+    await user.click(screen.getAllByRole('button', { name: 'Close navigation' })[0])
+    expect(document.querySelector('.sidebar')).not.toHaveClass('sidebar--open')
 
     await chooseShareAction(user, 'Export CSV data')
     expect(await screen.findByRole('dialog', { name: 'Export CSV data' })).toBeVisible()
@@ -2189,10 +2404,11 @@ describe('complete app workflows', () => {
     await user.clear(screen.getByLabelText('Amount'))
     await user.type(screen.getByLabelText('Amount'), '80')
     await user.click(screen.getByRole('button', { name: 'Save changes' }))
-    expect(await screen.findByText('$80.00')).toBeVisible()
-    expect(screen.getByText('Live · revision 4')).toBeVisible()
+    expect(await screen.findByText('Live · revision 4')).toBeVisible()
+    expect(screen.getAllByText('$80.00').some(element => element.matches('.expense-amount b'))).toBe(true)
 
-    await user.click(screen.getByRole('button', { name: 'Delete Parking' }))
+    await user.click(screen.getByRole('button', { name: 'Edit Parking' }))
+    await user.click(screen.getByRole('button', { name: 'Delete expense' }))
     await confirmDialogAction(user, 'Delete')
     await waitFor(() => expect(screen.queryByText('Parking')).not.toBeInTheDocument())
     expect(screen.getByText('Live · revision 5')).toBeVisible()

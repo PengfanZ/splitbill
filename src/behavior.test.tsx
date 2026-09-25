@@ -48,18 +48,19 @@ describe('happy paths', () => {
     const summary = screen.getByLabelText('Activity summary')
     expect(within(summary).getByText('$240.00')).toBeVisible()
     expect(within(summary).getByText('$90.00')).toBeVisible()
-    expect(within(summary).getByText('+$10.00')).toBeVisible()
+    expect(summary.querySelector('.balance-card-balance')).toHaveTextContent('You’re owed$10.00')
     expect(screen.getByText('Maya owes You').closest('.balance-row')).toHaveTextContent('$10.00')
     expect(screen.getByText('Maya owes Jordan').closest('.balance-row')).toHaveTextContent('$30.00')
     expect(screen.getByText('Dinner')).toBeVisible()
     expect(screen.getByText('Taxi')).toBeVisible()
     expect(screen.getByText('Hotel')).toBeVisible()
 
-    await user.click(screen.getByRole('button', { name: 'Delete Hotel' }))
+    await user.click(screen.getByRole('button', { name: 'Edit Hotel' }))
+    await user.click(screen.getByRole('button', { name: 'Delete expense' }))
     await user.click(screen.getByRole('button', { name: 'Delete' }))
 
     expect(within(summary).getByText('$120.00')).toBeVisible()
-    expect(within(summary).getByText('+$50.00')).toBeVisible()
+    expect(summary.querySelector('.balance-card-balance')).toHaveTextContent('You’re owed$50.00')
     expect(screen.queryByText('Hotel')).not.toBeInTheDocument()
     expect(screen.getByText('Maya owes You').closest('.balance-row')).toHaveTextContent('$10.00')
     expect(screen.getByText('Jordan owes You').closest('.balance-row')).toHaveTextContent('$40.00')
@@ -86,7 +87,7 @@ describe('happy paths', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Maya paid You $5.00. Remaining balances were recalculated.')
     expect(within(summary).getByText('$240.00')).toBeVisible()
     expect(within(summary).getByText('$90.00')).toBeVisible()
-    expect(within(summary).getByText('+$5.00')).toBeVisible()
+    expect(summary.querySelector('.balance-card-balance')).toHaveTextContent('You’re owed$5.00')
     expect(screen.getByText('Maya paid You')).toBeVisible()
     expect(screen.getByText('Settlement payment')).toBeVisible()
     expect(screen.getByText('Maya owes You').closest('.balance-row')).toHaveTextContent('$5.00')
@@ -116,6 +117,7 @@ describe('happy paths', () => {
     await user.click(screen.getByRole('button', { name: 'Add expense' }))
     await user.type(screen.getByLabelText('Description'), 'Cabin')
     await user.type(screen.getByLabelText('Amount'), '100')
+    await user.click(screen.getByRole('button', { name: /^Split Equally/ }))
     await user.click(screen.getByRole('button', { name: 'Paid by' }))
     await user.click(screen.getByRole('option', { name: 'Maya' }))
     await user.click(screen.getByRole('button', { name: 'Split method' }))
@@ -124,9 +126,10 @@ describe('happy paths', () => {
     await user.type(screen.getByLabelText('Maya share'), '40')
     await user.click(screen.getByRole('button', { name: 'Save expense' }))
 
-    expect(screen.getByText('You owe Maya')).toBeVisible()
-    expect(screen.getByText('$60.00')).toBeVisible()
-    expect(screen.getByText('−$60.00')).toBeVisible()
+    expect(screen.getByText('You owe Maya', { selector: '.balance-row b' }).closest('.balance-row')).toHaveTextContent('$60.00')
+    expect(screen.getByLabelText('Activity summary').querySelector('.balance-card-balance')).toHaveTextContent('You owe$60.00')
+    expect(screen.getByText('−$60.00', { selector: '.member-balance' })).toBeVisible()
+    expect(screen.getByText('You owe $60.00')).toHaveClass('nav-balance--owe')
     expect(screen.getByText('Cabin')).toBeVisible()
   })
 
@@ -151,8 +154,8 @@ describe('happy paths', () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(twoPersonTrip))
     const { unmount } = render(<App />)
 
-    expect(screen.getByText((_, node) => node?.textContent === 'You paidSplit equally · 2 people')).toBeVisible()
-    expect(screen.getByText('+$20.00')).toBeVisible()
+    expect(screen.getByText((_, node) => node?.tagName === 'SMALL' && node.textContent === 'You paidSplit equally · 2 people')).toBeVisible()
+    expect(screen.getByLabelText('Activity summary').querySelector('.balance-card-balance')).toHaveTextContent('You’re owed$20.00')
     await user.click(screen.getAllByRole('button', { name: 'Add friend' })[0])
     expect(screen.getByText('Future expenses only')).toBeVisible()
     expect(screen.getByText('1 existing expense will stay unchanged.')).toBeVisible()
@@ -160,14 +163,15 @@ describe('happy paths', () => {
     await user.click(screen.getByRole('button', { name: 'Add friends' }))
 
     expect(screen.getByRole('status')).toHaveTextContent('Jordan was added for future expenses. 1 earlier expense was left unchanged.')
-    expect(screen.getByText('+$20.00')).toBeVisible()
-    expect(screen.getByText((_, node) => node?.textContent === 'You paidSplit equally · 2 people')).toBeVisible()
+    expect(screen.getByLabelText('Activity summary').querySelector('.balance-card-balance')).toHaveTextContent('You’re owed$20.00')
+    expect(screen.getByText((_, node) => node?.tagName === 'SMALL' && node.textContent === 'You paidSplit equally · 2 people')).toBeVisible()
     await waitFor(() => {
       const saved = parseState(localStorage.getItem(STORAGE_KEY))
       expect(saved.expenses[0].shares).toEqual({ me: 20, maya: 20 })
     })
 
     await user.click(screen.getByRole('button', { name: 'Add expense' }))
+    await user.click(screen.getByRole('button', { name: /^Split Equally/ }))
     await user.click(screen.getByRole('button', { name: 'Paid by' }))
     expect(screen.getByRole('option', { name: 'Jordan' })).toBeVisible()
     await user.keyboard('{Escape}')
@@ -175,7 +179,7 @@ describe('happy paths', () => {
     await user.type(screen.getByLabelText('Amount'), '30')
     await user.click(screen.getByRole('button', { name: 'Save expense' }))
 
-    expect(screen.getByText((_, node) => node?.textContent === 'You paidSplit equally · 3 people')).toBeVisible()
+    expect(screen.getByText((_, node) => node?.tagName === 'SMALL' && node.textContent === 'You paidSplit equally · 3 people')).toBeVisible()
     expect(screen.getByText('Jordan owes You').closest('.balance-row')).toHaveTextContent('$10.00')
     await waitFor(() => {
       const saved = parseState(localStorage.getItem(STORAGE_KEY))
@@ -185,9 +189,9 @@ describe('happy paths', () => {
 
     unmount()
     render(<App />)
-    expect(screen.getByText('3 people sharing expenses together.')).toBeVisible()
-    expect(screen.getByText((_, node) => node?.textContent === 'You paidSplit equally · 2 people')).toBeVisible()
-    expect(screen.getByText((_, node) => node?.textContent === 'You paidSplit equally · 3 people')).toBeVisible()
+    expect(screen.getByText('3 people · USD')).toBeVisible()
+    expect(screen.getByText((_, node) => node?.tagName === 'SMALL' && node.textContent === 'You paidSplit equally · 2 people')).toBeVisible()
+    expect(screen.getByText((_, node) => node?.tagName === 'SMALL' && node.textContent === 'You paidSplit equally · 3 people')).toBeVisible()
   })
 
   it('splits an expense equally among only the selected people', async () => {
@@ -201,13 +205,14 @@ describe('happy paths', () => {
     await user.click(screen.getByRole('button', { name: 'Add expense' }))
     await user.type(screen.getByLabelText('Description'), 'Museum tickets')
     await user.type(screen.getByLabelText('Amount'), '60')
+    await user.click(screen.getByRole('button', { name: /^Split Equally/ }))
     await user.click(screen.getByLabelText('Include Jordan in equal split'))
 
     expect(screen.getByText('2 of 3 selected')).toBeVisible()
     expect(screen.getByText('$30.00')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Save expense' }))
 
-    expect(screen.getByText((_, node) => node?.textContent === 'You paidSplit equally · 2 people')).toBeVisible()
+    expect(screen.getByText((_, node) => node?.tagName === 'SMALL' && node.textContent === 'You paidSplit equally · 2 people')).toBeVisible()
     expect(screen.getByText('Maya owes You').closest('.balance-row')).toHaveTextContent('$30.00')
     expect(screen.queryByText('Jordan owes You')).not.toBeInTheDocument()
     await waitFor(() => {
@@ -236,7 +241,7 @@ describe('happy paths', () => {
     } satisfies PersistedState))
     const { unmount } = render(<App />)
 
-    expect(screen.getByText((_, node) => node?.textContent === 'You paidSplit equally · 2 people')).toBeVisible()
+    expect(screen.getByText((_, node) => node?.tagName === 'SMALL' && node.textContent === 'You paidSplit equally · 2 people')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Edit Groceries' }))
     expect(screen.getByRole('heading', { name: 'Edit expense' })).toBeVisible()
     expect(screen.getByLabelText('Description')).toHaveValue('Groceries')
@@ -251,7 +256,7 @@ describe('happy paths', () => {
     await user.click(screen.getByRole('button', { name: 'Save changes' }))
 
     expect(screen.getByRole('status')).toHaveTextContent('Groceries was updated. Splits and balances were recalculated.')
-    expect(screen.getByText((_, node) => node?.textContent === 'You paidSplit equally · 3 people')).toBeVisible()
+    expect(screen.getByText((_, node) => node?.tagName === 'SMALL' && node.textContent === 'You paidSplit equally · 3 people')).toBeVisible()
     expect(screen.getByText('Maya owes You').closest('.balance-row')).toHaveTextContent('$13.33')
     expect(screen.getByText('Jordan owes You').closest('.balance-row')).toHaveTextContent('$13.33')
     await waitFor(() => {
@@ -267,7 +272,7 @@ describe('happy paths', () => {
 
     unmount()
     render(<App />)
-    expect(screen.getByText((_, node) => node?.textContent === 'You paidSplit equally · 3 people')).toBeVisible()
+    expect(screen.getByText((_, node) => node?.tagName === 'SMALL' && node.textContent === 'You paidSplit equally · 3 people')).toBeVisible()
     expect(screen.getByText('Jordan owes You')).toBeVisible()
   })
 })
@@ -297,6 +302,7 @@ describe('edge cases', () => {
 
     await user.type(screen.getByLabelText('Description'), 'Tiny split')
     await user.type(screen.getByLabelText('Amount'), '0.30')
+    await user.click(screen.getByRole('button', { name: /^Split Equally/ }))
     await user.click(screen.getByRole('button', { name: 'Split method' }))
     await user.click(screen.getByRole('option', { name: 'Exact amounts' }))
     await user.type(screen.getByLabelText('You share'), '0.10')

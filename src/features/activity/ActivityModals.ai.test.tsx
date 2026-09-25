@@ -403,7 +403,7 @@ describe('AI-assisted expense modal', () => {
       </LocalizationProvider>,
     )
 
-    expect(screen.getByRole('button', { name: 'Paid by' })).toHaveValue('maya')
+    expect(screen.getByRole('button', { name: /^Paid by Maya/ })).toBeVisible()
     selected.unmount()
 
     const firstMember = render(
@@ -417,7 +417,7 @@ describe('AI-assisted expense modal', () => {
         />
       </LocalizationProvider>,
     )
-    expect(screen.getByRole('button', { name: 'Paid by' })).toHaveValue('maya')
+    expect(screen.getByRole('button', { name: /^Paid by Maya/ })).toBeVisible()
     firstMember.unmount()
 
     expect(() => render(

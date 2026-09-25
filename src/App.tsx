@@ -10,7 +10,7 @@ import { EMPTY_STATE } from './data/storage'
 import { activityCurrency, currencyLabel, type CurrencyCode } from './domain/currency'
 import type { CategoryChange } from './domain/categories'
 import { categoryMutationEvent, persistCategoryChange } from './features/categories/categoryChanges'
-import { isSettlementPayment, money, spendingExpenses } from './domain/expenses'
+import { calculateMemberBalance, isSettlementPayment, money, spendingExpenses } from './domain/expenses'
 import { CURRENT_USER } from './domain/members'
 import { activeActivityMembers, isInactiveMember, removeActivityFriend, restoreActivityFriend } from './domain/memberRemoval'
 import type { ActivityGroup, Expense, Settlement } from './domain/models'
@@ -113,6 +113,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
   })
   const { locale, t } = useLocalization()
   const [query, setQuery] = useState('')
+  const [navigationOpen, setNavigationOpen] = useState(false)
   const [modal, setModal] = useState<ModalType>(null)
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
   const [settlingDirection, setSettlingDirection] = useState<Settlement | null>(null)
@@ -186,6 +187,17 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
   const displayedLiveNotice = live.displayedNotice
   const liveEnd = live.end
   const liveActivityCodes = live.activityCodes
+  const activityBalances = useMemo(() => {
+    const balances: Record<string, number> = {}
+    for (const group of state.groups) {
+      const expenses = state.expenses.filter(expense => expense.groupId === group.id)
+      if (!expenses.length) continue
+      const savedMemberId = activityIdentities[`local:${group.id}`]
+      const memberId = savedMemberId && group.memberIds.includes(savedMemberId) ? savedMemberId : 'me'
+      balances[group.id] = Math.round(calculateMemberBalance(memberId, expenses) * 100) / 100
+    }
+    return balances
+  }, [activityIdentities, state.expenses, state.groups])
   const bookmarkedLiveGroupId = live.bookmarkedGroupId
   const analyticsSurface: AnalyticsSurface = live.credentials ? 'live' : 'local'
   const trackedAiExpenseClient = useMemo(
@@ -608,6 +620,9 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
         groups={state.groups}
         selectedId={live.credentials ? bookmarkedLiveGroupId : selectedGroup?.id ?? null}
         liveActivityCodes={liveActivityCodes}
+        activityBalances={activityBalances}
+        open={navigationOpen}
+        onOpenChange={setNavigationOpen}
         onSelect={openActivity}
         onCreate={() => {
           if (live.credentials) closeLiveActivity()
@@ -660,6 +675,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
             {liveActivity ? (
               <GroupDashboard
                 key={liveActivity.group.id}
+                onSwitchActivity={() => setNavigationOpen(true)}
                 onCategoriesChange={live.editable ? changeActivityCategories : undefined}
                 onCategorySummaryOpen={() => analyticsClient?.track('category_summary_opened', 'live', locale)}
                 group={liveActivity.group}
@@ -694,6 +710,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
         ) : selectedGroup ? (
           <GroupDashboard
             key={selectedGroup.id}
+            onSwitchActivity={() => setNavigationOpen(true)}
             onCategoriesChange={changeActivityCategories}
             onCategorySummaryOpen={() => analyticsClient?.track('category_summary_opened', 'local', locale)}
             group={selectedGroup}
@@ -747,6 +764,10 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
             : undefined}
           onClose={closeExpenseModal}
           onSave={editingExpense ? updateExpense : addExpense}
+          onDelete={editingExpense ? () => {
+            closeExpenseModal()
+            deleteExpense(editingExpense)
+          } : undefined}
           onSaveMany={addExpenses}
           saving={live.saving || liveEditBlocked}
         />

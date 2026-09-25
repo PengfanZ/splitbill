@@ -14,20 +14,28 @@ import {
   Users,
   X,
 } from 'lucide-react'
+import { activityCurrency } from '../domain/currency'
+import { money } from '../domain/expenses'
 import type { ActivityGroup, Member } from '../domain/models'
 import { useLocalization } from '../i18n/LocalizationContext'
 import { Button, IconButton } from './Button'
 
 const EMPTY_LIVE_ACTIVITY_CODES: Record<string, string> = {}
+const EMPTY_ACTIVITY_BALANCES: Record<string, number> = {}
 
 export function Avatar({ member, size = 'md' }: { member: Member; size?: 'sm' | 'md' | 'lg' }) {
   return <span className={`avatar avatar--${size}`} style={{ background: member.color }}>{member.initials}</span>
 }
 
-export function Sidebar({ groups, selectedId, liveActivityCodes = EMPTY_LIVE_ACTIVITY_CODES, onSelect, onCreate, onJoin, onShowChangelog, onSendFeedback, onDelete, onReset, hasUnreadChangelog = false }: {
+export function Sidebar({ groups, selectedId, liveActivityCodes = EMPTY_LIVE_ACTIVITY_CODES, activityBalances = EMPTY_ACTIVITY_BALANCES, open, onOpenChange, onSelect, onCreate, onJoin, onShowChangelog, onSendFeedback, onDelete, onReset, hasUnreadChangelog = false }: {
   groups: ActivityGroup[]
   selectedId: string | null
   liveActivityCodes?: Record<string, string>
+  /** The viewer's balance in each local activity that has spending. */
+  activityBalances?: Record<string, number>
+  /** Lets the page open the mobile activity list; uncontrolled when omitted. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
   onSelect: (id: string) => void
   onCreate: () => void
   onJoin: () => void
@@ -37,8 +45,17 @@ export function Sidebar({ groups, selectedId, liveActivityCodes = EMPTY_LIVE_ACT
   onReset: () => void
   hasUnreadChangelog?: boolean
 }) {
-  const [mobileOpen, setMobileOpen] = useState(false)
-  const { t } = useLocalization()
+  const [internalOpen, setInternalOpen] = useState(false)
+  const mobileOpen = open ?? internalOpen
+  const setMobileOpen = onOpenChange ?? setInternalOpen
+  const { locale, t } = useLocalization()
+  const balanceDetail = (group: ActivityGroup, balance: number) => {
+    if (balance === 0) return <small>{t('nav.settled')}</small>
+    const amount = money(balance, activityCurrency(group), locale)
+    return balance > 0
+      ? <small className="nav-balance nav-balance--owed">{t('nav.youAreOwed', { amount })}</small>
+      : <small className="nav-balance nav-balance--owe">{t('nav.youOwe', { amount })}</small>
+  }
 
   return (
     <>
@@ -58,9 +75,10 @@ export function Sidebar({ groups, selectedId, liveActivityCodes = EMPTY_LIVE_ACT
             <div key={group.id} className={`group-row ${group.id === selectedId ? 'is-selected' : ''}`}>
               <button className="group-select" aria-label={t('nav.openActivity', { name: group.name })} onClick={() => { onSelect(group.id); setMobileOpen(false) }}>
                 <span className="group-icon green">{group.emoji}</span>
-                <span><b>{group.name}</b><small>{liveActivityCodes[group.id]
-                  ? t('nav.liveCode', { code: liveActivityCodes[group.id] })
-                  : t('nav.memberCount', { count: activeMemberCount(group), unit: t(activeMemberCount(group) === 1 ? 'common.person' : 'common.people') })}</small></span>
+                <span><b>{group.name}</b>{liveActivityCodes[group.id]
+                  ? <small>{t('nav.liveCode', { code: liveActivityCodes[group.id] })}</small>
+                  : group.id in activityBalances ? balanceDetail(group, activityBalances[group.id])
+                  : <small>{t('nav.memberCount', { count: activeMemberCount(group), unit: t(activeMemberCount(group) === 1 ? 'common.person' : 'common.people') })}</small>}</span>
                 <ChevronRight size={15} />
               </button>
               <IconButton className="group-delete" tone="danger" label={t('nav.deleteActivity', { name: group.name })} title={t('nav.deleteActivityTitle')} onClick={() => onDelete(group)}><Trash2 size={15} /></IconButton>

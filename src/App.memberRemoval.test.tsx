@@ -140,6 +140,7 @@ describe('friend removal in local and live activities', () => {
     render(<App liveActivityClient={null} />)
     expect(screen.queryByRole('button', { name: 'Remove Sam from activity' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Add expense' }))
+    await user.click(screen.getByRole('button', { name: /^Split Equally/ }))
     await user.click(screen.getByRole('button', { name: 'Paid by' }))
     expect(screen.queryByRole('option', { name: 'Sam' })).not.toBeInTheDocument()
   })

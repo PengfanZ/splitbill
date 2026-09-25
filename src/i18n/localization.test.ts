@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   LOCALE_STORAGE_KEY,
   formatLocalizedDateTime,
+  formatLocalizedDay,
+  localDayKey,
   formatLocalizedList,
   getLocalTimeZone,
   loadLocale,
@@ -88,5 +90,16 @@ describe('localization', () => {
     } as Intl.DateTimeFormat)
     expect(getLocalTimeZone()).toBe('UTC')
     formatter.mockRestore()
+  })
+
+  it('groups timestamps by local calendar day and labels days with the year only when needed', () => {
+    expect(localDayKey('2026-09-22T23:30:00.000Z', 'UTC')).toBe('2026-09-22')
+    expect(localDayKey('2026-09-22T23:30:00.000Z', 'Asia/Shanghai')).toBe('2026-09-23')
+    expect(localDayKey('Just now', 'UTC')).toBeNull()
+    const now = new Date('2026-09-25T12:00:00.000Z')
+    expect(formatLocalizedDay('2026-09-22T12:00:00.000Z', 'en', 'UTC', now)).toBe('Tue, Sep 22')
+    expect(formatLocalizedDay('2025-12-31T12:00:00.000Z', 'en', 'UTC', now)).toBe('Wed, Dec 31, 2025')
+    expect(formatLocalizedDay('2026-09-22T12:00:00.000Z', 'zh-CN', 'Asia/Shanghai', now)).toBe('9月22日周二')
+    expect(formatLocalizedDay('2026-09-22T12:00:00.000Z', 'en', 'UTC')).toMatch(/Sep 22/)
   })
 })
