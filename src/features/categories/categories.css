@@ -2,10 +2,6 @@
 .select-menu-footer { display: flex; align-items: center; gap: 10px; width: 100%; padding: 14px 12px; border: 0; border-top: 1px solid var(--line); background: transparent; color: var(--muted); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
 .select-menu-footer:hover, .select-menu-footer:focus-visible { background: var(--surface-hover); color: var(--ink); }
 .category-help { font-size: 12px; color: var(--muted); line-height: 1.6; }
-.category-view-controls { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--line); }
-.category-view-tabs { display: flex; gap: 20px; }
-.category-view-tabs button { border: 0; border-bottom: 3px solid transparent; background: none; color: var(--muted); font: inherit; padding: 14px 2px; cursor: pointer; }
-.category-view-tabs button[aria-pressed=true] { border-color: var(--coral); color: var(--ink); font-weight: 700; }
 .category-bar { display: grid; grid-template-columns: 12px minmax(90px,140px) minmax(30px,1fr) auto 16px; gap: 12px; align-items: center; width: 100%; padding: 14px 4px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--ink); text-align: left; font: inherit; cursor: pointer; }
 .category-bar:hover,.category-bar[aria-pressed=true] { background: var(--surface-hover); }
 .category-bar-name { overflow-wrap: anywhere; font-size: 13px; }.category-bar-name small { display: block; font-size: 12px; color: var(--muted); margin-top: 4px; }
@@ -34,6 +30,5 @@
 .expense-category-label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--ink); background: color-mix(in srgb, var(--category-color) 22%, var(--surface-solid)); border: 1px solid color-mix(in srgb, var(--category-color) 40%, transparent); border-radius: 20px; padding: 5px 9px; max-width: 140px; overflow-wrap: anywhere; }
 .expense-category-label .category-dot { width: 6px; height: 6px; background: var(--category-color); }
 @media (max-width: 700px) {
-  .category-view-controls { flex-wrap: wrap; }.category-view-tabs { gap: 16px; }
   .category-bar { grid-template-columns: 12px minmax(0,1fr) auto 16px; gap: 8px; }.category-bar-track { grid-column: 2 / 4; grid-row: 2; height: 6px; }.category-bar strong { grid-column: 3; grid-row: 1; }.category-bar > svg { grid-column: 4; grid-row: 1; }
 }

@@ -1,29 +1,31 @@
+.expense-day-heading { margin: 18px 4px 2px; color: var(--muted); font-size: 13px; font-weight: 700; letter-spacing: 0; }
+.expense-day:first-child .expense-day-heading { margin-top: 12px; }
 .activity-row.expense-entry {
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) minmax(80px, auto);
-  align-items: start;
-  gap: 6px 14px;
-  padding: 12px 8px;
+  grid-template-columns: 36px minmax(0, 1fr) minmax(80px, auto) auto;
+  align-items: center;
+  gap: 4px 14px;
+  padding: 10px 8px;
+  min-height: 64px;
 }
-.expense-entry .expense-icon { grid-column: 1; grid-row: 1; margin-top: 2px; }
-.expense-entry .row-copy { grid-column: 2; grid-row: 1; gap: 2px; }
-.expense-entry .row-copy b { white-space: normal; overflow: visible; overflow-wrap: anywhere; line-height: 1.5; }
-.expense-entry .row-copy small { display: block; white-space: normal; overflow: visible; max-width: none; overflow-wrap: anywhere; line-height: 1.6; }
-.expense-entry .expense-amount { grid-column: 3; grid-row: 1; padding-top: 3px; text-align: right; }
+.activity-row.expense-entry--editable { font: inherit; color: inherit; cursor: pointer; }
+.activity-row.expense-entry--editable:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: -3px; }
+.expense-entry .row-copy { gap: 2px; }
+.expense-entry .row-copy b { font-size: 15px; white-space: normal; overflow: visible; overflow-wrap: anywhere; line-height: 1.4; }
+.expense-meta-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.expense-entry .row-copy small { display: block; white-space: normal; overflow-wrap: anywhere; line-height: 1.6; }
+.expense-entry .row-copy small i { vertical-align: middle; }
+.expense-meta-line > .expense-category-label { padding-block: 1px; }
+.expense-edited { color: var(--muted); font-size: 12px; }
+.expense-entry .expense-amount { text-align: right; }
 .expense-entry .expense-amount b { font-size: 16px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .expense-entry .expense-share { display: block; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .expense-entry .expense-share--lent { color: var(--green); }
 .expense-entry .expense-share--owe { color: var(--coral-ink); }
-.expense-entry-meta { grid-column: 2; grid-row: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; align-self: center; }
-.expense-entry-time { font-size: 12px; color: var(--muted); line-height: 1.5; overflow-wrap: anywhere; }
-.expense-entry .expense-actions { grid-column: 3; grid-row: 2; justify-self: end; }
 .expense-entry .expense-category-label { max-width: 100%; line-height: 1.4; }
 @media (max-width: 600px) {
-  .activity-row.expense-entry { grid-template-columns: minmax(0, 1fr) minmax(72px, auto); gap: 4px 12px; padding: 12px 0; }
-  .expense-entry .expense-icon { display: none; }
-  .expense-entry .row-copy { grid-column: 1; }
-  .expense-entry .expense-amount { grid-column: 2; max-width: 125px; }
-  .expense-entry-meta { grid-column: 1; gap: 8px; }
-  .expense-entry .expense-actions { grid-column: 2; align-self: end; }
-  .expense-entry-time { flex-basis: 100%; }
+  .activity-row.expense-entry { grid-template-columns: 36px minmax(0, 1fr) auto; gap: 2px 12px; padding: 10px 0; }
+  .expense-entry .expense-amount { max-width: 130px; }
+  .expense-split-method { display: none; }
+  .expense-entry .expense-delete { grid-column: 3; justify-self: end; }
 }

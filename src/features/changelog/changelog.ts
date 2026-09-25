@@ -23,10 +23,10 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     titleKey: 'changelog.release.uiPolishTitle',
     summaryKey: 'changelog.release.uiPolishSummary',
     items: [
-      { icon: 'polish', titleKey: 'changelog.item.yourShareTitle', descriptionKey: 'changelog.item.yourShareDescription' },
-      { icon: 'settle', titleKey: 'changelog.item.settlementColorsTitle', descriptionKey: 'changelog.item.settlementColorsDescription' },
-      { icon: 'polish', titleKey: 'changelog.item.suggestedCategoryTitle', descriptionKey: 'changelog.item.suggestedCategoryDescription' },
-      { icon: 'theme', titleKey: 'changelog.item.readabilityTitle', descriptionKey: 'changelog.item.readabilityDescription' },
+      { icon: 'polish', titleKey: 'changelog.item.balanceCardTitle', descriptionKey: 'changelog.item.balanceCardDescription' },
+      { icon: 'settle', titleKey: 'changelog.item.dashboardViewsTitle', descriptionKey: 'changelog.item.dashboardViewsDescription' },
+      { icon: 'polish', titleKey: 'changelog.item.expenseDaysTitle', descriptionKey: 'changelog.item.expenseDaysDescription' },
+      { icon: 'theme', titleKey: 'changelog.item.fasterEntryTitle', descriptionKey: 'changelog.item.fasterEntryDescription' },
     ],
   },
   {

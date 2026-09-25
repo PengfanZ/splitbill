@@ -1,0 +1,91 @@
+/* styles.css loads after this file, so layout overrides use the workspace scope. */
+.workspace .dashboard { grid-template-columns: minmax(0, 1fr) 340px; }
+
+.group-meta { margin-top: 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.group-title .group-meta p { margin: 0; }
+.avatar-stack { display: inline-flex; align-items: center; padding-left: 6px; }
+.avatar-stack .avatar, .avatar-stack-more { margin-left: -6px; box-shadow: 0 0 0 2px var(--paper); }
+.avatar-stack-more { width: 32px; height: 32px; border-radius: 50%; display: inline-grid; place-items: center; background: var(--surface-muted); color: var(--muted); font-size: 12px; font-weight: 700; }
+.add-person-chip { min-height: 36px; border: 1px dashed var(--control-border); border-radius: 999px; padding: 0 12px; display: inline-flex; align-items: center; gap: 4px; background: transparent; color: var(--ink); font-size: 13px; font-weight: 600; }
+.add-person-chip:hover { border-style: solid; background: var(--surface-glass-strong); }
+.activity-options-button { border: 1px solid var(--control-border); border-radius: var(--radius-control); }
+
+.balance-card { margin: 28px 0 22px; padding: 20px 24px; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface-solid); display: grid; gap: 14px; }
+.balance-card-main { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 18px 32px; }
+.balance-card-balance { display: grid; gap: 6px; }
+.balance-card-balance > span { color: var(--muted); font-size: 14px; font-weight: 600; }
+.balance-card-balance > strong { font-family: var(--serif); font-size: clamp(40px, 5vw, 54px); font-weight: 400; line-height: 1; letter-spacing: -1px; }
+.balance-card-stats { margin: 0; display: flex; flex-wrap: wrap; gap: 12px 32px; }
+.balance-card-stats > div { display: grid; gap: 4px; }
+.balance-card-stats dt { color: var(--muted); font-size: 13px; }
+.balance-card-stats dd { margin: 0; font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.balance-card-settle { width: 100%; min-height: 48px; border: 0; border-top: 1px solid var(--line); padding: 12px 0 0; display: flex; align-items: center; gap: 12px; background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.balance-card-settle .avatar-stack .avatar { box-shadow: 0 0 0 2px var(--surface-solid); }
+.balance-card-settle-copy { flex: 1; min-width: 0; color: var(--muted); font-size: 14px; }
+.balance-card-settle-action { display: inline-flex; align-items: center; gap: 2px; color: var(--coral-ink); font-size: 14px; font-weight: 700; white-space: nowrap; }
+
+.dashboard-tabs { width: fit-content; margin: 0 0 12px; padding: 4px; border-radius: 12px; background: var(--surface-muted); display: flex; gap: 4px; }
+.dashboard-tab { min-height: var(--control-height); border: 0; border-radius: 9px; padding: 0 18px; background: transparent; color: var(--muted); font-size: 14px; font-weight: 600; }
+.dashboard-tab[aria-selected='true'], .dashboard--view-balances .dashboard-tab--expenses { background: var(--surface-solid); color: var(--ink); font-weight: 700; box-shadow: 0 1px 3px var(--shadow-soft); }
+.dashboard-tab--balances { display: none; }
+
+.activity-rail .settlements-panel h2:focus { outline: none; }
+.activity-rail .settlements-panel h2:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 3px; border-radius: 4px; }
+.activity-rail .section-heading { margin-inline: 0; }
+.activity-rail .section-meta { display: none; }
+.activity-rail .settlement-row { min-height: 60px; padding: 10px 0; gap: 10px; }
+.activity-rail .settlement-avatars { display: none; }
+.activity-rail .settlement-row .row-copy small { display: none; }
+.activity-rail .settlement-row .row-copy b { white-space: normal; }
+.activity-rail .settlement-action { gap: 8px; }
+.activity-rail .settlement-action > strong { font-size: 17px; }
+.activity-rail .members-panel { margin-top: 32px; }
+.members-panel .member-row { min-height: 56px; }
+.member-copy { flex: 1; min-width: 0; display: grid; gap: 6px; }
+.member-copy > b { min-width: 0; display: flex; align-items: center; gap: 6px; overflow: hidden; font-size: 13px; white-space: nowrap; text-overflow: ellipsis; }
+.member-copy .member-identity-indicator { width: auto; height: auto; display: inline-grid; }
+.member-balance-bar { width: 100%; max-width: 120px; height: 5px; border-radius: 3px; background: var(--surface-muted); overflow: hidden; }
+.member-balance-bar > span { display: block; height: 100%; border-radius: inherit; }
+.member-balance-bar > .positive-bar { background: var(--green); }
+.member-balance-bar > .negative-bar { background: var(--coral-ink); }
+.member-action-placeholder { width: var(--control-height); flex: 0 0 auto; }
+.member-balance { min-width: 76px; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+
+.group-row .nav-balance--owed { color: var(--green); font-weight: 600; }
+.group-row .nav-balance--owe { color: var(--coral-ink); font-weight: 600; }
+
+.activity-options { display: grid; gap: 16px; }
+.activity-options-field { display: grid; gap: 8px; color: var(--muted); font-size: 13px; }
+.activity-options .activity-currency { width: 100%; }
+
+@media (max-width: 1120px) {
+  .workspace .dashboard { grid-template-columns: minmax(0, 1fr) 300px; }
+}
+
+@media (max-width: 720px) {
+  .topbar .topbar-context { display: none; }
+  .activity-rail .settlement-row { flex-wrap: nowrap; }
+  .activity-rail .settlement-row .row-copy { min-width: 0; }
+  .activity-rail .settlement-action { width: auto; }
+  .group-meta { margin-top: 10px; }
+  .group-title .group-meta p { display: none; }
+  .group-context-actions .activity-options-button { margin-left: auto; }
+  .balance-card { margin: 18px 0 16px; padding: 16px; }
+  .balance-card-main { flex-wrap: nowrap; gap: 12px; }
+  .balance-card-balance > strong { font-size: clamp(34px, 11vw, 44px); }
+  .balance-card-stats { flex-direction: column; align-items: flex-end; gap: 4px; }
+  .balance-card-stats > div { display: flex; align-items: baseline; justify-content: flex-end; gap: 6px; }
+  .balance-card-stats dd { font-size: 13px; }
+  .dashboard-tabs { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .dashboard-tab { padding-inline: 6px; }
+  .dashboard-tab--balances { display: block; }
+  .dashboard--view-balances .dashboard-tab--expenses { background: transparent; color: var(--muted); font-weight: 600; box-shadow: none; }
+  .dashboard--view-balances .dashboard-tab--balances { background: var(--surface-solid); color: var(--ink); font-weight: 700; box-shadow: 0 1px 3px var(--shadow-soft); }
+  .dashboard--view-balances .dashboard-panel { display: none; }
+  .dashboard:not(.dashboard--view-balances) .activity-rail { display: none; }
+  .dashboard--view-balances .activity-rail { border-top: 0; padding-top: 0; }
+  .dashboard--with-actions { padding-bottom: 92px; }
+  .group-primary-actions { position: fixed; right: 0; bottom: 0; left: 0; z-index: 25; padding: 12px 16px max(12px, env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--paper); }
+  .group-primary-actions .button { min-height: 52px; border-radius: 14px; font-size: 15px; }
+  .group-actions .share-button { min-width: 52px; }
+}

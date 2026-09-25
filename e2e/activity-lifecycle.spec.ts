@@ -11,8 +11,18 @@ type AnalyticsPayload = {
 }
 
 async function chooseActivityCurrency(page: Page, currentCurrency: string, nextCurrency: string) {
+  await page.getByRole('button', { name: 'Activity options' }).click()
   await page.getByRole('button', { name: `Activity currency, ${currentCurrency}` }).click()
   await page.getByRole('option', { name: nextCurrency }).click()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog', { name: 'Activity options' })).toHaveCount(0)
+}
+
+async function expectActivityCurrency(page: Page, currency: string) {
+  await page.getByRole('button', { name: 'Activity options' }).click()
+  await expect(page.getByRole('button', { name: `Activity currency, ${currency}` })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog', { name: 'Activity options' })).toHaveCount(0)
 }
 
 test.beforeEach(async ({ context }) => {
@@ -34,18 +44,21 @@ test('aligns People count, identity and remove icons on desktop and mobile', asy
   const people = page.locator('.members-panel')
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 })
+    // On phones, people and balances live under the Balances tab.
+    if (width < 720) await page.getByRole('tab', { name: 'Balances' }).click()
     await people.scrollIntoViewIfNeeded()
     const identity = await people.locator('.member-identity-indicator svg').boundingBox()
     const count = await people.locator('.rail-heading > span').boundingBox()
+    const placeholder = await people.locator('.member-action-placeholder').boundingBox()
     const remove = await people.getByRole('button', { name: 'Remove Maya from activity' }).locator('svg').boundingBox()
     expect(identity).not.toBeNull()
     expect(count).not.toBeNull()
     expect(remove).not.toBeNull()
-    expect(Math.abs(identity!.x + identity!.width / 2 - remove!.x - remove!.width / 2)).toBeLessThan(1)
+    expect(Math.abs(placeholder!.x + placeholder!.width / 2 - remove!.x - remove!.width / 2)).toBeLessThan(1)
     expect(Math.abs(count!.x + count!.width / 2 - remove!.x - remove!.width / 2)).toBeLessThan(1)
     for (const row of await people.locator('.member-row').all()) {
       const bounds = await row.boundingBox()
-      const icon = await row.locator('.member-identity-indicator svg, .icon-button-control svg').boundingBox()
+      const icon = await row.locator('.member-action-placeholder, .icon-button-control svg').boundingBox()
       expect(Math.abs(bounds!.y + bounds!.height / 2 - icon!.y - icon!.height / 2)).toBeLessThan(1)
     }
   }
@@ -225,6 +238,7 @@ test('automatically uses Simplified Chinese in China and keeps the choice across
     await page.getByLabel('活动名称').fill('周末旅行')
     await page.getByLabel(/添加朋友/).fill('小明')
     await page.getByRole('dialog').getByRole('button', { name: '创建活动' }).click()
+    await page.getByRole('button', { name: '活动选项' }).click()
     const localizedCurrency = page.getByRole('button', { name: '活动币种：人民币' })
     await expect(localizedCurrency).toContainText('人民币 · ¥')
     await localizedCurrency.click()
@@ -233,11 +247,12 @@ test('automatically uses Simplified Chinese in China and keeps the choice across
     await expect(page.getByRole('option', { name: 'CNY' })).toHaveCount(0)
     await page.getByRole('option', { name: '欧元' }).click()
     await expect(page.getByRole('status')).toContainText('活动币种已更改为欧元')
+    await page.keyboard.press('Escape')
     await page.getByRole('button', { name: '添加支出' }).click()
     await page.getByLabel('说明').fill('晚餐')
     await page.getByRole('spinbutton', { name: '金额' }).fill('80')
     await page.getByRole('button', { name: '保存支出' }).click()
-    await expect(page.getByText(/^创建于 .*GMT\+8/)).toBeVisible()
+    await expect(page.getByRole('button', { name: '编辑支出：晚餐' })).toHaveAttribute('title', /^创建于 .*GMT\+8/)
 
     await page.getByRole('button', { name: '分享', exact: true }).click()
     await page.getByRole('button', { name: /^导出 CSV 数据/ }).click()
@@ -426,7 +441,7 @@ test('keeps an activity currency across expenses, changes, and reloads', async (
   await page.getByLabel(/Add friends/).fill('Maya')
   await page.getByRole('button', { name: 'Create activity' }).click()
 
-  await expect(page.getByRole('button', { name: 'Activity currency, EUR' })).toBeVisible()
+  await expectActivityCurrency(page, 'EUR')
   await page.getByRole('button', { name: 'Add expense' }).click()
   await page.getByLabel('Description').fill('Train')
   await page.getByRole('spinbutton', { name: 'Amount' }).fill('18')
@@ -437,7 +452,7 @@ test('keeps an activity currency across expenses, changes, and reloads', async (
   await expect(page.getByRole('status')).toContainText('Activity currency changed to CNY')
   await expect(page.locator('.expense-amount b')).toHaveText('¥18.00')
   await page.reload()
-  await expect(page.getByRole('button', { name: 'Activity currency, CNY' })).toBeVisible()
+  await expectActivityCurrency(page, 'CNY')
   await expect(page.locator('.expense-amount b')).toHaveText('¥18.00')
 })
 
@@ -515,15 +530,20 @@ test('keeps share and add expense together in the mobile action row', async ({ p
   expect(layout.share).toBeDefined()
   expect(Math.abs(layout.addExpense!.top - layout.share!.top)).toBeLessThanOrEqual(1)
   expect(Math.abs(layout.addExpense!.bottom - layout.share!.bottom)).toBeLessThanOrEqual(1)
-  expect(layout.addExpense!.left).toBeGreaterThanOrEqual(20)
-  expect(layout.share!.right).toBeLessThanOrEqual(layout.viewportWidth - 20)
+  expect(layout.addExpense!.left).toBeGreaterThanOrEqual(16)
+  expect(layout.share!.right).toBeLessThanOrEqual(layout.viewportWidth - 16)
+  // The action row is pinned to the bottom of the screen on phones.
+  const viewportHeight = page.viewportSize()!.height
+  expect(layout.addExpense!.bottom).toBeGreaterThan(viewportHeight - 80)
+  expect(layout.addExpense!.bottom).toBeLessThanOrEqual(viewportHeight)
   expect(layout.addExpense!.width).toBeGreaterThan(layout.share!.width)
 
   const touchTargets = [
     page.getByRole('button', { name: 'Open navigation' }),
     page.getByRole('button', { name: 'Settings' }),
     page.getByRole('button', { name: 'Edit Lunch' }),
-    page.getByRole('button', { name: 'Delete Lunch' }),
+    page.getByRole('button', { name: 'Activity options' }),
+    page.getByRole('tab', { name: 'Balances' }),
     actionRow.getByRole('button', { name: 'Add expense' }),
     actionRow.getByRole('button', { name: 'Share', exact: true }),
   ]
@@ -583,6 +603,7 @@ test('centers compact mobile dialogs and keeps long forms as sheets', async ({ p
   await expect(page.locator('.modal-backdrop')).toHaveClass(/modal-backdrop--sheet/)
   const expenseDialog = page.getByRole('dialog', { name: 'Add a shared expense' })
   await expenseDialog.getByRole('spinbutton', { name: 'Amount' }).fill('30')
+  await expenseDialog.getByRole('button', { name: 'Change' }).click()
   await expenseDialog.getByRole('button', { name: 'Split method' }).click()
   await page.getByRole('option', { name: 'Exact amounts' }).click()
   const exactShareControl = expenseDialog.locator('.share-input').first()
@@ -757,7 +778,7 @@ test('shows new updates once and keeps the changelog available on mobile', async
   await page.goto('./')
   const update = page.getByRole('dialog', { name: 'What’s new in Tally' })
   await expect(update).toBeVisible()
-  await expect(update.locator('h3').first()).toHaveText('Easier to read, quicker to sort')
+  await expect(update.locator('h3').first()).toHaveText('A clearer home for every activity')
   await expect(update).toContainText('Organize expenses your way')
   await expect(update).toContainText('People → Removed friends → Restore')
   await expect(update).toContainText('Export your activity data')
@@ -807,7 +828,7 @@ test('tracks local outcomes without sending local activity data or loading third
   await page.getByRole('button', { name: /Activity currency/ }).click()
   await page.getByRole('option', { name: 'CNY' }).click()
   await page.getByRole('button', { name: 'Create activity' }).click()
-  await page.getByRole('button', { name: 'Add friend' }).click()
+  await page.getByRole('button', { name: 'Add friend' }).first().click()
   await page.getByLabel(/Friend names/).fill('Private Friend')
   await page.getByRole('button', { name: 'Add friends' }).click()
   await chooseActivityCurrency(page, 'CNY', 'EUR')
@@ -862,17 +883,19 @@ test('persists a selective equal split and deletes its activity safely', async (
   await page.getByRole('button', { name: 'Add expense' }).click()
   await page.getByLabel('Description').fill('Museum tickets')
   await page.getByRole('spinbutton', { name: 'Amount' }).fill('60')
+  await page.getByRole('button', { name: 'Change' }).click()
   await page.getByLabel('Include Jordan in equal split').uncheck()
   await expect(page.getByText('2 of 3 selected')).toBeVisible()
   await expect(page.getByText('$30.00')).toBeVisible()
   await page.getByRole('button', { name: 'Save expense' }).click()
 
   await expect(page.getByText('Split equally · 2 people')).toBeVisible()
-  await expect(page.getByText(/^Created /)).toBeVisible()
-  await expect(page.getByText('Maya owes Alex')).toBeVisible()
-  await expect(page.getByText('Jordan owes Alex')).toHaveCount(0)
-
+  await expect(page.getByRole('button', { name: 'Edit Museum tickets' })).toHaveAttribute('title', /^Created /)
   const settlementRow = page.locator('.settlement-row').filter({ hasText: 'Maya owes Alex' })
+  await expect(settlementRow).toBeVisible()
+  await expect(page.locator('.settlement-row').filter({ hasText: 'Jordan owes Alex' })).toHaveCount(0)
+  await expect(page.locator('.balance-card-settle')).toContainText('Maya owes Alex')
+
   await expect(settlementRow).toContainText('$30.00')
   await settlementRow.getByRole('button', { name: 'Settle up' }).click()
   await expect(page.getByRole('heading', { name: 'Record a settlement' })).toBeVisible()
@@ -881,12 +904,11 @@ test('persists a selective equal split and deletes its activity safely', async (
   await expect(settlementRow).toContainText('$20.00')
   await expect(page.getByText('Maya paid Alex', { exact: true })).toBeVisible()
   await expect(page.getByText('Settlement payment')).toBeVisible()
-  await expect(page.getByLabel('Total spent').getByText('$60.00')).toBeVisible()
+  await expect(page.locator('.balance-card-stats > div').filter({ hasText: 'Total spent' })).toContainText('$60.00')
 
   await page.reload()
   await expect(page.getByRole('heading', { name: 'Weekend' })).toBeVisible()
   await expect(page.getByText('Split equally · 2 people')).toBeVisible()
-  await expect(page.getByText('Maya owes Alex')).toBeVisible()
   await expect(settlementRow).toContainText('$20.00')
   await expect(page.getByText('Maya paid Alex', { exact: true })).toBeVisible()
 
@@ -901,7 +923,7 @@ test('persists a selective equal split and deletes its activity safely', async (
   await expect(page.getByText('3 of 4 selected')).toBeVisible()
   await page.getByRole('button', { name: 'Save changes' }).click()
   await expect(page.getByText('Split equally · 3 people')).toBeVisible()
-  await expect(page.getByText(/^Edited /)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Edit Museum tickets' })).toHaveAttribute('title', /^Edited /)
 
   await page.setViewportSize({ width: 390, height: 844 })
   await page.getByRole('button', { name: 'Open navigation' }).click()
