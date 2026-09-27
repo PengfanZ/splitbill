@@ -19,6 +19,10 @@ participants, shares, settlements, or balances.
   still exists under its original name. Edits never change an existing category.
   Single AI drafts pass through this form and get suggestions; AI batches and receipts
   do not infer categories. See [ANALYTICS.md](ANALYTICS.md) for the kept/changed events.
+- CSV export has a `category` column after `description`. Expense rows show the
+  category's display name (General for missing or deleted categories; built-in names
+  are translated in Chinese exports, custom names are exported as typed). Settlement
+  rows leave it blank.
 
 ## Storage and collaboration
 

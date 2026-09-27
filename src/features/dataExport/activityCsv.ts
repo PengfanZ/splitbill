@@ -1,6 +1,7 @@
+import { categoryLabel, expenseCategory } from '../../domain/categories'
 import type { CurrencyCode } from '../../domain/currency'
 import { getSettlementRecipientId, isSettlementPayment } from '../../domain/expenses'
-import type { ActivityGroup, Expense, Member } from '../../domain/models'
+import type { ActivityGroup, Expense, ExpenseCategory, Member } from '../../domain/models'
 import { translate, type AppLocale, type TranslationKey } from '../../i18n/localization'
 import { isStandalonePwa } from '../../pwa/displayMode'
 
@@ -13,6 +14,7 @@ export type CsvExportRow = {
   recordedAt: string
   lastEditedAt: string
   description: string
+  category: ExpenseCategory | ''
   expenseTotal: number | ''
   paidBy: string
   person: string
@@ -56,6 +58,7 @@ const CSV_COLUMNS: ReadonlyArray<[keyof CsvExportRow, TranslationKey]> = [
   ['recordedAt', 'csvExport.column.recordedAt'],
   ['lastEditedAt', 'csvExport.column.lastEditedAt'],
   ['description', 'csvExport.column.description'],
+  ['category', 'csvExport.column.category'],
   ['expenseTotal', 'csvExport.column.expenseTotal'],
   ['paidBy', 'csvExport.column.paidBy'],
   ['person', 'csvExport.column.person'],
@@ -86,11 +89,13 @@ function memberName(memberMap: Map<string, Member>, memberId: string) {
 
 function expenseRows(
   expense: Expense,
+  group: ActivityGroup,
   memberMap: Map<string, Member>,
   currency: CurrencyCode,
   memberId?: string,
 ): CsvExportRow[] {
   const payerName = memberName(memberMap, expense.payerId)
+  const category = expenseCategory(group, expense)
   const participantShares = Object.entries(expense.shares).filter(([, share]) => share > 0)
   if (!participantShares.some(([participantId]) => participantId === expense.payerId)) {
     participantShares.push([expense.payerId, 0])
@@ -104,6 +109,7 @@ function expenseRows(
         recordedAt: expense.createdAt,
         lastEditedAt: expense.updatedAt ?? '',
         description: expense.title,
+        category,
         expenseTotal: expense.amount,
         paidBy: payerName,
         person: memberName(memberMap, memberId),
@@ -138,6 +144,7 @@ function settlementRows(
     recordedAt: expense.createdAt,
     lastEditedAt: expense.updatedAt ?? '',
     description: expense.title,
+    category: '',
     expenseTotal: '',
     paidBy: from,
     person,
@@ -163,7 +170,7 @@ export function buildCsvExportRows(
   const selectedMemberId = scope.type === 'member' ? scope.memberId : undefined
   const rows = expenses.flatMap(expense => isSettlementPayment(expense)
     ? settlementRows(expense, memberMap, group.currency ?? 'USD', selectedMemberId)
-    : expenseRows(expense, memberMap, group.currency ?? 'USD', selectedMemberId))
+    : expenseRows(expense, group, memberMap, group.currency ?? 'USD', selectedMemberId))
   return rows
 }
 
@@ -180,13 +187,14 @@ export function csvExportPreview(
   }
 }
 
-function csvValue(value: CsvExportRow[keyof CsvExportRow]) {
+function csvValue(value: string | number) {
   if (typeof value === 'number') return value.toFixed(2)
   const text = String(value)
   return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text
 }
 
 function localizedCsvValue(row: CsvExportRow, key: keyof CsvExportRow, locale: AppLocale) {
+  if (key === 'category') return csvValue(row.category && categoryLabel(row.category, locale))
   const value = row[key]
   if (locale === 'en' || value === '') return csvValue(value)
   if (key === 'recordType') return csvValue(translate(locale, RECORD_TYPE_TRANSLATION_KEYS[row.recordType]))
