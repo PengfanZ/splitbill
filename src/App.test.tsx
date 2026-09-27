@@ -697,9 +697,10 @@ describe('small UI building blocks', () => {
   it('groups expenses by day, newest first, with undated expenses last', () => {
     const expenses = [
       expense({ id: 'undated', title: 'Old receipt', createdAt: 'Just now' }),
-      expense({ id: 'older', title: 'Breakfast', createdAt: '2026-07-13T09:00:00.000Z' }),
-      expense({ id: 'newer', title: 'Lunch', createdAt: '2026-07-14T12:00:00.000Z' }),
-      expense({ id: 'same-day', title: 'Dinner', createdAt: '2026-07-14T01:00:00.000Z' }),
+      // Days group in the local time zone, so keep timestamps near midday UTC to stay on the same day across zones.
+      expense({ id: 'older', title: 'Breakfast', createdAt: '2026-07-13T12:00:00.000Z' }),
+      expense({ id: 'newer', title: 'Lunch', createdAt: '2026-07-14T14:00:00.000Z' }),
+      expense({ id: 'same-day', title: 'Dinner', createdAt: '2026-07-14T10:00:00.000Z' }),
     ]
     render(<ExpenseList expenses={expenses} members={[CURRENT_USER]} query="" />)
     const days = screen.getAllByRole('heading', { level: 3 }).map(heading => heading.textContent)
