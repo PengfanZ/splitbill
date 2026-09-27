@@ -93,6 +93,43 @@ describe('activity CSV export', () => {
     ])
   })
 
+  it('adds each expense category, falling back to General, and leaves settlements blank', () => {
+    const categorizedGroup: ActivityGroup = {
+      ...group,
+      categories: [
+        { id: 'food', name: 'Food & drinks', color: '#e48e7e' },
+        { id: 'custom-museums', name: 'Museums, "art"', color: '#80a4cd' },
+      ],
+    }
+    const categorizedExpenses: Expense[] = [
+      { ...expenses[0], categoryId: 'food' },
+      { ...expenses[1], categoryId: 'custom-museums' },
+      { ...expenses[1], id: 'removed', categoryId: 'deleted-category' },
+      expenses[2],
+    ]
+    const rows = buildCsvExportRows(categorizedGroup, members, categorizedExpenses, { type: 'member', memberId: 'me' })
+
+    expect(rows.map(row => [row.expenseId, row.category && row.category.name])).toEqual([
+      ['dinner', 'Food & drinks'],
+      ['taxi', 'Museums, "art"'],
+      ['removed', 'General'],
+      ['settlement', ''],
+    ])
+    const [header, ...lines] = serializeCsv(rows).slice(1).split('\r\n')
+    expect(header).toContain(',description,category,expense_total,')
+    expect(lines[0]).toContain('night",Food & drinks,30.00')
+    expect(lines[1]).toContain('Taxi,"Museums, ""art""",10.00')
+    expect(lines[2]).toContain('Taxi,General,10.00')
+    expect(lines[3]).toContain(',Settlement payment,,,')
+
+    const zhLines = serializeCsv(rows, 'zh-CN').slice(1).split('\r\n')
+    expect(zhLines[0]).toContain(',说明,分类,支出总额,')
+    expect(zhLines[1]).toContain('night",餐饮,30.00')
+    expect(zhLines[2]).toContain('Taxi,"Museums, ""art""",10.00')
+    expect(zhLines[3]).toContain('Taxi,通用,10.00')
+    expect(zhLines[4]).toContain(',还款记录,,,')
+  })
+
   it('uses stable ids as a readable fallback when activity members are missing', () => {
     const groupWithoutCurrency = { ...group, currency: undefined }
     const missingMembers = buildCsvExportRows(groupWithoutCurrency, [], [expenses[0], expenses[2]], { type: 'activity' })
@@ -113,7 +150,7 @@ describe('activity CSV export', () => {
     const csv = serializeCsv(buildCsvExportRows(group, members, expenses, { type: 'activity' }), 'zh-CN')
     const [header] = csv.slice(1).split('\r\n')
 
-    expect(header).toBe('记录类型,记录时间,最后编辑时间,说明,支出总额,付款人,成员,成员应承担,成员已垫付,余额影响,还款净流入,还款人,收款人,币种,分摊方式,支出 ID')
+    expect(header).toBe('记录类型,记录时间,最后编辑时间,说明,分类,支出总额,付款人,成员,成员应承担,成员已垫付,余额影响,还款净流入,还款人,收款人,币种,分摊方式,支出 ID')
     expect(csv).toContain('支出,2026-08-20T23:30:00.000Z,2026-08-21T00:00:00.000Z,"Dinner, ""great""')
     expect(csv).toContain(',CNY,指定金额,dinner')
     expect(csv).toContain('还款,2026-08-21T02:00:00.000Z,,还款记录,')
