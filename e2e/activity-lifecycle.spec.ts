@@ -111,7 +111,7 @@ test('exports CSV data and keeps the export flow usable on mobile', async ({ pag
   expect(downloadPath).not.toBeNull()
   const csv = await readFile(downloadPath!, 'utf8')
   expect(csv.startsWith('\uFEFFrecord_type,recorded_at')).toBe(true)
-  expect(csv).toContain(',,"Dinner, noodles",42.00')
+  expect(csv).toContain(',,"Dinner, noodles",Food & drinks,42.00')
   expect(csv).toContain(',CSV Tester,21.00,42.00,21.00,')
   expect(csv).toContain(',Maya,21.00,0.00,-21.00,')
   await expect.poll(() => events.filter(event => event.p_event_name === 'csv_export_completed').length).toBe(1)
@@ -265,7 +265,7 @@ test('automatically uses Simplified Chinese in China and keeps the choice across
     const localizedCsv = await readFile(csvPath!, 'utf8')
     expect(localizedCsv.startsWith('\uFEFF记录类型,记录时间,最后编辑时间,说明')).toBe(true)
     expect(localizedCsv).toContain('支出,')
-    expect(localizedCsv).toContain(',,晚餐,80.00,鹏帆,')
+    expect(localizedCsv).toContain(',,晚餐,餐饮,80.00,鹏帆,')
     expect(localizedCsv).toContain(',EUR,平均分摊,')
     expect(localizedCsv).not.toContain('record_type')
 
