@@ -6,7 +6,7 @@ An MCP server lets people use coding agents to work with Tally from the terminal
 
 ## Principles
 
-- **Clients: Codex and Claude Code only.** ChatGPT, Claude.ai and other hosted chat clients are out of scope, so there is no OAuth and no remote MCP endpoint.
+- **Coding agents first.** This document designs step 1 of the [roadmap](#roadmap): Codex and Claude Code, through a local server. Hosted chat apps (ChatGPT, Claude) come later, and step 1 is built so they can reuse it.
 - **Live activities only.** The server reads and writes the canonical Supabase record behind a `#live=` capability. Browser-local activities never leave `localStorage`, and agents cannot see them.
 - **Save directly, review later.** Write tools save right away. There is no draft state and no confirm step. People check the agent's work in the app afterwards, and edit or delete anything that is wrong.
 - **No backend or data-model changes.** The server is another Live client on the existing RPCs and the existing snapshot format.
@@ -211,19 +211,48 @@ All three are built from one module, `src/features/mcp/agentGuide.ts`, so they c
 - **No telemetry.** The CLI sends nothing beyond the Live RPCs.
 - **No secrets in output.** The package writes only MCP frames to stdout. It logs no expense text, names, amounts, tokens or URLs to stderr.
 
-## Phases
+## Roadmap
+
+The end goal: people ask ChatGPT, Claude, Codex or Claude Code to add and report expenses in plain language, with almost no technical setup. Each step ships on its own and reuses the one before it.
+
+| Step | Clients | What the user does | New pieces |
+| --- | --- | --- | --- |
+| **1. Local server** (this document) | Codex, Claude Code | Run one install command (or let the agent run it); click **Allow** once per existing activity | `tally-mcp` npm package, the **Use with AI agents** dialog, the approval screen, `llms.txt` |
+| **2. Hosted server** | Claude and ChatGPT chat apps (custom connectors), plus Codex and Claude Code with no install | Paste one URL into the app's connector settings and sign in by clicking **Allow** | Remote MCP endpoint as a Supabase Edge Function, OAuth with the approval screen as its consent page, revocable per-agent grants |
+| **3. One-click** | Same | Pick Tally in the app's connector or app directory | Directory listings, in-chat cards (balances, recap tables, share QR) |
+
+### Step 1: local server
 
 1. **Spike.**
    - `link`/`list`/`unlink` commands and the `link_activities` browser hand-off, checked in Chrome, Safari and Firefox.
    - `list_activities`, `get_activity`, `add_expenses`.
    - Server `instructions` from `agentGuide.ts`.
    - Run from the repo with `node`, before publishing to npm. No website changes yet.
-2. **v1.**
+2. **Release.**
    - The remaining tools and the prompts.
    - The npm package with its README.
    - The **Use with AI agents** dialog, its two entry points and the approval screen.
    - `llms.txt`.
    - A **What's new** entry.
+
+### Step 2: hosted server
+
+Chat apps run in the cloud, so they cannot reach a server on the user's computer, and the credentials can no longer live in a local file. The server moves into Supabase:
+
+- **Same tools.** `src/features/mcp/` stays transport-agnostic in step 1 (handlers take a credential lookup and a Live client), so the remote endpoint reuses the same tools, schemas, agent guidance and tests.
+- **Approval screen becomes the OAuth consent page.**
+  - The flow stays as in step 1: the user picks activities and clicks **Allow**.
+  - What changes is what Tally hands over. Instead of edit tokens it hands an authorization code, and the server stores a hashed grant in the `private` schema, mapping the connection to activity IDs and a member per activity.
+  - The edit token never leaves the browser.
+- **Revocation without ending live sharing.** A **Connected agents** list in Settings revokes one grant at a time, and ending live sharing deletes all grants for that activity.
+- **New database work:** grant tables, security-definer RPCs, per-grant rate limits and pgTAP coverage, like any other backend change.
+- **Codex and Claude Code can switch** to the hosted URL, which removes the npm install. The local package stays for people who prefer it.
+
+### Step 3: one-click
+
+- Submit Tally to the connector or app directories of ChatGPT and Claude, so enabling it needs no URL.
+- Add in-chat UI through MCP Apps: a balance card, the recap table after an import and the share QR code.
+- Expand allowlisted analytics to the `mcp` surface if usage data is needed for the listings.
 
 ## Open questions
 
