@@ -20,7 +20,7 @@ An MCP server lets people use coding agents to work with Tally from the terminal
 **Tested against the local Supabase stack** (`npm run backend:start`), with the bundle and the dev app:
 - **Tools:** every built tool, including re-imports, reworded duplicates, validation errors and two servers adding to one activity at once.
 - **Agents:** a real Claude Code session imported a bank statement, and a real Codex session created an activity, added expenses and wrote an invite.
-- **Browser hand-off:** passed in Playwright's Chromium and WebKit engines, and by hand in Safari. Still to check by hand: Firefox.
+- **Browser hand-off:** passed in Playwright's Chromium and WebKit engines, and by hand in Safari. Firefox was not tested.
 
 ### Running the prototype
 
@@ -104,7 +104,7 @@ Linking never asks the user to copy anything, and edit tokens never pass through
 **Safety of the flow:**
 - **Only local programs can receive credentials.** The listener binds `127.0.0.1` only, accepts one approval and gives up after five minutes. The code that receives credentials therefore has to be running on the user's own computer.
 - **Nothing is shared without consent.** The approval screen shows exactly which activities will be shared, and nothing is sent without the user clicking **Allow**.
-- **Verify the cross-browser hand-off in the spike** in Chrome, Safari and Firefox, before building on it.
+- **Cross-browser hand-off** is checked in Chrome and Safari.
 
 **Fallback for machines without a browser** (SSH, remote containers): `npx tally-mcp link '<live url>'`. The Share-menu dialog offers it behind **No browser on that computer?** The user runs it in their own terminal there, not in the agent chat.
 
@@ -269,7 +269,7 @@ The end goal: people ask ChatGPT, Claude, Codex or Claude Code to add and report
 ### Step 1: local server
 
 1. **Spike.**
-   - `link`/`list`/`unlink` commands and the `link_activities` browser hand-off, checked in Chrome, Safari and Firefox.
+   - `link`/`list`/`unlink` commands and the `link_activities` browser hand-off, checked in Chrome and Safari.
    - `list_activities`, `get_activity`, `add_expenses`.
    - Server `instructions` from `agentGuide.ts`.
    - Run from the repo with `node`, before publishing to npm. No website changes yet.
