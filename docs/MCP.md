@@ -20,7 +20,7 @@ An MCP server lets people use coding agents to work with Tally from the terminal
 **Tested against the local Supabase stack** (`npm run backend:start`), with the bundle and the dev app:
 - **Tools:** every built tool, including re-imports, reworded duplicates, validation errors and two servers adding to one activity at once.
 - **Agents:** a real Claude Code session imported a bank statement, and a real Codex session created an activity, added expenses and wrote an invite.
-- **Browser hand-off:** passed in Playwright's Chromium and WebKit engines. Still to check by hand: Firefox, and Safari itself.
+- **Browser hand-off:** passed in Playwright's Chromium and WebKit engines, and by hand in Safari. Still to check by hand: Firefox.
 
 ### Running the prototype
 
