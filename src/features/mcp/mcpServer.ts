@@ -187,7 +187,7 @@ export function createTallyMcpServer({
 
   server.registerTool('add_expenses', {
     title: 'Add expenses to a Tally activity',
-    description: 'Saves one or more expenses to a linked activity right away, as one change everyone sees. Likely duplicates (same amount, same day, similar title) are skipped unless allowDuplicates is true. Afterwards, recap what was saved and skipped so the user can review it in Tally.',
+    description: 'Saves one or more expenses to a linked activity right away, as one change everyone sees. Likely duplicates (same payer, amount and day, similar title) are skipped unless allowDuplicates is true. Afterwards, recap what was saved and skipped so the user can review it in Tally.',
     inputSchema: {
       activity: activitySchema,
       expenses: z.array(expenseSchema).min(1).max(100),

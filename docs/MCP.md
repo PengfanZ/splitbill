@@ -97,7 +97,7 @@ Linking never asks the user to copy anything, and edit tokens never pass through
 6. `tally-mcp` checks `state`, saves the credentials, closes the listener and returns only the linked activities' names to the agent.
 
 **Safety of the flow:**
-- **Only local programs can receive credentials.** The listener binds `127.0.0.1` only, accepts one request and gives up after three minutes. The code that receives credentials therefore has to be running on the user's own computer.
+- **Only local programs can receive credentials.** The listener binds `127.0.0.1` only, accepts one approval and gives up after five minutes. The code that receives credentials therefore has to be running on the user's own computer.
 - **Nothing is shared without consent.** The approval screen shows exactly which activities will be shared, and nothing is sent without the user clicking **Allow**.
 - **Verify the cross-browser hand-off in the spike** in Chrome, Safari and Firefox, before building on it.
 
