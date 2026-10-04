@@ -50,7 +50,9 @@ npx tally-mcp list
 npx tally-mcp unlink <code>
 ```
 
-Activities created through the server are linked automatically, with the caller as `me`.
+**Agent-created activities need no linking.** `create_activity` stores the new activity's credentials in the same file, with the caller as `me`. It then opens the activity's `#live=` URL in the default browser, so it appears under **Your activities** in Tally right away. The capability goes straight from the server to the browser, never through the agent. `TALLY_MCP_OPEN_BROWSER=0` turns the browser step off, for example on a remote machine.
+
+Manual linking is only for an activity someone started in the app.
 
 **Token handling:**
 - **Tools never return tokens or URLs**, except `get_share_link`.
@@ -79,7 +81,7 @@ Each tool saves immediately, as one revision, and returns what it saved, in a fo
 | `add_expenses` | A batch of expenses. Each has `title`, `amount`, `payer`, `split: { equal: [members] } \| { exact: { member: amount } }`, optional `category` and `date`. Returns each saved expense with its computed shares, plus per-person balance changes. |
 | `record_settlement` | A payment `from` → `to` for `amount`, as the existing `kind: "settlement"` shape. |
 | `add_members` | Friends by name. Restores a removed friend instead of duplicating the name. |
-| `create_activity` | A new Live activity: name, emoji, currency, member names, optional categories. Links it locally. |
+| `create_activity` | A new Live activity: name, emoji, currency, member names, optional categories. Links it locally and opens it in the default browser. |
 | `update_expense` | A change to one expense. |
 | `delete_expense` | One expense. Marked `destructiveHint`. There is no bulk delete. |
 
@@ -117,14 +119,14 @@ The server publishes MCP prompts, which surface as slash commands in Claude Code
 2. It calls `list_activities`, then `get_activity` for members and categories.
 3. It asks something like: "These 9 look like trip costs — split equally with Leo and Sam?"
 4. The user answers. The agent calls `add_expenses`, which saves 7 expenses as one revision and skips 2 that already exist.
-5. The agent recaps: 7 added (¥64,100, you're owed ¥42,700), 2 skipped as duplicates.
+5. The agent recaps: 7 added (¥64,100 total, you're owed ¥42,733 more), 2 skipped as duplicates.
 6. Friends' open tabs pick up the new revision through the existing 15-second polling. Later, the user opens the activity and fixes anything the agent got wrong.
 
 **"Create a ski weekend activity and send it to Leo, Sam and Ana"**
 
-1. The agent calls `create_activity` with name "Ski weekend", emoji 🎿, currency CAD, members Leo, Sam and Ana. The activity is created Live and linked locally.
-2. The agent calls `get_share_link` and sends the link with its own tools, or prints it for the user to paste.
-3. The user opens the link in their browser to get the activity in the app too. It is bookmarked there as usual.
+1. The agent calls `create_activity` with name "Ski weekend", emoji 🎿, currency CAD, members Leo, Sam and Ana.
+2. The activity is created Live, linked locally and opened in the user's browser, where Tally bookmarks it as usual. The user has nothing to link.
+3. The agent calls `get_share_link` and sends the link with its own tools, or prints it for the user to paste.
 
 ## Guidance on the website
 
@@ -137,13 +139,13 @@ There is one dialog, opened from two places:
 | Entry point | Where | Content |
 | --- | --- | --- |
 | **Share → Use with Codex or Claude Code** | Live section of the Share menu, next to **Copy live link** and **Show QR** | Full setup for this activity, including its link command. |
-| **Use with AI agents** | Sidebar footer, next to **What's new** and **Send feedback** | Install steps and examples. Step 2 says to open a Live activity's Share menu to link it. |
+| **Use with AI agents** | Sidebar footer, next to **What's new** and **Send feedback** | Install steps, then two paths. **Start something new:** ask the agent to create an activity, with nothing to link. **Use an activity you already have:** open its Share menu. |
 
 The dialog has tabs for **Claude Code** and **Codex**. The active tab is remembered in local storage, wrapped in try/catch like the other browser storage.
 
 1. **Install once.** The client's command, with a Copy button:
    `claude mcp add tally -- npx -y tally-mcp` or `codex mcp add tally -- npx -y tally-mcp`.
-2. **Link this activity.** `npx tally-mcp link '<live url>'`:
+2. **Link this activity.** The dialog notes this step is needed once, because the activity was started in the app, while agent-created activities are linked automatically. The command is `npx tally-mcp link '<live url>'`:
    - **Shown masked** as `…#live=A1B2C3D4E5.••••`.
    - **Copied in full** with the Copy button.
    - **Printed underneath:** "Run this in your own terminal. Don't paste it into the agent chat — this link lets anyone edit the activity."
@@ -157,6 +159,8 @@ A short **How it works** note follows:
 - **Sync:** changes appear here like a friend's edits.
 - **Access:** to cut off access, use **End live sharing**, which also stops your friends' access.
 
+The UI mockups are in the design canvas linked from the pull request.
+
 The dialog ends with a link to the npm package README for full documentation.
 
 Practical details:
@@ -169,8 +173,8 @@ Practical details:
 ### For agents: three layers that say the same thing
 
 1. **MCP server `instructions`.** Clients put this into the agent's context automatically, so it does the most work. It is short:
-   - Tally works only with Live activities the user has linked.
-   - Never ask the user for a Live link. If none is linked, ask them to open **Share → Use with Codex or Claude Code** and run the copied command in their own terminal.
+   - Tally works only with Live activities on this computer. Activities created with `create_activity` are linked automatically and open in the user's browser.
+   - Never ask the user for a Live link. To use an activity they started in the app, ask them to open **Share → Use with Codex or Claude Code** and run the copied command in their own terminal.
    - Ask the user when the payer, the split or the activity is unclear, instead of guessing.
    - Writes save immediately. When done, recap everything saved and skipped (title, amount, payer, split), so the user can review it in Tally.
    - Call `get_share_link` only when the user asks to share.
