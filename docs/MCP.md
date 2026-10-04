@@ -17,6 +17,11 @@ An MCP server lets people use coding agents to work with Tally from the terminal
 | `record_settlement`, `add_members`, `update_expense`, `delete_expense`, prompts | Not yet |
 | **Use with AI agents** dialog, `llms.txt`, npm package, What's new entry | Not yet |
 
+**Tested against the local Supabase stack** (`npm run backend:start`), with the bundle and the dev app:
+- **Tools:** every built tool, including re-imports, reworded duplicates, validation errors and two servers adding to one activity at once.
+- **Agents:** a real Claude Code session imported a bank statement, and a real Codex session created an activity, added expenses and wrote an invite.
+- **Browser hand-off:** passed in Playwright's Chromium and WebKit engines. Still to check by hand: Firefox, and Safari itself.
+
 ### Running the prototype
 
 ```bash
@@ -150,6 +155,7 @@ Each tool saves immediately, as one revision, and returns what it saved, in a fo
 **Approvals:**
 - Claude Code and Codex still ask before each tool call, unless the user has allowed that tool.
 - Read tools are marked `readOnlyHint`, so users can allow them permanently.
+- Non-interactive Codex (`codex exec` with `approval_policy = "never"`) refuses write tools instead of asking. To allow them there, set `default_tools_approval_mode = "approve"` on the server's `[mcp_servers.tally]` entry.
 
 **Reviewing afterwards:**
 - Every write result includes a one-line summary per change: title, amount, payer, split.
