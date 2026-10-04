@@ -42,17 +42,29 @@ The server keeps a small store at `~/.config/tally/live-activities.json`, create
 - display name;
 - the caller's member ID (who "I" am).
 
-Links are added from the terminal, not by pasting them into the chat, so edit tokens stay out of the agent's context:
-
-```bash
-npx tally-mcp link '<live url>'    # validates by loading, asks "Which member are you?"
-npx tally-mcp list
-npx tally-mcp unlink <code>
-```
+Linking never asks the user to copy anything, and edit tokens never pass through the agent's context.
 
 **Agent-created activities need no linking.** `create_activity` stores the new activity's credentials in the same file, with the caller as `me`. It then opens the activity's `#live=` URL in the default browser, so it appears under **Your activities** in Tally right away. The capability goes straight from the server to the browser, never through the agent. `TALLY_MCP_OPEN_BROWSER=0` turns the browser step off, for example on a remote machine.
 
-Manual linking is only for an activity someone started in the app.
+**Existing activities are approved in the browser.** When the user names an activity that isn't linked, the agent calls `link_activities`. This follows the loopback pattern CLIs use for browser sign-in:
+
+1. `tally-mcp` starts a one-shot HTTP listener on `127.0.0.1` at a random port and creates a random `state` value.
+2. It opens `https://pengfanz.github.io/splitbill/#agent-link=<port>.<state>.<client>` in the default browser. `<client>` is the client family from the MCP handshake, used only for display.
+3. Tally shows **Let Claude Code use Tokyo trip?** It lists this browser's Live activities, with a **You are** picker per activity. Activities already linked are marked; local activities are not listed.
+4. On **Allow**, Tally navigates the tab to `http://127.0.0.1:<port>/done#<state>.<payload>`. The payload holds code, edit token, member ID and name for each chosen activity.
+   - The credentials ride in the URL fragment, which browsers never send to a server.
+   - A top-level navigation is used because the app's CSP (`form-action 'self'`, `connect-src`) blocks posting to localhost, and browsers gate page-to-localhost `fetch` behind local-network permission prompts.
+5. The tiny page that `tally-mcp` serves there reads the fragment and posts it to its own origin. It then replaces the URL so the credentials do not stay in the address bar, and shows "Linked — you can close this tab".
+6. `tally-mcp` checks `state`, saves the credentials, closes the listener and returns only the linked activities' names to the agent.
+
+**Safety of the flow:**
+- **Only local programs can receive credentials.** The listener binds `127.0.0.1` only, accepts one request and gives up after three minutes. The code that receives credentials therefore has to be running on the user's own computer.
+- **Nothing is shared without consent.** The approval screen shows exactly which activities will be shared, and nothing is sent without the user clicking **Allow**.
+- **Verify the cross-browser hand-off in the spike** in Chrome, Safari and Firefox, before building on it.
+
+**Fallback for machines without a browser** (SSH, remote containers): `npx tally-mcp link '<live url>'`. The Share-menu dialog offers it behind **No browser on that computer?** The user runs it in their own terminal there, not in the agent chat.
+
+Other commands: `npx tally-mcp list` and `npx tally-mcp unlink <code>`.
 
 **Token handling:**
 - **Tools never return tokens or URLs**, except `get_share_link`.
@@ -70,6 +82,7 @@ Members can be given by ID or by name. Names are matched case-insensitively amon
 | --- | --- |
 | `list_activities` | Linked activities: code, name, emoji, currency, member names, the caller's member, expense count. No tokens or URLs. Activities that the backend reports `not-found` are flagged as ended. |
 | `get_activity` | Members (active/removed), categories, expenses (paginated, filterable by date and category), balances and suggested settlements. |
+| `link_activities` | Opens Tally in the user's browser to approve linking existing Live activities (see [Credentials and identity](#credentials-and-identity)). Waits for the user, then returns the linked activity names. Never returns tokens. |
 | `get_share_link` | Returns the `#live=` URL and invite text in the requested language (`en`/`zh-CN`). This is the only tool that returns a capability. Its description tells the agent to call it only when the user asks to share. |
 
 ### Write
@@ -138,17 +151,17 @@ There is one dialog, opened from two places:
 
 | Entry point | Where | Content |
 | --- | --- | --- |
-| **Share → Use with Codex or Claude Code** | Live section of the Share menu, next to **Copy live link** and **Show QR** | Full setup for this activity, including its link command. |
-| **Use with AI agents** | Sidebar footer, next to **What's new** and **Send feedback** | Install steps, then two paths. **Start something new:** ask the agent to create an activity, with nothing to link. **Use an activity you already have:** open its Share menu. |
+| **Share → Use with Codex or Claude Code** | Live section of the Share menu, next to **Copy live link** and **Show QR** | Full setup for this activity: install, ask and click Allow, and the fallback link command for machines without a browser. |
+| **Use with AI agents** | Sidebar footer, next to **What's new** and **Send feedback** | A short intro to MCP with a four-step diagram (you → your agent → `tally-mcp` → friends in Tally), install steps, then two paths. **Start something new:** ask the agent to create an activity. **Use an activity you already have:** name it, then click **Allow** when Tally opens. |
 
 The dialog has tabs for **Claude Code** and **Codex**. The active tab is remembered in local storage, wrapped in try/catch like the other browser storage.
 
 1. **Install once.** The client's command, with a Copy button:
    `claude mcp add tally -- npx -y tally-mcp` or `codex mcp add tally -- npx -y tally-mcp`.
-2. **Link this activity.** The dialog notes this step is needed once, because the activity was started in the app, while agent-created activities are linked automatically. The command is `npx tally-mcp link '<live url>'`:
+2. **Ask for this activity, then click Allow.** The first time the agent needs it, it opens Tally in the browser for approval, so there is nothing to copy. A note says agent-created activities are linked automatically. Behind **No browser on that computer?** is the fallback command:
    - **Shown masked** as `…#live=A1B2C3D4E5.••••`.
    - **Copied in full** with the Copy button.
-   - **Printed underneath:** "Run this in your own terminal. Don't paste it into the agent chat — this link lets anyone edit the activity."
+   - **Printed underneath:** run it in your own terminal on that machine, not in the agent chat, because the link lets anyone edit the activity.
 3. **Try it.** Three example prompts using the activity's name, each with a Copy button:
    - "Add the shared rows from statement.csv to Tokyo trip, split with everyone."
    - "Who still owes me in Tokyo trip?"
@@ -162,6 +175,7 @@ A short **How it works** note follows:
 The dialog ends with a link to the npm package README for full documentation.
 
 Practical details:
+- **Approval screen.** `#agent-link=` opens the **Let Claude Code use …?** screen described in [Credentials and identity](#credentials-and-identity). It ends with "Linked — go back to Claude Code. You can close this tab."
 - **Linkable.** `https://pengfanz.github.io/splitbill/#agents` opens the dialog in its general form, so the guide can be shared without a Live link. The `#agents` fragment is handled next to `#live=`, and when both appear `#live=` wins.
 - **Phones.** Coding agents run on computers, so the dialog also shows on phones but leads with "Set this up on your computer". The copy buttons still work, for example to send the link command to yourself.
 - **Translated.** All strings go through `en` and `zh-CN`, like the rest of the app.
@@ -172,7 +186,7 @@ Practical details:
 
 1. **MCP server `instructions`.** Clients put this into the agent's context automatically, so it does the most work. It is short:
    - Tally works only with Live activities on this computer. Activities created with `create_activity` are linked automatically and open in the user's browser.
-   - Never ask the user for a Live link. To use an activity they started in the app, ask them to open **Share → Use with Codex or Claude Code** and run the copied command in their own terminal.
+   - If the activity the user names isn't linked, call `link_activities` and let the user click **Allow** in their browser. Never ask the user for a Live link.
    - Ask the user when the payer, the split or the activity is unclear, instead of guessing.
    - Writes save immediately. When done, recap everything saved and skipped (title, amount, payer, split), so the user can review it in Tally.
    - Call `get_share_link` only when the user asks to share.
@@ -200,14 +214,14 @@ All three are built from one module, `src/features/mcp/agentGuide.ts`, so they c
 ## Phases
 
 1. **Spike.**
-   - `link`/`list`/`unlink` commands.
+   - `link`/`list`/`unlink` commands and the `link_activities` browser hand-off, checked in Chrome, Safari and Firefox.
    - `list_activities`, `get_activity`, `add_expenses`.
    - Server `instructions` from `agentGuide.ts`.
    - Run from the repo with `node`, before publishing to npm. No website changes yet.
 2. **v1.**
    - The remaining tools and the prompts.
    - The npm package with its README.
-   - The **Use with AI agents** dialog and its two entry points.
+   - The **Use with AI agents** dialog, its two entry points and the approval screen.
    - `llms.txt`.
    - A **What's new** entry.
 
