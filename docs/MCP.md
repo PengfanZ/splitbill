@@ -159,8 +159,6 @@ A short **How it works** note follows:
 - **Sync:** changes appear here like a friend's edits.
 - **Access:** to cut off access, use **End live sharing**, which also stops your friends' access.
 
-The UI mockups are in the design canvas linked from the pull request.
-
 The dialog ends with a link to the npm package README for full documentation.
 
 Practical details:
