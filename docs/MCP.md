@@ -1,8 +1,47 @@
-# Tally MCP server (proposal)
+# Tally MCP server
 
-Status: **design proposal, not implemented.** Nothing in this document is live.
+Status: **step 1 prototype.**
+- **Built:** the tools and flows marked in [Prototype status](#prototype-status). They run from this repository.
+- **Not yet:** published to npm, or shown on the website.
 
 An MCP server lets people use coding agents to work with Tally from the terminal. Examples: "add the shared rows from `~/Downloads/statement.csv` to the Tokyo trip", "create a ski weekend activity and email the link to Leo and Sam", "who still owes me?"
+
+## Prototype status
+
+| Piece | State |
+| --- | --- |
+| `list_activities`, `get_activity`, `add_expenses`, `create_activity`, `get_share_link`, `link_activities` | Built |
+| `tally-mcp link`, `link '<url>'`, `list`, `unlink` | Built |
+| Approval screen at `#agent-link=` in the web app (English and Chinese) | Built |
+| Server instructions from `src/features/mcp/agentGuide.ts` | Built |
+| `record_settlement`, `add_members`, `update_expense`, `delete_expense`, prompts | Not yet |
+| **Use with AI agents** dialog, `llms.txt`, npm package, What's new entry | Not yet |
+
+### Running the prototype
+
+```bash
+npm run mcp:build    # bundles src/features/mcp/bin.ts into dist-mcp/tally-mcp.mjs
+claude mcp add tally -- node "$PWD/dist-mcp/tally-mcp.mjs"
+codex mcp add tally -- node "$PWD/dist-mcp/tally-mcp.mjs"
+```
+
+**Backend:** the bundle uses the same `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` as the web build. To point a bundle at another backend at run time, set these in the MCP server's environment:
+- `TALLY_SUPABASE_URL`
+- `TALLY_SUPABASE_PUBLISHABLE_KEY`
+
+**Other settings:**
+
+| Variable | Effect | Default |
+| --- | --- | --- |
+| `TALLY_APP_URL` | Where approval pages and new activities open; use `http://localhost:5173/` with `npm run dev` | Production |
+| `TALLY_MCP_CONFIG_DIR` | Where linked activities are stored | `~/.config/tally` |
+| `TALLY_MCP_OPEN_BROWSER=0` | Never open a browser; `link_activities` returns the approval URL instead | Browser opens |
+
+**Testing against production:** don't link production activities while testing. Use a preview Supabase project, or the local stack (`npm run backend:start`).
+
+**Code layout:**
+- **Node-only:** `bin.ts`, `cli.ts`, `mcpServer.ts`, `agentLinkServer.ts`, `credentialStore.ts` and `linkActivities.ts`. Nothing in the web app may import them.
+- **Shared with the browser:** `agentLinkProtocol.ts`, `linkableActivities.ts` and `AgentLinkApproval.tsx`.
 
 ## Principles
 

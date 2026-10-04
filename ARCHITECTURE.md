@@ -14,6 +14,7 @@ Tally is local-first rather than frontend-only. Browser persistence powers priva
 - `src/features/liveSharing/liveActivityQuery.ts` decides whether a live refresh needs a full record or only a lightweight revision check.
 - `src/features/liveSharing/useLiveActivitySession.ts` owns capability-URL synchronization, backend loading and saving, optimistic-conflict recovery, and local live shortcuts.
 - `src/features/sharing/` owns text summaries, PNG generation, and browser sharing fallbacks.
+- `src/features/mcp/` holds the `tally-mcp` MCP server for Claude Code and Codex. It runs in Node, is bundled separately by `vite.mcp.config.ts`, and works only with Live activities through the same RPCs as the browser. The web app imports only its browser-safe pieces: the `#agent-link=` approval screen and its hand-off protocol. See `docs/MCP.md`.
 - `src/pwa/` contains pure service-worker cache-manifest helpers, while `src/sw.ts` owns install, activation, and fetch lifecycle events.
 - `src/analytics.ts` owns the typed, non-blocking first-party event client.
 - `src/security/` contains browser-side defense-in-depth guards for hosting limitations, including clickjacking protection.
