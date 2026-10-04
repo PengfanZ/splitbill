@@ -142,7 +142,7 @@ Each tool saves immediately, as one revision, and returns what it saved, in a fo
 - **Edits and deletes don't.** They send the expense's `updatedAt` (or `createdAt`) as the agent last read it. If the expense has changed since, nothing is saved and the tool returns the current version, so the agent rereads before trying again.
 
 **Duplicates:**
-- `add_expenses` skips an expense that matches an existing one: same amount and date, similar title.
+- `add_expenses` skips an expense that matches an existing one: same payer, amount and date, and a similar title (one contains the other, or they share a significant word, since agents reword statement lines between imports).
 - Skipped expenses are reported under `skipped`.
 - `allowDuplicates: true` saves them anyway, for real repeats such as two identical coffees.
 - Re-importing an overlapping statement is therefore safe by default, and nothing is added to the snapshot format.
