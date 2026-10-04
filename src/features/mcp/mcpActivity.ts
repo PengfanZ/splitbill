@@ -152,17 +152,24 @@ export function buildExpense(activity: SharedActivity, input: ExpenseInput, id: 
 }
 
 const normalizedTitle = (title: string) => title.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, '')
+const COMMON_WORDS = new Set(['and', 'for', 'from', 'the', 'with'])
+const titleWords = (title: string) => title.toLocaleLowerCase().split(/[^\p{L}\p{N}]+/u)
+  .filter(word => word.length >= 3 && !COMMON_WORDS.has(word))
 
+/** Agents reword statement lines ("SUICA MOBILE TOPUP"), so one shared word is enough once amount and day match. */
 function similarTitles(first: string, second: string) {
   const a = normalizedTitle(first)
   const b = normalizedTitle(second)
   if (a === b) return true
-  return Math.min(a.length, b.length) >= 3 && (a.includes(b) || b.includes(a))
+  if (Math.min(a.length, b.length) >= 3 && (a.includes(b) || b.includes(a))) return true
+  const words = new Set(titleWords(first))
+  return titleWords(second).some(word => words.has(word))
 }
 
-/** An existing expense that is probably the same purchase: same amount and day, similar title. */
+/** An existing expense that is probably the same purchase: same payer, amount and day, similar title. */
 export function findDuplicate(expenses: Expense[], candidate: Expense) {
   return expenses.find(expense => !isSettlementPayment(expense)
+    && expense.payerId === candidate.payerId
     && toCents(expense.amount) === toCents(candidate.amount)
     && expense.createdAt.slice(0, 10) === candidate.createdAt.slice(0, 10)
     && similarTitles(expense.title, candidate.title)) ?? null

@@ -119,13 +119,20 @@ describe('findDuplicate', () => {
     expect(findDuplicate([existing], tokyoExpense({ id: 'new', title: 'SUICA top up' }))).toBe(existing)
     expect(findDuplicate([existing], tokyoExpense({ id: 'new', title: 'Suica' }))).toBe(existing)
     expect(findDuplicate([existing], tokyoExpense({ id: 'new', title: 'Mobile Suica top-up at station' }))).toBe(existing)
+    // Regression: an agent rewrote the statement line SUICA MOBILE TOPUP and the existing top-up was added again.
+    expect(findDuplicate([existing], tokyoExpense({ id: 'new', title: 'Suica mobile top-up' }))).toBe(existing)
+    expect(findDuplicate([existing], tokyoExpense({ id: 'new', title: 'SUICA MOBILE TOPUP' }))).toBe(existing)
   })
 
   it('ignores other amounts, days, unrelated titles and settlements', () => {
     expect(findDuplicate([existing], tokyoExpense({ id: 'new', amount: 5001 }))).toBeNull()
+    // Friends often buy the same thing on the same day; each person's own purchase is not a duplicate.
+    expect(findDuplicate([existing], tokyoExpense({ id: 'new', payerId: 'friend-leo' }))).toBeNull()
     expect(findDuplicate([existing], tokyoExpense({ id: 'new', createdAt: '2026-09-21T03:00:00.000Z' }))).toBeNull()
     expect(findDuplicate([existing], tokyoExpense({ id: 'new', title: 'Taxi' }))).toBeNull()
     expect(findDuplicate([existing], tokyoExpense({ id: 'new', title: 'Su' }))).toBeNull()
+    const dinner = tokyoExpense({ title: 'Dinner with the team' })
+    expect(findDuplicate([dinner], tokyoExpense({ id: 'new', title: 'Lunch with the kids' }))).toBeNull()
     const settlement = tokyoExpense({ kind: 'settlement', splitMethod: 'exact', shares: { 'friend-leo': 5000 } })
     expect(findDuplicate([settlement], tokyoExpense({ id: 'new' }))).toBeNull()
   })
@@ -158,7 +165,7 @@ describe('planExpenseAdditions', () => {
 
   it('leaves the activity untouched when everything was a duplicate', () => {
     const activity = tokyoActivity()
-    const plan = planExpenseAdditions(activity, [{ title: 'Suica', amount: 5000, payer: 'Leo', split: { method: 'equal' }, date: '2026-09-20' }], { allowDuplicates: false, now, makeId: sequentialIds() })
+    const plan = planExpenseAdditions(activity, [{ title: 'Suica', amount: 5000, payer: 'Mia', split: { method: 'equal' }, date: '2026-09-20' }], { allowDuplicates: false, now, makeId: sequentialIds() })
     expect(plan.saved).toEqual([])
     expect(plan.activity.expenses).toEqual(activity.expenses)
   })
