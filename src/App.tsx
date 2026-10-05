@@ -122,19 +122,6 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
   const [modal, setModal] = useState<ModalType>(null)
   const [agentGuide, setAgentGuide] = useState<AgentGuideTarget | null>(() => isAgentGuideHash(window.location.hash) ? { kind: 'general' } : null)
 
-  useEffect(() => {
-    // The #agents link opens the general guide; the fragment is dropped so a reload doesn't reopen it.
-    const openFromLink = () => {
-      if (!isAgentGuideHash(window.location.hash)) return
-      setAgentGuide({ kind: 'general' })
-      const url = new URL(window.location.href)
-      url.hash = ''
-      window.history.replaceState(null, '', url)
-    }
-    openFromLink()
-    window.addEventListener('hashchange', openFromLink)
-    return () => window.removeEventListener('hashchange', openFromLink)
-  }, [])
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
   const [settlingDirection, setSettlingDirection] = useState<Settlement | null>(null)
   const [activityFeedback, setActivityFeedback] = useState<ActivityFeedback>(null)
@@ -153,6 +140,21 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
     setPersistedState: setState,
     t,
   })
+
+  useEffect(() => {
+    // The #agents link opens the general guide; the fragment is dropped so a reload doesn't reopen it.
+    // Registered after the Live session's listener, which must still see #agents to keep the open activity.
+    const openFromLink = () => {
+      if (!isAgentGuideHash(window.location.hash)) return
+      setAgentGuide({ kind: 'general' })
+      const url = new URL(window.location.href)
+      url.hash = ''
+      window.history.replaceState(null, '', url)
+    }
+    openFromLink()
+    window.addEventListener('hashchange', openFromLink)
+    return () => window.removeEventListener('hashchange', openFromLink)
+  }, [])
 
   const selectedGroup = useMemo(
     () => state.groups.find(group => group.id === state.selectedGroupId) ?? state.groups[0] ?? null,
@@ -251,7 +253,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
     t,
   })
   const qrShare = sharing.qrShare
-  const feedbackBlocked = Boolean(modal || qrShare || changelogState.open || confirmation || removingFriend || !identity)
+  const feedbackBlocked = Boolean(modal || qrShare || changelogState.open || agentGuide || confirmation || removingFriend || !identity)
   const ratingPromptTrigger = manualRatingPromptTrigger ?? (aiFeedback.pending && !feedbackBlocked ? 'ai' : null)
   const markCurrentRatingPromptHandled = () => {
     if (aiFeedback.pending) aiFeedback.dismiss()

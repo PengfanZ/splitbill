@@ -2728,6 +2728,20 @@ describe('in-app feedback integration', () => {
     expect(screen.queryByLabelText('How was Tally?')).not.toBeInTheDocument()
   })
 
+  it('keeps a pending AI rating prompt off the agent guide until it closes', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState()))
+    render(<App aiExpenseClient={{ parseBatch: vi.fn().mockResolvedValue(aiResult) }} feedbackClient={{ submit: vi.fn() }} />)
+    await requestAiDraft(user)
+    await user.click(await screen.findByRole('button', { name: 'Save expense' }))
+    expect(await screen.findByLabelText('How was Tally?')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: /Use with AI agents/ }))
+    expect(await screen.findByRole('heading', { name: 'Let your coding agent keep the tab.' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('How was Tally?')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Done' }))
+    expect(await screen.findByLabelText('How was Tally?')).toBeVisible()
+  })
+
   it('allows a failed first AI attempt to lead to problem feedback without needing a star rating', async () => {
     const user = userEvent.setup()
     const analyticsClient = { track: vi.fn() }

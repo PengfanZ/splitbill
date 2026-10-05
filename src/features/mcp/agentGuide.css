@@ -1,3 +1,5 @@
+/* Share menu rows give their spans flex: 1; the tag keeps its own width. */
+.share-choice-action .experimental-tag { flex: none; }
 .experimental-tag { display: inline-flex; align-items: center; flex: 0 0 auto; padding: 3px 8px; border-radius: 999px; background: var(--coral-soft-strong); color: var(--coral-ink); font-size: 10px; font-weight: 700; letter-spacing: .06em; line-height: 1.2; text-transform: uppercase; }
 
 .agent-guide { display: grid; gap: 18px; }

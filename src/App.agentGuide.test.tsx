@@ -121,4 +121,29 @@ describe('the experimental agent guide', () => {
     expect(screen.getAllByRole('dialog')).toHaveLength(1)
     expect(screen.getByLabelText('New updates')).toBeInTheDocument()
   })
+
+  it('keeps a returning user on their Live activity when they arrive from the #agents link', async () => {
+    rememberMia()
+    const client = liveClient()
+    const first = render(<App liveActivityClient={client} />)
+    expect(await screen.findByText('Live and synced · A1B2C3D4E5')).toBeVisible()
+    first.unmount()
+
+    window.history.replaceState(null, '', '/#agents')
+    render(<App liveActivityClient={client} />)
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Done' }))
+    expect(await screen.findByText('Live and synced · A1B2C3D4E5')).toBeVisible()
+  })
+
+  it('stays on the open Live activity when the #agents link is followed', async () => {
+    rememberMia()
+    render(<App liveActivityClient={liveClient()} />)
+    expect(await screen.findByText('Live and synced · A1B2C3D4E5')).toBeVisible()
+    act(() => {
+      window.history.replaceState(null, '', '/#agents')
+      window.dispatchEvent(new HashChangeEvent('hashchange'))
+    })
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Done' }))
+    expect(await screen.findByText('Live and synced · A1B2C3D4E5')).toBeVisible()
+  })
 })
