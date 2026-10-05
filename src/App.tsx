@@ -140,12 +140,15 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
     setPersistedState: setState,
     t,
   })
+  const analyticsSurface: AnalyticsSurface = live.credentials ? 'live' : 'local'
+  const trackAgentEvent = (event: AnalyticsEvent) => analyticsClient?.track(event, analyticsSurface, locale)
 
   useEffect(() => {
     // The #agents link opens the general guide; the fragment is dropped so a reload doesn't reopen it.
     // Registered after the Live session's listener, which must still see #agents to keep the open activity.
     const openFromLink = () => {
       if (!isAgentGuideHash(window.location.hash)) return
+      analyticsClient?.track('agent_guide_opened_link', analyticsSurface, locale)
       setAgentGuide({ kind: 'general' })
       const url = new URL(window.location.href)
       url.hash = ''
@@ -154,7 +157,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
     openFromLink()
     window.addEventListener('hashchange', openFromLink)
     return () => window.removeEventListener('hashchange', openFromLink)
-  }, [])
+  }, [analyticsClient, analyticsSurface, locale])
 
   const selectedGroup = useMemo(
     () => state.groups.find(group => group.id === state.selectedGroupId) ?? state.groups[0] ?? null,
@@ -222,7 +225,6 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
     return balances
   }, [activityIdentities, state.expenses, state.groups])
   const bookmarkedLiveGroupId = live.bookmarkedGroupId
-  const analyticsSurface: AnalyticsSurface = live.credentials ? 'live' : 'local'
   const trackedAiExpenseClient = useMemo(
     () => withAiExpenseAnalytics(aiExpenseClient, analyticsClient, analyticsSurface, locale),
     [aiExpenseClient, analyticsClient, analyticsSurface, locale],
@@ -654,7 +656,10 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
         onJoin={() => setModal('join')}
         onShowChangelog={openChangelog}
         onSendFeedback={() => openFeedback()}
-        onShowAgentGuide={() => setAgentGuide({ kind: 'general' })}
+        onShowAgentGuide={() => {
+          trackAgentEvent('agent_guide_opened_sidebar')
+          setAgentGuide({ kind: 'general' })
+        }}
         hasUnreadChangelog={changelogState.unread}
         onDelete={deleteActivity}
         onReset={resetData}
@@ -720,7 +725,10 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
                 onShareQr={live.editable && liveSession ? () => sharing.openCurrentLiveQr(liveSession) : undefined}
                 onCopyShareLink={live.editable && liveSession ? () => sharing.copyCurrentLiveLink(liveSession) : undefined}
                 onUseWithAgent={live.editable && liveSession
-                  ? () => setAgentGuide({ kind: 'activity', name: liveActivity.group.name, code: liveSession.credentials.code })
+                  ? () => {
+                    trackAgentEvent('agent_guide_opened_share')
+                    setAgentGuide({ kind: 'activity', name: liveActivity.group.name, code: liveSession.credentials.code })
+                  }
                   : undefined}
                 onEndLive={live.editable && liveEnd ? () => endLiveActivity(liveEnd) : undefined}
                 onShareSummary={() => sharing.shareGroup(liveActivity.group, liveMembers, liveActivity.expenses, 'live', liveSession)}
@@ -832,9 +840,10 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
         setIdentity(createIdentity(name))
         setModal(null)
       }} /> : null}
-      {identity ? <AgentLinkGate identityName={identity.name} /> : null}
+      {identity ? <AgentLinkGate identityName={identity.name} onAnalytics={trackAgentEvent} /> : null}
       {identity && agentGuide ? <Suspense fallback={null}><AgentGuideModal
         target={agentGuide}
+        onCopied={trackAgentEvent}
         onClose={() => setAgentGuide(null)}
         onSendFeedback={() => {
           setAgentGuide(null)

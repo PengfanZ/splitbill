@@ -274,13 +274,13 @@ Two audiences need help: **people** setting up their agent, and **agents** decid
 
 **Left out of this version:**
 - **The "No browser on that computer?" section.** It would copy a command containing the full invite link. The npm README covers `npx tally-splitbill-mcp link '<live invite link>'` for those few cases, so the dialog never puts an edit link on the clipboard.
-- **Analytics.** The dialog sends no events. Measuring it is the next step after this ships, through the usual allowlist, migration and pgTAP process in [ANALYTICS.md](ANALYTICS.md).
 
 **Practical details:**
 - **Approval screen.** `#agent-link=` opens the **Let Claude Code use …?** screen described in [Credentials and identity](#credentials-and-identity), unchanged by this dialog.
 - **Phones.** The dialog uses the app's modal, which already becomes a bottom sheet. On narrow screens it starts with "Set this up on your computer. Claude Code and Codex run there; copy the commands to send them to yourself." Copy buttons still work.
 - **Translated.** Every string goes through `en` and `zh-CN`, like the rest of the app.
 - **Announced.** A **What's new** entry introduces the feature and calls it experimental.
+- **Measured.** The guide and the approval screen send allowlisted events with only the shared coarse fields (surface, locale, session hash); see [ANALYTICS.md](ANALYTICS.md#agent-guide-and-agent-link-events). The `tally-splitbill-mcp` program itself sends none.
 - **Tests.** Component tests cover both modes, the remembered tab, each copy button, the experimental note opening feedback, and the `#agents` link (including `#live=` winning). App tests cover both entry points; the Share menu row appears only for Live activities. Coverage stays at 100%.
 
 ### For agents: three layers that say the same thing

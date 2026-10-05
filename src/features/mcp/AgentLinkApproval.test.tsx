@@ -151,6 +151,25 @@ describe('AgentLinkGate', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
+  it('reports each request once and whether it was allowed or denied', async () => {
+    storeTokyo()
+    const onAnalytics = vi.fn()
+    window.history.replaceState(null, '', `/#agent-link=51234.${state}.claude-code`)
+    const { rerender } = render(<AgentLinkGate identityName="Mia" navigate={vi.fn()} onAnalytics={onAnalytics} />)
+    rerender(<AgentLinkGate identityName="Mia" navigate={vi.fn()} onAnalytics={onAnalytics} />)
+    expect(onAnalytics.mock.calls).toEqual([['agent_link_requested']])
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Allow' }))
+    expect(onAnalytics.mock.calls).toEqual([['agent_link_requested'], ['agent_link_allowed']])
+
+    act(() => {
+      window.history.replaceState(null, '', `/#agent-link=51235.${state}.codex`)
+      window.dispatchEvent(new HashChangeEvent('hashchange'))
+    })
+    await user.click(screen.getByRole('button', { name: 'Don’t allow' }))
+    expect(onAnalytics.mock.calls).toEqual([['agent_link_requested'], ['agent_link_allowed'], ['agent_link_requested'], ['agent_link_denied']])
+  })
+
   it('stays hidden without a request, opens on a later agent link and closes when denied', async () => {
     render(<AgentLinkGate />)
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()

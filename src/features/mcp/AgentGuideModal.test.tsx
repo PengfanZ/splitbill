@@ -86,6 +86,24 @@ describe('AgentGuideModal', () => {
     expect(onClose).toHaveBeenCalledOnce()
   })
 
+  it('reports successful copies by agent and kind, and nothing when copying fails', async () => {
+    const onCopied = vi.fn()
+    const user = userEvent.setup()
+    const { unmount } = render(<AgentGuideModal target={tokyo} onClose={vi.fn()} onSendFeedback={vi.fn()} copy={async () => 'copied'} onCopied={onCopied} />)
+    await user.click(screen.getByRole('button', { name: 'Copy' }))
+    await user.click(screen.getByRole('tab', { name: 'Codex' }))
+    await user.click(screen.getByRole('button', { name: 'Copy' }))
+    await user.click(screen.getByRole('button', { name: /Who still owes me in Tokyo trip\?/ }))
+    expect(onCopied.mock.calls).toEqual([['agent_install_copied_claude_code'], ['agent_install_copied_codex'], ['agent_prompt_copied']])
+    unmount()
+
+    onCopied.mockClear()
+    render(<AgentGuideModal target={tokyo} onClose={vi.fn()} onSendFeedback={vi.fn()} copy={async () => 'failed'} onCopied={onCopied} />)
+    await user.click(screen.getByRole('button', { name: 'Copy' }))
+    await user.click(screen.getByRole('button', { name: /Settle up Tokyo trip/ }))
+    expect(onCopied).not.toHaveBeenCalled()
+  })
+
   it('speaks Chinese', () => {
     render(<LocalizationProvider initialLocale="zh-CN"><AgentGuideModal target={tokyo} onClose={vi.fn()} onSendFeedback={vi.fn()} /></LocalizationProvider>)
     expect(screen.getByRole('heading', { name: '用 AI 助手管理「Tokyo trip」' })).toBeInTheDocument()
