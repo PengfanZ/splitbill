@@ -1,7 +1,8 @@
 import { type ReactNode } from 'react'
-import { ChevronRight, CircleStop, Copy, FileSpreadsheet, QrCode, Radio, Share2 } from 'lucide-react'
+import { ChevronRight, CircleStop, Copy, FileSpreadsheet, QrCode, Radio, Share2, SquareTerminal } from 'lucide-react'
 import { Button } from '../../components/Button'
 import { ModalShell } from '../../components/Dialog'
+import { ExperimentalTag } from '../../components/ExperimentalTag'
 import { useLocalization } from '../../i18n/LocalizationContext'
 
 type ShareAction = () => void | Promise<void>
@@ -25,15 +26,16 @@ function ShareChoice({ icon, badge, title, description, children }: {
   )
 }
 
-function ShareChoiceAction({ icon, label, primary = false, onClick }: {
+function ShareChoiceAction({ icon, label, tag, primary = false, onClick }: {
   icon: ReactNode
   label: string
+  tag?: ReactNode
   primary?: boolean
   onClick: ShareAction
 }) {
   return (
     <button type="button" className={primary ? 'share-choice-action share-choice-action--primary' : 'share-choice-action'} onClick={onClick}>
-      {icon}<span>{label}</span><ChevronRight size={16} aria-hidden="true" />
+      {icon}<span>{label}</span>{tag}<ChevronRight size={16} aria-hidden="true" />
     </button>
   )
 }
@@ -53,13 +55,14 @@ function ShareSummaryAction({ icon, title, description, onClick }: {
   )
 }
 
-export function ShareActivityMenu({ groupName, live = false, onClose, onCollaborateLive, onCopyLink, onShowQr, onShareSummary, onExportData, onEndLive }: {
+export function ShareActivityMenu({ groupName, live = false, onClose, onCollaborateLive, onCopyLink, onShowQr, onUseWithAgent, onShareSummary, onExportData, onEndLive }: {
   groupName: string
   live?: boolean
   onClose: () => void
   onCollaborateLive?: ShareAction
   onCopyLink?: ShareAction
   onShowQr?: ShareAction
+  onUseWithAgent?: ShareAction
   onShareSummary?: ShareAction
   onExportData?: ShareAction
   onEndLive?: ShareAction
@@ -98,6 +101,7 @@ export function ShareActivityMenu({ groupName, live = false, onClose, onCollabor
             >
               {onCopyLink ? <ShareChoiceAction icon={<Copy size={16} />} label={t('shareMenu.copyLive')} primary onClick={() => run(onCopyLink)} /> : null}
               {onShowQr ? <ShareChoiceAction icon={<QrCode size={16} />} label={t('shareMenu.liveQr')} onClick={() => run(onShowQr)} /> : null}
+              {onUseWithAgent ? <ShareChoiceAction icon={<SquareTerminal size={16} />} label={t('shareMenu.useWithAgent')} tag={<ExperimentalTag />} onClick={() => run(onUseWithAgent)} /> : null}
             </ShareChoice>
           ) : null}
         </div>

@@ -52,6 +52,7 @@ import type { LiveActivityClient } from './features/liveSharing/liveActivityConf
 import { LiveActivityStatusBanner } from './features/liveSharing/LiveActivityStatusBanner'
 import { useLiveActivitySession } from './features/liveSharing/useLiveActivitySession'
 import { AgentLinkGate } from './features/mcp/AgentLinkApproval'
+import type { AgentGuideTarget } from './features/mcp/AgentGuideModal'
 import { BrowserToPwaHandoff, JoinActivityModal } from './features/sharing/JoinActivityModal'
 import { isStandalonePwa } from './pwa/displayMode'
 import { LiveActivityIdentityModal, type LiveActivityIdentityMode } from './features/sharing/LiveActivityIdentityModal'
@@ -94,6 +95,7 @@ function markRatingPromptTriggerHandled(trigger: Exclude<RatingPromptTrigger, 'a
 const LiveActivityQrModal = lazy(() => import('./features/sharing/LiveActivityQrModal').then(module => ({ default: module.LiveActivityQrModal })))
 const ChangelogModal = lazy(() => import('./features/changelog/ChangelogModal').then(module => ({ default: module.ChangelogModal })))
 const FeedbackModal = lazy(() => import('./features/feedback/FeedbackModal').then(module => ({ default: module.FeedbackModal })))
+const AgentGuideModal = lazy(() => import('./features/mcp/AgentGuideModal').then(module => ({ default: module.AgentGuideModal })))
 const RatingPrompt = lazy(() => import('./features/feedback/RatingPrompt').then(module => ({ default: module.RatingPrompt })))
 const CsvExportModal = lazy(() => import('./features/dataExport/CsvExportModal').then(module => ({ default: module.CsvExportModal })))
 
@@ -116,6 +118,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
   const [query, setQuery] = useState('')
   const [navigationOpen, setNavigationOpen] = useState(false)
   const [modal, setModal] = useState<ModalType>(null)
+  const [agentGuide, setAgentGuide] = useState<AgentGuideTarget | null>(null)
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
   const [settlingDirection, setSettlingDirection] = useState<Settlement | null>(null)
   const [activityFeedback, setActivityFeedback] = useState<ActivityFeedback>(null)
@@ -633,6 +636,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
         onJoin={() => setModal('join')}
         onShowChangelog={openChangelog}
         onSendFeedback={() => openFeedback()}
+        onShowAgentGuide={() => setAgentGuide({ kind: 'general' })}
         hasUnreadChangelog={changelogState.unread}
         onDelete={deleteActivity}
         onReset={resetData}
@@ -808,6 +812,14 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
         setModal(null)
       }} /> : null}
       {identity ? <AgentLinkGate identityName={identity.name} /> : null}
+      {identity && agentGuide ? <Suspense fallback={null}><AgentGuideModal
+        target={agentGuide}
+        onClose={() => setAgentGuide(null)}
+        onSendFeedback={() => {
+          setAgentGuide(null)
+          openFeedback()
+        }}
+      /></Suspense> : null}
       {ratingPromptTrigger && feedbackClient ? <Suspense fallback={null}><RatingPrompt
         key={ratingPromptTrigger}
         client={feedbackClient}
