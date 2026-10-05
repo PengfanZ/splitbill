@@ -38,6 +38,8 @@ codex mcp add tally -- npx -y tally-splitbill-mcp
 - **Existing activities:** the person approves them once on Tally's **Let Claude Code use your activities?** screen. The agent gets activity names, never invite links.
 - **Saving:** changes save right away like a friend's edits, and the agent recaps what it saved so people can review it in Tally.
 
+In the app, the experimental **Use with AI agents** guide walks through setup. It opens from the sidebar, from a Live activity's Share menu, or from [`#agents`](https://pengfanz.github.io/splitbill/#agents).
+
 See [the MCP design](docs/MCP.md) and the [npm README](packages/tally-splitbill-mcp/README.md).
 
 [Try the live demo](https://pengfanz.github.io/splitbill/)
