@@ -10,6 +10,7 @@ import {
   Search,
   Settings,
   Sparkles,
+  SquareTerminal,
   Trash2,
   Users,
   X,
@@ -19,6 +20,7 @@ import { money } from '../domain/expenses'
 import type { ActivityGroup, Member } from '../domain/models'
 import { useLocalization } from '../i18n/LocalizationContext'
 import { Button, IconButton } from './Button'
+import { ExperimentalTag } from './ExperimentalTag'
 
 const EMPTY_LIVE_ACTIVITY_CODES: Record<string, string> = {}
 const EMPTY_ACTIVITY_BALANCES: Record<string, number> = {}
@@ -27,7 +29,7 @@ export function Avatar({ member, size = 'md' }: { member: Member; size?: 'sm' | 
   return <span className={`avatar avatar--${size}`} style={{ background: member.color }}>{member.initials}</span>
 }
 
-export function Sidebar({ groups, selectedId, liveActivityCodes = EMPTY_LIVE_ACTIVITY_CODES, activityBalances = EMPTY_ACTIVITY_BALANCES, open, onOpenChange, onSelect, onCreate, onJoin, onShowChangelog, onSendFeedback, onDelete, onReset, hasUnreadChangelog = false }: {
+export function Sidebar({ groups, selectedId, liveActivityCodes = EMPTY_LIVE_ACTIVITY_CODES, activityBalances = EMPTY_ACTIVITY_BALANCES, open, onOpenChange, onSelect, onCreate, onJoin, onShowChangelog, onSendFeedback, onShowAgentGuide, onDelete, onReset, hasUnreadChangelog = false }: {
   groups: ActivityGroup[]
   selectedId: string | null
   liveActivityCodes?: Record<string, string>
@@ -41,6 +43,7 @@ export function Sidebar({ groups, selectedId, liveActivityCodes = EMPTY_LIVE_ACT
   onJoin: () => void
   onShowChangelog: () => void
   onSendFeedback: () => void
+  onShowAgentGuide: () => void
   onDelete: (group: ActivityGroup) => void
   onReset: () => void
   hasUnreadChangelog?: boolean
@@ -92,6 +95,9 @@ export function Sidebar({ groups, selectedId, liveActivityCodes = EMPTY_LIVE_ACT
           </button>
           <button className="source-link feedback-link" onClick={() => { onSendFeedback(); setMobileOpen(false) }}>
             <MessageSquareText size={16} />{t('nav.sendFeedback')}
+          </button>
+          <button className="source-link agent-guide-link" onClick={() => { onShowAgentGuide(); setMobileOpen(false) }}>
+            <SquareTerminal size={16} />{t('nav.useWithAgents')}<ExperimentalTag />
           </button>
           <a className="source-link" href="https://github.com/PengfanZ/splitbill" target="_blank" rel="noreferrer"><Github size={16} />{t('nav.sourceCode')}</a>
           {groups.length ? <button className="reset-button" onClick={onReset}>{t('nav.resetData')}</button> : null}

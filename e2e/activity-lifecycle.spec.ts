@@ -778,7 +778,7 @@ test('shows new updates once and keeps the changelog available on mobile', async
   await page.goto('./')
   const update = page.getByRole('dialog', { name: 'What’s new in Tally' })
   await expect(update).toBeVisible()
-  await expect(update.locator('h3').first()).toHaveText('A clearer home for every activity')
+  await expect(update.locator('h3').first()).toHaveText('Try Tally with AI agents')
   await expect(update).toContainText('Organize expenses your way')
   await expect(update).toContainText('People → Removed friends → Restore')
   await expect(update).toContainText('Export your activity data')

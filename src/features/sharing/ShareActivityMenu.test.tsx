@@ -92,4 +92,17 @@ describe('ShareActivityMenu', () => {
     rerender(<ShareActivityMenu groupName="Cabin" onClose={onClose} onCopyLink={onCopyLink} />)
     expect(screen.queryByRole('button', { name: 'Copy live invite link' })).not.toBeInTheDocument()
   })
+
+  it('offers the agent guide only for Live activities, marked experimental', async () => {
+    const onUseWithAgent = vi.fn()
+    const onClose = vi.fn()
+    const { rerender } = render(<ShareActivityMenu groupName="Tokyo trip" live onCopyLink={vi.fn()} onUseWithAgent={onUseWithAgent} onClose={onClose} />)
+    const entry = screen.getByRole('button', { name: /Use with Codex or Claude Code/ })
+    expect(entry).toHaveTextContent('Experimental')
+    await userEvent.setup().click(entry)
+    expect(onUseWithAgent).toHaveBeenCalledOnce()
+    expect(onClose).toHaveBeenCalledOnce()
+    rerender(<ShareActivityMenu groupName="Tokyo trip" live={false} onUseWithAgent={onUseWithAgent} onClose={onClose} />)
+    expect(screen.queryByRole('button', { name: /Use with Codex or Claude Code/ })).not.toBeInTheDocument()
+  })
 })

@@ -1,0 +1,59 @@
+/* Share menu rows give their spans flex: 1; the tag keeps its own width. */
+.share-choice-action .experimental-tag { flex: none; }
+.experimental-tag { display: inline-flex; align-items: center; flex: 0 0 auto; padding: 3px 8px; border-radius: 999px; background: var(--coral-soft-strong); color: var(--coral-ink); font-size: 10px; font-weight: 700; letter-spacing: .06em; line-height: 1.2; text-transform: uppercase; }
+
+.agent-guide { display: grid; gap: 18px; }
+.agent-guide p { margin: 0; }
+/* Long activity names wrap instead of widening the dialog. */
+.modal:has(.agent-guide) .modal-header h2 { overflow-wrap: anywhere; }
+.agent-guide-phone-note { display: none; padding: 12px; border: 1px solid var(--green-border); border-radius: 12px; background: var(--green-soft-subtle); font-size: 13px; line-height: 1.45; }
+
+.agent-guide-flow { list-style: none; margin: 0; padding: 12px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; border-radius: 14px; background: var(--surface-subtle); }
+.agent-guide-flow li { position: relative; display: grid; justify-items: center; gap: 6px; text-align: center; }
+.agent-guide-flow li > span { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 10px; background: var(--surface-solid); color: var(--muted); }
+.agent-guide-flow li:nth-child(3) > span { background: var(--coral-soft-strong); color: var(--coral-action); }
+.agent-guide-flow li:nth-child(4) > span { background: var(--green-soft); color: var(--green); }
+.agent-guide-flow small { font-size: 11px; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+.agent-guide-flow-arrow { position: absolute; top: 9px; right: -10px; color: var(--muted-faint); }
+
+.agent-guide-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 12px; background: var(--surface-muted); }
+.agent-guide-tabs button { min-height: 40px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.agent-guide-tabs button[aria-selected='true'] { background: var(--surface-solid); color: var(--ink); box-shadow: 0 1px 3px rgba(34, 29, 25, .12); }
+
+.agent-guide-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 18px; }
+.agent-guide-step { display: flex; gap: 14px; }
+.agent-guide-step-marker { width: 28px; height: 28px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 50%; background: var(--coral-soft-strong); color: var(--coral-ink); font-size: 13px; font-weight: 700; }
+.agent-guide-step > div { flex: 1; min-width: 0; display: grid; gap: 8px; }
+.agent-guide-step b { font-size: 14px; overflow-wrap: anywhere; }
+.agent-guide-step small { margin-top: -6px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+
+.agent-guide-command { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 12px; border-radius: 10px; background: #252320; color: #f7f4ee; }
+.agent-guide-command code { flex: 1; min-width: 0; font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; user-select: all; }
+.agent-guide-command button { min-height: 32px; flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border: 0; border-radius: 7px; background: #3a3632; color: #f7f4ee; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+html[data-theme='dark'] .agent-guide-command { background: #0e0e0c; border: 1px solid var(--line); }
+
+.agent-guide-example { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-solid); font-size: 13px; line-height: 1.4; }
+.agent-guide-linked { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--green-border); border-radius: 10px; background: var(--green-soft-subtle); color: var(--ink); font-size: 12px; line-height: 1.45; }
+.agent-guide-linked svg { flex: 0 0 auto; color: var(--green); }
+.agent-guide-prompt { min-height: 44px; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-solid); color: var(--ink); font: inherit; font-size: 13px; line-height: 1.4; text-align: left; cursor: pointer; }
+.agent-guide-prompt span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.agent-guide-prompt svg { flex: 0 0 auto; color: var(--muted-faint); }
+.agent-guide-prompt em { flex: 0 0 auto; color: var(--green); font-size: 12px; font-style: normal; font-weight: 700; }
+
+.agent-guide-how { display: grid; gap: 10px; padding-top: 16px; border-top: 1px solid var(--line); }
+.agent-guide-how h3 { margin: 0; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.agent-guide-how > div { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.agent-guide-how p { display: grid; gap: 4px; padding: 12px; border-radius: 12px; background: var(--surface-subtle); }
+.agent-guide-how b { font-size: 12px; }
+.agent-guide-how small { color: var(--muted); font-size: 12px; line-height: 1.4; }
+
+.agent-guide-experimental { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--coral-border); border-radius: 10px; background: var(--coral-quiet); font-size: 12px; line-height: 1.45; }
+.agent-guide-experimental svg { flex: 0 0 auto; margin-top: 1px; color: var(--coral-ink); }
+.agent-guide-experimental button { padding: 0; border: 0; background: none; color: var(--coral-ink); font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+.agent-guide-footer { justify-content: space-between; align-items: center; }
+.agent-guide-footer a { color: var(--coral-ink); font-size: 13px; font-weight: 700; }
+
+@media (max-width: 640px) {
+  .agent-guide-phone-note { display: block; }
+  .agent-guide-how > div { grid-template-columns: 1fr; }
+}

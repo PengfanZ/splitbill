@@ -2,6 +2,8 @@
 
 export const MCP_PACKAGE_NAME = 'tally-splitbill-mcp'
 
+export const MCP_NPM_URL = `https://www.npmjs.com/package/${MCP_PACKAGE_NAME}`
+
 export const MCP_INSTALL_COMMANDS = {
   'claude-code': `claude mcp add tally -- npx -y ${MCP_PACKAGE_NAME}`,
   codex: `codex mcp add tally -- npx -y ${MCP_PACKAGE_NAME}`,

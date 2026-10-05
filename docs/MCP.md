@@ -2,7 +2,7 @@
 
 Status: **step 1, published on npm as [`tally-splitbill-mcp`](../packages/tally-splitbill-mcp/README.md) 0.1.0.**
 - **Built:** the tools and flows marked in [Prototype status](#prototype-status), and the npm package. CI packs it for publishing; see [Releasing the npm package](#releasing-the-npm-package).
-- **Not yet:** shown on the website. The npm README is the user guide for now.
+- **In the app:** the experimental **Use with AI agents** guide, from the sidebar, a Live activity's Share menu, or `https://pengfanz.github.io/splitbill/#agents`.
 
 The package is named `tally-splitbill-mcp` because `tally-mcp` on npm is an unrelated Tally Forms server.
 
@@ -18,7 +18,8 @@ An MCP server lets people use coding agents to work with Tally from the terminal
 | npm package `tally-splitbill-mcp` with its README, packed by CI from production settings | Built |
 | Approval screen at `#agent-link=` in the web app (English and Chinese) | Built |
 | Server instructions from `src/features/mcp/agentGuide.ts` | Built |
-| **Use with AI agents** dialog, `llms.txt`, What's new entry | Later, for a public launch |
+| **Use with AI agents** dialog and its What's new entry, as an experimental feature | Built; see [the dialog](#for-people-the-use-with-ai-agents-dialog) |
+| `llms.txt` | Later, for a public launch |
 
 **Tested against the local Supabase stack** (`npm run backend:start`), with the bundle and the dev app:
 - **Tools:** every tool, including re-imports, reworded duplicates, validation errors, two servers adding to one activity at once, payments, new members, and edits and deletes with stale versions.
@@ -50,7 +51,7 @@ codex mcp add tally -- node "$PWD/packages/tally-splitbill-mcp/dist/tally-splitb
 
 **Code layout:**
 - **Node-only:** `bin.ts`, `cli.ts`, `mcpServer.ts`, `mcpPrompts.ts`, `agentLinkServer.ts`, `credentialStore.ts`, `linkActivities.ts` and `releaseBuild.ts`. Nothing in the web app may import them.
-- **Shared with the browser:** `agentLinkProtocol.ts`, `linkableActivities.ts` and `AgentLinkApproval.tsx`.
+- **Shared with the browser:** `agentLinkProtocol.ts`, `linkableActivities.ts`, `AgentLinkApproval.tsx`, `AgentGuideModal.tsx`, `agentGuideState.ts` and `agentGuide.ts`.
 - **Package:** `packages/tally-splitbill-mcp/` holds `package.json` (the one version number, which the server reports), the README shown on npm, and the license. The build writes `dist/` there.
 
 ### Releasing the npm package
@@ -230,40 +231,57 @@ Two audiences need help: **people** setting up their agent, and **agents** decid
 
 ### For people: the "Use with AI agents" dialog
 
-There is one dialog, opened from two places:
+**Status:** built and shipped as an **experimental** feature. The mockups are in the Tally MCP design canvas (artboards "Sidebar entry and #agents link", "Share menu: new entry", "Use with your agent (from a Live activity)" and "Phone"). This section describes what ships, which differs from the canvas where noted.
 
-| Entry point | Where | Content |
+**Experimental marking:**
+- Both entry points carry an **Experimental** tag in the pill style the mockups use for "NEW".
+- The dialog's eyebrow reads **AI agents · Experimental**.
+- The dialog ends with "This is an experimental feature and may change. Tell us how it goes", where the link opens the existing feedback form.
+
+**Entry points.** One dialog, `AgentGuideModal` in `src/features/mcp/`, opens from three places:
+
+| Entry point | Where | Mode |
 | --- | --- | --- |
-| **Share → Use with Codex or Claude Code** | Live section of the Share menu, next to **Copy live link** and **Show QR** | Full setup for this activity: install, ask and click Allow, and the fallback link command for machines without a browser. |
-| **Use with AI agents** | Sidebar footer, next to **What's new** and **Send feedback** | A short intro to MCP with a four-step diagram (you → your agent → `tally-splitbill-mcp` → friends in Tally), install steps, then two paths. **Start something new:** ask the agent to create an activity. **Use an activity you already have:** name it, then click **Allow** when Tally opens. |
+| **Use with AI agents** | Sidebar footer, below **Send feedback** and above **GitHub source**, styled like its neighbors | General |
+| **Use with Codex or Claude Code** | Share menu, in the Live section below **Show live QR**. Shown only while the activity is Live. | Activity |
+| `https://pengfanz.github.io/splitbill/#agents` | A shareable link, handled next to `#live=`; when both appear, `#live=` wins. The fragment is removed from the address bar once the dialog opens. | General |
 
-The dialog has tabs for **Claude Code** and **Codex**. The active tab is remembered in local storage, wrapped in try/catch like the other browser storage.
+**Both modes:**
+- **Header:** the eyebrow, a title, one line of description and a close button.
+- **Tabs:** **Claude Code** and **Codex**. The choice is remembered in local storage (`tally:agent-guide-client:v1`), wrapped in try/catch like the other browser storage; Claude Code is the default.
+- **Install step:** the selected agent's command in a dark code block, with **Copy**. Copying uses the app's `copyLink` helper. The button shows **Copied** on success, or **Copy failed** if the browser refuses; the command text stays selectable either way.
+  - Claude Code: `claude mcp add tally -- npx -y tally-splitbill-mcp`
+  - Codex: `codex mcp add tally -- npx -y tally-splitbill-mcp`
+- **Footer:** **Full guide on npm**, linking to `https://www.npmjs.com/package/tally-splitbill-mcp` in a new tab, and a **Done** button that closes the dialog. The experimental note sits above the footer.
 
-1. **Install once.** The client's command, with a Copy button:
-   `claude mcp add tally -- npx -y tally-splitbill-mcp` or `codex mcp add tally -- npx -y tally-splitbill-mcp`.
-2. **Ask for this activity, then click Allow.** The first time the agent needs it, it opens Tally in the browser for approval, so there is nothing to copy. A note says agent-created activities are linked automatically. Behind **No browser on that computer?** is the fallback command:
-   - **Shown masked** as `…#live=A1B2C3D4E5.••••`.
-   - **Copied in full** with the Copy button.
-   - **Printed underneath:** run it in your own terminal on that machine, not in the agent chat, because the link lets anyone edit the activity.
-3. **Try it.** Three example prompts using the activity's name, each with a Copy button:
-   - "Add the shared rows from statement.csv to Tokyo trip, split with everyone."
-   - "Who still owes me in Tokyo trip?"
-   - "Settle up Tokyo trip."
+**General mode** (title "Let your coding agent keep the tab."):
+1. A four-step strip: **You ask** → **Your agent** → **tally-splitbill-mcp on your computer** → **Friends see it in Tally**.
+2. **Install Tally for your agent**, as above.
+3. **Start something new.** Ask your agent to create an activity; it is linked automatically and opens in Tally. Example: "Create a Ski weekend activity in CAD with Leo, Sam and Ana."
+4. **Or use an activity you already have.** Name it in your request. The first time, your agent opens Tally in this browser and you click **Allow**. Only Live activities can be used; local ones stay in this browser.
 
-A short **How it works** note follows:
-- **Review:** the agent saves changes directly and tells you what it added. Check them in the activity afterwards, and edit or delete anything that is wrong.
-- **Sync:** changes appear here like a friend's edits.
-- **Access:** to cut off access, use **End live sharing**, which also stops your friends' access.
+**Activity mode** (title "Use {activity} with your agent", eyebrow adds "Live · {code}"):
+1. **Install Tally for your agent**, as above.
+2. **Ask for {activity}, then click Allow.** The first time your agent needs it, Tally opens in your browser; nothing to copy, and the invite link never enters the chat. A note says activities your agent creates are linked automatically.
+3. **Ask in plain language.** Three example prompts with the activity's name, each a button that copies it:
+   - "Add the shared rows from ~/Downloads/statement.csv to {activity}, split with everyone."
+   - "Who still owes me in {activity}?"
+   - "Settle up {activity} and record who paid me back."
+4. **How it works**, as three short cards:
+   - **Saves directly:** your agent tells you what it added. Review it here and fix anything wrong.
+   - **Stays in sync:** changes appear here like a friend's edits.
+   - **Turning it off:** End live sharing cuts off agents, and your friends too.
 
-The dialog ends with a link to the npm package README for full documentation.
+**Left out of this version:**
+- **The "No browser on that computer?" section.** It would copy a command containing the full invite link. The npm README covers `npx tally-splitbill-mcp link '<live invite link>'` for those few cases, so the dialog never puts an edit link on the clipboard.
+- **Analytics.** The dialog sends no events. Measuring it is the next step after this ships, through the usual allowlist, migration and pgTAP process in [ANALYTICS.md](ANALYTICS.md).
 
-Practical details:
-- **Approval screen.** `#agent-link=` opens the **Let Claude Code use …?** screen described in [Credentials and identity](#credentials-and-identity). It ends with "Linked — go back to Claude Code. You can close this tab."
-- **Linkable.** `https://pengfanz.github.io/splitbill/#agents` opens the dialog in its general form, so the guide can be shared without a Live link. The `#agents` fragment is handled next to `#live=`, and when both appear `#live=` wins.
-- **Phones.** Coding agents run on computers, so the dialog also shows on phones but leads with "Set this up on your computer". The copy buttons still work, for example to send the link command to yourself.
-- **Translated.** All strings go through `en` and `zh-CN`, like the rest of the app.
-- **Announced.** A **What's new** entry introduces the feature when it ships.
-- **No analytics.** The dialog and the approval screen send no analytics events.
+**Practical details:**
+- **Approval screen.** `#agent-link=` opens the **Let Claude Code use …?** screen described in [Credentials and identity](#credentials-and-identity), unchanged by this dialog.
+- **Phones.** The dialog uses the app's modal, which already becomes a bottom sheet. On narrow screens it starts with "Set this up on your computer. Claude Code and Codex run there; copy the commands to send them to yourself." Copy buttons still work.
+- **Translated.** Every string goes through `en` and `zh-CN`, like the rest of the app.
+- **Announced.** A **What's new** entry introduces the feature and calls it experimental.
+- **Tests.** Component tests cover both modes, the remembered tab, each copy button, the experimental note opening feedback, and the `#agents` link (including `#live=` winning). App tests cover both entry points; the Share menu row appears only for Live activities. Coverage stays at 100%.
 
 ### For agents: three layers that say the same thing
 

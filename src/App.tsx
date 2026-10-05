@@ -52,6 +52,8 @@ import type { LiveActivityClient } from './features/liveSharing/liveActivityConf
 import { LiveActivityStatusBanner } from './features/liveSharing/LiveActivityStatusBanner'
 import { useLiveActivitySession } from './features/liveSharing/useLiveActivitySession'
 import { AgentLinkGate } from './features/mcp/AgentLinkApproval'
+import type { AgentGuideTarget } from './features/mcp/AgentGuideModal'
+import { isAgentGuideHash } from './features/mcp/agentGuideState'
 import { BrowserToPwaHandoff, JoinActivityModal } from './features/sharing/JoinActivityModal'
 import { isStandalonePwa } from './pwa/displayMode'
 import { LiveActivityIdentityModal, type LiveActivityIdentityMode } from './features/sharing/LiveActivityIdentityModal'
@@ -94,6 +96,7 @@ function markRatingPromptTriggerHandled(trigger: Exclude<RatingPromptTrigger, 'a
 const LiveActivityQrModal = lazy(() => import('./features/sharing/LiveActivityQrModal').then(module => ({ default: module.LiveActivityQrModal })))
 const ChangelogModal = lazy(() => import('./features/changelog/ChangelogModal').then(module => ({ default: module.ChangelogModal })))
 const FeedbackModal = lazy(() => import('./features/feedback/FeedbackModal').then(module => ({ default: module.FeedbackModal })))
+const AgentGuideModal = lazy(() => import('./features/mcp/AgentGuideModal').then(module => ({ default: module.AgentGuideModal })))
 const RatingPrompt = lazy(() => import('./features/feedback/RatingPrompt').then(module => ({ default: module.RatingPrompt })))
 const CsvExportModal = lazy(() => import('./features/dataExport/CsvExportModal').then(module => ({ default: module.CsvExportModal })))
 
@@ -110,12 +113,15 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
   const [activityIdentities, setActivityIdentities] = useActivityIdentitySelections()
   const [changelogState, setChangelogState] = useState(() => {
     const seen = hasSeenLatestChangelog()
-    return { open: Boolean(identity) && !seen, unread: !seen }
+    // Arriving through the #agents link opens the agent guide instead; the unread dot still points to What's new.
+    return { open: Boolean(identity) && !seen && !isAgentGuideHash(window.location.hash), unread: !seen }
   })
   const { locale, t } = useLocalization()
   const [query, setQuery] = useState('')
   const [navigationOpen, setNavigationOpen] = useState(false)
   const [modal, setModal] = useState<ModalType>(null)
+  const [agentGuide, setAgentGuide] = useState<AgentGuideTarget | null>(() => isAgentGuideHash(window.location.hash) ? { kind: 'general' } : null)
+
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
   const [settlingDirection, setSettlingDirection] = useState<Settlement | null>(null)
   const [activityFeedback, setActivityFeedback] = useState<ActivityFeedback>(null)
@@ -134,6 +140,21 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
     setPersistedState: setState,
     t,
   })
+
+  useEffect(() => {
+    // The #agents link opens the general guide; the fragment is dropped so a reload doesn't reopen it.
+    // Registered after the Live session's listener, which must still see #agents to keep the open activity.
+    const openFromLink = () => {
+      if (!isAgentGuideHash(window.location.hash)) return
+      setAgentGuide({ kind: 'general' })
+      const url = new URL(window.location.href)
+      url.hash = ''
+      window.history.replaceState(null, '', url)
+    }
+    openFromLink()
+    window.addEventListener('hashchange', openFromLink)
+    return () => window.removeEventListener('hashchange', openFromLink)
+  }, [])
 
   const selectedGroup = useMemo(
     () => state.groups.find(group => group.id === state.selectedGroupId) ?? state.groups[0] ?? null,
@@ -232,7 +253,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
     t,
   })
   const qrShare = sharing.qrShare
-  const feedbackBlocked = Boolean(modal || qrShare || changelogState.open || confirmation || removingFriend || !identity)
+  const feedbackBlocked = Boolean(modal || qrShare || changelogState.open || agentGuide || confirmation || removingFriend || !identity)
   const ratingPromptTrigger = manualRatingPromptTrigger ?? (aiFeedback.pending && !feedbackBlocked ? 'ai' : null)
   const markCurrentRatingPromptHandled = () => {
     if (aiFeedback.pending) aiFeedback.dismiss()
@@ -633,6 +654,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
         onJoin={() => setModal('join')}
         onShowChangelog={openChangelog}
         onSendFeedback={() => openFeedback()}
+        onShowAgentGuide={() => setAgentGuide({ kind: 'general' })}
         hasUnreadChangelog={changelogState.unread}
         onDelete={deleteActivity}
         onReset={resetData}
@@ -697,6 +719,9 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
                 onCurrencyChange={live.editable ? changeActivityCurrency : undefined}
                 onShareQr={live.editable && liveSession ? () => sharing.openCurrentLiveQr(liveSession) : undefined}
                 onCopyShareLink={live.editable && liveSession ? () => sharing.copyCurrentLiveLink(liveSession) : undefined}
+                onUseWithAgent={live.editable && liveSession
+                  ? () => setAgentGuide({ kind: 'activity', name: liveActivity.group.name, code: liveSession.credentials.code })
+                  : undefined}
                 onEndLive={live.editable && liveEnd ? () => endLiveActivity(liveEnd) : undefined}
                 onShareSummary={() => sharing.shareGroup(liveActivity.group, liveMembers, liveActivity.expenses, 'live', liveSession)}
                 onExportData={() => setModal('csv-export')}
@@ -808,6 +833,14 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
         setModal(null)
       }} /> : null}
       {identity ? <AgentLinkGate identityName={identity.name} /> : null}
+      {identity && agentGuide ? <Suspense fallback={null}><AgentGuideModal
+        target={agentGuide}
+        onClose={() => setAgentGuide(null)}
+        onSendFeedback={() => {
+          setAgentGuide(null)
+          openFeedback()
+        }}
+      /></Suspense> : null}
       {ratingPromptTrigger && feedbackClient ? <Suspense fallback={null}><RatingPrompt
         key={ratingPromptTrigger}
         client={feedbackClient}
