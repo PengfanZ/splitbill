@@ -1,5 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
+import { version } from '../../../packages/tally-splitbill-mcp/package.json'
 import { SUPPORTED_CURRENCIES } from '../../domain/currency'
 import { DEFAULT_CATEGORIES, GENERAL_CATEGORY } from '../../domain/categories'
 import { makeId as makeRandomId } from '../../domain/members'
@@ -28,7 +29,7 @@ import {
 } from './mcpActivity'
 import { MCP_PROMPTS } from './mcpPrompts'
 
-export const MCP_SERVER_VERSION = '0.1.0'
+export const MCP_SERVER_VERSION = version
 const SAVE_ATTEMPTS = 3
 const LINK_WAIT_MS = 45_000
 

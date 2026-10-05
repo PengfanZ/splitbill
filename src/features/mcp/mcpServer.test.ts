@@ -99,6 +99,7 @@ describe('Tally MCP server', () => {
   it('tells agents the rules and offers every tool with honest hints', async () => {
     const { mcp } = await connect()
     expect(mcp.getInstructions()).toBe(MCP_SERVER_INSTRUCTIONS)
+    expect(mcp.getServerVersion()).toMatchObject({ name: 'tally', version: '0.1.0' })
     const { tools } = await mcp.listTools()
     expect(tools.map(tool => [tool.name, tool.annotations?.readOnlyHint, tool.annotations?.destructiveHint])).toEqual([
       ['list_activities', true, undefined],

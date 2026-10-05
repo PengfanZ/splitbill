@@ -207,7 +207,7 @@ describe('runCli', () => {
       `${TOKYO_CODE}  Tokyo trip`,
       `Unlinked ${TOKYO_CODE}.`,
       `${TOKYO_CODE} is not linked.`,
-      'Nothing is linked yet. Run `tally-mcp link` or ask your agent to create an activity.',
+      'Nothing is linked yet. Run `npx tally-splitbill-mcp link` or ask your agent to create an activity.',
     ])
     expect(output.join('\n')).not.toContain(TOKYO_TOKEN)
   })
@@ -220,6 +220,14 @@ describe('runCli', () => {
     await expect(runCli(['list', 'x'], dependencies)).resolves.toBe(1)
     await expect(runCli(['unlink'], dependencies)).resolves.toBe(1)
     expect(output).toEqual([USAGE, USAGE, USAGE, USAGE, USAGE])
+    expect(USAGE).toContain('claude mcp add tally -- npx -y tally-splitbill-mcp')
+    expect(USAGE).toContain('codex mcp add tally -- npx -y tally-splitbill-mcp')
+  })
+
+  it('prints the package version for bug reports', async () => {
+    const { dependencies, output } = setup()
+    await expect(runCli(['--version'], dependencies)).resolves.toBe(0)
+    expect(output).toEqual(['0.1.0'])
   })
 })
 
@@ -263,14 +271,14 @@ describe('Node wiring', () => {
     expect(stdout).toHaveBeenCalledWith(`${USAGE}\n`)
     await main(['link', 'not a url'])
     expect(process.exitCode).toBe(1)
-    expect(stderr).toHaveBeenCalledWith(expect.stringContaining('tally-mcp: That is not a Tally Live invite link'))
+    expect(stderr).toHaveBeenCalledWith(expect.stringContaining('tally-splitbill-mcp: That is not a Tally Live invite link'))
   })
 
   it('reports non-Error failures too', async () => {
     vi.spyOn(process.stdout, 'write').mockImplementation(() => { throw 'odd' })
     const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
     await main(['help'])
-    expect(stderr).toHaveBeenCalledWith('tally-mcp: odd\n')
+    expect(stderr).toHaveBeenCalledWith('tally-splitbill-mcp: odd\n')
     expect(process.exitCode).toBe(1)
   })
 })
@@ -279,7 +287,7 @@ describe('bin', () => {
   it('runs the CLI with the process arguments', async () => {
     const stdout = vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
     const argv = process.argv
-    process.argv = ['node', 'tally-mcp', 'help']
+    process.argv = ['node', 'tally-splitbill-mcp', 'help']
     await import('./bin')
     await vi.waitFor(() => expect(stdout).toHaveBeenCalledWith(`${USAGE}\n`))
     process.argv = argv

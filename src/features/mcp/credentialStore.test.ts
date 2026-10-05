@@ -36,7 +36,7 @@ describe('createCredentialStore', () => {
   let filePath: string
 
   beforeEach(async () => {
-    directory = await mkdtemp(path.join(tmpdir(), 'tally-mcp-'))
+    directory = await mkdtemp(path.join(tmpdir(), 'tally-splitbill-mcp-'))
     filePath = path.join(directory, 'nested', 'live-activities.json')
   })
 

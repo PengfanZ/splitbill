@@ -1,10 +1,12 @@
 import { spawn as spawnProcess } from 'node:child_process'
 import { createInterface } from 'node:readline/promises'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
+import { version } from '../../../packages/tally-splitbill-mcp/package.json'
 import { isInactiveMember } from '../../domain/memberRemoval'
 import { createLiveActivityClient } from '../liveSharing/liveActivityApi'
 import type { LiveActivityClient } from '../liveSharing/liveActivityConfig'
 import { parseLiveActivityHash } from '../liveSharing/liveActivityLink'
+import { MCP_INSTALL_COMMANDS, MCP_PACKAGE_NAME } from './agentGuide'
 import { startAgentLinkSession } from './agentLinkServer'
 import { createCredentialStore, type CredentialStore } from './credentialStore'
 import { linkApprovedActivities } from './linkActivities'
@@ -13,16 +15,17 @@ import { createTallyMcpServer } from './mcpServer'
 
 export const DEFAULT_APP_URL = 'https://pengfanz.github.io/splitbill/'
 
-export const USAGE = `Usage: tally-mcp [command]
+export const USAGE = `Usage: npx ${MCP_PACKAGE_NAME} [command]
 
   (no command)      Run the MCP server for Claude Code or Codex.
   link              Open Tally in your browser and allow activities for your agent.
   link '<url>'      Link one Live activity from its invite link (for machines without a browser).
   list              Show linked activities.
   unlink <code>     Forget a linked activity on this computer.
+  --version         Show the version.
 
-Install:  claude mcp add tally -- npx -y tally-mcp
-          codex mcp add tally -- npx -y tally-mcp`
+Install:  ${MCP_INSTALL_COMMANDS['claude-code']}
+          ${MCP_INSTALL_COMMANDS.codex}`
 
 export type CliConfig = { supabaseUrl: string; publishableKey: string }
 
@@ -127,8 +130,12 @@ export async function runCli(argv: string[], dependencies: CliDependencies): Pro
   }
   if (command === 'list' && !rest.length) {
     const linked = await dependencies.store.list()
-    if (!linked.length) dependencies.print('Nothing is linked yet. Run `tally-mcp link` or ask your agent to create an activity.')
+    if (!linked.length) dependencies.print(`Nothing is linked yet. Run \`npx ${MCP_PACKAGE_NAME} link\` or ask your agent to create an activity.`)
     for (const activity of linked) dependencies.print(`${activity.code}  ${activity.name}`)
+    return 0
+  }
+  if (command === '--version' && !rest.length) {
+    dependencies.print(version)
     return 0
   }
   if (command === 'unlink' && rest.length === 1) {
@@ -184,7 +191,7 @@ export async function main(argv: string[]) {
   try {
     process.exitCode = await runCli(argv, createNodeDependencies())
   } catch (error) {
-    process.stderr.write(`tally-mcp: ${error instanceof Error ? error.message : String(error)}\n`)
+    process.stderr.write(`${MCP_PACKAGE_NAME}: ${error instanceof Error ? error.message : String(error)}\n`)
     process.exitCode = 1
   }
 }

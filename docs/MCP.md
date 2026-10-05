@@ -1,8 +1,10 @@
 # Tally MCP server
 
-Status: **step 1 prototype.**
-- **Built:** the tools and flows marked in [Prototype status](#prototype-status). They run from this repository.
-- **Not yet:** published to npm, or shown on the website.
+Status: **step 1, ready to publish as [`tally-splitbill-mcp`](../packages/tally-splitbill-mcp/README.md).**
+- **Built:** the tools and flows marked in [Prototype status](#prototype-status), and the npm package. CI packs it for publishing; see [Releasing the npm package](#releasing-the-npm-package).
+- **Not yet:** shown on the website. The npm README is the user guide for now.
+
+The package is named `tally-splitbill-mcp` because `tally-mcp` on npm is an unrelated Tally Forms server.
 
 An MCP server lets people use coding agents to work with Tally from the terminal. Examples: "add the shared rows from `~/Downloads/statement.csv` to the Tokyo trip", "create a ski weekend activity and email the link to Leo and Sam", "who still owes me?"
 
@@ -12,10 +14,11 @@ An MCP server lets people use coding agents to work with Tally from the terminal
 | --- | --- |
 | All ten tools: `list_activities`, `get_activity`, `add_expenses`, `record_settlement`, `add_members`, `update_expense`, `delete_expense`, `create_activity`, `get_share_link`, `link_activities` | Built |
 | Prompts: `import-transactions`, `plan-a-trip`, `settle-up` | Built |
-| `tally-mcp link`, `link '<url>'`, `list`, `unlink` | Built |
+| `npx tally-splitbill-mcp link`, `link '<url>'`, `list`, `unlink`, `--version` | Built |
+| npm package `tally-splitbill-mcp` with its README, packed by CI from production settings | Built |
 | Approval screen at `#agent-link=` in the web app (English and Chinese) | Built |
 | Server instructions from `src/features/mcp/agentGuide.ts` | Built |
-| **Use with AI agents** dialog, `llms.txt`, npm package, What's new entry | Not yet |
+| **Use with AI agents** dialog, `llms.txt`, What's new entry | Later, for a public launch |
 
 **Tested against the local Supabase stack** (`npm run backend:start`), with the bundle and the dev app:
 - **Tools:** every tool, including re-imports, reworded duplicates, validation errors, two servers adding to one activity at once, payments, new members, and edits and deletes with stale versions.
@@ -26,12 +29,12 @@ An MCP server lets people use coding agents to work with Tally from the terminal
 ### Running the prototype
 
 ```bash
-npm run mcp:build    # bundles src/features/mcp/bin.ts into dist-mcp/tally-mcp.mjs
-claude mcp add tally -- node "$PWD/dist-mcp/tally-mcp.mjs"
-codex mcp add tally -- node "$PWD/dist-mcp/tally-mcp.mjs"
+npm run mcp:build    # bundles src/features/mcp/bin.ts into packages/tally-splitbill-mcp/dist/tally-splitbill-mcp.mjs
+claude mcp add tally -- node "$PWD/packages/tally-splitbill-mcp/dist/tally-splitbill-mcp.mjs"
+codex mcp add tally -- node "$PWD/packages/tally-splitbill-mcp/dist/tally-splitbill-mcp.mjs"
 ```
 
-**Backend:** the bundle uses the same `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` as the web build. To point a bundle at another backend at run time, set these in the MCP server's environment:
+**Backend:** the bundle uses the same `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` as the web build. A local `.env.local` may point at a preview project, so a local bundle is for development only. To point a bundle at another backend at run time, set these in the MCP server's environment:
 - `TALLY_SUPABASE_URL`
 - `TALLY_SUPABASE_PUBLISHABLE_KEY`
 
@@ -46,8 +49,29 @@ codex mcp add tally -- node "$PWD/dist-mcp/tally-mcp.mjs"
 **Testing against production:** don't link production activities while testing. Use a preview Supabase project, or the local stack (`npm run backend:start`).
 
 **Code layout:**
-- **Node-only:** `bin.ts`, `cli.ts`, `mcpServer.ts`, `agentLinkServer.ts`, `credentialStore.ts` and `linkActivities.ts`. Nothing in the web app may import them.
+- **Node-only:** `bin.ts`, `cli.ts`, `mcpServer.ts`, `mcpPrompts.ts`, `agentLinkServer.ts`, `credentialStore.ts`, `linkActivities.ts` and `releaseBuild.ts`. Nothing in the web app may import them.
 - **Shared with the browser:** `agentLinkProtocol.ts`, `linkableActivities.ts` and `AgentLinkApproval.tsx`.
+- **Package:** `packages/tally-splitbill-mcp/` holds `package.json` (the one version number, which the server reports), the README shown on npm, and the license. The build writes `dist/` there.
+
+### Releasing the npm package
+
+A published package talks to whatever backend it was built with, so releases come only from production settings:
+- `npm run mcp:release` builds in release mode. It refuses any `VITE_SUPABASE_URL` other than the production origin, so a preview `.env.local` can't leak into a release.
+- Every deploy from `main` runs it with the production variables and uploads the packed tarball as the `tally-splitbill-mcp` artifact of that CI run.
+
+To publish:
+1. Make sure the approval screen is live: the package opens `https://pengfanz.github.io/splitbill/#agent-link=…`, so merge and deploy first.
+2. Bump `version` in `packages/tally-splitbill-mcp/package.json` if this version was published before, and deploy.
+3. Download the artifact and publish that exact file. It needs an npm account; `--access public` matters only for a first publish.
+
+   ```bash
+   gh run download <run-id> --repo PengfanZ/splitbill --name tally-splitbill-mcp
+   npm publish ./tally-splitbill-mcp-<version>.tgz --access public
+   ```
+
+4. Smoke-test against production with `npx -y tally-splitbill-mcp@<version>`, then end live sharing on any test activity.
+
+Publishing from the package folder with `npm publish` also works: `prepublishOnly` rebuilds in release mode, which fails unless production settings are in the environment.
 
 ## Principles
 
@@ -63,8 +87,8 @@ codex mcp add tally -- node "$PWD/dist-mcp/tally-mcp.mjs"
 Codex and Claude Code both launch local stdio MCP servers, so Tally ships a small Node package instead of a backend service:
 
 ```bash
-claude mcp add tally -- npx -y tally-mcp
-codex mcp add tally -- npx -y tally-mcp
+claude mcp add tally -- npx -y tally-splitbill-mcp
+codex mcp add tally -- npx -y tally-splitbill-mcp
 ```
 
 The server calls the same public RPCs as the browser, with the publishable key: `create_shared_activity`, `load_shared_activity`, `update_shared_activity_v2`. Existing request throttling, the snapshot byte budget, snapshot validation and revision checks apply to it unchanged.
@@ -93,23 +117,23 @@ Linking never asks the user to copy anything, and edit tokens never pass through
 
 **Existing activities are approved in the browser.** When the user names an activity that isn't linked, the agent calls `link_activities`. This follows the loopback pattern CLIs use for browser sign-in:
 
-1. `tally-mcp` starts a one-shot HTTP listener on `127.0.0.1` at a random port and creates a random `state` value.
+1. `tally-splitbill-mcp` starts a one-shot HTTP listener on `127.0.0.1` at a random port and creates a random `state` value.
 2. It opens `https://pengfanz.github.io/splitbill/#agent-link=<port>.<state>.<client>` in the default browser. `<client>` is the client family from the MCP handshake, used only for display.
 3. Tally shows **Let Claude Code use Tokyo trip?** It lists this browser's Live activities, with a **You are** picker per activity. Activities already linked are marked; local activities are not listed.
 4. On **Allow**, Tally navigates the tab to `http://127.0.0.1:<port>/done#<state>.<payload>`. The payload holds code, edit token, member ID and name for each chosen activity.
    - The credentials ride in the URL fragment, which browsers never send to a server.
    - A top-level navigation is used because the app's CSP (`form-action 'self'`, `connect-src`) blocks posting to localhost, and browsers gate page-to-localhost `fetch` behind local-network permission prompts.
-5. The tiny page that `tally-mcp` serves there reads the fragment and posts it to its own origin. It then replaces the URL so the credentials do not stay in the address bar, and shows "Linked — you can close this tab".
-6. `tally-mcp` checks `state`, saves the credentials, closes the listener and returns only the linked activities' names to the agent.
+5. The tiny page that `tally-splitbill-mcp` serves there reads the fragment and posts it to its own origin. It then replaces the URL so the credentials do not stay in the address bar, and shows "Linked — you can close this tab".
+6. `tally-splitbill-mcp` checks `state`, saves the credentials, closes the listener and returns only the linked activities' names to the agent.
 
 **Safety of the flow:**
 - **Only local programs can receive credentials.** The listener binds `127.0.0.1` only, accepts one approval and gives up after five minutes. The code that receives credentials therefore has to be running on the user's own computer.
 - **Nothing is shared without consent.** The approval screen shows exactly which activities will be shared, and nothing is sent without the user clicking **Allow**.
 - **Cross-browser hand-off** is checked in Chrome and Safari.
 
-**Fallback for machines without a browser** (SSH, remote containers): `npx tally-mcp link '<live url>'`. The Share-menu dialog offers it behind **No browser on that computer?** The user runs it in their own terminal there, not in the agent chat.
+**Fallback for machines without a browser** (SSH, remote containers): `npx tally-splitbill-mcp link '<live url>'`. The Share-menu dialog offers it behind **No browser on that computer?** The user runs it in their own terminal there, not in the agent chat.
 
-Other commands: `npx tally-mcp list` and `npx tally-mcp unlink <code>`.
+Other commands: `npx tally-splitbill-mcp list`, `npx tally-splitbill-mcp unlink <code>` and `npx tally-splitbill-mcp --version`.
 
 **Token handling:**
 - **Tools never return tokens or URLs**, except `get_share_link`.
@@ -199,12 +223,12 @@ There is one dialog, opened from two places:
 | Entry point | Where | Content |
 | --- | --- | --- |
 | **Share → Use with Codex or Claude Code** | Live section of the Share menu, next to **Copy live link** and **Show QR** | Full setup for this activity: install, ask and click Allow, and the fallback link command for machines without a browser. |
-| **Use with AI agents** | Sidebar footer, next to **What's new** and **Send feedback** | A short intro to MCP with a four-step diagram (you → your agent → `tally-mcp` → friends in Tally), install steps, then two paths. **Start something new:** ask the agent to create an activity. **Use an activity you already have:** name it, then click **Allow** when Tally opens. |
+| **Use with AI agents** | Sidebar footer, next to **What's new** and **Send feedback** | A short intro to MCP with a four-step diagram (you → your agent → `tally-splitbill-mcp` → friends in Tally), install steps, then two paths. **Start something new:** ask the agent to create an activity. **Use an activity you already have:** name it, then click **Allow** when Tally opens. |
 
 The dialog has tabs for **Claude Code** and **Codex**. The active tab is remembered in local storage, wrapped in try/catch like the other browser storage.
 
 1. **Install once.** The client's command, with a Copy button:
-   `claude mcp add tally -- npx -y tally-mcp` or `codex mcp add tally -- npx -y tally-mcp`.
+   `claude mcp add tally -- npx -y tally-splitbill-mcp` or `codex mcp add tally -- npx -y tally-splitbill-mcp`.
 2. **Ask for this activity, then click Allow.** The first time the agent needs it, it opens Tally in the browser for approval, so there is nothing to copy. A note says agent-created activities are linked automatically. Behind **No browser on that computer?** is the fallback command:
    - **Shown masked** as `…#live=A1B2C3D4E5.••••`.
    - **Copied in full** with the Copy button.
@@ -266,7 +290,7 @@ The end goal: people ask ChatGPT, Claude, Codex or Claude Code to add and report
 
 | Step | Clients | What the user does | New pieces |
 | --- | --- | --- | --- |
-| **1. Local server** (this document) | Codex, Claude Code | Run one install command (or let the agent run it); click **Allow** once per existing activity | `tally-mcp` npm package, the **Use with AI agents** dialog, the approval screen, `llms.txt` |
+| **1. Local server** (this document) | Codex, Claude Code | Run one install command (or let the agent run it); click **Allow** once per existing activity | `tally-splitbill-mcp` npm package, the **Use with AI agents** dialog, the approval screen, `llms.txt` |
 | **2. Hosted server** | Claude and ChatGPT chat apps (custom connectors), plus Codex and Claude Code with no install | Paste one URL into the app's connector settings and sign in by clicking **Allow** | Remote MCP endpoint as a Supabase Edge Function, OAuth with the approval screen as its consent page, revocable per-agent grants |
 | **3. One-click** | Same | Pick Tally in the app's connector or app directory | Directory listings, in-chat cards (balances, recap tables, share QR) |
 
@@ -279,7 +303,7 @@ The end goal: people ask ChatGPT, Claude, Codex or Claude Code to add and report
    - Run from the repo with `node`, before publishing to npm. No website changes yet.
 2. **Release.**
    - The remaining tools and the prompts (built).
-   - The npm package with its README.
+   - The npm package with its README (built; publishing is manual).
    - The **Use with AI agents** dialog, its two entry points and the approval screen.
    - `llms.txt`.
    - A **What's new** entry.
@@ -305,5 +329,4 @@ Chat apps run in the cloud, so they cannot reach a server on the user's computer
 
 ## Open questions
 
-- **npm package.** Is `tally-mcp` free, or should it be a scoped package?
 - **Per-device or project-local store.** Should the credential store be per-device only, or also allow a project-local file so a repo can pin its activity? A project-local file risks committing tokens, so it would need a `.gitignore` check.

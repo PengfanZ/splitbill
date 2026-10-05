@@ -106,7 +106,7 @@ export function AgentLinkApprovalModal({ activities, client, hasUnavailable, onA
   )
 }
 
-/** Shows the approval screen when tally-mcp opens `#agent-link=…`, then hands the choice to it on 127.0.0.1. */
+/** Shows the approval screen when tally-splitbill-mcp opens `#agent-link=…`, then hands the choice to it on 127.0.0.1. */
 export function AgentLinkGate({ identityName, navigate = url => window.location.assign(url) }: {
   identityName?: string
   navigate?: (url: string) => void

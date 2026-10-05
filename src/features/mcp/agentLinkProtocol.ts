@@ -2,8 +2,8 @@ import { z } from 'zod'
 import { LIVE_ACTIVITY_CODE_PATTERN, LIVE_ACTIVITY_TOKEN_PATTERN } from '../liveSharing/liveActivityLink'
 
 /**
- * The hand-off between an agent's local tally-mcp process and Tally in the browser.
- * tally-mcp opens `#agent-link=<port>.<state>.<client>`; after the person approves,
+ * The hand-off between an agent's local tally-splitbill-mcp process and Tally in the browser.
+ * tally-splitbill-mcp opens `#agent-link=<port>.<state>.<client>`; after the person approves,
  * Tally navigates to `http://127.0.0.1:<port>/done#<payload>`. Fragments never reach a server.
  */
 export const AGENT_LINK_HASH_PREFIX = '#agent-link='

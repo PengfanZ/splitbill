@@ -1,6 +1,6 @@
 /** One source for what agents are told about Tally: MCP server instructions and the public llms.txt. */
 
-export const MCP_PACKAGE_NAME = 'tally-mcp'
+export const MCP_PACKAGE_NAME = 'tally-splitbill-mcp'
 
 export const MCP_INSTALL_COMMANDS = {
   'claude-code': `claude mcp add tally -- npx -y ${MCP_PACKAGE_NAME}`,

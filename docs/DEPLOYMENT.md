@@ -86,9 +86,10 @@ The release order is:
 
 1. typecheck, lint, 100% coverage, database migration/pgTAP tests, and Playwright;
 2. production build with the Supabase URL and publishable key;
-3. `supabase db push` against the linked production project;
-4. deploy the versioned `parse-expense` and `parse-receipt` Edge Functions;
-5. GitHub Pages artifact upload and deployment.
+3. the `tally-splitbill-mcp` npm package, packed with the same production settings and uploaded as a run artifact. Publishing it is manual; see [MCP.md](MCP.md#releasing-the-npm-package);
+4. `supabase db push` against the linked production project;
+5. deploy the versioned `parse-expense` and `parse-receipt` Edge Functions;
+6. GitHub Pages artifact upload and deployment.
 
 The workflow can also be started manually from `main` with **Run workflow**.
 

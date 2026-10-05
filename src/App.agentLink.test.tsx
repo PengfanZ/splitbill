@@ -20,7 +20,7 @@ beforeEach(() => {
 })
 
 describe('connecting a coding agent', () => {
-  it('asks to allow the agent when tally-mcp opens Tally, preselecting the matching member', async () => {
+  it('asks to allow the agent when tally-splitbill-mcp opens Tally, preselecting the matching member', async () => {
     localStorage.setItem(IDENTITY_KEY, JSON.stringify({ id: 'me', name: 'Sam', initials: 'S', color: '#ead1b9' }))
     render(<App liveActivityClient={null} />)
 
