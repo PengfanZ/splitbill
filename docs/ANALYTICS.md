@@ -45,6 +45,15 @@ The browser may send only these event names:
 - `ai_voice_ready`
 - `ai_voice_clarification`
 - `ai_voice_failed`
+- `agent_guide_opened_sidebar`
+- `agent_guide_opened_share`
+- `agent_guide_opened_link`
+- `agent_install_copied_claude_code`
+- `agent_install_copied_codex`
+- `agent_prompt_copied`
+- `agent_link_requested`
+- `agent_link_allowed`
+- `agent_link_denied`
 
 Category tracking records only the event name, local/live surface, locale, and existing
 pseudonymous session identifier—never category names/IDs, expense data, or activity links.
@@ -93,6 +102,23 @@ Opening the app records its initial surface. Successful product actions are meas
 Expense-input tab events measure exploration before any AI request. They are recorded only when someone deliberately switches to manual, AI text, AI voice, or receipt entry; rendering the default manual tab and clicking an already-selected tab do not count. The corresponding selection events therefore show anonymous sessions that explored each optional entry mode even if they never submitted content. `expense_input_manual_selected` shows sessions that returned to manual entry after exploring another mode.
 
 AI entry then uses separate service funnels for `text`, `voice`, and receipt parsing. `requested` is recorded immediately before each real Edge Function request, including model follow-ups. Text and voice record `ready`, `clarification`, or `failed`; receipts record `ready`, `confirmed`, or `failed`. Deterministic local clarification, microphone permission errors, unsupported browsers, and empty recordings do not count as AI requests because they never reach the service. These events contain only the event name, surface, locale, and anonymous session hash. Prompts, clarification answers, audio, receipt images, model output, draft counts, latency, member data, and expense data are never sent to analytics.
+
+### Agent guide and agent link events
+
+These measure the experimental **Use with AI agents** guide and the approval screen that `tally-splitbill-mcp` opens. Like `live_share_clicked`, they are interaction events. They carry only the event name, surface, locale and session hash: no command or prompt text, activity name, Live code, link, port or state value. The `tally-splitbill-mcp` program itself sends no analytics.
+
+- **Guide opened**, split by entry point:
+  - `agent_guide_opened_sidebar`: the sidebar entry.
+  - `agent_guide_opened_share`: a Live activity's Share menu, so always the `live` surface.
+  - `agent_guide_opened_link`: each arrival through the `#agents` link, counted when the link is followed, even if a first-time visitor picks a name before the guide shows.
+- **Install command copied**, split by agent: `agent_install_copied_claude_code` and `agent_install_copied_codex`. Only successful copies count.
+- **Prompt copied:** `agent_prompt_copied`, after an example prompt in a Live activity's guide is copied successfully.
+- **Approval screen:**
+  - `agent_link_requested`: once per request, when the screen appears.
+  - `agent_link_allowed`: on **Allow**, sent as the browser hands off to the local program.
+  - `agent_link_denied`: on **Don’t allow** or closing the screen.
+
+A funnel of `agent_guide_opened_*` → `agent_install_copied_*` → `agent_link_requested` → `agent_link_allowed` shows how many sessions get from reading the guide to connecting an agent. Agents that create their own activities never show the approval screen, so `agent_link_*` undercounts connected agents. npm download counts for `tally-splitbill-mcp` give a separate view of installs.
 
 ## Google Analytics 4 (optional)
 

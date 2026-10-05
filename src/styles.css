@@ -1,6 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap');
 @import './features/categories/categories.css';
 @import './features/mcp/agentLink.css';
+@import './features/mcp/agentGuide.css';
 
 :root {
   font-family: 'DM Sans', 'PingFang SC', 'Microsoft YaHei', ui-sans-serif, system-ui, sans-serif;
@@ -687,7 +688,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .sidebar-footer { margin-top: auto; padding: 16px 10px 12px; border-top: 1px solid var(--line); display: grid; gap: 10px; }
 .source-link { color: var(--muted); display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; text-decoration: none; }
 .source-link:hover { color: var(--ink); }
-.changelog-link, .feedback-link { width: 100%; border: 0; background: transparent; padding: 0; text-align: left; }
+.source-link svg { flex: none; }
+.changelog-link, .feedback-link, .agent-guide-link { width: 100%; border: 0; background: transparent; padding: 0; text-align: left; }
 .feedback-link { color: var(--ink); }
 .feedback-link svg { color: var(--coral); }
 .changelog-unread { width: 7px; height: 7px; margin-left: auto; border-radius: 50%; background: var(--coral); box-shadow: 0 0 0 3px var(--focus-ring-soft); }

@@ -27,6 +27,7 @@ import {
   findLiveActivityMirrorGroupId,
   useLiveActivityMirrors,
 } from './useLiveActivityMirrors'
+import { isAgentGuideHash } from '../mcp/agentGuideState'
 
 export type LiveSession = { credentials: LiveActivityCredentials; record: LiveActivityRecord }
 export type CreateLiveActivityResult = { ok: true; code: string; url: string } | { ok: false; message: string }
@@ -68,7 +69,9 @@ export function useLiveActivitySession({
   const [bookmarks, setBookmarks] = useLiveActivityBookmarks()
   const [mirrors, setMirrors] = useLiveActivityMirrors()
   const [client] = useState(() => liveActivityClient === undefined ? createConfiguredLiveActivityClient() : liveActivityClient)
-  const bookmarkedCredentialsAtLoad = !window.location.hash && initialSelectedGroupId ? bookmarks[initialSelectedGroupId] ?? null : null
+  // The #agents guide link is not a Live link, so the last Live activity still reopens under it.
+  const noLiveFragment = !window.location.hash || isAgentGuideHash(window.location.hash)
+  const bookmarkedCredentialsAtLoad = noLiveFragment && initialSelectedGroupId ? bookmarks[initialSelectedGroupId] ?? null : null
   const [credentials, setCredentials] = useState(() => parseLiveActivityHash(window.location.hash) ?? bookmarkedCredentialsAtLoad)
   const [browserOnline, setBrowserOnline] = useState(() => navigator.onLine)
   const [connectionBlocked, setConnectionBlocked] = useState(false)
@@ -153,6 +156,8 @@ export function useLiveActivitySession({
 
   useEffect(() => {
     const syncLiveActivity = () => {
+      // Following the #agents guide link opens the guide over the current activity without leaving it.
+      if (isAgentGuideHash(window.location.hash)) return
       const nextCredentials = parseLiveActivityHash(window.location.hash)
       if (nextCredentials) queryClient.removeQueries({ queryKey: liveActivityQueryKey(nextCredentials) })
       else if (window.location.hash.startsWith('#share=')) clearLiveActivityHash()

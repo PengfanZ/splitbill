@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { IDENTITY_KEY } from './data/identity'
 import { CHANGELOG_SEEN_STORAGE_KEY, LATEST_CHANGELOG_ID } from './features/changelog/changelog'
@@ -39,5 +39,17 @@ describe('connecting a coding agent', () => {
     await user.click(screen.getByRole('button', { name: 'Continue' }))
     expect(await screen.findByRole('heading', { name: 'Let Claude Code use your activities?' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Who you are in Tokyo trip' })).toHaveTextContent('Mia')
+  })
+
+  it('counts the approval request and a denial without any activity data', async () => {
+    localStorage.setItem(IDENTITY_KEY, JSON.stringify({ id: 'me', name: 'Sam', initials: 'S', color: '#ead1b9' }))
+    const track = vi.fn()
+    render(<App liveActivityClient={null} analyticsClient={{ track }} />)
+    await screen.findByRole('heading', { name: 'Let Claude Code use your activities?' })
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Don’t allow' }))
+    expect(track.mock.calls.filter(([event]) => String(event).startsWith('agent_'))).toEqual([
+      ['agent_link_requested', 'local', 'en'],
+      ['agent_link_denied', 'local', 'en'],
+    ])
   })
 })

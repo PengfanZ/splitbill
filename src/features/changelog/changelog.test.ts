@@ -23,6 +23,11 @@ describe('changelog', () => {
   it('keeps the latest release first and gives every item a stable localized shape', () => {
     expect(LATEST_CHANGELOG_ID).toBe(CHANGELOG_ENTRIES[0].id)
     expect(CHANGELOG_ENTRIES[0]).toMatchObject({
+      id: '2026-10-ai-agents',
+      releasedOn: '2026-10-05',
+      items: [{ icon: 'agent' }],
+    })
+    expect(CHANGELOG_ENTRIES[1]).toMatchObject({
       id: '2026-09-ui-polish',
       releasedOn: '2026-09-25',
       items: [

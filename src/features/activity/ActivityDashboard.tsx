@@ -300,7 +300,7 @@ export function MembersRail({ members, group, expenses = [], currency = 'USD', c
   )
 }
 
-export function GroupDashboard({ group, members, expenses, query, activityFeedback, onSwitchActivity, readOnly = false, readOnlyLabel, currentMemberId = 'me', currentUserLabel = 'You', statusLabel, statusShortLabel, onCurrentMemberChange, onCurrencyChange, onShareSummary, onExportData, onShareQr, onShareLive, onCopyShareLink, onEndLive, onAddFriend, onRemoveFriend, onRestoreFriend, onAddExpense, onSettleUp, onEditExpense, onDeleteExpense, onCategoriesChange, onCategorySummaryOpen }: {
+export function GroupDashboard({ group, members, expenses, query, activityFeedback, onSwitchActivity, readOnly = false, readOnlyLabel, currentMemberId = 'me', currentUserLabel = 'You', statusLabel, statusShortLabel, onCurrentMemberChange, onCurrencyChange, onShareSummary, onExportData, onShareQr, onShareLive, onCopyShareLink, onUseWithAgent, onEndLive, onAddFriend, onRemoveFriend, onRestoreFriend, onAddExpense, onSettleUp, onEditExpense, onDeleteExpense, onCategoriesChange, onCategorySummaryOpen }: {
   onCategorySummaryOpen?: () => void
   onCategoriesChange?: (change: CategoryChange) => Promise<boolean>
   /** Opens the activity list; only offered where the sidebar is a drawer. */
@@ -324,6 +324,7 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
   onShareQr?: () => void
   onShareLive?: () => void
   onCopyShareLink?: () => void
+  onUseWithAgent?: () => void
   onEndLive?: () => void
   onAddFriend?: () => void
   onRemoveFriend?: (member: Member) => void
@@ -465,6 +466,7 @@ export function GroupDashboard({ group, members, expenses, query, activityFeedba
         onCollaborateLive={onShareLive}
         onCopyLink={onCopyShareLink}
         onShowQr={onShareQr}
+        onUseWithAgent={onUseWithAgent}
         onShareSummary={onShareSummary}
         onExportData={onExportData}
         onEndLive={onEndLive}
