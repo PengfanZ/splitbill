@@ -53,6 +53,7 @@ import { LiveActivityStatusBanner } from './features/liveSharing/LiveActivitySta
 import { useLiveActivitySession } from './features/liveSharing/useLiveActivitySession'
 import { AgentLinkGate } from './features/mcp/AgentLinkApproval'
 import type { AgentGuideTarget } from './features/mcp/AgentGuideModal'
+import { isAgentGuideHash } from './features/mcp/agentGuideState'
 import { BrowserToPwaHandoff, JoinActivityModal } from './features/sharing/JoinActivityModal'
 import { isStandalonePwa } from './pwa/displayMode'
 import { LiveActivityIdentityModal, type LiveActivityIdentityMode } from './features/sharing/LiveActivityIdentityModal'
@@ -118,7 +119,21 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
   const [query, setQuery] = useState('')
   const [navigationOpen, setNavigationOpen] = useState(false)
   const [modal, setModal] = useState<ModalType>(null)
-  const [agentGuide, setAgentGuide] = useState<AgentGuideTarget | null>(null)
+  const [agentGuide, setAgentGuide] = useState<AgentGuideTarget | null>(() => isAgentGuideHash(window.location.hash) ? { kind: 'general' } : null)
+
+  useEffect(() => {
+    // The #agents link opens the general guide; the fragment is dropped so a reload doesn't reopen it.
+    const openFromLink = () => {
+      if (!isAgentGuideHash(window.location.hash)) return
+      setAgentGuide({ kind: 'general' })
+      const url = new URL(window.location.href)
+      url.hash = ''
+      window.history.replaceState(null, '', url)
+    }
+    openFromLink()
+    window.addEventListener('hashchange', openFromLink)
+    return () => window.removeEventListener('hashchange', openFromLink)
+  }, [])
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
   const [settlingDirection, setSettlingDirection] = useState<Settlement | null>(null)
   const [activityFeedback, setActivityFeedback] = useState<ActivityFeedback>(null)
@@ -701,6 +716,9 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
                 onCurrencyChange={live.editable ? changeActivityCurrency : undefined}
                 onShareQr={live.editable && liveSession ? () => sharing.openCurrentLiveQr(liveSession) : undefined}
                 onCopyShareLink={live.editable && liveSession ? () => sharing.copyCurrentLiveLink(liveSession) : undefined}
+                onUseWithAgent={live.editable && liveSession
+                  ? () => setAgentGuide({ kind: 'activity', name: liveActivity.group.name, code: liveSession.credentials.code })
+                  : undefined}
                 onEndLive={live.editable && liveEnd ? () => endLiveActivity(liveEnd) : undefined}
                 onShareSummary={() => sharing.shareGroup(liveActivity.group, liveMembers, liveActivity.expenses, 'live', liveSession)}
                 onExportData={() => setModal('csv-export')}

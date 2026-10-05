@@ -8,6 +8,7 @@ import {
   ReceiptText,
   Share2,
   SlidersHorizontal,
+  SquareTerminal,
   SunMoon,
   type LucideIcon,
 } from 'lucide-react'
@@ -31,6 +32,7 @@ const CHANGELOG_ICONS: Record<ChangelogIcon, LucideIcon> = {
   theme: SunMoon,
   receipt: ReceiptText,
   csv: FileSpreadsheet,
+  agent: SquareTerminal,
 }
 
 export function ChangelogModal({ onClose }: { onClose: () => void }) {
