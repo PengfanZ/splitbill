@@ -1139,7 +1139,8 @@ describe('modals', () => {
   })
 })
 
-describe('complete app workflows', () => {
+// Each test drives a full multi-step workflow; several take about 4.5 seconds alone, close to the 5-second default.
+describe('complete app workflows', { timeout: 15_000 }, () => {
   it('localizes feedback for adding several friends with and without earlier expenses', async () => {
     const user = userEvent.setup()
     localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState()))

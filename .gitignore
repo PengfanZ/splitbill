@@ -1,5 +1,6 @@
 /node_modules
 /dist
+/packages/tally-splitbill-mcp/dist
 /coverage
 /playwright-report
 /test-results

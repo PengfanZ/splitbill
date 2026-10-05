@@ -23,6 +23,9 @@
     "backend:stop": "supabase stop",
     "backend:reset": "supabase db reset",
     "lint": "eslint . --max-warnings=0",
+    "mcp:build": "vite build --config vite.mcp.config.ts",
+    "mcp:release": "vite build --config vite.mcp.config.ts --mode release",
+    "mcp": "node packages/tally-splitbill-mcp/dist/tally-splitbill-mcp.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "test:all": "npm run test:coverage && npm run test:e2e",
@@ -34,6 +37,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.0",
     "@tanstack/react-query": "5.101.2",
     "lucide-react": "0.468.0",
     "qrcode.react": "^4.2.0",

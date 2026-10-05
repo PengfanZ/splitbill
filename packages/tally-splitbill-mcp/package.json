@@ -1,0 +1,35 @@
+{
+  "name": "tally-splitbill-mcp",
+  "version": "0.1.0",
+  "description": "Let Claude Code and Codex read and add shared expenses in Tally, the no-account app for splitting bills with friends.",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "claude-code",
+    "codex",
+    "split-bills",
+    "shared-expenses",
+    "tally"
+  ],
+  "homepage": "https://pengfanz.github.io/splitbill/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PengfanZ/splitbill.git",
+    "directory": "packages/tally-splitbill-mcp"
+  },
+  "bugs": "https://github.com/PengfanZ/splitbill/issues",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "tally-splitbill-mcp": "dist/tally-splitbill-mcp.mjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "prepublishOnly": "npm --prefix ../.. run mcp:release"
+  }
+}

@@ -39,6 +39,11 @@ jobs:
       - name: Run happy-path and edge-case tests with full coverage
         run: npm run test:coverage
 
+      - name: Build and start the tally-splitbill-mcp package
+        run: |
+          npm run mcp:build
+          node packages/tally-splitbill-mcp/dist/tally-splitbill-mcp.mjs --version
+
       - name: Start the local database
         run: npx supabase db start
 
@@ -105,6 +110,22 @@ jobs:
           VITE_AI_EXPENSE_ENABLED: ${{ vars.VITE_AI_EXPENSE_ENABLED }}
           VITE_RECEIPT_SPLIT_ENABLED: true
         run: npm run build:pages
+
+      - name: Pack the tally-splitbill-mcp npm package for production
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          npm run mcp:release
+          node packages/tally-splitbill-mcp/dist/tally-splitbill-mcp.mjs --version
+          cd packages/tally-splitbill-mcp && npm pack --pack-destination "$RUNNER_TEMP/tally-splitbill-mcp"
+
+      - name: Upload the tally-splitbill-mcp package for publishing
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: tally-splitbill-mcp
+          path: ${{ runner.temp }}/tally-splitbill-mcp/*.tgz
+          retention-days: 30
 
       - name: Link the production database
         env:

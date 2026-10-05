@@ -51,6 +51,7 @@ import { IdentityModal } from './features/identity/IdentityModal'
 import type { LiveActivityClient } from './features/liveSharing/liveActivityConfig'
 import { LiveActivityStatusBanner } from './features/liveSharing/LiveActivityStatusBanner'
 import { useLiveActivitySession } from './features/liveSharing/useLiveActivitySession'
+import { AgentLinkGate } from './features/mcp/AgentLinkApproval'
 import { BrowserToPwaHandoff, JoinActivityModal } from './features/sharing/JoinActivityModal'
 import { isStandalonePwa } from './pwa/displayMode'
 import { LiveActivityIdentityModal, type LiveActivityIdentityMode } from './features/sharing/LiveActivityIdentityModal'
@@ -806,6 +807,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
         setIdentity(createIdentity(name))
         setModal(null)
       }} /> : null}
+      {identity ? <AgentLinkGate identityName={identity.name} /> : null}
       {ratingPromptTrigger && feedbackClient ? <Suspense fallback={null}><RatingPrompt
         key={ratingPromptTrigger}
         client={feedbackClient}
