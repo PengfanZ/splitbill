@@ -26,22 +26,21 @@ export function AgentLinkApprovalModal({ activities, client, hasUnavailable, onA
   onCancel: () => void
 }) {
   const { t } = useLocalization()
-  const [selected, setSelected] = useState<Record<string, boolean>>(() => (
-    activities.length === 1 ? { [activities[0].code]: true } : {}
-  ))
-  const [memberIds, setMemberIds] = useState<Record<string, string>>(() => Object.fromEntries(
-    activities.map(activity => [activity.code, activity.defaultMemberId ?? '']),
-  ))
-  const chosen = activities.filter(activity => selected[activity.code])
+  // Only the person's own choices are kept, so activities that appear later still get their defaults.
+  const [selected, setSelected] = useState<Record<string, boolean>>({})
+  const [memberIds, setMemberIds] = useState<Record<string, string>>({})
+  const isSelected = (activity: LinkableActivity) => selected[activity.code] ?? activities.length === 1
+  const memberFor = (activity: LinkableActivity) => memberIds[activity.code] ?? activity.defaultMemberId ?? ''
+  const chosen = activities.filter(isSelected)
   const ready = chosen.length > 0
     && chosen.length <= AGENT_LINK_MAX_ACTIVITIES
-    && chosen.every(activity => memberIds[activity.code])
+    && chosen.every(memberFor)
   const clientName = client === 'claude-code' ? 'Claude Code' : client === 'codex' ? 'Codex' : t('agentLink.otherClient')
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
     if (!ready) return
-    onApprove(chosen.map(activity => ({ code: activity.code, editToken: activity.editToken, memberId: memberIds[activity.code] })))
+    onApprove(chosen.map(activity => ({ code: activity.code, editToken: activity.editToken, memberId: memberFor(activity) })))
   }
 
   return (
@@ -60,7 +59,7 @@ export function AgentLinkApprovalModal({ activities, client, hasUnavailable, onA
                 <label className="agent-link-choice">
                   <input
                     type="checkbox"
-                    checked={Boolean(selected[activity.code])}
+                    checked={isSelected(activity)}
                     onChange={event => setSelected(current => ({ ...current, [activity.code]: event.target.checked }))}
                   />
                   <span>
@@ -71,7 +70,7 @@ export function AgentLinkApprovalModal({ activities, client, hasUnavailable, onA
                 <div className="agent-link-member">
                   <span aria-hidden="true">{t('agentLink.youAre')}</span>
                   <SelectMenu
-                    value={memberIds[activity.code]}
+                    value={memberFor(activity)}
                     options={[
                       { value: '', label: t('agentLink.chooseMember') },
                       ...activity.members.map(member => ({ value: member.id, label: member.name })),
@@ -143,19 +142,32 @@ export function AgentLinkGate({ identityName, navigate = url => window.location.
   )
 }
 
-/** Reads this browser's Live activities once per request, without subscribing to or rewriting their storage. */
+const readLinkableActivities = (identityName?: string) => linkableActivities(
+  loadLiveActivityBookmarks(),
+  loadLiveActivityMirrors(),
+  loadActivityIdentitySelections(),
+  identityName,
+)
+
+/** Reads this browser's Live activities without subscribing to or rewriting their storage. */
 function AgentLinkRequestModal({ identityName, navigate, onClose, request }: {
   identityName?: string
   navigate: (url: string) => void
   onClose: () => void
   request: AgentLinkRequest
 }) {
-  const [{ activities, unavailable }] = useState(() => linkableActivities(
-    loadLiveActivityBookmarks(),
-    loadLiveActivityMirrors(),
-    loadActivityIdentitySelections(),
-    identityName,
-  ))
+  const [{ activities, unavailable }, setLinkable] = useState(() => readLinkableActivities(identityName))
+
+  useEffect(() => {
+    // Another tab may finish opening an activity after this screen appears, so read again when it saves or the person returns.
+    const refresh = () => setLinkable(readLinkableActivities(identityName))
+    window.addEventListener('storage', refresh)
+    window.addEventListener('focus', refresh)
+    return () => {
+      window.removeEventListener('storage', refresh)
+      window.removeEventListener('focus', refresh)
+    }
+  }, [identityName])
   return (
     <AgentLinkApprovalModal
       activities={activities}

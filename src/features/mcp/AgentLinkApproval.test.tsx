@@ -75,6 +75,21 @@ describe('AgentLinkApprovalModal', () => {
     expect(onApprove).not.toHaveBeenCalled()
   })
 
+  it('keeps the person\'s choices when the list of activities refreshes', async () => {
+    const props = { client: 'codex' as const, hasUnavailable: false, onApprove: vi.fn(), onCancel: vi.fn() }
+    const { rerender } = render(<AgentLinkApprovalModal {...props} activities={[]} />)
+    rerender(<AgentLinkApprovalModal {...props} activities={[ski]} />)
+    expect(screen.getByRole('checkbox', { name: /Ski weekend/ })).toBeChecked()
+
+    await chooseMember('Ski weekend', 'Sam')
+    rerender(<AgentLinkApprovalModal {...props} activities={[ski, tokyo]} />)
+    expect(screen.getByRole('checkbox', { name: /Ski weekend/ })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: /Tokyo trip/ })).not.toBeChecked()
+    expect(screen.getByRole('button', { name: 'Who you are in Tokyo trip' })).toHaveTextContent('Mia')
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Allow' }))
+    expect(props.onApprove).toHaveBeenCalledWith([{ code: 'B1B2C3D4E5', editToken: 'b'.repeat(64), memberId: 'friend-sam' }])
+  })
+
   it('explains what to do when the browser has no Live activities, and cancels', async () => {
     const onCancel = vi.fn()
     render(<AgentLinkApprovalModal activities={[]} client="codex" hasUnavailable={false} onApprove={vi.fn()} onCancel={onCancel} />)
@@ -110,6 +125,30 @@ describe('AgentLinkGate', () => {
       state,
       activities: [{ code: TOKYO_CODE, editToken: TOKYO_TOKEN, memberId: 'friend-leo' }],
     })
+  })
+
+  it('shows an activity another tab finished opening after the request appeared', async () => {
+    window.history.replaceState(null, '', `/#agent-link=51234.${state}.claude-code`)
+    render(<AgentLinkGate identityName="Mia" navigate={vi.fn()} />)
+    expect(screen.getByText(/no Live activities in this browser yet/)).toBeInTheDocument()
+
+    storeTokyo()
+    act(() => { window.dispatchEvent(new StorageEvent('storage', { key: LIVE_ACTIVITY_MIRRORS_KEY })) })
+    expect(screen.getByRole('checkbox', { name: /Tokyo trip/ })).toBeChecked()
+    expect(screen.getByRole('button', { name: 'Allow' })).toBeEnabled()
+  })
+
+  it('reads the activities again when the person comes back to the window', () => {
+    window.history.replaceState(null, '', `/#agent-link=51234.${state}.codex`)
+    const { unmount } = render(<AgentLinkGate identityName="Mia" navigate={vi.fn()} />)
+    storeTokyo()
+    act(() => { window.dispatchEvent(new FocusEvent('focus')) })
+    expect(screen.getByRole('checkbox', { name: /Tokyo trip/ })).toBeInTheDocument()
+
+    unmount()
+    localStorage.clear()
+    act(() => { window.dispatchEvent(new FocusEvent('focus')) })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('stays hidden without a request, opens on a later agent link and closes when denied', async () => {
