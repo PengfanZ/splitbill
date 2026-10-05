@@ -1,6 +1,6 @@
 # Tally MCP server
 
-Status: **step 1, ready to publish as [`tally-splitbill-mcp`](../packages/tally-splitbill-mcp/README.md).**
+Status: **step 1, published on npm as [`tally-splitbill-mcp`](../packages/tally-splitbill-mcp/README.md) 0.1.0.**
 - **Built:** the tools and flows marked in [Prototype status](#prototype-status), and the npm package. CI packs it for publishing; see [Releasing the npm package](#releasing-the-npm-package).
 - **Not yet:** shown on the website. The npm README is the user guide for now.
 
@@ -69,7 +69,19 @@ To publish:
    npm publish ./tally-splitbill-mcp-<version>.tgz --access public
    ```
 
-4. Smoke-test against production with `npx -y tally-splitbill-mcp@<version>`, then end live sharing on any test activity.
+   - npm may ask you to confirm the publish in the browser.
+   - The `shasum` npm prints must match `shasum ./tally-splitbill-mcp-<version>.tgz`, which shows it is the file CI built.
+4. Wait until the new version is live. npm can take a few minutes to process a publish, and before the first release finished it served a placeholder `0.0.0-stage` as `latest`, which installs nothing useful. Continue once this prints the new version:
+
+   ```bash
+   npm view tally-splitbill-mcp dist-tags.latest
+   ```
+
+5. Smoke-test against production with `npx -y tally-splitbill-mcp@<version>`. Cover the tools and the **Allow** flow on the live site, and block analytics requests in any scripted browser so the test doesn't count as real use. Then clean up:
+   - End live sharing on the test activity with **Share → End live**.
+   - Delete the test credential file.
+
+The first publish left `0.0.0-stage` in the version list. `latest` points at the real release, so installs are unaffected.
 
 Publishing from the package folder with `npm publish` also works: `prepublishOnly` rebuilds in release mode, which fails unless production settings are in the environment.
 
