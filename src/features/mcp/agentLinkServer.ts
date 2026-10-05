@@ -26,8 +26,10 @@ type SessionOptions = {
 }
 
 function page(title: string, body: string, script = '', nonce = '') {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title>`
-    + '<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f7f4ee;color:#252320;font:16px/1.5 system-ui,sans-serif}main{max-width:420px;padding:24px;text-align:center}h1{font-size:24px;margin:0 0 8px}</style>'
+  // Tally's light and dark page colors, following the system theme.
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>${title}</title>`
+    + '<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f7f4ee;color:#252320;font:16px/1.5 system-ui,sans-serif}main{max-width:420px;padding:24px;text-align:center}h1{font-size:24px;margin:0 0 8px}'
+    + '@media (prefers-color-scheme:dark){body{background:#151513;color:#f3eee8}}</style>'
     + `</head><body><main><h1>${title}</h1><p>${body}</p></main>${script ? `<script nonce="${nonce}">${script}</script>` : ''}</body></html>`
 }
 

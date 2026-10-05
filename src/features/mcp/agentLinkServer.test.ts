@@ -55,6 +55,9 @@ describe('startAgentLinkSession', () => {
 
     const linked = await call(port, 'GET', '/linked')
     expect(linked.body).toContain('Tally is linked')
+    // Follows the system theme, so it doesn't flash light after Tally's dark mode.
+    expect(linked.body).toContain('<meta name="color-scheme" content="light dark">')
+    expect(linked.body).toContain('@media (prefers-color-scheme:dark){body{background:#151513;color:#f3eee8}}')
     expect(String(linked.headers['content-security-policy'])).toContain("script-src 'none'")
     await expect(call(port, 'GET', '/linked')).rejects.toThrow()
   })
