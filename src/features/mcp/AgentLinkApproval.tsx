@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { CircleCheck, Info, ShieldCheck } from 'lucide-react'
 import { Button } from '../../components/Button'
 import { ModalShell } from '../../components/Dialog'
@@ -106,12 +106,26 @@ export function AgentLinkApprovalModal({ activities, client, hasUnavailable, onA
   )
 }
 
+/** Analytics names for the approval screen; they carry no activity, code or link. */
+export type AgentLinkEvent = 'agent_link_requested' | 'agent_link_allowed' | 'agent_link_denied'
+
 /** Shows the approval screen when tally-splitbill-mcp opens `#agent-link=…`, then hands the choice to it on 127.0.0.1. */
-export function AgentLinkGate({ identityName, navigate = url => window.location.assign(url) }: {
+export function AgentLinkGate({ identityName, navigate = url => window.location.assign(url), onAnalytics }: {
   identityName?: string
   navigate?: (url: string) => void
+  onAnalytics?: (event: AgentLinkEvent) => void
 }) {
   const [request, setRequest] = useState<AgentLinkRequest | null>(() => parseAgentLinkHash(window.location.hash))
+  const analyticsRef = useRef(onAnalytics)
+
+  useEffect(() => {
+    analyticsRef.current = onAnalytics
+  }, [onAnalytics])
+
+  useEffect(() => {
+    // Once per request, not per render.
+    if (request) analyticsRef.current?.('agent_link_requested')
+  }, [request])
 
   useEffect(() => {
     const sync = () => {
@@ -136,8 +150,14 @@ export function AgentLinkGate({ identityName, navigate = url => window.location.
       key={`${request.port}.${request.state}`}
       request={request}
       identityName={identityName}
-      onClose={() => setRequest(null)}
-      navigate={navigate}
+      onClose={() => {
+        analyticsRef.current?.('agent_link_denied')
+        setRequest(null)
+      }}
+      navigate={url => {
+        analyticsRef.current?.('agent_link_allowed')
+        navigate(url)
+      }}
     />
   )
 }

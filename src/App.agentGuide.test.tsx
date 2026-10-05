@@ -146,4 +146,48 @@ describe('the experimental agent guide', () => {
     await userEvent.setup().click(await screen.findByRole('button', { name: 'Done' }))
     expect(await screen.findByText('Live and synced · A1B2C3D4E5')).toBeVisible()
   })
+
+  describe('analytics', () => {
+    const agentEvents = (track: ReturnType<typeof vi.fn>) => track.mock.calls.filter(([event]) => String(event).startsWith('agent_'))
+
+    it('counts opening from the sidebar and copying the install command, with no other data', async () => {
+      rememberMia()
+      const track = vi.fn()
+      const user = userEvent.setup()
+      render(<App liveActivityClient={null} analyticsClient={{ track }} />)
+      await user.click(screen.getByRole('button', { name: /Use with AI agents/ }))
+      await user.click(await screen.findByRole('button', { name: 'Copy' }))
+      await screen.findByRole('button', { name: 'Copied' })
+      expect(agentEvents(track)).toEqual([
+        ['agent_guide_opened_sidebar', 'local', 'en'],
+        ['agent_install_copied_claude_code', 'local', 'en'],
+      ])
+    })
+
+    it('counts each arrival from the #agents link', async () => {
+      rememberMia()
+      const track = vi.fn()
+      window.history.replaceState(null, '', '/#agents')
+      render(<App liveActivityClient={null} analyticsClient={{ track }} />)
+      await screen.findByRole('heading', { name: GENERAL_TITLE })
+      act(() => {
+        window.history.replaceState(null, '', '/#agents')
+        window.dispatchEvent(new HashChangeEvent('hashchange'))
+      })
+      expect(agentEvents(track)).toEqual([
+        ['agent_guide_opened_link', 'local', 'en'],
+        ['agent_guide_opened_link', 'local', 'en'],
+      ])
+    })
+
+    it('counts opening from a Live activity\'s Share menu on the live surface', async () => {
+      rememberMia()
+      const track = vi.fn()
+      const user = userEvent.setup()
+      render(<App liveActivityClient={liveClient()} analyticsClient={{ track }} />)
+      await user.click(within(await openShareMenu(user)).getByRole('button', { name: /^Use with Codex or Claude Code/ }))
+      await screen.findByRole('heading', { name: 'Use Weekend with your agent' })
+      expect(agentEvents(track)).toEqual([['agent_guide_opened_share', 'live', 'en']])
+    })
+  })
 })

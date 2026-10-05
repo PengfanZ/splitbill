@@ -10,6 +10,9 @@ import { loadGuideClient, saveGuideClient, type GuideClient } from './agentGuide
 
 export type AgentGuideTarget = { kind: 'general' } | { kind: 'activity'; name: string; code: string }
 
+/** Analytics names for successful copies; they carry no command or prompt text. */
+export type AgentGuideCopyEvent = 'agent_install_copied_claude_code' | 'agent_install_copied_codex' | 'agent_prompt_copied'
+
 type CopyResult = 'copied' | 'failed'
 
 const CLIENT_NAMES: Record<GuideClient, string> = { 'claude-code': 'Claude Code', codex: 'Codex' }
@@ -35,10 +38,11 @@ function GuideStep({ marker, title, hint, children }: { marker: string; title: s
 }
 
 /** Shows how to use Tally from Claude Code or Codex; labeled experimental while the integration may change. */
-export function AgentGuideModal({ target, onClose, onSendFeedback, copy = copyLink }: {
+export function AgentGuideModal({ target, onClose, onSendFeedback, onCopied, copy = copyLink }: {
   target: AgentGuideTarget
   onClose: () => void
   onSendFeedback: () => void
+  onCopied?: (event: AgentGuideCopyEvent) => void
   copy?: (text: string) => Promise<CopyResult>
 }) {
   const { t } = useLocalization()
@@ -52,8 +56,10 @@ export function AgentGuideModal({ target, onClose, onSendFeedback, copy = copyLi
     saveGuideClient(next)
     setCopied(null)
   }
-  const copyText = async (text: string) => {
-    setCopied({ text, result: await copy(text) })
+  const copyText = async (text: string, event: AgentGuideCopyEvent) => {
+    const result = await copy(text)
+    setCopied({ text, result })
+    if (result === 'copied') onCopied?.(event)
   }
 
   const installResult = resultFor(installCommand)
@@ -61,7 +67,7 @@ export function AgentGuideModal({ target, onClose, onSendFeedback, copy = copyLi
     <GuideStep marker="1" title={t('agentGuide.installTitle')} hint={t('agentGuide.installHint')}>
       <div className="agent-guide-command">
         <code>{installCommand}</code>
-        <button type="button" onClick={() => void copyText(installCommand)}>
+        <button type="button" onClick={() => void copyText(installCommand, client === 'codex' ? 'agent_install_copied_codex' : 'agent_install_copied_claude_code')}>
           {installResult === 'copied' ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
           {t(installResult === 'copied' ? 'agentGuide.copied' : installResult === 'failed' ? 'agentGuide.copyFailed' : 'agentGuide.copy')}
         </button>
@@ -116,7 +122,7 @@ export function AgentGuideModal({ target, onClose, onSendFeedback, copy = copyLi
                 const prompt = t(key, { name: target.name })
                 const result = resultFor(prompt)
                 return (
-                  <button key={key} type="button" className="agent-guide-prompt" onClick={() => void copyText(prompt)}>
+                  <button key={key} type="button" className="agent-guide-prompt" onClick={() => void copyText(prompt, 'agent_prompt_copied')}>
                     <span>{prompt}</span>
                     {result ? <em>{t(result === 'copied' ? 'agentGuide.copied' : 'agentGuide.copyFailed')}</em> : <Copy size={14} aria-hidden="true" />}
                   </button>

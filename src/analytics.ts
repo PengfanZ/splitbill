@@ -40,6 +40,15 @@ export const ANALYTICS_EVENTS = [
   'ai_voice_ready',
   'ai_voice_clarification',
   'ai_voice_failed',
+  'agent_guide_opened_sidebar',
+  'agent_guide_opened_share',
+  'agent_guide_opened_link',
+  'agent_install_copied_claude_code',
+  'agent_install_copied_codex',
+  'agent_prompt_copied',
+  'agent_link_requested',
+  'agent_link_allowed',
+  'agent_link_denied',
 ] as const
 
 export type AnalyticsEvent = typeof ANALYTICS_EVENTS[number]
