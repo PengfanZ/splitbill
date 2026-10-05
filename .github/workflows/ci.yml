@@ -39,10 +39,12 @@ jobs:
       - name: Run happy-path and edge-case tests with full coverage
         run: npm run test:coverage
 
-      - name: Build and start the tally-splitbill-mcp package
+      - name: Build, start and pack the tally-splitbill-mcp package
         run: |
           npm run mcp:build
           node packages/tally-splitbill-mcp/dist/tally-splitbill-mcp.mjs --version
+          mkdir -p "$RUNNER_TEMP/tally-splitbill-mcp"
+          cd packages/tally-splitbill-mcp && npm pack --pack-destination "$RUNNER_TEMP/tally-splitbill-mcp"
 
       - name: Start the local database
         run: npx supabase db start
@@ -118,6 +120,8 @@ jobs:
         run: |
           npm run mcp:release
           node packages/tally-splitbill-mcp/dist/tally-splitbill-mcp.mjs --version
+          # npm pack does not create its destination folder.
+          mkdir -p "$RUNNER_TEMP/tally-splitbill-mcp"
           cd packages/tally-splitbill-mcp && npm pack --pack-destination "$RUNNER_TEMP/tally-splitbill-mcp"
 
       - name: Upload the tally-splitbill-mcp package for publishing
