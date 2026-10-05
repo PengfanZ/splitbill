@@ -24,6 +24,16 @@ Every AI request opts out of provider data collection and is restricted to OpenR
 
 AI providers and models can change as availability and cost change, but the zero-retention routing requirement remains. Avoid including regulated or highly sensitive financial, medical, identity, or payment-card information in an AI description or recording.
 
+## AI agents (Claude Code and Codex)
+
+People can connect their own coding agent to Tally with the `tally-splitbill-mcp` package. It works only with Live activities the person creates through the agent or explicitly allows in Tally.
+
+- **What the agent sees.** Once allowed, the agent can read and change those activities: names, participants, expenses, amounts, and balances. The agent's provider handles that data under the person's own agreement with them, for example Anthropic for Claude Code or OpenAI for Codex. Tally does not control it.
+- **Invite links stay out of the chat.** Approval sends the invite link from Tally in the browser straight to the program on the same computer, through `127.0.0.1`. The agent receives activity names, not links. It gets an invite link only when it calls `get_share_link`, which it is told to do only when the person asks to share.
+- **Stored on that computer.** Linked activities and their edit tokens are kept in `~/.config/tally/live-activities.json`, readable only by that user on macOS and Linux. Anyone who can read the file can edit those activities, as with a Live URL.
+- **Nothing extra is sent.** The program talks only to Tally's backend, through the same Live RPCs as the browser. It sends no analytics, makes no AI requests of its own, and logs no tokens or links.
+- **Removing access.** `npx tally-splitbill-mcp unlink <code>` forgets an activity on one computer. **End live sharing** ends access for everyone, agents included.
+
 ## Abuse protection and analytics
 
 The backend rate-limits requests using a secret-peppered one-way identifier derived from the client IP address; neither the raw address nor an unpeppered IP hash is stored in the application rate-limit table.

@@ -2,7 +2,7 @@
 
 ## Supported version
 
-The latest version on `main` and the current public deployment receive security fixes.
+The latest version on `main`, the current public deployment, and the latest `tally-splitbill-mcp` release on npm receive security fixes.
 
 ## Reporting a vulnerability
 
@@ -18,4 +18,6 @@ Anyone with a complete live URL can read, edit, and end that activity. **End liv
 
 Anonymous RPCs use a secret-peppered request identifier for throttling, and expected invalid input consumes client rate-limit budget without being stored. Validated Live creation is additionally bounded by a server-only, byte-weighted project budget, and validated analytics has an independent project event ceiling. AI calls have separate per-client text/voice quotas plus server-only project-wide daily ceilings, and each OpenRouter request requires a Zero Data Retention endpoint. Future database functions are closed to browser execution by default and must opt in through an explicit grant. Live activity payloads are validated against the same bounded graph, reference, amount, settlement, timestamp, and snapshot-size rules in the browser and database. Production builds allow connections to the configured HTTPS Supabase origin and, only when GA4 is configured, Google's measurement endpoints. The optional Google tag executes in the app's JavaScript context and is therefore a third-party trust dependency; URL sanitization is not script isolation. Keep enhanced measurement, user-provided data collection, Google Signals, and advertising integrations disabled. The static host cannot set `frame-ancestors` headers, so the app also refuses to render interactive controls while embedded in another page.
 
-Reports involving capability leakage, RPC privilege escalation, rate-limit bypasses, browser storage exposure, exported summaries, dependency vulnerabilities, or deployment configuration are in scope. Never include a real live activity URL, database password, service-role key, or Supabase access token in a report.
+The `tally-splitbill-mcp` server keeps the edit tokens of activities its user linked in a local file readable only by that user. It receives them from the browser through a one-time listener on `127.0.0.1` that checks a random state value and accepts one approval. Agents get activity names, not links, except through `get_share_link`.
+
+Reports involving capability leakage, RPC privilege escalation, rate-limit bypasses, browser storage exposure, exported summaries, the `tally-splitbill-mcp` package and its local hand-off, dependency vulnerabilities, or deployment configuration are in scope. Never include a real live activity URL, database password, service-role key, or Supabase access token in a report.

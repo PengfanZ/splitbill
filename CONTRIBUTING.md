@@ -20,6 +20,7 @@ npm run typecheck
 npm run lint
 npm run test:coverage
 npm run build:pages
+npm run mcp:build
 ```
 
 All four coverage metrics must remain at 100%.
@@ -30,6 +31,7 @@ All four coverage metrics must remain at 100%.
 - Keep browser persistence behind `src/data/` and `src/hooks/`.
 - Keep reusable shell UI separate from activity-specific features.
 - Prefer direct imports over broad barrel exports.
+- In `src/features/mcp/`, the web app may import only `AgentLinkApproval.tsx`, `agentLinkProtocol.ts`, `linkableActivities.ts`, `AgentGuideModal.tsx`, `agentGuideState.ts`, and `agentGuide.ts`; everything else there is Node-only.
 - Preserve the `tally:frontend:v2` storage schema unless the change includes a tested migration.
 - Add a regression test for every bug fix and user-focused tests for new behavior.
 - Preserve existing data and unrelated changes when working in a shared checkout.

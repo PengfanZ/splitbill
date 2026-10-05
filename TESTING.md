@@ -10,6 +10,7 @@ Coverage is necessary, but it is not the definition of correctness. Every produc
 4. **Component and helper tests** — focused tests for persistence, rendering states, and browser fallbacks.
 5. **Rendered browser integration tests** — Playwright runs the production GitHub Pages build in Chromium and verifies interaction, responsive layout, persistence after reload, PWA metadata and offline app-shell loading, Safari-to-PWA link handoff, destructive confirmations, and console health.
 6. **Database security tests** — pgTAP recreates the schema from migrations and verifies capability checks, RLS, least-privilege grants, expiration, rate limiting, analytics and feedback data minimization, rating/message validation, retention, and optimistic concurrency.
+7. **MCP server tests** — the tools and prompts run through a real MCP client against an in-memory Live backend, including conflicts, duplicates, and stale versions. Separate tests cover the CLI, the credential file, the `127.0.0.1` hand-off server, and the browser approval screen. CI also builds, starts, and packs the `tally-splitbill-mcp` package. [docs/MCP.md](docs/MCP.md) describes running it against the local Supabase stack and smoke-testing a release.
 
 ## CI gate
 
@@ -23,6 +24,7 @@ Every push and pull request type-checks and lints all TypeScript files, then run
 - `npm run test:e2e` builds the GitHub Pages bundle, starts a local preview, and runs the Chromium integration suite.
 - `npm run test:backend` runs the pgTAP contract suite against the local Supabase database.
 - `npm run typecheck` validates executable modules, configuration, and type-only files such as `models.ts`.
+- `npm run mcp:build` bundles the MCP server; CI runs it and the bundled `--version` on every push.
 
 `src/sw.ts` runs in the service-worker global and is therefore excluded from jsdom coverage instrumentation. Its cache-manifest helper is directly unit tested, and Playwright verifies the built worker's registration, cache policy, controlled navigation, and offline app-shell behavior.
 

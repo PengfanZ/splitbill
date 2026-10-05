@@ -24,6 +24,24 @@ Tally supports two deliberately different sharing choices:
 
 Live links keep their secret edit token in the fragment; Supabase stores only its SHA-256 hash. Every browser that successfully opens a Live link keeps the latest full activity state as a recovery copy, while Supabase remains the source of truth for as long as that Live session is available. See [the live sharing architecture](docs/LIVE_SHARING_EXPERIMENT.md) and [production deployment guide](docs/DEPLOYMENT.md).
 
+## Use Tally from Claude Code or Codex
+
+The [`tally-splitbill-mcp`](packages/tally-splitbill-mcp/README.md) package is an MCP server that lets coding agents read and update Live activities. People ask in plain words, for example "add the shared rows from statement.csv to Tokyo trip".
+
+```bash
+claude mcp add tally -- npx -y tally-splitbill-mcp
+codex mcp add tally -- npx -y tally-splitbill-mcp
+```
+
+- **What it works with:** Live activities only.
+- **New activities:** an agent can create one, which opens in the browser.
+- **Existing activities:** the person approves them once on Tally's **Let Claude Code use your activities?** screen. The agent gets activity names, never invite links.
+- **Saving:** changes save right away like a friend's edits, and the agent recaps what it saved so people can review it in Tally.
+
+In the app, the experimental **Use with AI agents** guide walks through setup. It opens from the sidebar, from a Live activity's Share menu, or from [`#agents`](https://pengfanz.github.io/splitbill/#agents).
+
+See [the MCP design](docs/MCP.md) and the [npm README](packages/tally-splitbill-mcp/README.md).
+
 [Try the live demo](https://pengfanz.github.io/splitbill/)
 
 For launch copy, a privacy-safe demo storyboard, and channel guidance, see the [promotion playbook](docs/PROMOTION.md).
@@ -49,6 +67,7 @@ For launch copy, a privacy-safe demo storyboard, and channel guidance, see the [
 - Continue a Safari-opened shared link in an installed Tally PWA without abandoning the existing app session.
 - Measure anonymous local and live feature usage without sending activity data or secret URLs to analytics.
 - Send a short idea or problem report inside Tally without opening GitHub or losing the current activity.
+- Ask Claude Code or Codex to import statements, add expenses, record payments, and settle up in Live activities through the `tally-splitbill-mcp` server.
 - Use the responsive interface on desktop or mobile.
 - Switch between English and Simplified Chinese, with China-aware defaults and local-time expense timestamps.
 
@@ -119,6 +138,9 @@ After the local stack starts, replace `your-publishable-key` in `.env.local` wit
 | `npm run build:pages` | Build the static artifact with the GitHub Pages base path |
 | `npm run build` | Build a root-hosted production artifact |
 | `npm run preview` | Preview the production build locally |
+| `npm run mcp:build` | Bundle the `tally-splitbill-mcp` server into `packages/tally-splitbill-mcp/dist/` |
+| `npm run mcp:release` | Build the server for publishing; refuses any backend except production |
+| `npm run mcp` | Run the locally built server |
 
 ## Project structure
 
@@ -134,6 +156,7 @@ src/
 │   ├── feedback/              # Private in-app feedback flow and RPC client
 │   ├── identity/              # Browser-local participant identity
 │   ├── liveSharing/           # Capability links and backend synchronization
+│   ├── mcp/                   # tally-splitbill-mcp server, CLI, and the browser approval screen
 │   ├── receiptSplit/           # Receipt extraction, review, and deterministic allocation
 │   └── sharing/               # Live-link handoff, QR invites, and PNG exports
 ├── hooks/                     # React lifecycle integrations
@@ -141,6 +164,8 @@ src/
 ├── pwa/                       # Testable service-worker cache helpers
 ├── queryClient.ts             # Shared server-state defaults
 └── sw.ts                      # Offline shell and cache lifecycle
+packages/
+└── tally-splitbill-mcp/       # npm package: package.json, README, and the built server
 supabase/
 ├── migrations/                # Versioned schema and RPC releases
 └── tests/                     # pgTAP database and security contracts
@@ -167,7 +192,7 @@ The complete contract is documented in [TESTING.md](TESTING.md).
 
 ## Deployment
 
-Every pull request is type-checked, linted, tested, and built by GitHub Actions. A successful `main` release applies pending Supabase migrations, deploys the AI expense and receipt Edge Functions, and then publishes the configured frontend artifact to GitHub Pages. Follow [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the one-time environment setup and release procedure.
+Every pull request is type-checked, linted, tested, and built by GitHub Actions. A successful `main` release packs the `tally-splitbill-mcp` npm package with production settings, applies pending Supabase migrations, deploys the AI expense and receipt Edge Functions, and then publishes the configured frontend artifact to GitHub Pages. Publishing the package to npm is a manual step; see [releasing the npm package](docs/MCP.md#releasing-the-npm-package). Follow [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the one-time environment setup and release procedure.
 
 The conversational expense flow keeps manual entry as the default and uses separate client/server kill switches. Its model strategy, privacy boundary, rate limits, synchronization behavior, test checklist, and isolated preview runbook for future AI changes live in [docs/AI_EXPENSE_PREVIEW.md](docs/AI_EXPENSE_PREVIEW.md).
 
