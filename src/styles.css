@@ -1,6 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap');
 @import './features/categories/categories.css';
 @import './features/mcp/agentLink.css';
+@import './features/mcp/agentGuide.css';
 
 :root {
   font-family: 'DM Sans', 'PingFang SC', 'Microsoft YaHei', ui-sans-serif, system-ui, sans-serif;
