@@ -9,7 +9,7 @@ npm ci
 npm run dev
 ```
 
-The development app runs at [http://localhost:3000](http://localhost:3000).
+The development app runs at [http://localhost:5173](http://localhost:5173).
 
 ## Before opening a pull request
 

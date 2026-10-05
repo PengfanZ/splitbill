@@ -109,4 +109,16 @@ describe('the experimental agent guide', () => {
   it('announces the guide in What\'s new as experimental', () => {
     expect(CHANGELOG_ENTRIES[0]).toMatchObject({ id: '2026-10-ai-agents', releasedOn: '2026-10-05', items: [{ icon: 'agent' }] })
   })
+
+  it('keeps What\'s new closed when arriving from the #agents link, so the dialogs don\'t stack', async () => {
+    rememberMia()
+    localStorage.setItem(CHANGELOG_SEEN_STORAGE_KEY, '2026-09-ui-polish')
+    window.history.replaceState(null, '', '/#agents')
+    render(<App liveActivityClient={null} />)
+    expect(await screen.findByRole('heading', { name: GENERAL_TITLE })).toBeInTheDocument()
+    // What's new loads lazily, so give it time to appear before checking it stayed closed.
+    await expect(screen.findByRole('dialog', { name: 'What’s new in Tally' }, { timeout: 600 })).rejects.toThrow()
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    expect(screen.getByLabelText('New updates')).toBeInTheDocument()
+  })
 })

@@ -2,7 +2,7 @@
 
 Status: **step 1, published on npm as [`tally-splitbill-mcp`](../packages/tally-splitbill-mcp/README.md) 0.1.0.**
 - **Built:** the tools and flows marked in [Prototype status](#prototype-status), and the npm package. CI packs it for publishing; see [Releasing the npm package](#releasing-the-npm-package).
-- **Not yet:** shown on the website. The npm README is the user guide for now.
+- **In the app:** the experimental **Use with AI agents** guide, from the sidebar, a Live activity's Share menu, or `https://pengfanz.github.io/splitbill/#agents`.
 
 The package is named `tally-splitbill-mcp` because `tally-mcp` on npm is an unrelated Tally Forms server.
 
@@ -18,7 +18,7 @@ An MCP server lets people use coding agents to work with Tally from the terminal
 | npm package `tally-splitbill-mcp` with its README, packed by CI from production settings | Built |
 | Approval screen at `#agent-link=` in the web app (English and Chinese) | Built |
 | Server instructions from `src/features/mcp/agentGuide.ts` | Built |
-| **Use with AI agents** dialog and its What's new entry, as an experimental feature | Designed; see [the dialog](#for-people-the-use-with-ai-agents-dialog) |
+| **Use with AI agents** dialog and its What's new entry, as an experimental feature | Built; see [the dialog](#for-people-the-use-with-ai-agents-dialog) |
 | `llms.txt` | Later, for a public launch |
 
 **Tested against the local Supabase stack** (`npm run backend:start`), with the bundle and the dev app:
@@ -51,7 +51,7 @@ codex mcp add tally -- node "$PWD/packages/tally-splitbill-mcp/dist/tally-splitb
 
 **Code layout:**
 - **Node-only:** `bin.ts`, `cli.ts`, `mcpServer.ts`, `mcpPrompts.ts`, `agentLinkServer.ts`, `credentialStore.ts`, `linkActivities.ts` and `releaseBuild.ts`. Nothing in the web app may import them.
-- **Shared with the browser:** `agentLinkProtocol.ts`, `linkableActivities.ts` and `AgentLinkApproval.tsx`.
+- **Shared with the browser:** `agentLinkProtocol.ts`, `linkableActivities.ts`, `AgentLinkApproval.tsx`, `AgentGuideModal.tsx`, `agentGuideState.ts` and `agentGuide.ts`.
 - **Package:** `packages/tally-splitbill-mcp/` holds `package.json` (the one version number, which the server reports), the README shown on npm, and the license. The build writes `dist/` there.
 
 ### Releasing the npm package
@@ -231,7 +231,7 @@ Two audiences need help: **people** setting up their agent, and **agents** decid
 
 ### For people: the "Use with AI agents" dialog
 
-**Status:** approved design, shipping as an **experimental** feature. The mockups are in the Tally MCP design canvas (artboards "Sidebar entry and #agents link", "Share menu: new entry", "Use with your agent (from a Live activity)" and "Phone"). This section describes what ships, which differs from the canvas where noted.
+**Status:** built and shipped as an **experimental** feature. The mockups are in the Tally MCP design canvas (artboards "Sidebar entry and #agents link", "Share menu: new entry", "Use with your agent (from a Live activity)" and "Phone"). This section describes what ships, which differs from the canvas where noted.
 
 **Experimental marking:**
 - Both entry points carry an **Experimental** tag in the pill style the mockups use for "NEW".

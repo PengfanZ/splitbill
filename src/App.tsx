@@ -113,7 +113,8 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
   const [activityIdentities, setActivityIdentities] = useActivityIdentitySelections()
   const [changelogState, setChangelogState] = useState(() => {
     const seen = hasSeenLatestChangelog()
-    return { open: Boolean(identity) && !seen, unread: !seen }
+    // Arriving through the #agents link opens the agent guide instead; the unread dot still points to What's new.
+    return { open: Boolean(identity) && !seen && !isAgentGuideHash(window.location.hash), unread: !seen }
   })
   const { locale, t } = useLocalization()
   const [query, setQuery] = useState('')
