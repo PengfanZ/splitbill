@@ -96,17 +96,21 @@ afterEach(async () => {
 })
 
 describe('Tally MCP server', () => {
-  it('tells agents the rules and offers the prototype tools with honest hints', async () => {
+  it('tells agents the rules and offers every tool with honest hints', async () => {
     const { mcp } = await connect()
     expect(mcp.getInstructions()).toBe(MCP_SERVER_INSTRUCTIONS)
     const { tools } = await mcp.listTools()
-    expect(tools.map(tool => [tool.name, tool.annotations?.readOnlyHint])).toEqual([
-      ['list_activities', true],
-      ['get_activity', true],
-      ['add_expenses', false],
-      ['create_activity', false],
-      ['get_share_link', true],
-      ['link_activities', false],
+    expect(tools.map(tool => [tool.name, tool.annotations?.readOnlyHint, tool.annotations?.destructiveHint])).toEqual([
+      ['list_activities', true, undefined],
+      ['get_activity', true, undefined],
+      ['add_expenses', false, false],
+      ['record_settlement', false, false],
+      ['add_members', false, false],
+      ['update_expense', false, false],
+      ['delete_expense', false, true],
+      ['create_activity', false, false],
+      ['get_share_link', true, undefined],
+      ['link_activities', false, false],
     ])
   })
 
@@ -197,7 +201,7 @@ describe('Tally MCP server', () => {
       expect(live.update.mock.calls[0][2]).toBe(4)
       expect(live.rows.get(TOKYO_CODE)!.revision).toBe(5)
       expect(data.saved).toEqual([{
-        id: 'expense-1', date: '2026-09-20', title: 'Ichiran ramen', amount: 3960, kind: 'expense', paidBy: 'Mia', category: 'General',
+        id: 'expense-1', version: '2026-09-20T12:00:00.000Z', date: '2026-09-20', title: 'Ichiran ramen', amount: 3960, kind: 'expense', paidBy: 'Mia', category: 'General',
         split: [{ member: 'Mia', amount: 1320 }, { member: 'Leo', amount: 1320 }, { member: 'Sam', amount: 1320 }],
       }])
       expect(data.skipped).toEqual([expect.objectContaining({ title: 'Suica top-up', reason: 'Looks like "Suica top-up" from 2026-09-20, already in Tally.' })])
@@ -251,6 +255,132 @@ describe('Tally MCP server', () => {
         expect((await call('add_expenses', { activity: 'Tokyo trip', expenses: [ramen] })).text).toContain(message)
       }
       expect(live.rows.get(TOKYO_CODE)!.revision).toBe(4)
+    })
+  })
+
+  describe('record_settlement', () => {
+    it('records a payment and reports how balances moved', async () => {
+      const { call, live } = await connect()
+      const { data } = await call('record_settlement', { activity: 'Tokyo trip', from: 'Leo', to: 'Mia', amount: 1000, date: '2026-09-25' })
+      expect(data.saved).toMatchObject({ id: 'payment-1', kind: 'settlement', title: 'Settlement payment', amount: 1000, paidBy: 'Leo', date: '2026-09-25', split: [{ member: 'Mia', amount: 1000 }] })
+      expect(data.balanceChanges).toEqual([{ member: 'Mia', change: -1000 }, { member: 'Leo', change: 1000 }])
+      expect(data).toMatchObject({ activity: 'Tokyo trip', you: 'Leo' })
+      expect(live.rows.get(TOKYO_CODE)!.snapshot.expenses.map(expense => expense.id)).toEqual(['payment-1', 'expense-suica'])
+    })
+
+    it('refuses a payment larger than the debt without saving', async () => {
+      const { call, live } = await connect()
+      expect((await call('record_settlement', { activity: 'Tokyo trip', from: 'Leo', to: 'Mia', amount: 5000 })).text).toBe('Leo owes 1666.67 in Tokyo trip, less than 5000.')
+      expect(live.update).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('add_members', () => {
+    it('adds new friends and restores removed ones in one change', async () => {
+      const { call, live } = await connect()
+      const { data } = await call('add_members', { activity: 'Tokyo trip', names: ['Kenji', 'ana', 'Leo'] })
+      expect(data).toEqual({
+        activity: 'Tokyo trip',
+        added: ['Kenji'],
+        restored: ['Ana'],
+        alreadyIn: ['Leo'],
+        members: ['Mia', 'Leo', 'Sam', 'Ana', 'Kenji'],
+      })
+      const snapshot = live.rows.get(TOKYO_CODE)!.snapshot
+      expect(snapshot.friends.at(-1)).toMatchObject({ id: 'friend-1', name: 'Kenji' })
+      expect(snapshot.group.inactiveMemberIds).toEqual([])
+    })
+
+    it('does not save when everyone named is already in the activity, or a name is unusable', async () => {
+      const { call, live } = await connect()
+      expect((await call('add_members', { activity: 'Tokyo trip', names: ['Mia'] })).data.alreadyIn).toEqual(['Mia'])
+      expect((await call('add_members', { activity: 'Tokyo trip', names: [' '] })).text).toBe('Give at least one name.')
+      expect(live.update).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('update_expense and delete_expense', () => {
+    const version = '2026-09-20T03:00:00.000Z'
+
+    it('changes one expense using the version the agent read', async () => {
+      const { call, live } = await connect()
+      const read = (await call('get_activity', { activity: 'Tokyo trip' })).data.expenses.items[0]
+      expect(read).toMatchObject({ id: 'expense-suica', version })
+      const { data } = await call('update_expense', { activity: 'Tokyo trip', expenseId: read.id, version: read.version, amount: 6000 })
+      expect(data.before).toMatchObject({ amount: 5000, version })
+      expect(data.after).toMatchObject({ amount: 6000, version: '2026-10-04T09:30:00.000Z', split: [{ member: 'Mia', amount: 2000 }, { member: 'Leo', amount: 2000 }, { member: 'Sam', amount: 2000 }] })
+      expect(data.balanceChanges).toEqual([{ member: 'Mia', change: 666.67 }, { member: 'Leo', change: -333.33 }, { member: 'Sam', change: -333.34 }])
+      expect(live.rows.get(TOKYO_CODE)!.revision).toBe(5)
+    })
+
+    it('reapplies an edit when someone else changed a different expense first', async () => {
+      const { call, live } = await connect()
+      const update = live.update.getMockImplementation()!
+      live.update.mockImplementationOnce(async (credentials, snapshot, revision) => {
+        const row = live.rows.get(TOKYO_CODE)!
+        row.snapshot = tokyoActivity([tokyoExpense({ id: 'taxi', title: 'Taxi', createdAt: '2026-09-23T03:00:00.000Z' }), ...row.snapshot.expenses])
+        row.revision += 1
+        return update(credentials, snapshot, revision)
+      })
+      expect((await call('update_expense', { activity: 'Tokyo trip', expenseId: 'expense-suica', version, title: 'Suica card' })).isError).toBe(false)
+      expect(live.rows.get(TOKYO_CODE)!.snapshot.expenses.map(expense => expense.title)).toEqual(['Taxi', 'Suica card'])
+    })
+
+    it('saves nothing when someone else changed the same expense first', async () => {
+      const { call, live } = await connect()
+      const update = live.update.getMockImplementation()!
+      live.update.mockImplementationOnce(async (credentials, snapshot, revision) => {
+        const row = live.rows.get(TOKYO_CODE)!
+        row.snapshot = tokyoActivity([tokyoExpense({ title: 'Suica (fixed by Sam)', updatedAt: '2026-10-04T09:00:00.000Z' })])
+        row.revision += 1
+        return update(credentials, snapshot, revision)
+      })
+      const result = await call('update_expense', { activity: 'Tokyo trip', expenseId: 'expense-suica', version, title: 'Suica card' })
+      expect(result.isError).toBe(true)
+      expect(result.text).toContain('"Suica (fixed by Sam)" changed since you read it')
+      expect(live.rows.get(TOKYO_CODE)!.snapshot.expenses[0].title).toBe('Suica (fixed by Sam)')
+    })
+
+    it('deletes one expense and reports how balances moved', async () => {
+      const { call, live } = await connect()
+      const { data } = await call('delete_expense', { activity: 'Tokyo trip', expenseId: 'expense-suica', version })
+      expect(data.deleted).toMatchObject({ title: 'Suica top-up', amount: 5000 })
+      expect(data.balanceChanges).toEqual([{ member: 'Mia', change: -3333.33 }, { member: 'Leo', change: 1666.67 }, { member: 'Sam', change: 1666.66 }])
+      expect(live.rows.get(TOKYO_CODE)!.snapshot.expenses).toEqual([])
+      expect((await call('delete_expense', { activity: 'Tokyo trip', expenseId: 'expense-suica', version })).text).toContain('No expense with id "expense-suica"')
+    })
+  })
+
+  describe('prompts', () => {
+    it('offers the three workflows, filled in with what the user gave', async () => {
+      const { mcp } = await connect()
+      const { prompts } = await mcp.listPrompts()
+      expect(prompts.map(prompt => [prompt.name, prompt.arguments?.map(argument => [argument.name, argument.required])])).toEqual([
+        ['import-transactions', [['file', true], ['activity', false]]],
+        ['plan-a-trip', [['name', true], ['people', false], ['currency', false]]],
+        ['settle-up', [['activity', true]]],
+      ])
+      const text = async (name: string, args: Record<string, string>) => {
+        const { messages } = await mcp.getPrompt({ name, arguments: args })
+        return (messages[0].content as { text: string }).text
+      }
+      expect(await text('import-transactions', { file: '~/Downloads/statement.csv', activity: 'Tokyo trip' })).toMatch(/~\/Downloads\/statement\.csv[\s\S]*Tokyo trip/)
+      expect(await text('import-transactions', { file: 'a.csv' })).toContain('ask me which activity')
+      expect(await text('plan-a-trip', { name: 'Ski weekend', people: 'Leo, Sam', currency: 'CAD' })).toMatch(/Ski weekend[\s\S]*Leo, Sam[\s\S]*CAD/)
+      expect(await text('plan-a-trip', { name: 'Ski weekend' })).toContain('who is coming')
+      expect(await text('settle-up', { activity: 'Tokyo trip' })).toContain('Tokyo trip')
+    })
+
+    it('only points agents at tools the server offers', async () => {
+      const { mcp } = await connect()
+      const toolNames = new Set((await mcp.listTools()).tools.map(tool => tool.name))
+      const args = { 'import-transactions': { file: 'a.csv' }, 'plan-a-trip': { name: 'Trip' }, 'settle-up': { activity: 'Trip' } }
+      for (const [name, promptArgs] of Object.entries(args)) {
+        const { messages } = await mcp.getPrompt({ name, arguments: promptArgs })
+        const mentioned = (messages[0].content as { text: string }).text.match(/\b[a-z]+(?:_[a-z]+)+\b/g) ?? []
+        expect(mentioned.length).toBeGreaterThan(0)
+        for (const tool of mentioned) expect(toolNames, `${name} mentions ${tool}`).toContain(tool)
+      }
     })
   })
 

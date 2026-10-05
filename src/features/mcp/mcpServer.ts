@@ -5,7 +5,8 @@ import { DEFAULT_CATEGORIES, GENERAL_CATEGORY } from '../../domain/categories'
 import { makeId as makeRandomId } from '../../domain/members'
 import { LiveActivityApiError, type LiveActivityRecord } from '../liveSharing/liveActivityApi'
 import type { LiveActivityClient } from '../liveSharing/liveActivityConfig'
-import { buildLiveActivityUrl } from '../liveSharing/liveActivityLink'
+import { buildLiveActivityUrl, type LiveActivityCredentials } from '../liveSharing/liveActivityLink'
+import type { SharedActivity } from '../sharing/sharedActivity'
 import { MCP_SERVER_INSTRUCTIONS } from './agentGuide'
 import { agentClientFromName } from './agentLinkProtocol'
 import { startAgentLinkSession, type AgentLinkSession } from './agentLinkServer'
@@ -19,8 +20,13 @@ import {
   describeExpense,
   McpToolError,
   planExpenseAdditions,
+  planExpenseDeletion,
+  planExpenseUpdate,
+  planMemberAdditions,
+  planSettlement,
   type ExpenseInput,
 } from './mcpActivity'
+import { MCP_PROMPTS } from './mcpPrompts'
 
 export const MCP_SERVER_VERSION = '0.1.0'
 const SAVE_ATTEMPTS = 3
@@ -39,10 +45,17 @@ export type TallyMcpDependencies = {
 
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('A date as YYYY-MM-DD.')
 const activitySchema = z.string().min(1).describe('The activity\'s name or 10-character code, from list_activities.')
+const expenseIdSchema = z.string().min(1).describe('The expense id from get_activity.')
+const versionSchema = z.string().min(1).describe('The expense version from get_activity, so changes made since are never overwritten.')
+const titleSchema = z.string().describe('What it was for, in the user\'s words.')
+const amountSchema = z.number().describe('The total, in the activity\'s currency, with at most two decimals.')
+const payerSchema = z.string().describe('Who paid: a member name or id from get_activity.')
+const categorySchema = z.string().describe('A category name from get_activity. Omit for General.')
+const expenseDateSchema = z.string().describe('When it happened, as YYYY-MM-DD. Omit for now.')
 const expenseSchema = z.object({
-  title: z.string().describe('What it was for, in the user\'s words.'),
-  amount: z.number().describe('The total, in the activity\'s currency, with at most two decimals.'),
-  payer: z.string().describe('Who paid: a member name or id from get_activity.'),
+  title: titleSchema,
+  amount: amountSchema,
+  payer: payerSchema,
   split: z.discriminatedUnion('method', [
     z.object({
       method: z.literal('equal'),
@@ -53,8 +66,8 @@ const expenseSchema = z.object({
       shares: z.record(z.string(), z.number()).describe('Member name or id to the amount they owe. Must add up to the total.'),
     }),
   ]),
-  category: z.string().optional().describe('A category name from get_activity. Omit for General.'),
-  date: z.string().optional().describe('When it happened, as YYYY-MM-DD. Omit for now.'),
+  category: categorySchema.optional(),
+  date: expenseDateSchema.optional(),
 })
 
 type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean }
@@ -112,6 +125,38 @@ export function createTallyMcpServer({
   const viewerFor = (activity: LinkedActivity, record: LiveActivityRecord) => (
     activityMembers(record.snapshot).some(member => member.id === activity.memberId) ? activity.memberId : 'me'
   )
+
+  const viewerName = (activity: LinkedActivity, record: LiveActivityRecord) => {
+    const viewerId = viewerFor(activity, record)
+    return activityMembers(record.snapshot).find(member => member.id === viewerId)?.name
+  }
+
+  /** Plans a change on the latest version and saves it. A plan of `null` saves nothing. */
+  const saveChange = async <T extends { activity: SharedActivity | null }>(
+    credentials: LiveActivityCredentials,
+    plan: (snapshot: SharedActivity) => T,
+  ) => {
+    let record = await client.load(credentials)
+    for (let attempt = 1; ; attempt += 1) {
+      const before = record.snapshot
+      const planned = plan(before)
+      if (planned.activity) {
+        try {
+          record = await client.update(credentials, planned.activity, record.revision)
+        } catch (error) {
+          // Plans touch only what the agent asked for and re-check it, so rebuilding one on the newer version
+          // never overwrites anyone's work: additions are re-applied, and edits stop if their expense changed.
+          if (error instanceof LiveActivityApiError && error.latestRecord && attempt < SAVE_ATTEMPTS
+            && (error.kind === 'conflict' || error.kind === 'membership-changed')) {
+            record = error.latestRecord
+            continue
+          }
+          throw error
+        }
+      }
+      return { record, before, planned }
+    }
+  }
 
   server.registerTool('list_activities', {
     title: 'List linked Tally activities',
@@ -199,43 +244,147 @@ export function createTallyMcpServer({
     try {
       const activity = await findLinked(reference)
       name = activity.name
-      const credentials = credentialsOf(activity)
-      let record = await client.load(credentials)
-      for (let attempt = 1; ; attempt += 1) {
-        const plan = planExpenseAdditions(record.snapshot, expenses as ExpenseInput[], {
+      const { record, before, planned } = await saveChange(credentialsOf(activity), snapshot => {
+        const plan = planExpenseAdditions(snapshot, expenses as ExpenseInput[], {
           allowDuplicates,
           now: now(),
           makeId: () => makeId('expense'),
         })
-        const before = record.snapshot
-        if (plan.saved.length) {
-          try {
-            record = await client.update(credentials, plan.activity, record.revision)
-          } catch (error) {
-            // Additions never overwrite anyone's work, so rebuild them on the newer version and try again.
-            if (error instanceof LiveActivityApiError && error.latestRecord && attempt < SAVE_ATTEMPTS
-              && (error.kind === 'conflict' || error.kind === 'membership-changed')) {
-              record = error.latestRecord
-              continue
-            }
-            throw error
-          }
-        }
-        const viewerId = viewerFor(activity, record)
-        const viewerName = activityMembers(record.snapshot).find(member => member.id === viewerId)?.name
-        return reply({
-          activity: record.snapshot.group.name,
-          currency: describeActivity(record.snapshot, viewerId).currency,
-          saved: plan.saved.map(expense => describeExpense(record.snapshot, expense)),
-          skipped: plan.skipped.map(({ expense, duplicateOf }) => ({
-            ...describeExpense(plan.activity, expense),
-            reason: `Looks like "${duplicateOf.title}" from ${duplicateOf.createdAt.slice(0, 10)}, already in Tally.`,
-          })),
-          balanceChanges: balanceChanges(before, record.snapshot),
-          you: viewerName,
-          next: 'Recap the saved and skipped expenses for the user so they can review them in Tally.',
-        })
-      }
+        return { ...plan, preview: plan.activity, activity: plan.saved.length ? plan.activity : null }
+      })
+      return reply({
+        activity: record.snapshot.group.name,
+        currency: describeActivity(record.snapshot, viewerFor(activity, record)).currency,
+        saved: planned.saved.map(expense => describeExpense(record.snapshot, expense)),
+        skipped: planned.skipped.map(({ expense, duplicateOf }) => ({
+          ...describeExpense(planned.preview, expense),
+          reason: `Looks like "${duplicateOf.title}" from ${duplicateOf.createdAt.slice(0, 10)}, already in Tally.`,
+        })),
+        balanceChanges: balanceChanges(before, record.snapshot),
+        you: viewerName(activity, record),
+        next: 'Recap the saved and skipped expenses for the user so they can review them in Tally.',
+      })
+    } catch (error) {
+      return failure(error, name)
+    }
+  })
+
+  server.registerTool('record_settlement', {
+    title: 'Record a payment between people',
+    description: 'Records that one person paid another back, such as Leo paying Mia, as a settlement payment. The amount can\'t exceed what the payer owes or what the recipient is owed; get_activity shows balances and suggested payments. Record only payments the user says were made.',
+    inputSchema: {
+      activity: activitySchema,
+      from: z.string().describe('Who paid: a member name or id.'),
+      to: z.string().describe('Who received the money: a member name or id.'),
+      amount: z.number().describe('How much, in the activity\'s currency, with at most two decimals.'),
+      date: expenseDateSchema.optional(),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+  }, async ({ activity: reference, from, to, amount, date }) => {
+    let name: string | undefined
+    try {
+      const activity = await findLinked(reference)
+      name = activity.name
+      const { record, before, planned } = await saveChange(credentialsOf(activity), snapshot => (
+        planSettlement(snapshot, { from, to, amount, date }, makeId('payment'), now())
+      ))
+      return reply({
+        activity: record.snapshot.group.name,
+        saved: describeExpense(record.snapshot, planned.saved),
+        balanceChanges: balanceChanges(before, record.snapshot),
+        you: viewerName(activity, record),
+        next: 'Tell the user which payment was recorded and how the balances moved.',
+      })
+    } catch (error) {
+      return failure(error, name)
+    }
+  })
+
+  server.registerTool('add_members', {
+    title: 'Add people to a Tally activity',
+    description: 'Adds friends to a linked activity by name. Someone who was removed comes back instead of being added twice, and names already in the activity are left alone.',
+    inputSchema: {
+      activity: activitySchema,
+      names: z.array(z.string()).min(1).max(100).describe('Friends\' names.'),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+  }, async ({ activity: reference, names }) => {
+    let name: string | undefined
+    try {
+      const activity = await findLinked(reference)
+      name = activity.name
+      const { record, planned } = await saveChange(credentialsOf(activity), snapshot => {
+        const plan = planMemberAdditions(snapshot, names, makeId)
+        return { ...plan, activity: plan.added.length || plan.restored.length ? plan.activity : null }
+      })
+      return reply({
+        activity: record.snapshot.group.name,
+        added: planned.added,
+        restored: planned.restored,
+        alreadyIn: planned.alreadyIn,
+        members: describeActivity(record.snapshot, viewerFor(activity, record)).members.filter(member => member.active).map(member => member.name),
+      })
+    } catch (error) {
+      return failure(error, name)
+    }
+  })
+
+  server.registerTool('update_expense', {
+    title: 'Change an expense',
+    description: 'Changes one expense, only in the ways the user asked. Pass its id and version from get_activity; if someone changed it since, nothing is saved and you get the current version to show the user. A new amount is split again between the same people, except for exact splits, which need the new split too.',
+    inputSchema: {
+      activity: activitySchema,
+      expenseId: expenseIdSchema,
+      version: versionSchema,
+      title: titleSchema.optional(),
+      amount: amountSchema.optional(),
+      payer: payerSchema.optional(),
+      split: expenseSchema.shape.split.optional(),
+      category: categorySchema.optional(),
+      date: expenseDateSchema.optional(),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+  }, async ({ activity: reference, expenseId, version, ...changes }) => {
+    let name: string | undefined
+    try {
+      const activity = await findLinked(reference)
+      name = activity.name
+      const { record, before, planned } = await saveChange(credentialsOf(activity), snapshot => (
+        planExpenseUpdate(snapshot, expenseId, version, changes, now())
+      ))
+      return reply({
+        activity: record.snapshot.group.name,
+        before: describeExpense(before, planned.before),
+        after: describeExpense(record.snapshot, planned.after),
+        balanceChanges: balanceChanges(before, record.snapshot),
+        next: 'Tell the user what changed so they can check it in Tally.',
+      })
+    } catch (error) {
+      return failure(error, name)
+    }
+  })
+
+  server.registerTool('delete_expense', {
+    title: 'Delete an expense',
+    description: 'Deletes one expense or payment. Only call it when the user asked to delete that specific item; there is no bulk delete. Pass its id and version from get_activity; if someone changed it since, nothing is deleted.',
+    inputSchema: {
+      activity: activitySchema,
+      expenseId: expenseIdSchema,
+      version: versionSchema,
+    },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+  }, async ({ activity: reference, expenseId, version }) => {
+    let name: string | undefined
+    try {
+      const activity = await findLinked(reference)
+      name = activity.name
+      const { record, before, planned } = await saveChange(credentialsOf(activity), snapshot => planExpenseDeletion(snapshot, expenseId, version))
+      return reply({
+        activity: record.snapshot.group.name,
+        deleted: describeExpense(before, planned.deleted),
+        balanceChanges: balanceChanges(before, record.snapshot),
+        next: 'Tell the user what was deleted. It can be added again if this was a mistake.',
+      })
     } catch (error) {
       return failure(error, name)
     }
@@ -338,6 +487,12 @@ export function createTallyMcpServer({
       return failure(error)
     }
   })
+
+  const promptReply = (text: string) => ({ messages: [{ role: 'user' as const, content: { type: 'text' as const, text } }] })
+  const { 'import-transactions': importTransactions, 'plan-a-trip': planATrip, 'settle-up': settleUp } = MCP_PROMPTS
+  server.registerPrompt('import-transactions', importTransactions, args => promptReply(importTransactions.text(args)))
+  server.registerPrompt('plan-a-trip', planATrip, args => promptReply(planATrip.text(args)))
+  server.registerPrompt('settle-up', settleUp, args => promptReply(settleUp.text(args)))
 
   return server
 }

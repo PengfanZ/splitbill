@@ -4,12 +4,16 @@ import { tokyoActivity, tokyoExpense } from '../../test/mcpFixtures'
 import {
   balanceChanges,
   buildExpense,
+  buildSettlement,
   createActivitySnapshot,
   describeActivity,
   describeExpense,
   findDuplicate,
   McpToolError,
   planExpenseAdditions,
+  planExpenseDeletion,
+  planExpenseUpdate,
+  planMemberAdditions,
   resolveMember,
   type ExpenseInput,
 } from './mcpActivity'
@@ -259,5 +263,153 @@ describe('createActivitySnapshot', () => {
     expect(() => createActivitySnapshot({ ...base, creatorName: '' }, ids())).toThrow('Your name')
     expect(() => createActivitySnapshot({ ...base, memberNames: ['x'.repeat(121)] }, ids())).toThrow('at most 120')
     expect(() => createActivitySnapshot({ ...base, emoji: 'x'.repeat(17) }, ids())).toThrow('not valid')
+  })
+})
+
+describe('expense versions', () => {
+  it('uses the last edit time, or the creation time for an expense never edited', () => {
+    const activity = tokyoActivity()
+    expect(describeExpense(activity, tokyoExpense()).version).toBe('2026-09-20T03:00:00.000Z')
+    expect(describeExpense(activity, tokyoExpense({ updatedAt: '2026-09-25T08:00:00.000Z' })).version).toBe('2026-09-25T08:00:00.000Z')
+  })
+})
+
+describe('buildSettlement', () => {
+  it('records a payment the same way the app does', () => {
+    expect(buildSettlement(tokyoActivity(), { from: 'Leo', to: 'mia', amount: 1000, date: '2026-09-21' }, 'payment-1', now)).toEqual({
+      id: 'payment-1',
+      groupId: 'group-tokyo',
+      title: 'Settlement payment',
+      amount: 1000,
+      payerId: 'friend-leo',
+      splitMethod: 'exact',
+      shares: { me: 1000 },
+      createdAt: '2026-09-21T12:00:00.000Z',
+      kind: 'settlement',
+    })
+    expect(buildSettlement(tokyoActivity(), { from: 'Sam', to: 'Mia', amount: 1666.66 }, 'payment-2', now).createdAt).toBe(now.toISOString())
+  })
+
+  it('lets a removed friend settle what they still owe', () => {
+    const activity = tokyoActivity([tokyoExpense({ id: 'dinner', title: 'Dinner', amount: 3000, shares: { me: 1500, 'friend-ana': 1500 } })])
+    expect(buildSettlement(activity, { from: 'Ana', to: 'Mia', amount: 1500 }, 'payment-1', now)).toMatchObject({ payerId: 'friend-ana', shares: { me: 1500 } })
+  })
+
+  it('refuses payments that do not match who owes whom', () => {
+    const activity = tokyoActivity()
+    const settle = (from: string, to: string, amount: number) => () => buildSettlement(activity, { from, to, amount }, 'payment-1', now)
+    expect(settle('Leo', 'Leo', 100)).toThrow('A payment needs two different people.')
+    expect(settle('Mia', 'Leo', 100)).toThrow("Mia doesn't owe anything in Tokyo trip.")
+    expect(settle('Leo', 'Sam', 100)).toThrow("Sam isn't owed anything in Tokyo trip.")
+    expect(settle('Leo', 'Mia', 1666.68)).toThrow('Leo owes 1666.67 in Tokyo trip, less than 1666.68.')
+    expect(settle('Leo', 'Mia', 0)).toThrow('must be above 0')
+    expect(settle('Leo', 'Mia', 1.234)).toThrow('at most two decimal places')
+
+    // Sam owes 1300 overall, but Leo is owed only 300 of it.
+    const twoLenders = tokyoActivity([
+      tokyoExpense({ id: 'tickets', payerId: 'friend-leo', amount: 300, shares: { 'friend-sam': 300 } }),
+      tokyoExpense({ id: 'hotel', amount: 1000, shares: { 'friend-sam': 1000 } }),
+    ])
+    expect(() => buildSettlement(twoLenders, { from: 'Sam', to: 'Leo', amount: 500 }, 'payment-1', now)).toThrow('Leo is owed 300 in Tokyo trip, less than 500.')
+  })
+})
+
+describe('planMemberAdditions', () => {
+  function friendIds() {
+    let next = 0
+    return (prefix: string) => `${prefix}-agent-${++next}`
+  }
+
+  it('adds new friends, restores removed ones and reports who was already there', () => {
+    const plan = planMemberAdditions(tokyoActivity(), ['Kenji', ' ana ', 'leo', 'kenji', 'Yui'], friendIds())
+    expect(plan.added).toEqual(['Kenji', 'Yui'])
+    expect(plan.restored).toEqual(['Ana'])
+    expect(plan.alreadyIn).toEqual(['Leo'])
+    expect(plan.activity.friends.slice(3)).toEqual([
+      { id: 'friend-agent-1', name: 'Kenji', initials: 'K', color: '#f3d9da' },
+      { id: 'friend-agent-2', name: 'Yui', initials: 'Y', color: '#d7e6ee' },
+    ])
+    expect(plan.activity.group.memberIds).toEqual(['me', 'friend-leo', 'friend-sam', 'friend-ana', 'friend-agent-1', 'friend-agent-2'])
+    // Live saves must keep the list once it exists, even when it is empty.
+    expect(plan.activity.group.inactiveMemberIds).toEqual([])
+    expect(isSharedActivity(plan.activity)).toBe(true)
+  })
+
+  it('leaves the activity untouched when everyone is already in it', () => {
+    const activity = tokyoActivity()
+    const plan = planMemberAdditions(activity, ['Mia', 'Sam'], friendIds())
+    expect(plan).toEqual({ activity, added: [], restored: [], alreadyIn: ['Mia', 'Sam'] })
+  })
+
+  it('refuses names Tally cannot store', () => {
+    expect(() => planMemberAdditions(tokyoActivity(), [' '], friendIds())).toThrow('Give at least one name.')
+    expect(() => planMemberAdditions(tokyoActivity(), ['x'.repeat(121)], friendIds())).toThrow('at most 120 characters')
+    const crowd = Array.from({ length: 98 }, (_, index) => `Friend ${index}`)
+    expect(() => planMemberAdditions(tokyoActivity(), crowd, friendIds())).toThrow("Tokyo trip would exceed Tally's size limits with these people.")
+  })
+})
+
+describe('planExpenseUpdate', () => {
+  const version = '2026-09-20T03:00:00.000Z'
+
+  it('re-splits a new amount between the same people and keeps everything else', () => {
+    const plan = planExpenseUpdate(tokyoActivity(), 'expense-suica', version, { amount: 6000 }, now)
+    expect(plan.before).toEqual(tokyoExpense())
+    expect(plan.after).toEqual(tokyoExpense({ amount: 6000, shares: { me: 2000, 'friend-leo': 2000, 'friend-sam': 2000 }, updatedAt: now.toISOString() }))
+    expect(plan.activity.expenses).toEqual([plan.after])
+  })
+
+  it('changes the title, payer, day and category without touching the split', () => {
+    const { after } = planExpenseUpdate(tokyoActivity(), 'expense-suica', version, { title: ' Suica card ', payer: 'Leo', date: '2026-09-21', category: 'general' }, now)
+    expect(after).toEqual(tokyoExpense({ title: 'Suica card', payerId: 'friend-leo', createdAt: '2026-09-21T12:00:00.000Z', categoryId: null, updatedAt: now.toISOString() }))
+  })
+
+  it('replaces the split when a new one is given', () => {
+    const { after } = planExpenseUpdate(tokyoActivity(), 'expense-suica', version, { split: { method: 'exact', shares: { Mia: 2500, Leo: 2500 } } }, now)
+    expect(after).toMatchObject({ amount: 5000, splitMethod: 'exact', shares: { me: 2500, 'friend-leo': 2500 } })
+  })
+
+  it('keeps removed friends on expenses they were already part of, but adds no new ones', () => {
+    const dinner = tokyoExpense({ id: 'dinner', title: 'Dinner', amount: 3000, payerId: 'friend-ana', shares: { me: 1500, 'friend-ana': 1500 } })
+    const { after } = planExpenseUpdate(tokyoActivity([dinner]), 'dinner', version, { amount: 3200 }, now)
+    expect(after).toMatchObject({ payerId: 'friend-ana', shares: { me: 1600, 'friend-ana': 1600 } })
+    expect(() => planExpenseUpdate(tokyoActivity(), 'expense-suica', version, { split: { method: 'equal', participants: ['Mia', 'Ana'] } }, now))
+      .toThrow('Ana was removed from Tokyo trip')
+  })
+
+  it('refuses edits it cannot apply safely', () => {
+    const edit = (activity: ReturnType<typeof tokyoActivity>, id: string, changes: Parameters<typeof planExpenseUpdate>[3], expected = version) => () => planExpenseUpdate(activity, id, expected, changes, now)
+    expect(edit(tokyoActivity(), 'expense-suica', {})).toThrow('Say what to change.')
+    expect(edit(tokyoActivity(), 'nope', { amount: 1 })).toThrow('No expense with id "nope" in Tokyo trip')
+    expect(edit(tokyoActivity(), 'expense-suica', { title: ' ' })).toThrow('title of 1 to 200 characters')
+    const exact = tokyoActivity([tokyoExpense({ splitMethod: 'exact', shares: { me: 4000, 'friend-leo': 1000 } })])
+    expect(edit(exact, 'expense-suica', { amount: 6000 })).toThrow('"Suica top-up" has an exact split, so give the new split along with the new amount.')
+    const payment = tokyoActivity([tokyoExpense({ title: 'Settlement payment', kind: 'settlement', payerId: 'friend-leo', splitMethod: 'exact', shares: { me: 1000 }, amount: 1000 })])
+    expect(edit(payment, 'expense-suica', { amount: 500 })).toThrow('record_settlement')
+  })
+
+  it('saves nothing when the expense changed since the agent read it, and shows the current version', () => {
+    const edited = tokyoActivity([tokyoExpense({ title: 'Suica (edited)', updatedAt: '2026-09-25T08:00:00.000Z' })])
+    let message = ''
+    try {
+      planExpenseUpdate(edited, 'expense-suica', version, { amount: 6000 }, now)
+    } catch (error) {
+      expect(error).toBeInstanceOf(McpToolError)
+      message = (error as Error).message
+    }
+    expect(message).toContain('"Suica (edited)" changed since you read it, so nothing was saved.')
+    expect(message).toContain('"version":"2026-09-25T08:00:00.000Z"')
+    expect(planExpenseUpdate(edited, 'expense-suica', '2026-09-25T08:00:00.000Z', { amount: 6000 }, now).after.amount).toBe(6000)
+  })
+})
+
+describe('planExpenseDeletion', () => {
+  it('removes only the named expense, when it has not changed', () => {
+    const keep = tokyoExpense({ id: 'keep', title: 'Taxi' })
+    const plan = planExpenseDeletion(tokyoActivity([keep, tokyoExpense()]), 'expense-suica', '2026-09-20T03:00:00.000Z')
+    expect(plan.deleted).toEqual(tokyoExpense())
+    expect(plan.activity.expenses).toEqual([keep])
+    expect(() => planExpenseDeletion(tokyoActivity(), 'expense-suica', '2026-09-19T00:00:00.000Z')).toThrow('changed since you read it')
+    expect(() => planExpenseDeletion(tokyoActivity(), 'gone', '2026-09-20T03:00:00.000Z')).toThrow('No expense with id "gone"')
   })
 })
