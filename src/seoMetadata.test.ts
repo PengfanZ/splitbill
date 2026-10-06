@@ -18,6 +18,12 @@ describe('public discoverability metadata', () => {
     expect(html).toContain('name="twitter:card" content="summary_large_image"')
   })
 
+  it('points agents that fetch the page to llms.txt', () => {
+    const html = rootFile('index.html')
+    expect(html).toContain('<link rel="alternate" type="text/plain" title="Setup guide for AI agents" href="https://pengfanz.github.io/splitbill/llms.txt" />')
+    expect(html.match(/<noscript>(.*?)<\/noscript>/s)?.[1]).toContain('https://pengfanz.github.io/splitbill/llms.txt')
+  })
+
   it('publishes valid WebApplication structured data allowed by the content security policy', () => {
     const html = rootFile('index.html')
     const serialized = html.match(/<script type="application\/ld\+json">(.*?)<\/script>/s)?.[1]
