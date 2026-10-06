@@ -297,7 +297,7 @@ Two audiences need help: **people** setting up their agent, and **agents** decid
 2. **Tool descriptions.** These repeat the rule that matters at each call, for example on `delete_expense` and `get_share_link`.
 3. **`https://pengfanz.github.io/splitbill/llms.txt`.** A plain-text guide in `public/`, for agents asked to "set up Tally" before the server is installed:
    - what Tally is;
-   - both install commands;
+   - both install commands, plus the `mcpServers` JSON entry for agents configured by file, such as Cursor (`~/.cursor/mcp.json`);
    - the linking rule above;
    - the tool list and the save-then-recap workflow;
    - a link to the npm README.
@@ -306,7 +306,9 @@ Two audiences need help: **people** setting up their agent, and **agents** decid
 
 All three are built from one module, `src/features/mcp/agentGuide.ts`, so they cannot drift:
 - **Server:** imports the instructions directly.
-- **`llms.txt`:** a test checks that it contains the same instruction block and install commands.
+- **`llms.txt`:** a test checks that it contains the same instruction block, install commands and JSON entry.
+
+The home page's HTML is otherwise an empty shell until JavaScript runs, so `index.html` points agents that fetch it to `llms.txt`, with a `<link rel="alternate">` and a `<noscript>` line.
 
 ## Safety and privacy
 

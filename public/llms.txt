@@ -7,7 +7,19 @@
 1. Install the server for the person's agent. It needs Node.js 22 or later.
    - Claude Code: claude mcp add tally -- npx -y tally-splitbill-mcp
    - Codex: codex mcp add tally -- npx -y tally-splitbill-mcp
-   You may run the install command yourself. Start a new agent session afterwards so the tools load.
+   - Other agents that read MCP servers from a JSON file, such as Cursor (~/.cursor/mcp.json): add this entry, merging it into any existing mcpServers.
+   {
+     "mcpServers": {
+       "tally": {
+         "command": "npx",
+         "args": [
+           "-y",
+           "tally-splitbill-mcp"
+         ]
+       }
+     }
+   }
+   You may run the install command or edit the file yourself. Start a new agent session afterwards so the tools load.
 2. New activities need no setup: activities you create are linked automatically.
 3. For an activity the person already has, the person approves it once: Tally opens in their browser and they click Allow. Hand this step to the person; never handle a Live link yourself.
 

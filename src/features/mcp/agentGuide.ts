@@ -9,6 +9,9 @@ export const MCP_INSTALL_COMMANDS = {
   codex: `codex mcp add tally -- npx -y ${MCP_PACKAGE_NAME}`,
 } as const
 
+/** The same server as an `mcpServers` entry, for agents configured by JSON file, such as Cursor. */
+export const MCP_JSON_CONFIG = JSON.stringify({ mcpServers: { tally: { command: 'npx', args: ['-y', MCP_PACKAGE_NAME] } } }, null, 2)
+
 export const MCP_AGENT_RULES = [
   'Tally works only with Live activities linked on this computer.',
   'Activities you create with create_activity are linked automatically and open in the user\'s browser.',
