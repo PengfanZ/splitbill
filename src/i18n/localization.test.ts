@@ -71,6 +71,16 @@ describe('localization', () => {
   it('translates variables, lists, and valid dates for the selected locale and time zone', () => {
     expect(translate('en', 'dashboard.memberBalance', { name: 'Maya' })).toBe('Maya balance')
     expect(translate('zh-CN', 'dashboard.memberBalance', { name: '小明' })).toBe('小明 的余额')
+  })
+
+  it('inserts names exactly, even ones with $ patterns or braces', () => {
+    expect(translate('en', 'dashboard.memberBalance', { name: 'Tom & $& Co' })).toBe('Tom & $& Co balance')
+    expect(translate('en', 'dashboard.memberBalance', { name: "$$ $` $'" })).toBe("$$ $` $' balance")
+    // A value that looks like another placeholder is not filled in again.
+    expect(translate('en', 'agentGuide.activityEyebrow', { code: '{code}' })).toBe('AI agents · Experimental · Live · {code}')
+    expect(translate('en', 'agentGuide.promptsHint', { agent: '{name}', name: 'unused' })).toBe('Copy one of these into {name}, or write your own.')
+    // A missing variable stays visible instead of disappearing.
+    expect(translate('en', 'dashboard.memberBalance')).toBe('{name} balance')
     expect(formatLocalizedList(['Maya', 'Jordan'], 'en')).toContain('Maya')
     expect(formatLocalizedList(['小明', '小红'], 'zh-CN')).toBe('小明和小红')
 

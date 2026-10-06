@@ -53,7 +53,8 @@ html[data-theme='dark'] .agent-guide-command { background: #0e0e0c; border: 1px 
 .agent-guide-footer { justify-content: space-between; align-items: center; }
 .agent-guide-footer a { color: var(--coral-ink); font-size: 13px; font-weight: 700; }
 
-@media (max-width: 640px) {
+/* Same breakpoint at which the app's modals become bottom sheets. */
+@media (max-width: 720px) {
   .agent-guide-phone-note { display: block; }
   .agent-guide-how > div { grid-template-columns: 1fr; }
 }

@@ -19,7 +19,7 @@ An MCP server lets people use coding agents to work with Tally from the terminal
 | Approval screen at `#agent-link=` in the web app (English and Chinese) | Built |
 | Server instructions from `src/features/mcp/agentGuide.ts` | Built |
 | **Use with AI agents** dialog and its What's new entry, as an experimental feature | Built; see [the dialog](#for-people-the-use-with-ai-agents-dialog) |
-| `llms.txt` | Later, for a public launch |
+| `llms.txt` at `https://pengfanz.github.io/splitbill/llms.txt`, kept in step with the server by `llmsTxt.test.ts` | Built |
 
 **Tested against the local Supabase stack** (`npm run backend:start`), with the bundle and the dev app:
 - **Tools:** every tool, including re-imports, reworded duplicates, validation errors, two servers adding to one activity at once, payments, new members, and edits and deletes with stale versions.

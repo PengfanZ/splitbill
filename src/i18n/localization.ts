@@ -1002,10 +1002,10 @@ const catalogs: Record<AppLocale, Record<TranslationKey, string>> = { en, 'zh-CN
 const CHINA_TIME_ZONES = new Set(['Asia/Shanghai', 'Asia/Urumqi', 'Asia/Chongqing', 'Asia/Harbin', 'Asia/Kashgar'])
 
 export function translate(locale: AppLocale, key: TranslationKey, variables: TranslationVariables = {}) {
-  return Object.entries(variables).reduce(
-    (message, [name, value]) => message.replaceAll(`{${name}}`, String(value)),
-    catalogs[locale][key],
-  )
+  // One pass with a replacement function: values are inserted literally, so "$&" or "{code}" in a name stays as typed.
+  return catalogs[locale][key].replace(/\{(\w+)\}/g, (placeholder, name: string) => (
+    Object.hasOwn(variables, name) ? String(variables[name]) : placeholder
+  ))
 }
 
 export function normalizeLocale(value: string | null | undefined): AppLocale | null {
