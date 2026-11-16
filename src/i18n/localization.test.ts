@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   LOCALE_STORAGE_KEY,
   formatLocalizedDateTime,
+  formatLocalizedTime,
   formatLocalizedDay,
   localDayKey,
   formatLocalizedList,
@@ -91,6 +92,9 @@ describe('localization', () => {
     expect(shanghai).toContain('20:30')
     expect(shanghai).toContain('GMT+8')
     expect(formatLocalizedDateTime('not-a-date', 'en', 'UTC')).toBeNull()
+    expect(formatLocalizedTime('2026-07-16T12:30:00.000Z', 'en', 'UTC')).toBe('12:30 PM')
+    expect(formatLocalizedTime('2026-07-16T12:30:00.000Z', 'zh-CN', 'Asia/Shanghai')).toContain('20:30')
+    expect(formatLocalizedTime('Just now', 'en', 'UTC')).toBeNull()
   })
 
   it('reports the browser IANA time zone with a UTC fallback', () => {

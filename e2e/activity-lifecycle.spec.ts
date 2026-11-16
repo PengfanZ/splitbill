@@ -923,7 +923,7 @@ test('persists a selective equal split and deletes its activity safely', async (
   await expect(page.getByText('3 of 4 selected')).toBeVisible()
   await page.getByRole('button', { name: 'Save changes' }).click()
   await expect(page.getByText('Split equally · 3 people')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Edit Museum tickets' })).toHaveAttribute('title', /^Edited /)
+  await expect(page.getByRole('button', { name: 'Edit Museum tickets' })).toHaveAttribute('title', /^Paid .* · Edited /)
 
   await page.setViewportSize({ width: 390, height: 844 })
   await page.getByRole('button', { name: 'Open navigation' }).click()

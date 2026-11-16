@@ -16,7 +16,8 @@
 .expense-entry .row-copy small { display: block; white-space: normal; overflow-wrap: anywhere; line-height: 1.6; }
 .expense-entry .row-copy small i { vertical-align: middle; }
 .expense-meta-line > .expense-category-label { padding-block: 1px; }
-.expense-edited { color: var(--muted); font-size: 12px; }
+.expense-time-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; color: var(--ink); font-size: 12px; line-height: 1.6; }
+.expense-entry .row-copy .expense-time-note { color: var(--muted); font-size: 11px; }
 .expense-entry .expense-amount { text-align: right; }
 .expense-entry .expense-amount b { font-size: 16px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .expense-entry .expense-share { display: block; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
