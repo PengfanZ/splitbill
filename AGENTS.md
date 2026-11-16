@@ -20,6 +20,7 @@ Backend work: `npm run backend:start`, `npm run backend:reset`, `npm run test:ba
 ## Code rules
 
 - Financial math lives in pure modules under `src/domain/` (no React imports). Persistence stays behind `src/data/` and `src/hooks/`. Direct imports, no barrels.
+- Read an expense's time through `expensePaidAt` (`paidAt ?? createdAt`) in `src/domain/expenses.ts`; `createdAt` is when it was entered and is never rewritten.
 - Preserve the `tally:frontend:v2` localStorage schema (and `tally:identity:v1`) unless the change ships a tested migration.
 - Every bug fix gets a regression test; new behavior gets user-focused tests.
 - The frontend talks to Supabase via `fetch` to PostgREST RPCs in `src/features/liveSharing/liveActivityApi.ts` (`create_shared_activity`, `load_shared_activity`, `poll_shared_activity`, `update_shared_activity_v2`, `record_analytics_event`) — not `supabase-js` table queries. Browser roles never touch the `private` schema. Check SQL migrations before describing or changing the RPC contract.

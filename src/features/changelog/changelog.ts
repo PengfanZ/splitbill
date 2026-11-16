@@ -18,6 +18,15 @@ export type ChangelogEntry = {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    id: '2026-11-payment-time',
+    releasedOn: '2026-11-15',
+    titleKey: 'changelog.release.paymentTimeTitle',
+    summaryKey: 'changelog.release.paymentTimeSummary',
+    items: [
+      { icon: 'polish', titleKey: 'changelog.item.paymentTimeTitle', descriptionKey: 'changelog.item.paymentTimeDescription' },
+    ],
+  },
+  {
     id: '2026-10-ai-agents',
     releasedOn: '2026-10-05',
     titleKey: 'changelog.release.aiAgentsTitle',

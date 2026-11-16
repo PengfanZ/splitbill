@@ -11,7 +11,7 @@ describe('ChangelogModal', () => {
     render(<LocalizationProvider initialLocale="en"><ChangelogModal onClose={onClose} /></LocalizationProvider>)
 
     const dialog = screen.getByRole('dialog', { name: 'What’s new in Tally' })
-    expect(dialog.querySelector('h3')).toHaveTextContent('Try Tally with AI agents')
+    expect(dialog.querySelector('h3')).toHaveTextContent('Payment time')
     expect(dialog).toHaveTextContent('October 5, 2026')
     expect(dialog).toHaveTextContent('Use Tally with AI agents (experimental)')
     expect(dialog).toHaveTextContent('It’s experimental and may change.')
@@ -50,7 +50,7 @@ describe('ChangelogModal', () => {
   it('renders the same update naturally in Simplified Chinese', () => {
     render(<LocalizationProvider initialLocale="zh-CN"><ChangelogModal onClose={vi.fn()} /></LocalizationProvider>)
     const dialog = screen.getByRole('dialog', { name: 'Tally 最近更新' })
-    expect(dialog.querySelector('h3')).toHaveTextContent('试试用 AI 助手记账')
+    expect(dialog.querySelector('h3')).toHaveTextContent('付款时间')
     expect(dialog).toHaveTextContent('2026年10月5日')
     expect(dialog).toHaveTextContent('这是实验功能，之后可能会调整。')
     expect(dialog).toHaveTextContent('每个活动，一目了然')

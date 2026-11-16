@@ -107,7 +107,7 @@ describe('the experimental agent guide', () => {
   })
 
   it('announces the guide in What\'s new as experimental', () => {
-    expect(CHANGELOG_ENTRIES[0]).toMatchObject({ id: '2026-10-ai-agents', releasedOn: '2026-10-05', items: [{ icon: 'agent' }] })
+    expect(CHANGELOG_ENTRIES[1]).toMatchObject({ id: '2026-10-ai-agents', releasedOn: '2026-10-05', items: [{ icon: 'agent' }] })
   })
 
   it('keeps What\'s new closed when arriving from the #agents link, so the dialogs don\'t stack', async () => {
