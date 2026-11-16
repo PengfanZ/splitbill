@@ -48,6 +48,7 @@ const expenseSchema = z.object({
   shares: z.record(memberIdSchema, amountSchema),
   createdAt: activityTimestampSchema,
   updatedAt: activityTimestampSchema.optional(),
+  paidAt: activityTimestampSchema.optional(),
   kind: z.enum(['expense', 'settlement']).optional(),
   categoryId: z.string().min(1).max(120).nullable().optional(),
 }).passthrough().superRefine((expense, context) => {

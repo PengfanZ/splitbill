@@ -31,6 +31,8 @@ export type Expense = {
   shares: Record<string, number>
   createdAt: string
   updatedAt?: string
+  /** When it was paid. Missing means the same as createdAt. */
+  paidAt?: string
   kind?: ExpenseKind
   /** Missing/null means General, including for legacy expenses. */
   categoryId?: string | null

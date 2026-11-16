@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calculateMemberBalance, calculateSettlements, createEqualShares, createExactShares, createExpenseTimestamp, createSettlementPayment, formatExpenseTimestamp, getSettlementRecipientId, isSettlementPayment, memberExpenseNet, money, spendingExpenses } from './expenses'
+import { calculateMemberBalance, calculateSettlements, compareByPaidAtDesc, expensePaidAt, createEqualShares, createExactShares, createExpenseTimestamp, createSettlementPayment, formatExpenseTimestamp, getSettlementRecipientId, isSettlementPayment, memberExpenseNet, money, spendingExpenses } from './expenses'
 import type { Expense, Member } from './models'
 
 const alex: Member = { id: 'alex', name: 'Alex', initials: 'AL', color: '#aaa' }
@@ -133,5 +133,35 @@ describe('expense domain', () => {
     expect(memberExpenseNet(blair.id, dinner)).toBe(-3.33)
     expect(memberExpenseNet('dana', dinner)).toBe(0)
     expect(memberExpenseNet(alex.id, expense({ amount: 0.3, shares: { alex: 0.1, blair: 0.2 } }))).toBe(0.2)
+  })
+
+  it('reads the payment time, falling back to when the expense was recorded', () => {
+    expect(expensePaidAt(expense({ createdAt: '2026-11-15T20:00:00.000Z' }))).toBe('2026-11-15T20:00:00.000Z')
+    expect(expensePaidAt(expense({ createdAt: '2026-11-15T20:00:00.000Z', paidAt: '2026-11-13T19:30:00.000Z' }))).toBe('2026-11-13T19:30:00.000Z')
+  })
+
+  it('orders expenses by latest payment, then by latest recording', () => {
+    const morning = expense({ id: 'morning', createdAt: '2026-11-15T20:00:00.000Z', paidAt: '2026-11-13T09:00:00.000Z' })
+    const evening = expense({ id: 'evening', createdAt: '2026-11-13T19:30:00.000Z' })
+    const eveningLater = expense({ id: 'evening-later', createdAt: '2026-11-14T08:00:00.000Z', paidAt: '2026-11-13T19:30:00.000Z' })
+
+    expect([morning, evening, eveningLater].sort(compareByPaidAtDesc).map(item => item.id)).toEqual(['evening-later', 'evening', 'morning'])
+    expect(compareByPaidAtDesc(evening, { ...evening, id: 'twin' })).toBe(0)
+    expect(compareByPaidAtDesc(expense({ createdAt: 'Just now' }), evening)).toBe(0)
+    expect(compareByPaidAtDesc(evening, expense({ createdAt: 'Just now' }))).toBe(0)
+    expect(compareByPaidAtDesc(
+      expense({ createdAt: 'Just now', paidAt: '2026-11-13T19:30:00.000Z' }),
+      eveningLater,
+    )).toBe(0)
+  })
+
+  it('records a settlement payment time only when one is given', () => {
+    const suggested = { from: blair, to: alex, amount: 10 }
+
+    expect(createSettlementPayment('group-1', suggested, 5, 'paid', '2026-11-15T20:00:00.000Z', '2026-11-13T19:30:00.000Z')).toMatchObject({
+      createdAt: '2026-11-15T20:00:00.000Z',
+      paidAt: '2026-11-13T19:30:00.000Z',
+    })
+    expect('paidAt' in createSettlementPayment('group-1', suggested, 5, 'unpaid', '2026-11-15T20:00:00.000Z')).toBe(false)
   })
 })
