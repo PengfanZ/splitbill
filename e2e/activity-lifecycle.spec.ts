@@ -252,7 +252,7 @@ test('automatically uses Simplified Chinese in China and keeps the choice across
     await page.getByLabel('说明').fill('晚餐')
     await page.getByRole('spinbutton', { name: '金额' }).fill('80')
     await page.getByRole('button', { name: '保存支出' }).click()
-    await expect(page.getByRole('button', { name: '编辑支出：晚餐' })).toHaveAttribute('title', /^创建于 .*GMT\+8/)
+    await expect(page.getByRole('button', { name: '编辑支出：晚餐' })).toHaveAttribute('title', /^付款于 .*GMT\+8 · 创建于 .*GMT\+8/)
 
     await page.getByRole('button', { name: '分享', exact: true }).click()
     await page.getByRole('button', { name: /^导出 CSV 数据/ }).click()
@@ -890,7 +890,7 @@ test('persists a selective equal split and deletes its activity safely', async (
   await page.getByRole('button', { name: 'Save expense' }).click()
 
   await expect(page.getByText('Split equally · 2 people')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Edit Museum tickets' })).toHaveAttribute('title', /^Created /)
+  await expect(page.getByRole('button', { name: 'Edit Museum tickets' })).toHaveAttribute('title', /^Paid .* · Created /)
   const settlementRow = page.locator('.settlement-row').filter({ hasText: 'Maya owes Alex' })
   await expect(settlementRow).toBeVisible()
   await expect(page.locator('.settlement-row').filter({ hasText: 'Jordan owes Alex' })).toHaveCount(0)
