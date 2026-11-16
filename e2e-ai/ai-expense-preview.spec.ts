@@ -28,7 +28,7 @@ async function createPreviewActivityHome(page: Page) {
 async function createPreviewActivity(page: Page, entryMode: 'text' | 'manual' = 'text') {
   await createPreviewActivityHome(page)
   await page.getByRole('button', { name: 'Add expense' }).click()
-  if (entryMode === 'text') await page.getByRole('tab', { name: 'Describe with AI' }).click()
+  if (entryMode === 'text') await page.getByRole('tab', { name: 'Describe' }).click()
 }
 
 async function captureAnalytics(page: Page) {
@@ -86,9 +86,9 @@ async function enableFakeVoiceRecording(page: Page, permissionGranted = true) {
 
 test('keeps manual expense entry first while offering text and voice alternatives', async ({ page }) => {
   await createPreviewActivity(page, 'manual')
-  await expect(page.getByRole('tab', { name: 'Enter manually' })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByRole('tab', { name: 'Manual' })).toHaveAttribute('aria-selected', 'true')
   await expect(page.getByLabel('Description')).toBeVisible()
-  await expect(page.getByRole('tab', { name: 'Describe with AI' })).toHaveAttribute('aria-selected', 'false')
+  await expect(page.getByRole('tab', { name: 'Describe' })).toHaveAttribute('aria-selected', 'false')
   await expect(page.getByRole('tab', { name: 'Speak' })).toHaveAttribute('aria-selected', 'false')
 })
 
@@ -108,7 +108,7 @@ test('collects optional feedback after the first failed AI attempt and never rep
   await expect(page.getByLabel('How was Tally?')).toHaveCount(0)
   const attempt = async () => {
     await page.getByRole('button', { name: 'Add expense', exact: true }).click()
-    await page.getByRole('tab', { name: 'Describe with AI' }).click()
+    await page.getByRole('tab', { name: 'Describe' }).click()
     await page.getByLabel('Expense description').fill('I paid $20 for noodles, split with Maya')
     await page.getByRole('button', { name: 'Create draft' }).click()
     await expect(page.getByRole('alert')).toBeVisible()
@@ -274,7 +274,7 @@ test('turns a description into a reviewable draft before the user saves it', asy
   })
 
   await createPreviewActivity(page)
-  await expect(page.getByRole('tab', { name: 'Describe with AI' })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByRole('tab', { name: 'Describe' })).toHaveAttribute('aria-selected', 'true')
   await page.getByLabel('Expense description').fill('Maya paid $36 for dinner, split between Maya and me')
   await page.getByRole('button', { name: 'Create draft' }).click()
 
@@ -546,7 +546,7 @@ test('maps first-person AI entry to the participant selected on this browser', a
   await page.getByRole('option', { name: 'Maya' }).click()
   await expect(page.getByRole('button', { name: 'Selected identity: Maya' })).toBeVisible()
   await page.getByRole('button', { name: 'Add expense' }).click()
-  await page.getByRole('tab', { name: 'Describe with AI' }).click()
+  await page.getByRole('tab', { name: 'Describe' }).click()
   await page.getByLabel('Expense description').fill('I paid $18 for coffee with Preview Tester')
   await page.getByRole('button', { name: 'Create draft' }).click()
 
@@ -573,7 +573,7 @@ test('explains denied microphone permission and leaves manual entry available', 
   await page.getByRole('tab', { name: 'Speak' }).click()
   await page.getByRole('button', { name: 'Start recording' }).click()
   await expect(page.getByRole('alert')).toContainText('Microphone access was not granted')
-  await page.getByRole('tab', { name: 'Enter manually' }).click()
+  await page.getByRole('tab', { name: 'Manual' }).click()
   await expect(page.getByLabel('Description')).toBeEditable()
 })
 
@@ -598,6 +598,6 @@ test('recovers immediately when a browser leaves microphone permission pending',
 
   await expect(page.getByRole('button', { name: 'Start recording' })).toBeEnabled()
   await expect(page.getByRole('alert')).toHaveCount(0)
-  await page.getByRole('tab', { name: 'Enter manually' }).click()
+  await page.getByRole('tab', { name: 'Manual' }).click()
   await expect(page.getByLabel('Description')).toBeEditable()
 })
