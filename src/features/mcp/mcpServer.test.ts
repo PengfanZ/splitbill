@@ -158,15 +158,39 @@ describe('Tally MCP server', () => {
       const { data } = await call('get_activity', { activity: 'tokyo TRIP', limit: 2 })
       expect(data).toMatchObject({ code: TOKYO_CODE, name: 'Tokyo trip', you: 'Leo', totalSpending: 25020 })
       expect(data.expenses.total).toBe(4)
-      expect(data.expenses.items.map((item: { title: string }) => item.title)).toEqual(['Izakaya dinner', '7-Eleven snacks'])
+      expect(data.expenses.items.map((item: { title: string }) => item.title)).toEqual(['Izakaya dinner', 'Settlement payment'])
       expect((await call('get_activity', { activity: TOKYO_CODE.toLowerCase(), offset: 3 })).data.expenses.items[0].title).toBe('Suica top-up')
+    })
+
+    it('filters and orders by when each expense was paid', async () => {
+      const { call, live } = await connect()
+      live.rows.get(TOKYO_CODE)!.snapshot = tokyoActivity([
+        tokyoExpense({ id: 'late-entry', title: 'Museum tickets', createdAt: '2026-09-25T09:00:00.000Z', paidAt: '2026-09-19T12:00:00.000Z' }),
+        ...expenses,
+      ])
+      const items = async (args: Record<string, unknown> = {}) => (await call('get_activity', { activity: 'Tokyo trip', ...args })).data.expenses.items as { title: string; date: string; recordedOn?: string }[]
+      expect((await items()).map(item => item.title)).toEqual(['Izakaya dinner', 'Settlement payment', '7-Eleven snacks', 'Suica top-up', 'Museum tickets'])
+      expect(await items({ from: '2026-09-19', to: '2026-09-19' })).toEqual([expect.objectContaining({ title: 'Museum tickets', date: '2026-09-19', recordedOn: '2026-09-25' })])
+      expect(await items({ from: '2026-09-25' })).toEqual([])
+    })
+
+    it('tells agents to leave the date out unless the user said when it was paid', async () => {
+      const { mcp } = await connect()
+      const { tools } = await mcp.listTools()
+      const dateOf = (name: string) => {
+        const properties = tools.find(tool => tool.name === name)!.inputSchema.properties as Record<string, { description?: string; items?: { properties: Record<string, { description?: string }> } }>
+        return (properties.date ?? properties.expenses.items!.properties.date).description
+      }
+      for (const name of ['add_expenses', 'record_settlement', 'update_expense']) {
+        expect(dateOf(name)).toBe('When it was paid, as YYYY-MM-DD. Leave it out unless the user said when; left out, the payment time is the time it is recorded.')
+      }
     })
 
     it('filters by date and category, leaving payments out of category views', async () => {
       const { call, live } = await connect()
       live.rows.get(TOKYO_CODE)!.snapshot = tokyoActivity(expenses)
       const titles = async (args: Record<string, unknown>) => (await call('get_activity', { activity: 'Tokyo trip', ...args })).data.expenses.items.map((item: { title: string }) => item.title)
-      expect(await titles({ from: '2026-09-21', to: '2026-09-21' })).toEqual(['7-Eleven snacks', 'Settlement payment'])
+      expect(await titles({ from: '2026-09-21', to: '2026-09-21' })).toEqual(['Settlement payment', '7-Eleven snacks'])
       expect(await titles({ category: 'general' })).toEqual(['7-Eleven snacks'])
       expect(await titles({ category: 'Food & drinks' })).toEqual(['Izakaya dinner'])
       expect((await call('get_activity', { activity: 'Tokyo trip', category: 'Rent' })).text).toBe('Tokyo trip has no "Rent" category.')
@@ -202,7 +226,7 @@ describe('Tally MCP server', () => {
       expect(live.update.mock.calls[0][2]).toBe(4)
       expect(live.rows.get(TOKYO_CODE)!.revision).toBe(5)
       expect(data.saved).toEqual([{
-        id: 'expense-1', version: '2026-09-20T12:00:00.000Z', date: '2026-09-20', title: 'Ichiran ramen', amount: 3960, kind: 'expense', paidBy: 'Mia', category: 'General',
+        id: 'expense-1', version: '2026-10-04T09:30:00.000Z', date: '2026-09-20', recordedOn: '2026-10-04', title: 'Ichiran ramen', amount: 3960, kind: 'expense', paidBy: 'Mia', category: 'General',
         split: [{ member: 'Mia', amount: 1320 }, { member: 'Leo', amount: 1320 }, { member: 'Sam', amount: 1320 }],
       }])
       expect(data.skipped).toEqual([expect.objectContaining({ title: 'Suica top-up', reason: 'Looks like "Suica top-up" from 2026-09-20, already in Tally.' })])

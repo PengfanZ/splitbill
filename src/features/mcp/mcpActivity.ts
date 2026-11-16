@@ -5,6 +5,7 @@ import {
   calculateSettlements,
   createEqualShares,
   createSettlementPayment,
+  expensePaidAt,
   isSettlementPayment,
   spendingExpenses,
 } from '../../domain/expenses'
@@ -94,8 +95,8 @@ function resolveCategoryId(activity: SharedActivity, reference: string | undefin
   return category.id
 }
 
-function expenseTimestamp(date: string | undefined, now: Date) {
-  if (date === undefined) return now.toISOString()
+/** The payment time for a date the user gave. Without one, nothing is stored and the payment time is the time it was recorded. */
+function paymentTimestamp(date: string) {
   const trimmed = date.trim()
   const timestamp = DATE_ONLY.test(trimmed) ? `${trimmed}T12:00:00.000Z` : trimmed
   const parsed = new Date(timestamp)
@@ -169,7 +170,8 @@ export function buildExpense(activity: SharedActivity, input: ExpenseInput, id: 
     amount,
     payerId: payer.id,
     ...splitShares(activity, title, amount, input.split, new Set()),
-    createdAt: expenseTimestamp(input.date, now),
+    createdAt: now.toISOString(),
+    ...(input.date === undefined ? {} : { paidAt: paymentTimestamp(input.date) }),
     categoryId: resolveCategoryId(activity, input.category),
   }
 }
@@ -189,7 +191,7 @@ export function buildSettlement(activity: SharedActivity, input: SettlementInput
   if (owed <= 0) throw new McpToolError(`${to.name} isn't owed anything in ${name}.`)
   if (toCents(amount) > owes) throw new McpToolError(`${from.name} owes ${fromCents(owes)} in ${name}, less than ${amount}.`)
   if (toCents(amount) > owed) throw new McpToolError(`${to.name} is owed ${fromCents(owed)} in ${name}, less than ${amount}.`)
-  return createSettlementPayment(activity.group.id, { from, to, amount: fromCents(Math.min(owes, owed)) }, amount, id, expenseTimestamp(input.date, now))
+  return createSettlementPayment(activity.group.id, { from, to, amount: fromCents(Math.min(owes, owed)) }, amount, id, now.toISOString(), input.date === undefined ? undefined : paymentTimestamp(input.date))
 }
 
 const normalizedTitle = (title: string) => title.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, '')
@@ -207,12 +209,15 @@ function similarTitles(first: string, second: string) {
   return titleWords(second).some(word => words.has(word))
 }
 
+/** The UTC day an expense was paid, as YYYY-MM-DD. */
+export const paidDay = (expense: Expense) => expensePaidAt(expense).slice(0, 10)
+
 /** An existing expense that is probably the same purchase: same payer, amount and day, similar title. */
 export function findDuplicate(expenses: Expense[], candidate: Expense) {
   return expenses.find(expense => !isSettlementPayment(expense)
     && expense.payerId === candidate.payerId
     && toCents(expense.amount) === toCents(candidate.amount)
-    && expense.createdAt.slice(0, 10) === candidate.createdAt.slice(0, 10)
+    && paidDay(expense) === paidDay(candidate)
     && similarTitles(expense.title, candidate.title)) ?? null
 }
 
@@ -317,7 +322,7 @@ export function planExpenseUpdate(activity: SharedActivity, expenseId: string, v
     amount,
     payerId: changes.payer === undefined ? before.payerId : resolveMember(activity, changes.payer, keep).id,
     ...(split ? splitShares(activity, title, amount, split, keep) : {}),
-    createdAt: changes.date === undefined ? before.createdAt : expenseTimestamp(changes.date, now),
+    ...(changes.date === undefined ? {} : { paidAt: paymentTimestamp(changes.date) }),
     ...(changes.category === undefined ? {} : { categoryId: resolveCategoryId(activity, changes.category) }),
     updatedAt: now.toISOString(),
   }
@@ -336,7 +341,8 @@ export function describeExpense(activity: SharedActivity, expense: Expense) {
   return {
     id: expense.id,
     version: expenseVersion(expense),
-    date: expense.createdAt.slice(0, 10),
+    date: paidDay(expense),
+    ...(expense.createdAt.slice(0, 10) === paidDay(expense) ? {} : { recordedOn: expense.createdAt.slice(0, 10) }),
     title: expense.title,
     amount: expense.amount,
     kind: expense.kind ?? 'expense',
