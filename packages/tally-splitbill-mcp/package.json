@@ -1,6 +1,6 @@
 {
   "name": "tally-splitbill-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Let Claude Code and Codex read and add shared expenses in Tally, the no-account app for splitting bills with friends.",
   "keywords": [
     "mcp",

@@ -1,6 +1,6 @@
 # Tally MCP server
 
-Status: **step 1, published on npm as [`tally-splitbill-mcp`](../packages/tally-splitbill-mcp/README.md) 0.1.0.**
+Status: **step 1, published on npm as [`tally-splitbill-mcp`](../packages/tally-splitbill-mcp/README.md) 0.2.0.**
 - **Built:** the tools and flows marked in [Prototype status](#prototype-status), and the npm package. CI packs it for publishing; see [Releasing the npm package](#releasing-the-npm-package).
 - **In the app:** the experimental **Use with AI agents** guide, from the sidebar, a Live activity's Share menu, or `https://pengfanz.github.io/splitbill/#agents`.
 

@@ -55,6 +55,8 @@ Then review the result in Tally. Your agent saves changes right away and tells y
 | `get_share_link` | Returns the invite link and a message, only when you ask to share. |
 | `link_activities` | Opens Tally so you can allow activities you already have. |
 
+**When it was paid.** An expense is dated when your agent records it, unless you say when it was paid. Give a day and a time ("last Friday at 7:30pm"); if you give only a day, your agent asks for the time. The record time is kept either way.
+
 Three prompts guide common jobs. In Claude Code they appear as slash commands such as `/mcp__tally__import-transactions`:
 
 - `import-transactions`: add the shared rows from a statement file.

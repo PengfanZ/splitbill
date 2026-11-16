@@ -227,7 +227,7 @@ describe('runCli', () => {
   it('prints the package version for bug reports', async () => {
     const { dependencies, output } = setup()
     await expect(runCli(['--version'], dependencies)).resolves.toBe(0)
-    expect(output).toEqual(['0.1.0'])
+    expect(output).toEqual(['0.2.0'])
   })
 })
 
