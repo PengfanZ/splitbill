@@ -5,6 +5,7 @@ import {
   calculateSettlements,
   createEqualShares,
   createSettlementPayment,
+  expensePaidAt,
   isSettlementPayment,
   spendingExpenses,
 } from '../../domain/expenses'
@@ -55,6 +56,7 @@ export type CreateActivityInput = {
 const toCents = (amount: number) => Math.round(amount * 100)
 const fromCents = (cents: number) => cents / 100
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
+const DATE_TIME = /^(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}/
 
 export function activityMembers(activity: SharedActivity): Member[] {
   return [activity.sender, ...activity.friends]
@@ -94,16 +96,22 @@ function resolveCategoryId(activity: SharedActivity, reference: string | undefin
   return category.id
 }
 
-function expenseTimestamp(date: string | undefined, now: Date) {
-  if (date === undefined) return now.toISOString()
+/**
+ * The payment time for a date and time the user gave. A day alone is refused, so a clock time is never made up.
+ * A time without an offset is read in this machine's zone, which is the user's.
+ */
+function paymentTimestamp(date: string) {
   const trimmed = date.trim()
-  const timestamp = DATE_ONLY.test(trimmed) ? `${trimmed}T12:00:00.000Z` : trimmed
-  const parsed = new Date(timestamp)
-  if (Number.isNaN(parsed.getTime()) || (DATE_ONLY.test(trimmed) && parsed.toISOString().slice(0, 10) !== trimmed)) {
-    throw new McpToolError(`"${date}" is not a valid date. Use YYYY-MM-DD.`)
+  if (DATE_ONLY.test(trimmed)) {
+    throw new McpToolError(`"${trimmed}" has no time. Give the date and time it was paid, like ${trimmed}T19:30, or leave date out to use now. Ask the user if you don't know the time.`)
   }
-  // Keep a date-only expense at midday UTC so it shows on the same day in nearly every time zone.
-  return DATE_ONLY.test(trimmed) ? timestamp : parsed.toISOString()
+  const day = DATE_TIME.exec(trimmed)?.[1]
+  const parsed = new Date(trimmed)
+  // Date accepts a day such as February 30 and rolls it into March, so check the calendar day separately.
+  if (!day || Number.isNaN(parsed.getTime()) || new Date(`${day}T00:00:00.000Z`).toISOString().slice(0, 10) !== day) {
+    throw new McpToolError(`"${date}" is not a valid date and time. Use a form like 2026-11-13T19:30.`)
+  }
+  return parsed.toISOString()
 }
 
 function assertCents(value: number, label: string) {
@@ -169,7 +177,8 @@ export function buildExpense(activity: SharedActivity, input: ExpenseInput, id: 
     amount,
     payerId: payer.id,
     ...splitShares(activity, title, amount, input.split, new Set()),
-    createdAt: expenseTimestamp(input.date, now),
+    createdAt: now.toISOString(),
+    ...(input.date === undefined ? {} : { paidAt: paymentTimestamp(input.date) }),
     categoryId: resolveCategoryId(activity, input.category),
   }
 }
@@ -189,7 +198,7 @@ export function buildSettlement(activity: SharedActivity, input: SettlementInput
   if (owed <= 0) throw new McpToolError(`${to.name} isn't owed anything in ${name}.`)
   if (toCents(amount) > owes) throw new McpToolError(`${from.name} owes ${fromCents(owes)} in ${name}, less than ${amount}.`)
   if (toCents(amount) > owed) throw new McpToolError(`${to.name} is owed ${fromCents(owed)} in ${name}, less than ${amount}.`)
-  return createSettlementPayment(activity.group.id, { from, to, amount: fromCents(Math.min(owes, owed)) }, amount, id, expenseTimestamp(input.date, now))
+  return createSettlementPayment(activity.group.id, { from, to, amount: fromCents(Math.min(owes, owed)) }, amount, id, now.toISOString(), input.date === undefined ? undefined : paymentTimestamp(input.date))
 }
 
 const normalizedTitle = (title: string) => title.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, '')
@@ -207,12 +216,15 @@ function similarTitles(first: string, second: string) {
   return titleWords(second).some(word => words.has(word))
 }
 
+/** The UTC day an expense was paid, as YYYY-MM-DD. */
+export const paidDay = (expense: Expense) => expensePaidAt(expense).slice(0, 10)
+
 /** An existing expense that is probably the same purchase: same payer, amount and day, similar title. */
 export function findDuplicate(expenses: Expense[], candidate: Expense) {
   return expenses.find(expense => !isSettlementPayment(expense)
     && expense.payerId === candidate.payerId
     && toCents(expense.amount) === toCents(candidate.amount)
-    && expense.createdAt.slice(0, 10) === candidate.createdAt.slice(0, 10)
+    && paidDay(expense) === paidDay(candidate)
     && similarTitles(expense.title, candidate.title)) ?? null
 }
 
@@ -317,7 +329,7 @@ export function planExpenseUpdate(activity: SharedActivity, expenseId: string, v
     amount,
     payerId: changes.payer === undefined ? before.payerId : resolveMember(activity, changes.payer, keep).id,
     ...(split ? splitShares(activity, title, amount, split, keep) : {}),
-    createdAt: changes.date === undefined ? before.createdAt : expenseTimestamp(changes.date, now),
+    ...(changes.date === undefined ? {} : { paidAt: paymentTimestamp(changes.date) }),
     ...(changes.category === undefined ? {} : { categoryId: resolveCategoryId(activity, changes.category) }),
     updatedAt: now.toISOString(),
   }
@@ -336,7 +348,8 @@ export function describeExpense(activity: SharedActivity, expense: Expense) {
   return {
     id: expense.id,
     version: expenseVersion(expense),
-    date: expense.createdAt.slice(0, 10),
+    date: paidDay(expense),
+    ...(expense.createdAt.slice(0, 10) === paidDay(expense) ? {} : { recordedOn: expense.createdAt.slice(0, 10) }),
     title: expense.title,
     amount: expense.amount,
     kind: expense.kind ?? 'expense',

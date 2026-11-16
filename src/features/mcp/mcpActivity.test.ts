@@ -66,19 +66,24 @@ describe('buildExpense', () => {
       payer: 'Leo',
       split: { method: 'equal', participants: ['Leo', 'Sam'] },
       category: 'transport',
-      date: '2026-09-21',
+      date: '2026-09-21T12:00:00Z',
     }, 'expense-2', now)
     expect(expense).toMatchObject({
       title: 'Taxi to Shinjuku',
       payerId: 'friend-leo',
       shares: { 'friend-leo': 1420, 'friend-sam': 1420 },
-      createdAt: '2026-09-21T12:00:00.000Z',
+      createdAt: now.toISOString(),
+      paidAt: '2026-09-21T12:00:00.000Z',
       categoryId: 'transport',
     })
     expect(buildExpense(activity, { ...ramen, category: 'food & DRINKS' }, 'e', now).categoryId).toBe('food')
     expect(buildExpense(activity, { ...ramen, category: 'General' }, 'e', now).categoryId).toBeNull()
     expect(buildExpense(activity, { ...ramen, category: ' ' }, 'e', now).categoryId).toBeNull()
-    expect(buildExpense(activity, { ...ramen, date: '2026-09-21T22:15:00+09:00' }, 'e', now).createdAt).toBe('2026-09-21T13:15:00.000Z')
+    expect(buildExpense(activity, { ...ramen, date: '2026-09-21T22:15:00+09:00' }, 'e', now)).toMatchObject({ createdAt: now.toISOString(), paidAt: '2026-09-21T13:15:00.000Z' })
+    // Without a date the payment time is the time it is recorded, so none is stored.
+    expect('paidAt' in buildExpense(activity, ramen, 'e', now)).toBe(false)
+    // A time without an offset is the user's local time, since the server runs on their machine.
+    expect(buildExpense(activity, { ...ramen, date: ' 2026-09-21T19:30 ' }, 'e', now).paidAt).toBe(new Date(2026, 8, 21, 19, 30).toISOString())
   })
 
   it('keeps exact shares when they add up to the amount', () => {
@@ -105,7 +110,10 @@ describe('buildExpense', () => {
       [{ split: { method: 'exact', shares: { Mia: 4000, Leo: -40 } } }, "can't be negative"],
       [{ split: { method: 'exact', shares: { Mia: 3000, Leo: 900 } } }, 'add up to 3900, not 3960'],
       [{ category: 'Groceries' }, 'Categories: General, Food & drinks, Stay, Transport, Activities.'],
-      [{ date: '2026-02-30' }, 'not a valid date'],
+      [{ date: '2026-02-30T10:00' }, 'not a valid date'],
+      [{ date: '2026-09-21T25:00' }, 'not a valid date'],
+      [{ date: '2026-09-21' }, 'has no time'],
+      [{ date: ' 2026-09-21 ' }, 'has no time'],
       [{ date: 'yesterday' }, 'not a valid date'],
     ]
     for (const [change, message] of invalid) {
@@ -133,6 +141,9 @@ describe('findDuplicate', () => {
     // Friends often buy the same thing on the same day; each person's own purchase is not a duplicate.
     expect(findDuplicate([existing], tokyoExpense({ id: 'new', payerId: 'friend-leo' }))).toBeNull()
     expect(findDuplicate([existing], tokyoExpense({ id: 'new', createdAt: '2026-09-21T03:00:00.000Z' }))).toBeNull()
+    // The day that counts is the day it was paid, not the day it was typed in.
+    expect(findDuplicate([existing], tokyoExpense({ id: 'new', createdAt: '2026-10-04T09:30:00.000Z', paidAt: '2026-09-20T12:00:00.000Z' }))).toBe(existing)
+    expect(findDuplicate([tokyoExpense({ createdAt: '2026-10-01T09:00:00.000Z', paidAt: '2026-09-20T12:00:00.000Z' })], tokyoExpense({ id: 'new', createdAt: '2026-10-01T10:00:00.000Z' }))).toBeNull()
     expect(findDuplicate([existing], tokyoExpense({ id: 'new', title: 'Taxi' }))).toBeNull()
     expect(findDuplicate([existing], tokyoExpense({ id: 'new', title: 'Su' }))).toBeNull()
     const dinner = tokyoExpense({ title: 'Dinner with the team' })
@@ -147,7 +158,7 @@ describe('planExpenseAdditions', () => {
     const activity = tokyoActivity()
     const plan = planExpenseAdditions(activity, [
       ramen,
-      { title: 'Suica top-up', amount: 5000, payer: 'Mia', split: { method: 'equal' }, date: '2026-09-20' },
+      { title: 'Suica top-up', amount: 5000, payer: 'Mia', split: { method: 'equal' }, date: '2026-09-20T12:00:00Z' },
       { title: 'teamLab tickets', amount: 11400, payer: 'Mia', split: { method: 'equal' } },
       { ...ramen },
     ], { allowDuplicates: false, now, makeId: sequentialIds() })
@@ -169,7 +180,7 @@ describe('planExpenseAdditions', () => {
 
   it('leaves the activity untouched when everything was a duplicate', () => {
     const activity = tokyoActivity()
-    const plan = planExpenseAdditions(activity, [{ title: 'Suica', amount: 5000, payer: 'Mia', split: { method: 'equal' }, date: '2026-09-20' }], { allowDuplicates: false, now, makeId: sequentialIds() })
+    const plan = planExpenseAdditions(activity, [{ title: 'Suica', amount: 5000, payer: 'Mia', split: { method: 'equal' }, date: '2026-09-20T12:00:00Z' }], { allowDuplicates: false, now, makeId: sequentialIds() })
     expect(plan.saved).toEqual([])
     expect(plan.activity.expenses).toEqual(activity.expenses)
   })
@@ -272,11 +283,22 @@ describe('expense versions', () => {
     expect(describeExpense(activity, tokyoExpense()).version).toBe('2026-09-20T03:00:00.000Z')
     expect(describeExpense(activity, tokyoExpense({ updatedAt: '2026-09-25T08:00:00.000Z' })).version).toBe('2026-09-25T08:00:00.000Z')
   })
+
+  it('dates an expense by when it was paid and says when it was recorded only if that differs', () => {
+    const activity = tokyoActivity()
+    const backdated = describeExpense(activity, tokyoExpense({ createdAt: '2026-10-04T09:30:00.000Z', paidAt: '2026-09-20T12:00:00.000Z' }))
+    expect(backdated).toMatchObject({ date: '2026-09-20', recordedOn: '2026-10-04', version: '2026-10-04T09:30:00.000Z' })
+    expect(describeExpense(activity, tokyoExpense({ paidAt: '2026-09-20T19:30:00.000Z' }))).not.toHaveProperty('recordedOn')
+    // Agents backdated older expenses by moving createdAt itself; those read as before.
+    const legacy = describeExpense(activity, tokyoExpense({ createdAt: '2026-09-21T12:00:00.000Z' }))
+    expect(legacy.date).toBe('2026-09-21')
+    expect(legacy).not.toHaveProperty('recordedOn')
+  })
 })
 
 describe('buildSettlement', () => {
   it('records a payment the same way the app does', () => {
-    expect(buildSettlement(tokyoActivity(), { from: 'Leo', to: 'mia', amount: 1000, date: '2026-09-21' }, 'payment-1', now)).toEqual({
+    expect(buildSettlement(tokyoActivity(), { from: 'Leo', to: 'mia', amount: 1000, date: '2026-09-21T12:00:00Z' }, 'payment-1', now)).toEqual({
       id: 'payment-1',
       groupId: 'group-tokyo',
       title: 'Settlement payment',
@@ -284,10 +306,13 @@ describe('buildSettlement', () => {
       payerId: 'friend-leo',
       splitMethod: 'exact',
       shares: { me: 1000 },
-      createdAt: '2026-09-21T12:00:00.000Z',
+      createdAt: now.toISOString(),
+      paidAt: '2026-09-21T12:00:00.000Z',
       kind: 'settlement',
     })
-    expect(buildSettlement(tokyoActivity(), { from: 'Sam', to: 'Mia', amount: 1666.66 }, 'payment-2', now).createdAt).toBe(now.toISOString())
+    const undated = buildSettlement(tokyoActivity(), { from: 'Sam', to: 'Mia', amount: 1666.66 }, 'payment-2', now)
+    expect(undated.createdAt).toBe(now.toISOString())
+    expect('paidAt' in undated).toBe(false)
   })
 
   it('lets a removed friend settle what they still owe', () => {
@@ -360,8 +385,10 @@ describe('planExpenseUpdate', () => {
   })
 
   it('changes the title, payer, day and category without touching the split', () => {
-    const { after } = planExpenseUpdate(tokyoActivity(), 'expense-suica', version, { title: ' Suica card ', payer: 'Leo', date: '2026-09-21', category: 'general' }, now)
-    expect(after).toEqual(tokyoExpense({ title: 'Suica card', payerId: 'friend-leo', createdAt: '2026-09-21T12:00:00.000Z', categoryId: null, updatedAt: now.toISOString() }))
+    const { after } = planExpenseUpdate(tokyoActivity(), 'expense-suica', version, { title: ' Suica card ', payer: 'Leo', date: '2026-09-21T12:00:00Z', category: 'general' }, now)
+    expect(after).toEqual(tokyoExpense({ title: 'Suica card', payerId: 'friend-leo', paidAt: '2026-09-21T12:00:00.000Z', categoryId: null, updatedAt: now.toISOString() }))
+    const paid = tokyoActivity([tokyoExpense({ paidAt: '2026-09-18T12:00:00.000Z' })])
+    expect(planExpenseUpdate(paid, 'expense-suica', version, { title: 'Suica card' }, now).after).toMatchObject({ paidAt: '2026-09-18T12:00:00.000Z', createdAt: version })
   })
 
   it('replaces the split when a new one is given', () => {

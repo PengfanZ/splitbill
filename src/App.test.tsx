@@ -648,8 +648,8 @@ describe('small UI building blocks', () => {
     rerender(<ExpenseList expenses={[expense({ createdAt: 'Today' })]} members={[CURRENT_USER]} query="" onEditExpense={onEdit} onDeleteExpense={onDelete} />)
     expect(screen.getByRole('button', { name: 'Edit Dinner' })).toHaveAttribute('title', 'Today')
     rerender(<ExpenseList expenses={[expense({ updatedAt: '2026-07-15T01:00:00.000Z' })]} members={[CURRENT_USER]} query="" onEditExpense={onEdit} onDeleteExpense={onDelete} />)
-    expect(screen.getByText('Edited')).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Edit Dinner' })).toHaveAttribute('title', expect.stringMatching(/^Edited /))
+    expect(screen.getByText(/^edited .*Jul 1[45]/)).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Edit Dinner' })).toHaveAttribute('title', expect.stringMatching(/^Paid .* · Edited /))
     rerender(<ExpenseList expenses={[]} members={[CURRENT_USER]} query="" onEditExpense={onEdit} onDeleteExpense={onDelete} />)
     expect(screen.getByText('No expenses yet. Add the first one when you’re ready.')).toBeVisible()
 
@@ -1186,7 +1186,7 @@ describe('complete app workflows', { timeout: 15_000 }, () => {
     expect(document.title).toBe('Tally — 多人分账工具')
     expect(screen.getByRole('heading', { name: '设置' })).toBeVisible()
     expect(screen.getByRole('button', { name: '保存设置' })).toBeVisible()
-    expect(document.querySelector('[title^="创建于 "]')).not.toBeNull()
+    expect(document.querySelector('[title^="付款于 "][title*=" · 创建于 "]')).not.toBeNull()
     expect(localStorage.getItem('tally:locale:v1')).toBe('zh-CN')
 
     await user.click(screen.getByRole('button', { name: '保存设置' }))
@@ -1431,14 +1431,14 @@ describe('complete app workflows', { timeout: 15_000 }, () => {
     await user.type(screen.getByLabelText('Amount'), '30')
     await user.click(screen.getByRole('button', { name: 'Save expense' }))
     expect(screen.getByLabelText('Activity summary').querySelector('.balance-card-balance')).toHaveTextContent('$20.00')
-    expect(screen.getByRole('button', { name: 'Edit Gas' })).toHaveAttribute('title', expect.stringMatching(/^Created /))
+    expect(screen.getByRole('button', { name: 'Edit Gas' })).toHaveAttribute('title', expect.stringMatching(/^Paid .* · Created /))
 
     await user.click(screen.getByRole('button', { name: 'Edit Gas' }))
     await user.clear(screen.getByLabelText('Amount'))
     await user.type(screen.getByLabelText('Amount'), '45')
     await user.click(screen.getByRole('button', { name: 'Save changes' }))
     expect(screen.getAllByText('$45.00').some(element => element.matches('.expense-amount b'))).toBe(true)
-    expect(screen.getByRole('button', { name: 'Edit Gas' })).toHaveAttribute('title', expect.stringMatching(/^Edited /))
+    expect(screen.getByRole('button', { name: 'Edit Gas' })).toHaveAttribute('title', expect.stringMatching(/^Paid .* · Edited /))
 
     await chooseShareAction(user, 'Export share image')
     expect(await screen.findByRole('status')).toHaveTextContent('PNG summary downloaded')

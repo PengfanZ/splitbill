@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { version } from '../../../packages/tally-splitbill-mcp/package.json'
 import { SUPPORTED_CURRENCIES } from '../../domain/currency'
+import { compareByPaidAtDesc } from '../../domain/expenses'
 import { DEFAULT_CATEGORIES, GENERAL_CATEGORY } from '../../domain/categories'
 import { makeId as makeRandomId } from '../../domain/members'
 import { LiveActivityApiError, type LiveActivityRecord } from '../liveSharing/liveActivityApi'
@@ -22,6 +23,7 @@ import {
   McpToolError,
   planExpenseAdditions,
   planExpenseDeletion,
+  paidDay,
   planExpenseUpdate,
   planMemberAdditions,
   planSettlement,
@@ -52,7 +54,7 @@ const titleSchema = z.string().describe('What it was for, in the user\'s words.'
 const amountSchema = z.number().describe('The total, in the activity\'s currency, with at most two decimals.')
 const payerSchema = z.string().describe('Who paid: a member name or id from get_activity.')
 const categorySchema = z.string().describe('A category name from get_activity. Omit for General.')
-const expenseDateSchema = z.string().describe('When it happened, as YYYY-MM-DD. Omit for now.')
+const expenseDateSchema = z.string().describe('When it was paid, as a date and time in the user\'s local time, like 2026-11-13T19:30. Leave it out unless the user said when; left out, the payment time is the time it is recorded. A day alone is not accepted: ask the user for the time.')
 const expenseSchema = z.object({
   title: titleSchema,
   amount: amountSchema,
@@ -213,10 +215,10 @@ export function createTallyMcpServer({
       const snapshot = record.snapshot
       const categoryId = categoryFilter(snapshot, category)
       const matching = snapshot.expenses.filter(expense => {
-        const day = expense.createdAt.slice(0, 10)
+        const day = paidDay(expense)
         return (!from || day >= from) && (!to || day <= to)
           && (categoryId === undefined || (expense.kind !== 'settlement' && (expense.categoryId ?? '') === categoryId))
-      })
+      }).sort(compareByPaidAtDesc)
       return reply({
         code: activity.code,
         ...describeActivity(snapshot, viewerFor(activity, record)),
@@ -259,7 +261,7 @@ export function createTallyMcpServer({
         saved: planned.saved.map(expense => describeExpense(record.snapshot, expense)),
         skipped: planned.skipped.map(({ expense, duplicateOf }) => ({
           ...describeExpense(planned.preview, expense),
-          reason: `Looks like "${duplicateOf.title}" from ${duplicateOf.createdAt.slice(0, 10)}, already in Tally.`,
+          reason: `Looks like "${duplicateOf.title}" from ${paidDay(duplicateOf)}, already in Tally.`,
         })),
         balanceChanges: balanceChanges(before, record.snapshot),
         you: viewerName(activity, record),

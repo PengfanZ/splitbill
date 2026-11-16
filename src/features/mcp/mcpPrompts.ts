@@ -13,7 +13,7 @@ export const MCP_PROMPTS = {
       `Import the shared expenses from ${file} into ${activity ? `the Tally activity "${activity}"` : 'Tally'}.`,
       `1. Read the file. Call list_activities${activity ? '' : ', and ask me which activity to use if it is not obvious'}, then get_activity for its members and categories.`,
       '2. Pick the rows that look like shared costs. Show them to me with the payer and split you propose, and ask about anything unclear (personal purchases, who paid, who shared it) before saving.',
-      '3. Save them in one add_expenses call, with each row\'s date and a short, readable title.',
+      '3. Save them in one add_expenses call, with a short, readable title and the date and time each was paid. If the file has no times, ask me what time to use before saving.',
       '4. Recap what was saved and what was skipped as a duplicate, so I can review it in Tally.',
     ].join('\n'),
   },

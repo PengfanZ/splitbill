@@ -51,6 +51,19 @@ describe('shared activity schema', () => {
     }).success).toBe(false)
   })
 
+  it('accepts an optional payment time and rejects a malformed one', () => {
+    const parsed = sharedActivitySchema.safeParse({
+      ...activity,
+      expenses: [{ ...expense, paidAt: '2026-07-28T19:30:00.000Z' }],
+    })
+
+    expect(parsed.success && parsed.data.expenses[0].paidAt).toBe('2026-07-28T19:30:00.000Z')
+    expect(sharedActivitySchema.safeParse({
+      ...activity,
+      expenses: [{ ...expense, paidAt: 'yesterday' }],
+    }).success).toBe(false)
+  })
+
   it('rejects ambiguous identities and participant sets', () => {
     for (const inactiveMemberIds of [['maya'], []]) {
       expect(sharedActivitySchema.safeParse({ ...activity, group: { ...activity.group, inactiveMemberIds } }).success).toBe(true)

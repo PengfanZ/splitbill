@@ -69,4 +69,6 @@ Put financial calculations in pure domain helpers, browser APIs behind data or f
 
 Equal expenses store shares only for the selected participants. This keeps partial-group splits compatible with the existing expense schema and lets expense history display the participant count without a separate membership field.
 
+An expense has two times. `createdAt` is when it was entered and is never rewritten. The optional `paidAt` is when it was paid, written only when a person or an agent picks a time. Everything that asks "when did this happen" (day grouping and order in the expense list, the CSV `paid_at` column, the agent server's `date`, filters and duplicate check) reads `expensePaidAt(expense)`, which is `paidAt ?? createdAt`. For Live activities the database validates `paidAt` and, when an update omits it for an expense that had one, keeps the earlier value, so an older client that rebuilds the expense on edit cannot drop it.
+
 Settlement payments use the same transaction shape with `kind: "settlement"`: the payer is the person sending money and the single share belongs to the recipient. This lets the balance engine account for repayments without a parallel ledger. Spending summaries and exports exclude settlement amounts from total spending while preserving the payment in local history, recovery copies, and Live Supabase state.

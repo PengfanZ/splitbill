@@ -1,6 +1,6 @@
 import { categoryLabel, expenseCategory } from '../../domain/categories'
 import type { CurrencyCode } from '../../domain/currency'
-import { getSettlementRecipientId, isSettlementPayment } from '../../domain/expenses'
+import { expensePaidAt, getSettlementRecipientId, isSettlementPayment } from '../../domain/expenses'
 import type { ActivityGroup, Expense, ExpenseCategory, Member } from '../../domain/models'
 import { translate, type AppLocale, type TranslationKey } from '../../i18n/localization'
 import { isStandalonePwa } from '../../pwa/displayMode'
@@ -11,6 +11,7 @@ export type CsvExportScope =
 
 export type CsvExportRow = {
   recordType: 'expense' | 'settlement'
+  paidAt: string
   recordedAt: string
   lastEditedAt: string
   description: string
@@ -55,6 +56,7 @@ export const CSV_OBJECT_URL_REVOKE_DELAY_MS = 60_000
 
 const CSV_COLUMNS: ReadonlyArray<[keyof CsvExportRow, TranslationKey]> = [
   ['recordType', 'csvExport.column.recordType'],
+  ['paidAt', 'csvExport.column.paidAt'],
   ['recordedAt', 'csvExport.column.recordedAt'],
   ['lastEditedAt', 'csvExport.column.lastEditedAt'],
   ['description', 'csvExport.column.description'],
@@ -106,6 +108,7 @@ function expenseRows(
       const paid = memberId === expense.payerId ? expense.amount : 0
       return {
         recordType: 'expense',
+        paidAt: expensePaidAt(expense),
         recordedAt: expense.createdAt,
         lastEditedAt: expense.updatedAt ?? '',
         description: expense.title,
@@ -141,6 +144,7 @@ function settlementRows(
     { memberId: recipientId, person: to, flow: expense.amount },
   ].filter(participant => !memberId || participant.memberId === memberId).map(({ person, flow }) => ({
     recordType: 'settlement',
+    paidAt: expensePaidAt(expense),
     recordedAt: expense.createdAt,
     lastEditedAt: expense.updatedAt ?? '',
     description: expense.title,

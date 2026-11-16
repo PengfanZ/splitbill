@@ -7,7 +7,8 @@ import { Button } from '../../components/Button'
 import { selectInputContents } from '../../components/inputInteractions'
 import { SelectMenu, type SelectMenuOption } from '../../components/SelectMenu'
 import { activityCurrency, currencyLabel, currencySymbol, defaultCurrencyForLocale, SUPPORTED_CURRENCIES, type CurrencyCode } from '../../domain/currency'
-import { createEqualShares, createExactShares, createExpenseTimestamp, createSettlementPayment, money } from '../../domain/expenses'
+import { createEqualShares, createExactShares, createExpenseTimestamp, createSettlementPayment, expensePaidAt, money } from '../../domain/expenses'
+import { fromPaymentTimeInput, toPaymentTimeInput } from '../../domain/paymentTimeInput'
 import { makeId, mergeMemberNames } from '../../domain/members'
 import type { ActivityGroup, Expense, Member, Settlement, SplitMethod } from '../../domain/models'
 import { useLocalization } from '../../i18n/LocalizationContext'
@@ -92,6 +93,24 @@ export function AddFriendModal({ existingExpenseCount, hasRemovedFriends = false
   )
 }
 
+/** The "Paid on" field: `paidAt` is set only once someone changes the time it opened with. */
+function usePaymentTimeField(initial: string) {
+  const [opened] = useState(() => toPaymentTimeInput(initial))
+  const [value, setValue] = useState(opened)
+  const picked = fromPaymentTimeInput(value)
+  // An old expense with an unreadable time opens empty, and may be saved that way.
+  const unchanged = value === opened
+  return { value, setValue, required: opened !== '', valid: unchanged ? opened === '' || picked !== null : picked !== null, paidAt: unchanged || picked === null ? undefined : picked }
+}
+
+function PaymentTimeField({ field }: { field: ReturnType<typeof usePaymentTimeField> }) {
+  const { t } = useLocalization()
+  return <>
+    <label>{t('expense.paidOn')}<input type="datetime-local" value={field.value} onChange={event => field.setValue(event.target.value)} required={field.required} /></label>
+    {field.valid ? null : <small className="split-error" role="alert">{t('expense.paidOnInvalid')}</small>}
+  </>
+}
+
 export function SettleUpModal({ group, settlement, onClose, onSave, saving = false }: {
   group: ActivityGroup
   settlement: Settlement
@@ -105,12 +124,14 @@ export function SettleUpModal({ group, settlement, onClose, onSave, saving = fal
   const numericAmount = Number(amount) || 0
   const amountCents = Math.round(numericAmount * 100)
   const suggestedCents = Math.round(settlement.amount * 100)
-  const valid = amountCents > 0 && amountCents <= suggestedCents
+  const paymentTime = usePaymentTimeField(createExpenseTimestamp())
+  const amountValid = amountCents > 0 && amountCents <= suggestedCents
+  const valid = amountValid && paymentTime.valid
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
     if (!valid) return
-    onSave(createSettlementPayment(group.id, settlement, numericAmount, makeId('settlement')), settlement)
+    onSave(createSettlementPayment(group.id, settlement, numericAmount, makeId('settlement'), createExpenseTimestamp(), paymentTime.paidAt), settlement)
   }
 
   return (
@@ -122,7 +143,8 @@ export function SettleUpModal({ group, settlement, onClose, onSave, saving = fal
           <span><Avatar member={settlement.to} /><b>{settlement.to.name}</b><small>{t('settlement.receives')}</small></span>
         </div>
         <label>{t('settlement.amount')} <small>{t('settlement.suggestedAmount', { amount: money(settlement.amount, currency, locale) })}</small><span className="modal-amount"><i>{currencySymbol(currency, locale)}</i><input autoFocus aria-label={t('settlement.amount')} value={amount} onChange={event => setAmount(event.target.value)} onFocus={selectInputContents} type="number" inputMode="decimal" min="0.01" max={settlement.amount.toFixed(2)} step="0.01" required /></span></label>
-        {valid ? null : <small className="split-error" role="alert">{t('settlement.invalid', { minimum: money(0.01, currency, locale), amount: money(settlement.amount, currency, locale) })}</small>}
+        {amountValid ? null : <small className="split-error" role="alert">{t('settlement.invalid', { minimum: money(0.01, currency, locale), amount: money(settlement.amount, currency, locale) })}</small>}
+        <PaymentTimeField field={paymentTime} />
         <div className="split-note settlement-note"><CircleDollarSign size={18} /><span>{t('settlement.note')}</span></div>
         <div className="modal-actions"><Button onClick={onClose}>{t('common.cancel')}</Button><Button variant="primary" type="submit" disabled={!valid || saving}>{t('settlement.record')}</Button></div>
       </form>
@@ -170,6 +192,9 @@ export function ExpenseModal({ group, members: allMembers, expense, categoryExpe
   const members = useMemo(() => expenseEntryMembers(group, allMembers, expense), [group, allMembers, expense])
   const displayName = (member: Member) => isInactiveMember(group, member.id) ? t('members.inactiveName', { name: member.name }) : member.name
   const [amount, setAmount] = useState(expense ? expense.amount.toString() : '')
+  const paymentTime = usePaymentTimeField(expense ? expensePaidAt(expense) : createExpenseTimestamp())
+  // Batch drafts have no Paid on field, so a value left empty on the manual tab must not block them.
+  const paidOnValid = paymentTime.valid || editingBatchIndex !== null
   const [payerId, setPayerId] = useState(expense?.payerId ?? (members.some(member => member.id === currentMemberId) ? currentMemberId! : members[0]?.id ?? 'me'))
   const [method, setMethod] = useState<SplitMethod>(expense?.splitMethod ?? 'equal')
   // New expenses start with a one-line summary of who paid and how it splits; edits and AI drafts show every detail.
@@ -283,7 +308,7 @@ export function ExpenseModal({ group, members: allMembers, expense, categoryExpe
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    if (!title.trim() || numericAmount <= 0 || !splitValid || !categoryValid) return
+    if (!title.trim() || numericAmount <= 0 || !splitValid || !categoryValid || !paidOnValid) return
     if (editingBatchIndex !== null) {
       const draft = createAiDraftFromValues({
         amount: numericAmount,
@@ -316,6 +341,7 @@ export function ExpenseModal({ group, members: allMembers, expense, categoryExpe
       shares,
       createdAt: expense?.createdAt ?? savedAt,
       ...(expense ? { updatedAt: savedAt } : {}),
+      ...(paymentTime.paidAt ?? expense?.paidAt ? { paidAt: paymentTime.paidAt ?? expense?.paidAt } : {}),
       ...(selectedCategoryId !== null || expense?.categoryId !== undefined ? { categoryId: selectedCategoryId } : {}),
     }
     if (categorySuggestion) onSave(saved, categorySuggestion)
@@ -396,6 +422,7 @@ export function ExpenseModal({ group, members: allMembers, expense, categoryExpe
           setCategoryId(id)
           if (id !== selectedCategoryId) onCategorySelect?.()
         }} onManage={onCategoriesChange ? () => setManagingCategories(true) : undefined} />{suggestedCategoryId ? <small className="category-suggestion-note">{t('categories.suggested')}</small> : null}</label> : null}
+        {editingBatchIndex === null ? <PaymentTimeField field={paymentTime} /> : null}
         {!categoryValid ? <div role="alert" className="split-note"><span>{t('categories.changed')}</span><Button onClick={() => { setCategoryChosen(true); setCategoryId(null) }}>{t('categories.useGeneral')}</Button></div> : null}
         {showSplitDetails ? <>
         <div className="form-grid">
@@ -458,7 +485,7 @@ export function ExpenseModal({ group, members: allMembers, expense, categoryExpe
           </div>
         ) : null}
         {expense ? <div className="split-note edit-note"><Pencil size={17} /><span>{method === 'equal' ? t('expense.editEqualNote') : t('expense.editExactNote', { count: members.length })}</span></div> : null}
-        <div className="modal-actions">{expense && onDelete ? <Button variant="ghost" className="expense-delete-action" onClick={onDelete}><Trash2 size={16} />{t('expense.delete')}</Button> : null}<Button className={editingBatchIndex === null ? 'modal-cancel' : undefined} onClick={editingBatchIndex === null ? onClose : () => { setEditingBatchIndex(null); setEntryMode('ai-batch') }}>{t(editingBatchIndex === null ? 'common.cancel' : 'expense.batchBack')}</Button><Button variant="primary" type="submit" disabled={!splitValid || !categoryValid || saving}>{t(editingBatchIndex === null ? (expense ? 'expense.saveChanges' : 'expense.save') : 'expense.batchUpdate')}</Button></div>
+        <div className="modal-actions">{expense && onDelete ? <Button variant="ghost" className="expense-delete-action" onClick={onDelete}><Trash2 size={16} />{t('expense.delete')}</Button> : null}<Button className={editingBatchIndex === null ? 'modal-cancel' : undefined} onClick={editingBatchIndex === null ? onClose : () => { setEditingBatchIndex(null); setEntryMode('ai-batch') }}>{t(editingBatchIndex === null ? 'common.cancel' : 'expense.batchBack')}</Button><Button variant="primary" type="submit" disabled={!splitValid || !categoryValid || !paidOnValid || saving}>{t(editingBatchIndex === null ? (expense ? 'expense.saveChanges' : 'expense.save') : 'expense.batchUpdate')}</Button></div>
       </form> : null}
     </ModalShell>
   )

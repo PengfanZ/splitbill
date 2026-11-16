@@ -5,6 +5,15 @@ export const money = (value: number, currency: CurrencyCode = 'USD', locale = 'e
 export const isSettlementPayment = (expense: Expense) => expense.kind === 'settlement'
 export const spendingExpenses = (expenses: Expense[]) => expenses.filter(expense => !isSettlementPayment(expense))
 export const createExpenseTimestamp = (date = new Date()) => date.toISOString()
+/** When the expense was paid: the time someone chose, or else when it was recorded. */
+export const expensePaidAt = (expense: Expense) => expense.paidAt ?? expense.createdAt
+
+/** Latest payment first, then latest recorded. Unreadable times compare equal, so a stable sort keeps their order. */
+export function compareByPaidAtDesc(a: Expense, b: Expense) {
+  const paid = Date.parse(expensePaidAt(b)) - Date.parse(expensePaidAt(a))
+  if (paid) return paid
+  return Date.parse(b.createdAt) - Date.parse(a.createdAt) || 0
+}
 
 const expenseDateTimeFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: 'medium',
@@ -36,7 +45,7 @@ export function getSettlementRecipientId(expense: Expense) {
   return Object.keys(expense.shares).find(memberId => memberId !== expense.payerId) ?? null
 }
 
-export function createSettlementPayment(groupId: string, settlement: Settlement, amount: number, id: string, createdAt = createExpenseTimestamp()): Expense {
+export function createSettlementPayment(groupId: string, settlement: Settlement, amount: number, id: string, createdAt = createExpenseTimestamp(), paidAt?: string): Expense {
   const amountCents = Math.round(amount * 100)
   const suggestedCents = Math.round(settlement.amount * 100)
   if (amountCents <= 0 || amountCents > suggestedCents) throw new RangeError('Settlement amount must be within the suggested payment')
@@ -50,6 +59,7 @@ export function createSettlementPayment(groupId: string, settlement: Settlement,
     splitMethod: 'exact',
     shares: { [settlement.to.id]: roundedAmount },
     createdAt,
+    ...(paidAt === undefined ? {} : { paidAt }),
     kind: 'settlement',
   }
 }

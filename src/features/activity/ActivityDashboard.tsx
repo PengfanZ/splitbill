@@ -16,12 +16,12 @@ import { Avatar } from '../../components/AppShell'
 import { Button, IconButton } from '../../components/Button'
 import { ModalShell } from '../../components/Dialog'
 import { activityCurrency, type CurrencyCode } from '../../domain/currency'
-import { calculateMemberBalance, calculateSettlements, getSettlementRecipientId, isSettlementPayment, memberExpenseNet, money, spendingExpenses } from '../../domain/expenses'
+import { calculateMemberBalance, calculateSettlements, compareByPaidAtDesc, expensePaidAt, getSettlementRecipientId, isSettlementPayment, memberExpenseNet, money, spendingExpenses } from '../../domain/expenses'
 import { activeActivityMembers, isInactiveMember } from '../../domain/memberRemoval'
 import { CURRENT_USER } from '../../domain/members'
 import type { ActivityGroup, Expense, Member, Settlement } from '../../domain/models'
 import { useLocalization } from '../../i18n/LocalizationContext'
-import { formatLocalizedDay, formatLocalizedList, localDayKey } from '../../i18n/localization'
+import { formatLocalizedDay, formatLocalizedList, formatLocalizedTime, localDayKey } from '../../i18n/localization'
 import { ShareActivityMenu } from '../sharing/ShareActivityMenu'
 import { ActivityCurrencyControl } from './ActivityCurrencyControl'
 import { ActivityIdentityControl } from './ActivityIdentityControl'
@@ -152,17 +152,17 @@ export function SettlementDirections({ members, expenses, currency = 'USD', curr
 
 type ExpenseDay = { key: string; label: string; expenses: Expense[] }
 
-/** Newest day first; expenses without a readable date keep their order at the end. */
+/** Newest payment day first, latest payment first within a day; expenses without a readable date keep their order at the end. */
 function groupExpensesByDay(expenses: Expense[], label: (value: string) => string, unknownLabel: string, timeZone: string): ExpenseDay[] {
   const days = new Map<string, ExpenseDay>()
   const dated = expenses
-    .map((expense, index) => ({ expense, index, key: localDayKey(expense.createdAt, timeZone) }))
+    .map((expense, index) => ({ expense, index, key: localDayKey(expensePaidAt(expense), timeZone) }))
     .sort((a, b) => a.key === b.key
-      ? a.index - b.index
+      ? compareByPaidAtDesc(a.expense, b.expense) || a.index - b.index
       : a.key === null ? 1 : b.key === null ? -1 : b.key.localeCompare(a.key))
   for (const { expense, key } of dated) {
     const dayKey = key ?? 'unknown'
-    const day = days.get(dayKey) ?? { key: dayKey, label: key ? label(expense.createdAt) : unknownLabel, expenses: [] }
+    const day = days.get(dayKey) ?? { key: dayKey, label: key ? label(expensePaidAt(expense)) : unknownLabel, expenses: [] }
     day.expenses.push(expense)
     days.set(dayKey, day)
   }
@@ -210,9 +210,19 @@ export function ExpenseList({ expenses, members, group, inactiveMembers = [], cu
     const participantCount = Object.keys(expense.shares).length
     const storedTimestamp = expense.updatedAt ?? expense.createdAt
     const localizedTimestamp = formatDateTime(storedTimestamp)
-    const timestampLabel = localizedTimestamp
+    const recordedLabel = localizedTimestamp
       ? t(expense.updatedAt ? 'expense.editedAt' : 'expense.createdAt', { date: localizedTimestamp })
       : storedTimestamp === 'Just now' ? t('expense.timeUnavailable') : storedTimestamp
+    const paidAt = expensePaidAt(expense)
+    const paidTime = formatLocalizedTime(paidAt, locale, timeZone)
+    const paidLabel = formatDateTime(paidAt)
+    const timestampLabel = paidLabel ? `${t('expense.paidAt', { date: paidLabel })} · ${recordedLabel}` : recordedLabel
+    // The quieter second time: the last edit, or the day it was added when that isn't the day it was paid.
+    const timeNote = expense.updatedAt
+      ? localDayKey(expense.updatedAt, timeZone) ? t('expense.editedOn', { date: formatLocalizedDay(expense.updatedAt, locale, timeZone) }) : null
+      : paidTime && localDayKey(expense.createdAt, timeZone) && localDayKey(expense.createdAt, timeZone) !== localDayKey(paidAt, timeZone)
+        ? t('expense.addedOn', { date: formatLocalizedDay(expense.createdAt, locale, timeZone) })
+        : null
     const unknown = t('common.unknown')
     const category = group && !settlementPayment ? expenseCategory(group, expense) : null
     const viewerNet = currentMemberId && !settlementPayment ? memberExpenseNet(currentMemberId, expense) : 0
@@ -225,6 +235,7 @@ export function ExpenseList({ expenses, members, group, inactiveMembers = [], cu
     const shareTone = viewerNet > 0 ? 'lent' : 'owe'
     const detailsId = `${rowIdPrefix}-${expense.id}-details`
     const amountId = `${rowIdPrefix}-${expense.id}-amount`
+    const timeId = `${rowIdPrefix}-${expense.id}-time`
     const content = <>
       <span className={`expense-icon${settlementPayment ? ' settlement-icon' : ''}`}>{settlementPayment ? <CircleDollarSign size={18} /> : <ReceiptText size={18} />}</span>
       <span className="row-copy">
@@ -233,8 +244,8 @@ export function ExpenseList({ expenses, members, group, inactiveMembers = [], cu
           <small id={detailsId} className={settlementPayment ? undefined : 'expense-details-wide'}>{settlementPayment ? t('dashboard.settlementPayment') : <>{t('dashboard.paidLabel', { payer: payer.name })}<i /><span className="expense-split-method">{t(expense.splitMethod === 'equal' ? 'dashboard.splitEqually' : 'dashboard.exactSplit')} · </span>{participantCount} {t(participantCount === 1 ? 'common.person' : 'common.people')}</>}</small>
           {settlementPayment ? null : <small className="expense-details-compact" aria-hidden="true">{t('dashboard.paidAmount', { payer: payer.name, amount: money(expense.amount, currency, locale) })}</small>}
           {category?.id ? <span className="expense-category-label" style={{ '--category-color': category.color } as CSSProperties}><span className="category-dot" aria-hidden="true" />{categoryLabel(category, locale)}</span> : null}
-          {expense.updatedAt ? <span className="expense-edited">{t('dashboard.edited')}</span> : null}
         </span>
+        {paidTime ? <span className="expense-time-line" id={timeId}><time dateTime={paidAt}><span className="visually-hidden">{t('expense.paidWord')} </span>{paidTime}</time>{timeNote ? <small className="expense-time-note">{timeNote}</small> : null}</span> : null}
         {removedNames.length && !settlementPayment ? <small>{t('members.historyIncludes', { names: removedNames.join(', ') })}</small> : null}
       </span>
       <span className="expense-amount" id={amountId}><b>{money(expense.amount, currency, locale)}</b>{viewerNet ? <small className={`expense-share expense-share--${shareTone}`}>{t(viewerShareKey, { name: currentUserLabel ?? '', amount: money(viewerNet, currency, locale) })}</small> : null}</span>
@@ -242,7 +253,7 @@ export function ExpenseList({ expenses, members, group, inactiveMembers = [], cu
     </>
     const rowClass = `activity-row expense-entry${settlementPayment ? ' settlement-payment-row' : ''}${viewerNet ? ' expense-entry--has-share' : ''}`
     if (!readOnly && !settlementPayment && onEditExpense) {
-      return <button type="button" className={`${rowClass} expense-entry--editable`} key={expense.id} title={timestampLabel} aria-label={t('dashboard.editExpense', { title: expense.title })} aria-describedby={`${detailsId} ${amountId}`} onClick={() => onEditExpense(expense)}>{content}</button>
+      return <button type="button" className={`${rowClass} expense-entry--editable`} key={expense.id} title={timestampLabel} aria-label={t('dashboard.editExpense', { title: expense.title })} aria-describedby={`${detailsId} ${amountId}${paidTime ? ` ${timeId}` : ''}`} onClick={() => onEditExpense(expense)}>{content}</button>
     }
     return (
       <div className={rowClass} key={expense.id} title={timestampLabel}>

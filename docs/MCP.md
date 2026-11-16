@@ -163,7 +163,7 @@ Members can be given by ID or by name. Names are matched case-insensitively amon
 | Tool | Behavior |
 | --- | --- |
 | `list_activities` | Linked activities: code, name, emoji, currency, member names, the caller's member, expense count. No tokens or URLs. Activities that the backend reports `not-found` are flagged as ended. |
-| `get_activity` | Members (active/removed), categories, expenses (paginated, filterable by date and category), balances and suggested settlements. Each expense has a `version` for edits and deletes. |
+| `get_activity` | Members (active/removed), categories, expenses (paginated, filterable by payment date and category, latest payment first), balances and suggested settlements. Each expense has a `version` for edits and deletes. |
 | `link_activities` | Opens Tally in the user's browser to approve linking existing Live activities (see [Credentials and identity](#credentials-and-identity)). Waits for the user, then returns the linked activity names. Never returns tokens. |
 | `get_share_link` | Returns the `#live=` URL and invite text in the requested language (`en`/`zh-CN`). This is the only tool that returns a capability. Its description tells the agent to call it only when the user asks to share. |
 
@@ -173,12 +173,23 @@ Each tool saves immediately, as one revision, and returns what it saved, in a fo
 
 | Tool | Saves |
 | --- | --- |
-| `add_expenses` | A batch of expenses. Each has `title`, `amount`, `payer`, `split: { equal: [members] } \| { exact: { member: amount } }`, optional `category` and `date`. Returns each saved expense with its computed shares, plus per-person balance changes. |
-| `record_settlement` | A payment `from` → `to` for `amount`, shaped like one recorded in the app. It can't exceed what the payer owes or what the recipient is owed, which also stops the same payment being recorded twice. Removed friends can still pay or be paid. |
+| `add_expenses` | A batch of expenses. Each has `title`, `amount`, `payer`, `split: { equal: [members] } \| { exact: { member: amount } }`, optional `category` and `date` (when it was paid). Returns each saved expense with its computed shares, plus per-person balance changes. |
+| `record_settlement` | A payment `from` → `to` for `amount`, with an optional `date` (when it was paid), shaped like one recorded in the app. It can't exceed what the payer owes or what the recipient is owed, which also stops the same payment being recorded twice. Removed friends can still pay or be paid. |
 | `add_members` | Friends by name. Restores a removed friend instead of duplicating the name, and leaves names already in the activity alone. |
 | `create_activity` | A new Live activity: name, emoji, currency, member names. Links it locally and opens it in the default browser. |
-| `update_expense` | Only the given fields of one expense: `title`, `amount`, `payer`, `split`, `category` or `date`. A new amount on an equal split is split again between the same people; an exact split needs the new split too. People already on the expense stay allowed after being removed, like edits in the app. Payments can't be edited; delete them and record the right one. |
+| `update_expense` | Only the given fields of one expense: `title`, `amount`, `payer`, `split`, `category` or `date` (when it was paid). A new amount on an equal split is split again between the same people; an exact split needs the new split too. People already on the expense stay allowed after being removed, like edits in the app. Payments can't be edited; delete them and record the right one. |
 | `delete_expense` | One expense or payment. Marked `destructiveHint`. There is no bulk delete. |
+
+### Payment time
+
+An expense has two times: when it was recorded in Tally and when it was paid.
+
+- **Default.** Unless the user says when something was paid, the agent leaves `date` out and the payment time is the time it is recorded. Nothing extra is stored. Each tool's `date` description tells the agent this.
+- **`date` needs a time.** It is a date and time such as `2026-11-13T19:30`, read in the local time of the machine the server runs on unless it carries an offset. A day alone is refused with a message telling the agent to ask the user for the time, so Tally never shows a clock time nobody gave.
+- **`date` sets the payment time only.** It is stored as the expense's `paidAt`. The record time (`createdAt`) is never rewritten. On `update_expense`, leaving `date` out keeps the payment time as it was.
+- **Reading.** Each expense's `date` is the day it was paid. `recordedOn` is added only when the expense was recorded on a different day, so an agent can tell a late entry from one entered the day it was paid.
+- **Filters, order and duplicates.** `get_activity`'s `from` and `to`, its latest-first order, and the duplicate check in `add_expenses` all use the payment day.
+- **Earlier versions.** Before `paidAt` existed, `date` moved `createdAt` itself and a day alone was stored at midday UTC. Those expenses keep that date, have no `paidAt` and show no `recordedOn`. Package versions published before this change still write and read dates that way. That is correct for expenses without a `paidAt`; on an expense that has one, an older package changes the record time, not the payment time, and reads the record day. Update the package to get the behavior above.
 
 **Conflicts:**
 - **Additions rebase automatically.** If someone else saved first, the server reloads, re-applies the additions and retries a bounded number of times. Appending cannot overwrite anyone's work.
@@ -186,7 +197,7 @@ Each tool saves immediately, as one revision, and returns what it saved, in a fo
 - **Payments and new members** are planned again on the newer version, so a payment is checked against the latest balances.
 
 **Duplicates:**
-- `add_expenses` skips an expense that matches an existing one: same payer, amount and date, and a similar title (one contains the other, or they share a significant word, since agents reword statement lines between imports).
+- `add_expenses` skips an expense that matches an existing one: same payer, amount and payment date, and a similar title (one contains the other, or they share a significant word, since agents reword statement lines between imports).
 - Skipped expenses are reported under `skipped`.
 - `allowDuplicates: true` saves them anyway, for real repeats such as two identical coffees.
 - Re-importing an overlapping statement is therefore safe by default, and nothing is added to the snapshot format.
