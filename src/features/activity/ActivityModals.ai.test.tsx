@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { CURRENT_USER } from '../../domain/members'
@@ -172,6 +172,22 @@ describe('AI-assisted expense modal', () => {
       shares: { me: 10, maya: 20, jordan: 0 },
       categoryId: 'activities',
     }), 'kept')
+  })
+
+  it('lets a batch draft be updated even if the hidden Paid on field was left empty', async () => {
+    const user = userEvent.setup()
+    const draft = (title: string) => ({ status: 'ready', title, amountCents: 2400, payerId: 'me', splitMethod: 'equal', participantIds: ['me', 'maya'], exactSharesCents: [] })
+    renderModal({ parseBatch: vi.fn().mockResolvedValue({ status: 'ready_batch', drafts: [draft('Lunch'), draft('Groceries')] }) })
+
+    fireEvent.change(screen.getByLabelText('Paid on'), { target: { value: '' } })
+    await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))
+    await user.type(screen.getByLabelText('Expense description'), 'Lunch and groceries')
+    await user.click(screen.getByRole('button', { name: /Create draft/ }))
+    await user.click(await screen.findByRole('button', { name: 'Edit Lunch' }))
+    await user.type(screen.getByLabelText('Description'), ' out')
+    await user.click(screen.getByRole('button', { name: 'Update draft' }))
+
+    expect(await screen.findByText('Lunch out')).toBeVisible()
   })
 
   it('reviews, edits, removes, and saves a multi-expense batch in one callback', async () => {

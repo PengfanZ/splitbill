@@ -33,6 +33,19 @@ describe('expense list payment time', () => {
     expect(row('Dinner').title).toMatch(/^Paid .*Nov 13.* · Created .*Nov 15/)
   })
 
+  it('reads the payment time and its note to screen readers on an editable row', () => {
+    render(<ExpenseList expenses={[expense({ paidAt: local(13, 19, 30) })]} members={[CURRENT_USER]} query="" onEditExpense={() => {}} />)
+
+    expect(screen.getByRole('button', { name: 'Edit Dinner' })).toHaveAccessibleDescription(/Paid ?7:30.*added .*Nov 15/)
+  })
+
+  it('does not break on a paid expense whose recorded time is unreadable', () => {
+    list([expense({ createdAt: 'Just now', paidAt: local(13, 19, 30) })])
+
+    expect(row('Dinner').querySelector('time')).toHaveTextContent(/7:30/)
+    expect(row('Dinner').querySelector('.expense-time-note')).toBeNull()
+  })
+
   it('groups a late-night payment under its local day', () => {
     list([expense({ createdAt: local(13, 23, 30) })])
 

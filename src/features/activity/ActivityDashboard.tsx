@@ -220,7 +220,7 @@ export function ExpenseList({ expenses, members, group, inactiveMembers = [], cu
     // The quieter second time: the last edit, or the day it was added when that isn't the day it was paid.
     const timeNote = expense.updatedAt
       ? localDayKey(expense.updatedAt, timeZone) ? t('expense.editedOn', { date: formatLocalizedDay(expense.updatedAt, locale, timeZone) }) : null
-      : paidTime && localDayKey(expense.createdAt, timeZone) !== localDayKey(paidAt, timeZone)
+      : paidTime && localDayKey(expense.createdAt, timeZone) && localDayKey(expense.createdAt, timeZone) !== localDayKey(paidAt, timeZone)
         ? t('expense.addedOn', { date: formatLocalizedDay(expense.createdAt, locale, timeZone) })
         : null
     const unknown = t('common.unknown')
@@ -235,6 +235,7 @@ export function ExpenseList({ expenses, members, group, inactiveMembers = [], cu
     const shareTone = viewerNet > 0 ? 'lent' : 'owe'
     const detailsId = `${rowIdPrefix}-${expense.id}-details`
     const amountId = `${rowIdPrefix}-${expense.id}-amount`
+    const timeId = `${rowIdPrefix}-${expense.id}-time`
     const content = <>
       <span className={`expense-icon${settlementPayment ? ' settlement-icon' : ''}`}>{settlementPayment ? <CircleDollarSign size={18} /> : <ReceiptText size={18} />}</span>
       <span className="row-copy">
@@ -244,7 +245,7 @@ export function ExpenseList({ expenses, members, group, inactiveMembers = [], cu
           {settlementPayment ? null : <small className="expense-details-compact" aria-hidden="true">{t('dashboard.paidAmount', { payer: payer.name, amount: money(expense.amount, currency, locale) })}</small>}
           {category?.id ? <span className="expense-category-label" style={{ '--category-color': category.color } as CSSProperties}><span className="category-dot" aria-hidden="true" />{categoryLabel(category, locale)}</span> : null}
         </span>
-        {paidTime ? <span className="expense-time-line"><time dateTime={paidAt}>{paidTime}</time>{timeNote ? <small className="expense-time-note">{timeNote}</small> : null}</span> : null}
+        {paidTime ? <span className="expense-time-line" id={timeId}><time dateTime={paidAt}><span className="visually-hidden">{t('expense.paidWord')} </span>{paidTime}</time>{timeNote ? <small className="expense-time-note">{timeNote}</small> : null}</span> : null}
         {removedNames.length && !settlementPayment ? <small>{t('members.historyIncludes', { names: removedNames.join(', ') })}</small> : null}
       </span>
       <span className="expense-amount" id={amountId}><b>{money(expense.amount, currency, locale)}</b>{viewerNet ? <small className={`expense-share expense-share--${shareTone}`}>{t(viewerShareKey, { name: currentUserLabel ?? '', amount: money(viewerNet, currency, locale) })}</small> : null}</span>
@@ -252,7 +253,7 @@ export function ExpenseList({ expenses, members, group, inactiveMembers = [], cu
     </>
     const rowClass = `activity-row expense-entry${settlementPayment ? ' settlement-payment-row' : ''}${viewerNet ? ' expense-entry--has-share' : ''}`
     if (!readOnly && !settlementPayment && onEditExpense) {
-      return <button type="button" className={`${rowClass} expense-entry--editable`} key={expense.id} title={timestampLabel} aria-label={t('dashboard.editExpense', { title: expense.title })} aria-describedby={`${detailsId} ${amountId}`} onClick={() => onEditExpense(expense)}>{content}</button>
+      return <button type="button" className={`${rowClass} expense-entry--editable`} key={expense.id} title={timestampLabel} aria-label={t('dashboard.editExpense', { title: expense.title })} aria-describedby={`${detailsId} ${amountId}${paidTime ? ` ${timeId}` : ''}`} onClick={() => onEditExpense(expense)}>{content}</button>
     }
     return (
       <div className={rowClass} key={expense.id} title={timestampLabel}>

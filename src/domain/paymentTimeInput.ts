@@ -7,8 +7,11 @@ export function toPaymentTimeInput(iso: string) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
-/** The stored time for a date-and-time field's local value, or null when it is empty or unreadable. */
+const EARLIEST = Date.UTC(1970, 0, 1)
+const LATEST = Date.UTC(2101, 0, 1)
+
+/** The stored time for a date-and-time field's local value, or null when it is empty, unreadable, or a year no one means (a half-typed "0002"). */
 export function fromPaymentTimeInput(value: string) {
-  const date = new Date(value)
-  return value && !Number.isNaN(date.getTime()) ? date.toISOString() : null
+  const time = new Date(value).getTime()
+  return value && time >= EARLIEST && time < LATEST ? new Date(time).toISOString() : null
 }

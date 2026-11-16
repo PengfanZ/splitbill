@@ -188,7 +188,7 @@ An expense has two times: when it was recorded in Tally and when it was paid.
 - **`date` sets the payment time only.** It is stored as the expense's `paidAt`; a date without a time is kept at midday UTC so it lands on the same day in nearly every time zone. The record time (`createdAt`) is never rewritten. On `update_expense`, leaving `date` out keeps the payment time as it was.
 - **Reading.** Each expense's `date` is the day it was paid. `recordedOn` is added only when the expense was recorded on a different day, so an agent can tell a late entry from one entered the day it was paid.
 - **Filters, order and duplicates.** `get_activity`'s `from` and `to`, its latest-first order, and the duplicate check in `add_expenses` all use the payment day.
-- **Earlier versions.** Before `paidAt` existed, `date` moved `createdAt` itself. Those expenses keep that date, have no `paidAt` and show no `recordedOn`. Package versions published before this change still write dates that way, and the app reads them the same.
+- **Earlier versions.** Before `paidAt` existed, `date` moved `createdAt` itself. Those expenses keep that date, have no `paidAt` and show no `recordedOn`. Package versions published before this change still write and read dates that way. That is correct for expenses without a `paidAt`; on an expense that has one, an older package changes the record time, not the payment time, and reads the record day. Update the package to get the behavior above.
 
 **Conflicts:**
 - **Additions rebase automatically.** If someone else saved first, the server reloads, re-applies the additions and retries a bounded number of times. Appending cannot overwrite anyone's work.

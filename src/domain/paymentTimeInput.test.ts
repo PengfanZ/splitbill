@@ -21,4 +21,12 @@ describe('payment time input', () => {
     expect(fromPaymentTimeInput('')).toBeNull()
     expect(fromPaymentTimeInput('nope')).toBeNull()
   })
+
+  it('rejects a half-typed or far-off year', () => {
+    expect(fromPaymentTimeInput('0002-11-13T19:30')).toBeNull()
+    expect(fromPaymentTimeInput('1969-06-01T00:00')).toBeNull()
+    expect(fromPaymentTimeInput('2101-01-01T00:00')).toBeNull()
+    expect(fromPaymentTimeInput('1970-01-02T00:00')).not.toBeNull()
+    expect(fromPaymentTimeInput('2100-12-30T00:00')).not.toBeNull()
+  })
 })

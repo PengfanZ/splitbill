@@ -193,6 +193,8 @@ export function ExpenseModal({ group, members: allMembers, expense, categoryExpe
   const displayName = (member: Member) => isInactiveMember(group, member.id) ? t('members.inactiveName', { name: member.name }) : member.name
   const [amount, setAmount] = useState(expense ? expense.amount.toString() : '')
   const paymentTime = usePaymentTimeField(expense ? expensePaidAt(expense) : createExpenseTimestamp())
+  // Batch drafts have no Paid on field, so a value left empty on the manual tab must not block them.
+  const paidOnValid = paymentTime.valid || editingBatchIndex !== null
   const [payerId, setPayerId] = useState(expense?.payerId ?? (members.some(member => member.id === currentMemberId) ? currentMemberId! : members[0]?.id ?? 'me'))
   const [method, setMethod] = useState<SplitMethod>(expense?.splitMethod ?? 'equal')
   // New expenses start with a one-line summary of who paid and how it splits; edits and AI drafts show every detail.
@@ -306,7 +308,7 @@ export function ExpenseModal({ group, members: allMembers, expense, categoryExpe
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    if (!title.trim() || numericAmount <= 0 || !splitValid || !categoryValid || !paymentTime.valid) return
+    if (!title.trim() || numericAmount <= 0 || !splitValid || !categoryValid || !paidOnValid) return
     if (editingBatchIndex !== null) {
       const draft = createAiDraftFromValues({
         amount: numericAmount,
@@ -483,7 +485,7 @@ export function ExpenseModal({ group, members: allMembers, expense, categoryExpe
           </div>
         ) : null}
         {expense ? <div className="split-note edit-note"><Pencil size={17} /><span>{method === 'equal' ? t('expense.editEqualNote') : t('expense.editExactNote', { count: members.length })}</span></div> : null}
-        <div className="modal-actions">{expense && onDelete ? <Button variant="ghost" className="expense-delete-action" onClick={onDelete}><Trash2 size={16} />{t('expense.delete')}</Button> : null}<Button className={editingBatchIndex === null ? 'modal-cancel' : undefined} onClick={editingBatchIndex === null ? onClose : () => { setEditingBatchIndex(null); setEntryMode('ai-batch') }}>{t(editingBatchIndex === null ? 'common.cancel' : 'expense.batchBack')}</Button><Button variant="primary" type="submit" disabled={!splitValid || !categoryValid || !paymentTime.valid || saving}>{t(editingBatchIndex === null ? (expense ? 'expense.saveChanges' : 'expense.save') : 'expense.batchUpdate')}</Button></div>
+        <div className="modal-actions">{expense && onDelete ? <Button variant="ghost" className="expense-delete-action" onClick={onDelete}><Trash2 size={16} />{t('expense.delete')}</Button> : null}<Button className={editingBatchIndex === null ? 'modal-cancel' : undefined} onClick={editingBatchIndex === null ? onClose : () => { setEditingBatchIndex(null); setEntryMode('ai-batch') }}>{t(editingBatchIndex === null ? 'common.cancel' : 'expense.batchBack')}</Button><Button variant="primary" type="submit" disabled={!splitValid || !categoryValid || !paidOnValid || saving}>{t(editingBatchIndex === null ? (expense ? 'expense.saveChanges' : 'expense.save') : 'expense.batchUpdate')}</Button></div>
       </form> : null}
     </ModalShell>
   )
