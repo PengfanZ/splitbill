@@ -26,6 +26,7 @@
 .expense-entry .expense-category-label { max-width: 100%; line-height: 1.4; }
 .expense-entry .row-copy .expense-details-compact, .expense-share-compact { display: none; }
 .activity-list .expense-icon { width: 40px; height: 40px; border-radius: 12px; }
+.expense-entry .expense-icon { align-self: start; }
 .expense-share-compact { grid-column: 3; justify-items: end; gap: 1px; text-align: right; }
 .expense-share-compact small { font-size: 12px; }
 .expense-share-compact b { font-size: 16px; font-variant-numeric: tabular-nums; }
