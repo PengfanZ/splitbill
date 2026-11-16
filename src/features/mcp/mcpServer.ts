@@ -54,7 +54,7 @@ const titleSchema = z.string().describe('What it was for, in the user\'s words.'
 const amountSchema = z.number().describe('The total, in the activity\'s currency, with at most two decimals.')
 const payerSchema = z.string().describe('Who paid: a member name or id from get_activity.')
 const categorySchema = z.string().describe('A category name from get_activity. Omit for General.')
-const expenseDateSchema = z.string().describe('When it was paid, as YYYY-MM-DD. Leave it out unless the user said when; left out, the payment time is the time it is recorded.')
+const expenseDateSchema = z.string().describe('When it was paid, as a date and time in the user\'s local time, like 2026-11-13T19:30. Leave it out unless the user said when; left out, the payment time is the time it is recorded. A day alone is not accepted: ask the user for the time.')
 const expenseSchema = z.object({
   title: titleSchema,
   amount: amountSchema,

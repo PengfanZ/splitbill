@@ -185,10 +185,11 @@ Each tool saves immediately, as one revision, and returns what it saved, in a fo
 An expense has two times: when it was recorded in Tally and when it was paid.
 
 - **Default.** Unless the user says when something was paid, the agent leaves `date` out and the payment time is the time it is recorded. Nothing extra is stored. Each tool's `date` description tells the agent this.
-- **`date` sets the payment time only.** It is stored as the expense's `paidAt`; a date without a time is kept at midday UTC so it lands on the same day in nearly every time zone. The record time (`createdAt`) is never rewritten. On `update_expense`, leaving `date` out keeps the payment time as it was.
+- **`date` needs a time.** It is a date and time such as `2026-11-13T19:30`, read in the local time of the machine the server runs on unless it carries an offset. A day alone is refused with a message telling the agent to ask the user for the time, so Tally never shows a clock time nobody gave.
+- **`date` sets the payment time only.** It is stored as the expense's `paidAt`. The record time (`createdAt`) is never rewritten. On `update_expense`, leaving `date` out keeps the payment time as it was.
 - **Reading.** Each expense's `date` is the day it was paid. `recordedOn` is added only when the expense was recorded on a different day, so an agent can tell a late entry from one entered the day it was paid.
 - **Filters, order and duplicates.** `get_activity`'s `from` and `to`, its latest-first order, and the duplicate check in `add_expenses` all use the payment day.
-- **Earlier versions.** Before `paidAt` existed, `date` moved `createdAt` itself. Those expenses keep that date, have no `paidAt` and show no `recordedOn`. Package versions published before this change still write and read dates that way. That is correct for expenses without a `paidAt`; on an expense that has one, an older package changes the record time, not the payment time, and reads the record day. Update the package to get the behavior above.
+- **Earlier versions.** Before `paidAt` existed, `date` moved `createdAt` itself and a day alone was stored at midday UTC. Those expenses keep that date, have no `paidAt` and show no `recordedOn`. Package versions published before this change still write and read dates that way. That is correct for expenses without a `paidAt`; on an expense that has one, an older package changes the record time, not the payment time, and reads the record day. Update the package to get the behavior above.
 
 **Conflicts:**
 - **Additions rebase automatically.** If someone else saved first, the server reloads, re-applies the additions and retries a bounded number of times. Appending cannot overwrite anyone's work.

@@ -56,6 +56,7 @@ export type CreateActivityInput = {
 const toCents = (amount: number) => Math.round(amount * 100)
 const fromCents = (cents: number) => cents / 100
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
+const DATE_TIME = /^(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}/
 
 export function activityMembers(activity: SharedActivity): Member[] {
   return [activity.sender, ...activity.friends]
@@ -95,16 +96,22 @@ function resolveCategoryId(activity: SharedActivity, reference: string | undefin
   return category.id
 }
 
-/** The payment time for a date the user gave. Without one, nothing is stored and the payment time is the time it was recorded. */
+/**
+ * The payment time for a date and time the user gave. A day alone is refused, so a clock time is never made up.
+ * A time without an offset is read in this machine's zone, which is the user's.
+ */
 function paymentTimestamp(date: string) {
   const trimmed = date.trim()
-  const timestamp = DATE_ONLY.test(trimmed) ? `${trimmed}T12:00:00.000Z` : trimmed
-  const parsed = new Date(timestamp)
-  if (Number.isNaN(parsed.getTime()) || (DATE_ONLY.test(trimmed) && parsed.toISOString().slice(0, 10) !== trimmed)) {
-    throw new McpToolError(`"${date}" is not a valid date. Use YYYY-MM-DD.`)
+  if (DATE_ONLY.test(trimmed)) {
+    throw new McpToolError(`"${trimmed}" has no time. Give the date and time it was paid, like ${trimmed}T19:30, or leave date out to use now. Ask the user if you don't know the time.`)
   }
-  // Keep a date-only expense at midday UTC so it shows on the same day in nearly every time zone.
-  return DATE_ONLY.test(trimmed) ? timestamp : parsed.toISOString()
+  const day = DATE_TIME.exec(trimmed)?.[1]
+  const parsed = new Date(trimmed)
+  // Date accepts a day such as February 30 and rolls it into March, so check the calendar day separately.
+  if (!day || Number.isNaN(parsed.getTime()) || new Date(`${day}T00:00:00.000Z`).toISOString().slice(0, 10) !== day) {
+    throw new McpToolError(`"${date}" is not a valid date and time. Use a form like 2026-11-13T19:30.`)
+  }
+  return parsed.toISOString()
 }
 
 function assertCents(value: number, label: string) {

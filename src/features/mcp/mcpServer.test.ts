@@ -182,7 +182,7 @@ describe('Tally MCP server', () => {
         return (properties.date ?? properties.expenses.items!.properties.date).description
       }
       for (const name of ['add_expenses', 'record_settlement', 'update_expense']) {
-        expect(dateOf(name)).toBe('When it was paid, as YYYY-MM-DD. Leave it out unless the user said when; left out, the payment time is the time it is recorded.')
+        expect(dateOf(name)).toBe("When it was paid, as a date and time in the user's local time, like 2026-11-13T19:30. Leave it out unless the user said when; left out, the payment time is the time it is recorded. A day alone is not accepted: ask the user for the time.")
       }
     })
 
@@ -213,13 +213,13 @@ describe('Tally MCP server', () => {
   })
 
   describe('add_expenses', () => {
-    const ramen = { title: 'Ichiran ramen', amount: 3960, payer: 'Mia', split: { method: 'equal' }, date: '2026-09-20' }
+    const ramen = { title: 'Ichiran ramen', amount: 3960, payer: 'Mia', split: { method: 'equal' }, date: '2026-09-20T12:00:00Z' }
 
     it('saves new expenses in one change and skips ones already in Tally', async () => {
       const { call, live } = await connect()
       const { data } = await call('add_expenses', {
         activity: 'Tokyo trip',
-        expenses: [ramen, { title: 'Suica top-up', amount: 5000, payer: 'Mia', split: { method: 'equal' }, date: '2026-09-20' }],
+        expenses: [ramen, { title: 'Suica top-up', amount: 5000, payer: 'Mia', split: { method: 'equal' }, date: '2026-09-20T12:00:00Z' }],
       })
 
       expect(live.update).toHaveBeenCalledTimes(1)
@@ -237,7 +237,7 @@ describe('Tally MCP server', () => {
 
     it('does not write when every expense was a duplicate, unless duplicates are allowed', async () => {
       const { call, live } = await connect()
-      const suica = { title: 'Suica', amount: 5000, payer: 'Mia', split: { method: 'equal' }, date: '2026-09-20' }
+      const suica = { title: 'Suica', amount: 5000, payer: 'Mia', split: { method: 'equal' }, date: '2026-09-20T12:00:00Z' }
       expect((await call('add_expenses', { activity: 'Tokyo trip', expenses: [suica] })).data.saved).toEqual([])
       expect(live.update).not.toHaveBeenCalled()
       expect((await call('add_expenses', { activity: 'Tokyo trip', expenses: [suica], allowDuplicates: true })).data.saved).toHaveLength(1)
@@ -283,10 +283,18 @@ describe('Tally MCP server', () => {
     })
   })
 
+  it('refuses a day without a time instead of inventing one', async () => {
+    const { call, live } = await connect()
+    const lunch = { title: 'Lunch', amount: 1200, payer: 'Mia', split: { method: 'equal' }, date: '2026-09-20' }
+    expect((await call('add_expenses', { activity: 'Tokyo trip', expenses: [lunch] })).text).toBe('"2026-09-20" has no time. Give the date and time it was paid, like 2026-09-20T19:30, or leave date out to use now. Ask the user if you don\'t know the time.')
+    expect((await call('record_settlement', { activity: 'Tokyo trip', from: 'Leo', to: 'Mia', amount: 1000, date: '2026-09-25' })).isError).toBe(true)
+    expect(live.update).not.toHaveBeenCalled()
+  })
+
   describe('record_settlement', () => {
     it('records a payment and reports how balances moved', async () => {
       const { call, live } = await connect()
-      const { data } = await call('record_settlement', { activity: 'Tokyo trip', from: 'Leo', to: 'Mia', amount: 1000, date: '2026-09-25' })
+      const { data } = await call('record_settlement', { activity: 'Tokyo trip', from: 'Leo', to: 'Mia', amount: 1000, date: '2026-09-25T12:00:00Z' })
       expect(data.saved).toMatchObject({ id: 'payment-1', kind: 'settlement', title: 'Settlement payment', amount: 1000, paidBy: 'Leo', date: '2026-09-25', split: [{ member: 'Mia', amount: 1000 }] })
       expect(data.balanceChanges).toEqual([{ member: 'Mia', change: -1000 }, { member: 'Leo', change: 1000 }])
       expect(data).toMatchObject({ activity: 'Tokyo trip', you: 'Leo' })
