@@ -20,7 +20,8 @@
 .expense-time-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; color: var(--ink); font-size: 12px; line-height: 1.6; }
 .expense-entry .row-copy .expense-time-note { color: var(--muted); font-size: 11px; }
 .expense-entry .expense-amount { text-align: right; }
-.expense-entry .expense-amount b { font-size: 16px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+/* Amounts never break mid-number; the title column gives up the space instead. */
+.expense-entry .expense-amount b { font-size: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .expense-entry .expense-share { display: block; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .expense-entry .expense-share--lent { color: var(--green); }
 .expense-entry .expense-share--owe { color: var(--coral-ink); }
@@ -32,7 +33,7 @@
 .expense-entry .row-copy, .expense-entry .expense-amount, .expense-share-compact { align-self: first baseline; }
 .expense-share-compact { grid-column: 3; justify-items: end; gap: 1px; text-align: right; }
 .expense-share-compact small { font-size: 12px; }
-.expense-share-compact b { font-size: 16px; font-variant-numeric: tabular-nums; }
+.expense-share-compact b { font-size: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .expense-share-compact--lent { color: var(--green); }
 .expense-share-compact--owe { color: var(--coral-ink); }
 @media (max-width: 720px) {
@@ -43,6 +44,5 @@
 }
 @media (max-width: 600px) {
   .activity-row.expense-entry { grid-template-columns: 36px minmax(0, 1fr) auto; gap: 2px 12px; padding: 10px 0; }
-  .expense-entry .expense-amount { max-width: 130px; }
   .expense-split-method { display: none; }
 }

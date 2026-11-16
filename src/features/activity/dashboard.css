@@ -137,11 +137,15 @@
   .group-meta { margin-top: 10px; }
   .group-title .group-meta p { display: none; }
   .balance-card { margin: 18px 0 16px; padding: 16px; }
-  .balance-card-main { flex-wrap: nowrap; gap: 12px; }
-  .balance-card-balance > strong { font-size: clamp(34px, 11vw, 44px); }
-  .balance-card-stats { flex-direction: column; align-items: flex-end; gap: 4px; }
-  .balance-card-stats > div { display: flex; align-items: baseline; justify-content: flex-end; gap: 6px; }
-  .balance-card-stats dd { font-size: 13px; }
+  /* Stats sit beside the balance when they fit and wrap below it when amounts are long. */
+  .balance-card-main { gap: 12px 16px; }
+  .balance-card-balance { min-width: 0; }
+  .balance-card-balance > strong { font-size: clamp(34px, 11vw, 44px); overflow-wrap: anywhere; }
+  /* Two columns so labels and amounts each line up from row to row. */
+  .balance-card-stats { display: grid; grid-template-columns: auto auto; align-items: baseline; gap: 4px 10px; }
+  .balance-card-stats > div { display: contents; }
+  .balance-card-stats dt { white-space: nowrap; }
+  .balance-card-stats dd { font-size: 13px; text-align: right; white-space: nowrap; }
   .dashboard-tabs { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .dashboard-tab { padding-inline: 6px; }
   .dashboard-tab--balances { display: block; }

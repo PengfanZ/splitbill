@@ -430,6 +430,38 @@ test('keeps the expense action reachable on a short mobile viewport', async ({ p
   await expect(page.getByText('Mobile dinner')).toBeVisible()
 })
 
+test('keeps large amounts whole and inside the summary card on mobile', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 })
+  await page.goto('./')
+  await page.getByLabel('Display name').fill('Alex')
+  await page.getByRole('button', { name: 'Continue' }).click()
+  await page.getByRole('button', { name: 'Create an activity' }).click()
+  await page.getByLabel('Activity name').fill('Big budget')
+  await page.getByLabel(/Add friends/).fill('Maya')
+  await page.getByRole('button', { name: 'Create activity' }).click()
+  await page.getByRole('button', { name: 'Add expense' }).click()
+  await page.getByLabel('Description').fill('Venue')
+  await page.getByRole('spinbutton', { name: 'Amount' }).fill('123456789.12')
+  await page.getByRole('button', { name: 'Save expense' }).click()
+  await page.locator('.balance-card-settle').click()
+  await page.getByLabel('Payment amount').fill('1000000')
+  await page.getByRole('button', { name: 'Record payment' }).click()
+  await expect(page.getByRole('button', { name: 'Delete Maya payment to Alex' })).toBeVisible()
+
+  const layout = await page.evaluate(() => {
+    const card = document.querySelector('.balance-card')!.getBoundingClientRect()
+    const singleLine = (element: Element) => element.getClientRects().length === 1 && element.getBoundingClientRect().height < parseFloat(getComputedStyle(element).fontSize) * 2
+    return {
+      cardOverflow: Math.max(...Array.from(document.querySelectorAll('.balance-card strong, .balance-card dt, .balance-card dd')).map(element => element.getBoundingClientRect().right)) - card.right,
+      wrappedStats: Array.from(document.querySelectorAll('.balance-card dt, .balance-card dd')).filter(element => !singleLine(element)).map(element => element.textContent),
+      wrappedRowAmounts: Array.from(document.querySelectorAll('.expense-amount b, .expense-share-compact b')).filter(element => element.getClientRects().length && !singleLine(element)).map(element => element.textContent),
+    }
+  })
+  expect(layout.cardOverflow).toBeLessThanOrEqual(0)
+  expect(layout.wrappedStats).toEqual([])
+  expect(layout.wrappedRowAmounts).toEqual([])
+})
+
 test('keeps an activity currency across expenses, changes, and reloads', async ({ page }) => {
   await page.goto('./')
   await page.getByLabel('Display name').fill('Currency Tester')
