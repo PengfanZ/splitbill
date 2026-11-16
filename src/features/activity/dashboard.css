@@ -91,11 +91,6 @@
   .activity-rail .member-balance-bar { display: none; }
   .activity-rail .member-copy { gap: 0; }
   .balance-card-settle { display: none; }
-  .activity-row.expense-entry { grid-template-columns: 36px minmax(0, 1fr) 120px 160px; }
-  .expense-entry .expense-amount { display: contents; }
-  .expense-entry .expense-amount b, .expense-entry .expense-share { text-align: right; }
-  .expense-entry .expense-amount b { grid-column: 3; }
-  .expense-entry .expense-share { grid-column: 4; }
 }
 
 @media (hover: hover) and (min-width: 921px) {
@@ -156,7 +151,7 @@
   .dashboard:not(.dashboard--view-balances) .activity-rail { display: none; }
   .dashboard--view-balances .activity-rail { border-top: 0; padding-top: 0; }
   .workspace .dashboard--with-actions { padding-bottom: 92px; }
-  .group-primary-actions { position: fixed; right: 0; bottom: 0; left: 0; z-index: 25; padding: 12px 16px max(12px, env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--paper); }
+  .group-primary-actions { position: fixed; right: 0; bottom: 0; left: 0; z-index: 25; padding: 12px 20px max(12px, env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--paper); }
   .group-primary-actions .button { min-height: 52px; border-radius: 14px; font-size: 15px; }
   .group-actions .share-button { min-width: 52px; }
 }

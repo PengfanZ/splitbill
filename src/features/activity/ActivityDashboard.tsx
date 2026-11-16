@@ -255,12 +255,10 @@ export function ExpenseList({ expenses, members, group, inactiveMembers = [], cu
     if (!readOnly && !settlementPayment && onEditExpense) {
       return <button type="button" className={`${rowClass} expense-entry--editable`} key={expense.id} title={timestampLabel} aria-label={t('dashboard.editExpense', { title: expense.title })} aria-describedby={`${detailsId} ${amountId}${paidTime ? ` ${timeId}` : ''}`} onClick={() => onEditExpense(expense)}>{content}</button>
     }
-    return (
-      <div className={rowClass} key={expense.id} title={timestampLabel}>
-        {content}
-        {!readOnly && settlementPayment && onDeleteExpense ? <IconButton className="expense-delete" tone="danger" label={t('dashboard.deletePayment', { payer: payer.name, recipient: settlementRecipient?.name ?? unknown })} title={t('dashboard.deleteSettlementTitle')} onClick={() => onDeleteExpense(expense)}><Trash2 size={16} /></IconButton> : null}
-      </div>
-    )
+    if (!readOnly && settlementPayment && onDeleteExpense) {
+      return <button type="button" className={`${rowClass} expense-entry--editable`} key={expense.id} title={timestampLabel} aria-label={t('dashboard.deletePayment', { payer: payer.name, recipient: settlementRecipient?.name ?? unknown })} aria-describedby={`${detailsId} ${amountId}${paidTime ? ` ${timeId}` : ''}`} onClick={() => onDeleteExpense(expense)}>{content}</button>
+    }
+    return <div className={rowClass} key={expense.id} title={timestampLabel}>{content}</div>
   }
 
   return (

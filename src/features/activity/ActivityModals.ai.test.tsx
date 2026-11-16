@@ -74,8 +74,8 @@ describe('AI-assisted expense modal', () => {
         <ExpenseModal group={group} members={members} receiptClient={{ parse: vi.fn() }} onClose={vi.fn()} onSave={vi.fn()} />
       </LocalizationProvider>,
     )
-    expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Enter manually', 'Receipt'])
-    expect(screen.queryByRole('tab', { name: 'Describe with AI' })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Manual', 'Receipt'])
+    expect(screen.queryByRole('tab', { name: 'Describe' })).not.toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: 'Speak' })).not.toBeInTheDocument()
   })
 
@@ -83,13 +83,13 @@ describe('AI-assisted expense modal', () => {
     const user = userEvent.setup()
     const { onEntryTabSelect } = renderModal({ parseBatch: vi.fn() })
 
-    await user.click(screen.getByRole('tab', { name: 'Enter manually' }))
+    await user.click(screen.getByRole('tab', { name: 'Manual' }))
     expect(onEntryTabSelect).not.toHaveBeenCalled()
 
-    await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))
-    await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))
+    await user.click(screen.getByRole('tab', { name: 'Describe' }))
+    await user.click(screen.getByRole('tab', { name: 'Describe' }))
     await user.click(screen.getByRole('tab', { name: 'Speak' }))
-    await user.click(screen.getByRole('tab', { name: 'Enter manually' }))
+    await user.click(screen.getByRole('tab', { name: 'Manual' }))
 
     expect(onEntryTabSelect.mock.calls).toEqual([
       ['ai-text'],
@@ -114,15 +114,15 @@ describe('AI-assisted expense modal', () => {
     })
     const { onSave } = renderModal({ parseBatch })
 
-    expect(screen.getByRole('tab', { name: 'Enter manually' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'Manual' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByLabelText('Description')).toBeVisible()
-    await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))
+    await user.click(screen.getByRole('tab', { name: 'Describe' }))
     await user.type(screen.getByLabelText('Expense description'), 'Maya paid $30.01 for dinner with me')
     await user.click(screen.getByRole('button', { name: /Create draft/ }))
 
     expect(await screen.findByText('AI draft ready')).toBeVisible()
     expect(parseBatch).toHaveBeenCalledWith(expect.objectContaining({ viewerMemberId: 'me' }))
-    expect(screen.getByRole('tab', { name: 'Enter manually' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'Manual' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByLabelText('Description')).toHaveValue('Dinner')
     expect(screen.getByLabelText('Amount')).toHaveValue(30.01)
     expect(screen.getByRole('button', { name: 'Paid by' })).toHaveValue('maya')
@@ -159,7 +159,7 @@ describe('AI-assisted expense modal', () => {
         }],
       }),
     })
-    await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))
+    await user.click(screen.getByRole('tab', { name: 'Describe' }))
     await user.type(screen.getByLabelText('Expense description'), 'I paid $30 for tickets; I owe $10 and Maya owes $20')
     await user.click(screen.getByRole('button', { name: /Create draft/ }))
 
@@ -180,7 +180,7 @@ describe('AI-assisted expense modal', () => {
     renderModal({ parseBatch: vi.fn().mockResolvedValue({ status: 'ready_batch', drafts: [draft('Lunch'), draft('Groceries')] }) })
 
     fireEvent.change(screen.getByLabelText('Paid on'), { target: { value: '' } })
-    await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))
+    await user.click(screen.getByRole('tab', { name: 'Describe' }))
     await user.type(screen.getByLabelText('Expense description'), 'Lunch and groceries')
     await user.click(screen.getByRole('button', { name: /Create draft/ }))
     await user.click(await screen.findByRole('button', { name: 'Edit Lunch' }))
@@ -217,7 +217,7 @@ describe('AI-assisted expense modal', () => {
     })
     const { onSave, onSaveMany } = renderModal({ parseBatch })
 
-    await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))
+    await user.click(screen.getByRole('tab', { name: 'Describe' }))
     await user.type(
       screen.getByLabelText('Expense description'),
       'I paid $24 for lunch and Maya paid $46 for groceries. Split both between everyone.',
@@ -272,7 +272,7 @@ describe('AI-assisted expense modal', () => {
     renderModal({
       parseBatch: vi.fn().mockResolvedValue({ status: 'ready_batch', drafts: [draft, { ...draft, title: 'Dinner' }] }),
     })
-    await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))
+    await user.click(screen.getByRole('tab', { name: 'Describe' }))
     await user.type(screen.getByLabelText('Expense description'), 'I paid $24 for lunch and $24 for dinner with Maya')
     await user.click(screen.getByRole('button', { name: /Create draft/ }))
     await user.click(await screen.findByRole('button', { name: 'Remove Lunch' }))
@@ -308,7 +308,7 @@ describe('AI-assisted expense modal', () => {
         />
       </LocalizationProvider>,
     )
-    await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))
+    await user.click(screen.getByRole('tab', { name: 'Describe' }))
     await user.type(screen.getByLabelText('Expense description'), 'I paid $24 for lunch and $24 for dinner with Maya')
     await user.click(screen.getByRole('button', { name: 'Create draft' }))
     await user.click(await screen.findByRole('button', { name: 'Save 2 expenses' }))
@@ -323,9 +323,9 @@ describe('AI-assisted expense modal', () => {
     expect(screen.getByRole('tab', { name: 'Speak' })).toHaveAttribute('aria-selected', 'false')
     await user.click(screen.getByRole('tab', { name: 'Speak' }))
     expect(screen.getByText('Describe expenses out loud')).toBeVisible()
-    await user.click(screen.getByRole('tab', { name: 'Enter manually' }))
+    await user.click(screen.getByRole('tab', { name: 'Manual' }))
     expect(screen.getByLabelText('Description')).toBeVisible()
-    await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))
+    await user.click(screen.getByRole('tab', { name: 'Describe' }))
     expect(screen.getByLabelText('Expense description')).toBeVisible()
 
     const existing: Expense = {
@@ -343,7 +343,7 @@ describe('AI-assisted expense modal', () => {
         <ExpenseModal group={group} members={members} expense={existing} aiExpenseClient={client} onClose={vi.fn()} onSave={vi.fn()} />
       </LocalizationProvider>,
     )
-    expect(screen.queryByRole('tab', { name: 'Describe with AI' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Describe' })).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Edit expense' })).toBeVisible()
   })
 
@@ -376,7 +376,7 @@ describe('AI-assisted expense modal', () => {
       </LocalizationProvider>,
     )
 
-    await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))
+    await user.click(screen.getByRole('tab', { name: 'Describe' }))
     expect(screen.getByText('Choose who you are so Tally knows who “I” means.')).toBeVisible()
     expect(screen.queryByLabelText('Expense description')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Choose who you are' }))

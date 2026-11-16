@@ -65,13 +65,13 @@ describe('expense membership rules', () => {
     const parseBatch = vi.fn().mockResolvedValue({ status: 'needs_clarification', question: 'What was it for?' })
     const props = { group: removed, members, onSave: vi.fn(), onClose: vi.fn(), aiExpenseClient: { parseBatch }, onCurrentMemberChange: vi.fn() }
     const { rerender } = render(<ExpenseModal {...props} currentMemberId="maya" />)
-    for (const tab of ['Describe with AI', 'Speak']) {
+    for (const tab of ['Describe', 'Speak']) {
       await user.click(screen.getByRole('tab', { name: tab }))
       expect(screen.getByText('Choose who you are so Tally knows who “I” means.')).toBeVisible()
     }
     expect(parseBatch).not.toHaveBeenCalled()
     rerender(<ExpenseModal {...props} currentMemberId="me" />)
-    await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))
+    await user.click(screen.getByRole('tab', { name: 'Describe' }))
     await user.type(screen.getByLabelText('Expense description'), 'I paid 12 dollars for coffee, split equally.')
     await user.click(screen.getByRole('button', { name: /Create draft/ }))
     expect(parseBatch).toHaveBeenCalledWith(expect.objectContaining({ members: [{ id: 'me', name: CURRENT_USER.name }], viewerMemberId: 'me' }))
@@ -83,7 +83,7 @@ describe('expense membership rules', () => {
     const parseBatch = vi.fn().mockResolvedValue({ status: 'ready_batch', drafts: [draft, { ...draft, title: 'Coffee', payerId: 'me', participantIds: ['me'] }] })
     const props = { members, currentMemberId: 'me', aiExpenseClient: { parseBatch }, onSave: vi.fn(), onSaveMany: vi.fn(), onClose: vi.fn() }
     const { rerender } = render(<ExpenseModal {...props} group={group} />)
-    await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))
+    await user.click(screen.getByRole('tab', { name: 'Describe' }))
     await user.type(screen.getByLabelText('Expense description'), 'Maya paid 20 for lunch split equally, I paid 20 for coffee just for me.')
     await user.click(screen.getByRole('button', { name: /Create draft/ }))
     await screen.findByText('2 expense drafts ready')
