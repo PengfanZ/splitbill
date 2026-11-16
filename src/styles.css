@@ -297,8 +297,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .expense-icon { width: 35px; height: 35px; border-radius: 50%; display: grid; place-items: center; flex: 0 0 auto; }
 .expense-amount { display: grid; text-align: right; gap: 3px; }
 .expense-amount b { font-size: 13px; font-weight: 600; }
-.expense-delete { width: var(--control-height); height: var(--control-height); color: var(--neutral-control-icon); }
-.expense-delete:hover { color: var(--red); background: var(--red-soft); transform: translateY(-1px); }
 .empty-state { height: 180px; display: grid; place-items: center; align-content: center; color: var(--muted); gap: 8px; }
 .empty-state p { margin: 0; font-size: 13px; }
 
@@ -689,6 +687,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .source-link { color: var(--muted); display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; text-decoration: none; }
 .source-link:hover { color: var(--ink); }
 .source-link svg { flex: none; }
+/* Keeps the label on one line and lets a tag wrap beneath it in a narrow sidebar. */
+.source-link-label { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; white-space: nowrap; }
 .changelog-link, .feedback-link, .agent-guide-link { width: 100%; border: 0; background: transparent; padding: 0; text-align: left; }
 .feedback-link { color: var(--ink); }
 .feedback-link svg { color: var(--coral); }

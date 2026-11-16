@@ -12,7 +12,7 @@ async function openReceiptFlow(page: Page, activityName: string) {
   await page.getByLabel(/Add friends/).fill('Maya')
   await page.getByRole('button', { name: 'Create activity' }).click()
   await page.getByRole('button', { name: 'Add expense' }).click()
-  await expect(page.getByRole('tab', { name: 'Enter manually' })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByRole('tab', { name: 'Manual' })).toHaveAttribute('aria-selected', 'true')
   await page.getByRole('tab', { name: 'Receipt' }).click()
   await expect(page.getByRole('heading', { name: 'Split a receipt' })).toBeVisible()
 }

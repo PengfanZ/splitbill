@@ -2,7 +2,8 @@
 .expense-day:first-child .expense-day-heading { margin-top: 12px; }
 .activity-row.expense-entry {
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) minmax(80px, auto) auto;
+  /* One right-aligned amount column, with the viewer's share stacked under the amount, so amounts line up across rows. */
+  grid-template-columns: 36px minmax(0, 1fr) auto;
   align-items: center;
   gap: 4px 14px;
   padding: 10px 8px;
@@ -26,6 +27,9 @@
 .expense-entry .expense-category-label { max-width: 100%; line-height: 1.4; }
 .expense-entry .row-copy .expense-details-compact, .expense-share-compact { display: none; }
 .activity-list .expense-icon { width: 40px; height: 40px; border-radius: 12px; }
+.expense-entry .expense-icon { align-self: start; }
+/* Amounts sit on the title's first line, matching the top-aligned icon. */
+.expense-entry .row-copy, .expense-entry .expense-amount, .expense-share-compact { align-self: first baseline; }
 .expense-share-compact { grid-column: 3; justify-items: end; gap: 1px; text-align: right; }
 .expense-share-compact small { font-size: 12px; }
 .expense-share-compact b { font-size: 16px; font-variant-numeric: tabular-nums; }
@@ -41,5 +45,4 @@
   .activity-row.expense-entry { grid-template-columns: 36px minmax(0, 1fr) auto; gap: 2px 12px; padding: 10px 0; }
   .expense-entry .expense-amount { max-width: 130px; }
   .expense-split-method { display: none; }
-  .expense-entry .expense-delete { grid-column: 3; justify-self: end; }
 }

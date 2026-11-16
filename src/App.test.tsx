@@ -658,8 +658,16 @@ describe('small UI building blocks', () => {
     expect(screen.getByText('Maya Chen paid You')).toBeVisible()
     expect(screen.getByText('Settlement payment')).toBeVisible()
     expect(screen.queryByRole('button', { name: /Edit/ })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Delete Maya Chen payment to You' }))
+    const paymentRow = screen.getByRole('button', { name: 'Delete Maya Chen payment to You' })
+    expect(paymentRow).toHaveClass('expense-entry', 'settlement-payment-row')
+    expect(paymentRow).toHaveTextContent('Maya Chen paid You')
+    expect(paymentRow).toHaveAttribute('title', expect.stringMatching(/^Paid /))
+    expect(document.querySelector('.expense-delete')).toBeNull()
+    expect(paymentRow.getAttribute('aria-describedby')).toMatch(/-time$/)
+    await user.click(paymentRow)
     expect(onDelete).toHaveBeenCalledWith(payment)
+    rerender(<ExpenseList expenses={[{ ...payment, createdAt: 'Just now' }]} members={[CURRENT_USER, maya]} query="" onEditExpense={onEdit} onDeleteExpense={onDelete} />)
+    expect(screen.getByRole('button', { name: 'Delete Maya Chen payment to You' }).getAttribute('aria-describedby')).not.toMatch(/-time/)
     rerender(<ExpenseList expenses={[payment]} members={[CURRENT_USER, maya]} query="you" onEditExpense={onEdit} onDeleteExpense={onDelete} />)
     expect(screen.getByText('Maya Chen paid You')).toBeVisible()
 
@@ -1262,7 +1270,7 @@ describe('complete app workflows', { timeout: 15_000 }, () => {
     render(<App analyticsClient={analyticsClient} aiExpenseClient={{ parseBatch }} />)
 
     await user.click(screen.getByRole('button', { name: 'Add expense' }))
-    await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))
+    await user.click(screen.getByRole('tab', { name: 'Describe' }))
     await user.type(
       screen.getByLabelText('Expense description'),
       'I paid $24 for lunch and Maya paid $46 for groceries. Split both between everyone.',
@@ -1582,7 +1590,7 @@ describe('complete app workflows', { timeout: 15_000 }, () => {
     ]))
 
     await user.click(screen.getByRole('button', { name: 'Add expense' }))
-    await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))
+    await user.click(screen.getByRole('tab', { name: 'Describe' }))
     await user.type(screen.getByLabelText('Expense description'), 'I paid $18 for coffee with Jordan')
     await user.click(screen.getByRole('button', { name: /Create draft/ }))
     await waitFor(() => expect(parseBatch).toHaveBeenCalledWith(expect.objectContaining({
@@ -1627,7 +1635,7 @@ describe('complete app workflows', { timeout: 15_000 }, () => {
 
     expect(await screen.findByText('Live · revision 1')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Add expense' }))
-    await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))
+    await user.click(screen.getByRole('tab', { name: 'Describe' }))
     await user.type(screen.getByLabelText('Expense description'), 'I paid $24 for lunch and Maya paid $46 for groceries')
     await user.click(screen.getByRole('button', { name: 'Create draft' }))
     await user.click(await screen.findByRole('button', { name: 'Save 2 expenses' }))
@@ -1652,7 +1660,7 @@ describe('complete app workflows', { timeout: 15_000 }, () => {
 
     update.mockRejectedValueOnce(new LiveActivityApiError('network', 'offline'))
     await user.click(screen.getByRole('button', { name: 'Add expense' }))
-    await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))
+    await user.click(screen.getByRole('tab', { name: 'Describe' }))
     await user.type(screen.getByLabelText('Expense description'), 'I paid $24 for lunch and Maya paid $46 for groceries')
     await user.click(screen.getByRole('button', { name: 'Create draft' }))
     await user.click(await screen.findByRole('button', { name: 'Save 2 expenses' }))
@@ -2702,7 +2710,7 @@ describe('in-app feedback integration', () => {
 
   async function requestAiDraft(user: UserEvent) {
     await user.click(screen.getByRole('button', { name: 'Add expense' }))
-    await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))
+    await user.click(screen.getByRole('tab', { name: 'Describe' }))
     await user.type(screen.getByLabelText('Expense description'), 'I paid $20 for noodles, split with Maya')
     await user.click(screen.getByRole('button', { name: 'Create draft' }))
   }
@@ -2769,7 +2777,7 @@ describe('in-app feedback integration', () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(storedState()))
     render(<App aiExpenseClient={{ parseBatch }} feedbackClient={{ submit: vi.fn() }} />)
     await user.click(screen.getByRole('button', { name: 'Add expense' }))
-    await user.click(screen.getByRole('tab', { name: 'Describe with AI' }))
+    await user.click(screen.getByRole('tab', { name: 'Describe' }))
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(screen.queryByLabelText('How was Tally?')).not.toBeInTheDocument()
     expect(parseBatch).not.toHaveBeenCalled()

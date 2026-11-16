@@ -97,7 +97,7 @@ export function Sidebar({ groups, selectedId, liveActivityCodes = EMPTY_LIVE_ACT
             <MessageSquareText size={16} />{t('nav.sendFeedback')}
           </button>
           <button className="source-link agent-guide-link" onClick={() => { onShowAgentGuide(); setMobileOpen(false) }}>
-            <SquareTerminal size={16} />{t('nav.useWithAgents')}<ExperimentalTag />
+            <SquareTerminal size={16} /><span className="source-link-label">{t('nav.useWithAgents')}<ExperimentalTag /></span>
           </button>
           <a className="source-link" href="https://github.com/PengfanZ/splitbill" target="_blank" rel="noreferrer"><Github size={16} />{t('nav.sourceCode')}</a>
           {groups.length ? <button className="reset-button" onClick={onReset}>{t('nav.resetData')}</button> : null}
