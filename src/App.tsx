@@ -1,6 +1,6 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { CheckCircle2 } from 'lucide-react'
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import type { AnalyticsClient, AnalyticsEvent, AnalyticsSurface } from './analytics'
 import { FreshStart, Sidebar, Topbar } from './components/AppShell'
 import { ConfirmDialog } from './components/ConfirmDialog'
@@ -56,6 +56,9 @@ import type { AgentGuideTarget } from './features/mcp/AgentGuideModal'
 import { isAgentGuideHash } from './features/mcp/agentGuideState'
 import { BrowserToPwaHandoff, JoinActivityModal } from './features/sharing/JoinActivityModal'
 import { isStandalonePwa } from './pwa/displayMode'
+import { useInstallGuide } from './pwa/installGuide'
+import { isInstallPromptPending, markInstallPromptDone, markInstallPromptPending } from './pwa/installPromptState'
+import { InstallPromptCard, type InstallPromptOutcome } from './features/install/InstallPromptCard'
 import { LiveActivityIdentityModal, type LiveActivityIdentityMode } from './features/sharing/LiveActivityIdentityModal'
 import {
   getSharedActivitySender,
@@ -141,6 +144,17 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
     t,
   })
   const analyticsSurface: AnalyticsSurface = live.credentials ? 'live' : 'local'
+  const installGuide = useInstallGuide()
+  const [installPromptPending, setInstallPromptPending] = useState(() => isInstallPromptPending())
+  const trackInstallPromptShown = useCallback(
+    () => analyticsClient?.track('install_prompt_shown', analyticsSurface, locale),
+    [analyticsClient, analyticsSurface, locale],
+  )
+  const closeInstallPrompt = (outcome: InstallPromptOutcome) => {
+    markInstallPromptDone()
+    setInstallPromptPending(false)
+    analyticsClient?.track(outcome === 'accepted' ? 'install_prompt_accepted' : 'install_prompt_dismissed', analyticsSurface, locale)
+  }
   const trackAgentEvent = (event: AnalyticsEvent) => analyticsClient?.track(event, analyticsSurface, locale)
 
   useEffect(() => {
@@ -361,6 +375,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
   const createGroup = (name: string, friendNames: string[], currency: CurrencyCode) => {
     setState(current => createLocalActivity(current, name, friendNames, currency))
     analyticsClient?.track('activity_created', 'local', locale)
+    setInstallPromptPending(markInstallPromptPending())
     if (friendNames.length > 0) analyticsClient?.track('friend_added', 'local', locale)
     setModal(null)
   }
@@ -676,6 +691,7 @@ function LocalizedApp({ aiExpenseClient = null, analyticsClient = null, feedback
             unit: t(displayedMemberCount === 1 ? 'common.person' : 'common.people'),
           }) : undefined}
         />
+        {installPromptPending && installGuide ? <InstallPromptCard guide={installGuide} onShown={trackInstallPromptShown} onClose={closeInstallPrompt} /> : null}
         {live.credentials && !isStandalonePwa() ? <BrowserToPwaHandoff url={window.location.href} /> : null}
         {live.credentials ? (
           <>

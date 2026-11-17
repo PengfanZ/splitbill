@@ -49,6 +49,9 @@ export const ANALYTICS_EVENTS = [
   'agent_link_requested',
   'agent_link_allowed',
   'agent_link_denied',
+  'install_prompt_shown',
+  'install_prompt_dismissed',
+  'install_prompt_accepted',
 ] as const
 
 export type AnalyticsEvent = typeof ANALYTICS_EVENTS[number]

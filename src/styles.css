@@ -619,6 +619,17 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .pwa-handoff b { font-size: 12px; }
 .pwa-handoff small { color: var(--muted); font-size: 12px; line-height: 1.45; }
 .pwa-handoff button { min-height: 38px; white-space: nowrap; }
+.install-prompt { margin: 14px 36px 0; padding: 12px 14px; border: 1px solid var(--subtle-border); border-radius: 12px; background: var(--surface-subtle); display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.install-prompt > div:first-child { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+.install-prompt > div:first-child > svg { color: var(--green); flex: 0 0 auto; }
+.install-prompt span { display: grid; gap: 3px; min-width: 0; }
+.install-prompt b { font-size: 12px; }
+.install-prompt small { color: var(--muted); font-size: 12px; line-height: 1.45; }
+.install-prompt ol { margin: 4px 0 2px; padding-left: 18px; color: var(--ink); font-size: 12px; line-height: 1.6; }
+.install-prompt li svg { vertical-align: -2px; color: var(--muted); }
+.install-prompt .install-prompt-step { margin: 2px 0; color: var(--ink); }
+.install-prompt-actions { display: flex; gap: 8px; flex: 0 0 auto; }
+.install-prompt button { min-height: 38px; white-space: nowrap; }
 
 .changelog { display: grid; gap: 20px; }
 .changelog-release { display: grid; gap: 7px; }
@@ -1047,6 +1058,8 @@ html[data-theme='dark'] .fresh-illustration i:nth-of-type(3) { background: #9f82
   .live-status-actions button:only-child { grid-column: 1 / -1; }
   .pwa-handoff { margin: 14px 18px 0; align-items: stretch; flex-direction: column; }
   .pwa-handoff button { width: 100%; }
+  .install-prompt { margin: 14px 18px 0; align-items: stretch; flex-direction: column; }
+  .install-prompt-actions button { flex: 1; }
   .activity-rail { display: block; }
   .modal--wide { width: calc(100vw - 24px); max-width: 430px; }
   .share-menu-copy small { font-size: 12px; }
