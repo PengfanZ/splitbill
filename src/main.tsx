@@ -6,6 +6,7 @@ import { createConfiguredGoogleAnalyticsClient } from './googleAnalytics'
 import { createConfiguredAiExpenseClient } from './features/aiExpense/aiExpenseApi'
 import { createConfiguredFeedbackClient } from './features/feedback/feedbackApi'
 import { createConfiguredReceiptClient } from './features/receiptSplit/receiptApi'
+import { captureInstallPrompt } from './pwa/installGuide'
 import { reloadOnServiceWorkerUpdate } from './pwa/serviceWorkerUpdates'
 import { isEmbeddedWindow, renderFrameProtection } from './security/frameProtection'
 import './styles.css'
@@ -17,6 +18,7 @@ if (!rootElement) throw new Error('Tally requires a root element')
 if (isEmbeddedWindow()) {
   renderFrameProtection(rootElement)
 } else {
+  captureInstallPrompt(window)
   const analyticsClient = combineAnalyticsClients(
     createConfiguredAnalyticsClient(),
     createConfiguredGoogleAnalyticsClient(),

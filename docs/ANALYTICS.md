@@ -54,6 +54,9 @@ The browser may send only these event names:
 - `agent_link_requested`
 - `agent_link_allowed`
 - `agent_link_denied`
+- `install_prompt_shown`
+- `install_prompt_dismissed`
+- `install_prompt_accepted`
 
 Category tracking records only the event name, local/live surface, locale, and existing
 pseudonymous session identifier—never category names/IDs, expense data, or activity links.
@@ -119,6 +122,14 @@ These measure the experimental **Use with AI agents** guide and the approval scr
   - `agent_link_denied`: on **Don’t allow** or closing the screen.
 
 A funnel of `agent_guide_opened_*` → `agent_install_copied_*` → `agent_link_requested` → `agent_link_allowed` shows how many sessions get from reading the guide to connecting an agent. Agents that create their own activities never show the approval screen, so `agent_link_*` undercounts connected agents. npm download counts for `tally-splitbill-mcp` give a separate view of installs.
+
+### Install prompt events
+
+After someone creates their first activity in a browser tab, Tally shows a one-time card that explains how to install it in that browser (see `src/pwa/installGuide.ts`). Safari can clear a site's storage after seven days of use without visiting it; installed Home Screen and Dock apps are exempt. The events carry only the event name, surface, locale and session hash: no browser, platform or activity data.
+
+- `install_prompt_shown`: once per page load while the card is visible.
+- `install_prompt_dismissed`: **Not now**, **Got it**, or closing Chromium's install dialog without installing.
+- `install_prompt_accepted`: Chromium reports the install dialog was accepted. Safari offers no such signal, so Home Screen and Dock installs are not counted.
 
 ## Google Analytics 4 (optional)
 

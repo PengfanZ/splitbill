@@ -5,8 +5,10 @@ const createRoot = vi.fn(() => ({ render }))
 const reloadOnServiceWorkerUpdate = vi.fn()
 const isEmbeddedWindow = vi.fn(() => false)
 const renderFrameProtection = vi.fn()
+const captureInstallPrompt = vi.fn()
 
 vi.mock('react-dom/client', () => ({ createRoot }))
+vi.mock('./pwa/installGuide', () => ({ captureInstallPrompt }))
 vi.mock('./pwa/serviceWorkerUpdates', () => ({ reloadOnServiceWorkerUpdate }))
 vi.mock('./security/frameProtection', () => ({ isEmbeddedWindow, renderFrameProtection }))
 
@@ -18,6 +20,7 @@ beforeEach(() => {
   isEmbeddedWindow.mockReset()
   isEmbeddedWindow.mockReturnValue(false)
   renderFrameProtection.mockClear()
+  captureInstallPrompt.mockClear()
   document.body.innerHTML = '<div id="root"></div>'
   Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: undefined })
 })
@@ -28,6 +31,7 @@ it('mounts the application at the root element', async () => {
   expect(render).toHaveBeenCalledOnce()
   expect(renderFrameProtection).not.toHaveBeenCalled()
   expect(reloadOnServiceWorkerUpdate).not.toHaveBeenCalled()
+  expect(captureInstallPrompt).toHaveBeenCalledWith(window)
 })
 
 it('reloads the mounted app when an active service worker is replaced', async () => {
